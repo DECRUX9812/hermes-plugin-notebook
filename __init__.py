@@ -248,6 +248,10 @@ def _cli_setup(parser) -> None:
     p.add_argument("notebook")
     p.add_argument("source_id")
 
+    p = sub.add_parser("refresh", help="re-fetch a url/file source in place")
+    p.add_argument("notebook")
+    p.add_argument("source_id")
+
     p = sub.add_parser("export", help="zip the whole notebook to plugin-data/exports")
     p.add_argument("notebook", nargs="?")
 
@@ -333,6 +337,8 @@ def _cli_run(args) -> int:
             print(json.dumps(json.loads(tools.notebook_update(payload)), indent=1, ensure_ascii=False))
         elif cmd == "rm-source":
             print(json.dumps(json.loads(tools.notebook_delete_source({"notebook": args.notebook, "source_id": args.source_id})), indent=1, ensure_ascii=False))
+        elif cmd == "refresh":
+            print(json.dumps(json.loads(tools.notebook_refresh({"notebook": args.notebook, "source_id": args.source_id})), indent=1, ensure_ascii=False))
         elif cmd == "export":
             print(json.dumps(json.loads(tools.notebook_export({"notebook": args.notebook or ""})), indent=1, ensure_ascii=False))
         elif cmd == "discover":
@@ -346,7 +352,7 @@ def _cli_run(args) -> int:
                 return 2
             print(json.dumps(json.loads(tools.notebook_delete({"notebook": args.notebook, "confirm": True})), indent=1))
         else:
-            print("usage: hermes notebook <list|new|add|ask|generate|audio|video|suggest|search|note|update|rm-source|export|discover|delete> ...")
+            print("usage: hermes notebook <list|new|add|ask|generate|audio|video|suggest|search|note|update|rm-source|refresh|export|discover|delete> ...")
             return 2
         return 0
     except Exception as exc:
