@@ -146,10 +146,16 @@ def notebook_discover(args: dict, **kw) -> str:
     try:
         data = json.loads(raw) if isinstance(raw, str) else raw
     except (ValueError, TypeError):
-        data = {"results": []}
-    results = data.get("results") if isinstance(data, dict) else None
+        raise RuntimeError(f"web_search returned non-JSON: {str(raw)[:200]}")
+    if not isinstance(data, dict):
+        raise RuntimeError("web_search returned unexpected payload")
+    if data.get("success") is False:
+        raise RuntimeError(f"web_search failed: {data.get('error') or 'unknown error'}")
+    # web_search shape: {"success": true, "data": {"web": [{title,url,description,position}]}}
+    inner = data.get("data") if isinstance(data.get("data"), dict) else data
+    results = inner.get("web") or inner.get("results") or []
     if not isinstance(results, list):
-        results = data if isinstance(data, list) else []
+        results = []
     # drop urls already in the notebook
     existing = {s.get("origin") for s in store.list_sources(nb_id)}
     cands = []
@@ -162,7 +168,7 @@ def notebook_discover(args: dict, **kw) -> str:
         cands.append({
             "title": str(r.get("title") or url)[:200],
             "url": url,
-            "snippet": str(r.get("snippet") or r.get("description") or "")[:400],
+            "snippet": str(r.get("description") or r.get("snippet") or "")[:400],
         })
     return runtime.ok(
         notebook=nb_id, query=query, candidates=cands,

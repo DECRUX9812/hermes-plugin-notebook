@@ -120,14 +120,25 @@ def test_export_tool():
 
 def test_discover_tool(monkeypatch):
     _mk()
+    # real web_search shape: {"success": true, "data": {"web": [...]}}
     monkeypatch.setattr(tools.runtime, "dispatch", lambda t, a, **k: json.dumps({
-        "results": [{"title": "Cool Page", "url": "https://x.com/a",
-                     "snippet": "great read"},
-                    {"title": "Already Have", "url": "pasted text", "snippet": ""}]}))
+        "success": True,
+        "data": {"web": [{"title": "Cool Page", "url": "https://x.com/a",
+                          "description": "great read", "position": 1},
+                         {"title": "Already Have", "url": "pasted text", "position": 2}]}}))
     out = json.loads(tools.notebook_discover({"notebook": "feat-nb", "query": "cell bio"}))
     assert out["ok"]
     urls = [c["url"] for c in out["candidates"]]
     assert "https://x.com/a" in urls
+    assert out["candidates"][0]["snippet"] == "great read"
+
+
+def test_discover_surfaces_search_failure(monkeypatch):
+    _mk()
+    monkeypatch.setattr(tools.runtime, "dispatch", lambda t, a, **k: json.dumps(
+        {"success": False, "error": "no provider configured"}))
+    with pytest.raises(RuntimeError, match="no provider"):
+        tools.notebook_discover({"notebook": "feat-nb", "query": "x"})
 
 
 def test_refresh_source_text_kind_errors():
