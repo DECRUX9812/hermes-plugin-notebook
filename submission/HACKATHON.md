@@ -46,7 +46,13 @@ the Hermes Marketplace.
 
 ## 3. Demo video (<90 seconds, public, on X)
 
-- [ ] Screen-record a tight flow — suggested 75s arc:
+- [x] Demo video RENDERED: `~/Desktop/GetBB x Hermes/videos/hermes-notebook-demo/renders/demo-final.mp4`
+      (88s, 1920x1080, ambient pad). Real plugin output: title → ingest with
+      auto-labels → cited ask → mind_map/slides/audio artifacts → install CTA.
+      Source project: same dir (`index.html` + `record.mjs`, re-recordable).
+- [ ] Post it on X tagging **@NousResearch** (upload the mp4), keep the URL
+- [ ] Upload the same video to YouTube/Loom as backup link
+- [ ] (Optional reference arc below if a re-record is needed:)
   1. (0–8s) "NotebookLM, but inside Hermes — and it talks back."
   2. (8–20s) `/notebook new` + drag in 2–3 real sources (a PDF + a link)
       — show auto-label chips appearing
