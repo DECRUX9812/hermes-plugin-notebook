@@ -8,13 +8,16 @@ the Hermes Marketplace.
 ## 1. Plugin repo — DONE (verify before submitting)
 
 - [x] Standalone repo: `github.com/DECRUX9812/hermes-plugin-notebook`
-- [x] `plugin.yaml` manifest v2, `provides_tools` matches the 8 registered tools
+- [x] `plugin.yaml` manifest v2, `provides_tools` matches the 9 registered tools
 - [x] `hermes plugins validate .` — all checks pass (manifest, capabilities,
       security scan, no core overrides)
-- [x] `hermes plugins doctor` — 8 tools registered, import clean
-- [x] 36 unit tests pass (`python -m pytest tests/ -q`)
+- [x] `hermes plugins doctor` — tools registered, import clean
+- [x] 42 unit tests pass (`python -m pytest tests/ -q`)
 - [x] E2E verified on live Hermes: create → add (auto-labels) → ask (cited) →
       generate quiz → suggest → audio overview (mp3 + transcript + MEDIA share)
+      → video overview (mp4, A/V streams verified in sync)
+- [x] Catalog landing assets: `assets/banner.png` + 6 real-output screenshots,
+      wired into `image:`/`screenshots:` in the catalog draft
 - [ ] Final review pass on README screenshots/GIFs (optional polish)
 - [ ] Tag a release `v0.1.0` on GitHub (optional but looks polished)
 
@@ -23,8 +26,9 @@ the Hermes Marketplace.
 - [ ] Copy `submission/hermes-notebook.catalog.yaml` →
       `plugin-catalog/hermes-notebook.yaml` in a fresh branch of
       `hermes-agent` (fork: `DECRUX9812/hermes-agent-contrib` already exists)
-- [ ] Replace `<PIN_SHA>` with `git -C ~/Code/hermes-plugin-notebook rev-parse HEAD`
-      (must be the final code commit — 40 hex chars)
+- [ ] `sha:` is already pinned to `05b3c11…` — bump it to
+      `git -C ~/Code/hermes-plugin-notebook rev-parse HEAD` if any code
+      changes land before submission (assets URLs must match the pin too)
 - [ ] `hermes plugins validate` runs in catalog CI at the pinned SHA — it must
       pass there (it already does locally)
 - [ ] PR title e.g. `plugin-catalog: add hermes-notebook`; body: what it does,
@@ -55,8 +59,10 @@ the Hermes Marketplace.
 
 ## Known limitations to mention if asked
 
-- Audio overview takes 1–3 min (per-segment neural TTS + ffmpeg); needs
-  network + ffmpeg on PATH.
+- Audio overview takes 1–3 min, video overview 3–6 min (per-segment neural
+  TTS + Pillow cards + ffmpeg); needs network + ffmpeg on PATH.
+- edge-tts is an unofficial Microsoft endpoint — it rate-limits; the plugin
+  retries per segment and degrades to a fallback voice rather than dying.
 - Context budgets are bounded (28k ask / 42k podcast chars); huge notebooks
   use head+tail digests for generation.
 - Scanned PDFs need OCR first; YouTube needs public captions.
