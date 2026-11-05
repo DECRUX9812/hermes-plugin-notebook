@@ -9,7 +9,7 @@
 
 name: hermes-notebook
 repo: https://github.com/DECRUX9812/hermes-plugin-notebook
-sha: "d18d2a38cef8d1cbf7e530c48ddedbc8154bf8bb"
+sha: "05b3c11014c4a3fbdd2b500ec4f4ff4d37ac2c30"
 version: "0.1.0"
 title: Hermes Notebook
 description: >-
@@ -38,16 +38,16 @@ maintainer: DECRUX9812
 tier: community
 category: tools
 requires_hermes: ">=0.22"
-docs_url: https://github.com/DECRUX9812/hermes-plugin-notebook/blob/d18d2a38cef8d1cbf7e530c48ddedbc8154bf8bb/README.md
+docs_url: https://github.com/DECRUX9812/hermes-plugin-notebook/blob/05b3c11014c4a3fbdd2b500ec4f4ff4d37ac2c30/README.md
 readme: true
-image: https://raw.githubusercontent.com/DECRUX9812/hermes-plugin-notebook/d18d2a38cef8d1cbf7e530c48ddedbc8154bf8bb/assets/banner.png
+image: https://raw.githubusercontent.com/DECRUX9812/hermes-plugin-notebook/05b3c11014c4a3fbdd2b500ec4f4ff4d37ac2c30/assets/banner.png
 screenshots:
-  - https://raw.githubusercontent.com/DECRUX9812/hermes-plugin-notebook/d18d2a38cef8d1cbf7e530c48ddedbc8154bf8bb/assets/shot-01-video-title.png
-  - https://raw.githubusercontent.com/DECRUX9812/hermes-plugin-notebook/d18d2a38cef8d1cbf7e530c48ddedbc8154bf8bb/assets/shot-02-video-beat.png
-  - https://raw.githubusercontent.com/DECRUX9812/hermes-plugin-notebook/d18d2a38cef8d1cbf7e530c48ddedbc8154bf8bb/assets/shot-03-audio.png
-  - https://raw.githubusercontent.com/DECRUX9812/hermes-plugin-notebook/d18d2a38cef8d1cbf7e530c48ddedbc8154bf8bb/assets/shot-04-ask.png
-  - https://raw.githubusercontent.com/DECRUX9812/hermes-plugin-notebook/d18d2a38cef8d1cbf7e530c48ddedbc8154bf8bb/assets/shot-05-sources.png
-  - https://raw.githubusercontent.com/DECRUX9812/hermes-plugin-notebook/d18d2a38cef8d1cbf7e530c48ddedbc8154bf8bb/assets/shot-06-artifacts.png
+  - https://raw.githubusercontent.com/DECRUX9812/hermes-plugin-notebook/05b3c11014c4a3fbdd2b500ec4f4ff4d37ac2c30/assets/shot-01-video-title.png
+  - https://raw.githubusercontent.com/DECRUX9812/hermes-plugin-notebook/05b3c11014c4a3fbdd2b500ec4f4ff4d37ac2c30/assets/shot-02-video-beat.png
+  - https://raw.githubusercontent.com/DECRUX9812/hermes-plugin-notebook/05b3c11014c4a3fbdd2b500ec4f4ff4d37ac2c30/assets/shot-03-audio.png
+  - https://raw.githubusercontent.com/DECRUX9812/hermes-plugin-notebook/05b3c11014c4a3fbdd2b500ec4f4ff4d37ac2c30/assets/shot-04-ask.png
+  - https://raw.githubusercontent.com/DECRUX9812/hermes-plugin-notebook/05b3c11014c4a3fbdd2b500ec4f4ff4d37ac2c30/assets/shot-05-sources.png
+  - https://raw.githubusercontent.com/DECRUX9812/hermes-plugin-notebook/05b3c11014c4a3fbdd2b500ec4f4ff4d37ac2c30/assets/shot-06-artifacts.png
 platforms: [linux, macos, windows]
 capabilities:
   provides_tools:
