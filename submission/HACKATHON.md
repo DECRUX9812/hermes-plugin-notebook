@@ -27,9 +27,12 @@ the Hermes Marketplace.
 
 ## 2. Catalog PR to NousResearch/hermes-agent
 
-- [ ] Copy `submission/hermes-notebook.catalog.yaml` →
-      `plugin-catalog/hermes-notebook.yaml` in a fresh branch of
-      `hermes-agent` (fork: `DECRUX9812/hermes-agent-contrib` already exists)
+- [~] Catalog branch READY: `plugin-catalog/hermes-notebook` pushed to
+      `DECRUX9812/hermes-agent-contrib` (commit 0bf3b7c, adds
+      `plugin-catalog/hermes-notebook.yaml`). PR creation via API is blocked
+      (GitHub FORBIDDEN — likely interaction limits on the account). Create it
+      in the browser:
+      https://github.com/NousResearch/hermes-agent/compare/main...DECRUX9812:hermes-agent-contrib:plugin-catalog/hermes-notebook
 - [ ] `sha:` is pinned to the final code commit — bump it to
       `git -C ~/Code/hermes-plugin-notebook rev-parse HEAD~0` (the commit that
       contains the code; a later docs-only commit is fine to leave unpinned)
