@@ -424,24 +424,50 @@ async def make_video_overview(notebook: str, *, length: Optional[str] = None,
     work = nb_dir / "artifacts" / f"_video_{stamp}"
     work.mkdir(parents=True, exist_ok=True)
 
-    # narration: single voice, slightly slower cinematic pace
+    # narration: single voice, slightly slower cinematic pace. edge-tts
+    # intermittently returns NoAudioReceived (throttle or a text it can't
+    # voice) — retry with a ladder: same voice w/o rate → fallback voice.
+    fallback_voice = str(runtime.config("audio_voice_host_b", default="en-US-EmmaNeural"))
+
+    def _clean(text: str) -> str:
+        # strip characters known to break edge-tts synthesis (emoji, controls,
+        # SSML-significant brackets) while keeping normal punctuation
+        text = re.sub(r"[\x00-\x1f\x7f<>\[\]{}|\\^`~]", " ", text)
+        text = re.sub(r"[\U0001F000-\U0001FAFF☀-➿]", "", text)
+        return re.sub(r"\s+", " ", text).strip()
+
     async def _narrate(text: str, out: Path):
         import edge_tts
-        for attempt in range(3):
-            try:
-                await edge_tts.Communicate(text, voice=voice, rate=rate).save(str(out))
-                return
-            except Exception:
-                if attempt == 2:
-                    raise
-                await asyncio.sleep(1.5 * (attempt + 1))
+        attempts = [
+            {"voice": voice, "rate": rate},
+            {"voice": voice},
+            {"voice": fallback_voice},
+        ]
+        last: Optional[Exception] = None
+        for kw in attempts:
+            for a in range(2):
+                try:
+                    await edge_tts.Communicate(_clean(text), **kw).save(str(out))
+                    return
+                except Exception as exc:  # noqa: BLE001 - service is flaky
+                    last = exc
+                    await asyncio.sleep(1.5 * (a + 1))
+        raise last or RuntimeError("TTS failed")
 
     sem = asyncio.Semaphore(int(runtime.config("audio_tts_concurrency", default=4)))
+
     async def _seg(i: int, seg: dict):
         out = work / f"seg_{i:03d}.mp3"
         async with sem:
             await _narrate(seg["text"], out)
-    await asyncio.gather(*[_seg(i, s) for i, s in enumerate(segs)])
+
+    results = await asyncio.gather(*[_seg(i, s) for i, s in enumerate(segs)],
+                                   return_exceptions=True)
+    errors = [(i, r) for i, r in enumerate(results) if isinstance(r, BaseException)]
+    if errors:
+        detail = "; ".join(f"seg {i} ({segs[i]['headline'][:30]!r}): {str(r)[:90]}"
+                           for i, r in errors[:3])
+        raise RuntimeError(f"TTS failed for {len(errors)}/{len(segs)} segments — {detail}")
 
     parts = [work / f"seg_{i:03d}.mp3" for i in range(len(segs))]
     durs = [_real_duration(p) for p in parts]

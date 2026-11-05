@@ -101,17 +101,31 @@ def _script_prompt(meta: dict, digest: str, length: str, focus: str) -> str:
     )
 
 
-async def _synth_segment(text: str, voice: str, out: Path, sem: asyncio.Semaphore) -> None:
+def _clean_tts_text(text: str) -> str:
+    """Strip characters known to break edge-tts synthesis."""
+    import re
+    text = re.sub(r"[\x00-\x1f\x7f<>\[\]{}|\\^`~]", " ", text)
+    text = re.sub(r"[\U0001F000-\U0001FAFF☀-➿]", "", text)
+    return re.sub(r"\s+", " ", text).strip()
+
+
+async def _synth_segment(text: str, voice: str, out: Path, sem: asyncio.Semaphore,
+                         fallback_voice: Optional[str] = None) -> None:
     import edge_tts
     async with sem:
-        for attempt in range(3):
-            try:
-                await edge_tts.Communicate(text, voice=voice).save(str(out))
-                return
-            except Exception:
-                if attempt == 2:
-                    raise
-                await asyncio.sleep(1.5 * (attempt + 1))
+        attempts = [{"voice": voice}]
+        if fallback_voice and fallback_voice != voice:
+            attempts.append({"voice": fallback_voice})
+        last: Optional[Exception] = None
+        for kw in attempts:
+            for a in range(2):
+                try:
+                    await edge_tts.Communicate(_clean_tts_text(text), **kw).save(str(out))
+                    return
+                except Exception as exc:  # noqa: BLE001 - edge-tts is flaky
+                    last = exc
+                    await asyncio.sleep(1.5 * (a + 1))
+        raise last or RuntimeError("TTS failed")
 
 
 def _concat_mp3(parts: list[Path], out_path: Path) -> None:
@@ -210,8 +224,9 @@ async def make_audio_overview(notebook: str, *, length: Optional[str] = None,
     tasks = []
     for i, seg in enumerate(segs):
         voice = voice_a if seg["speaker"] == "host_a" else voice_b
+        other = voice_b if seg["speaker"] == "host_a" else voice_a
         out = work / f"seg_{i:03d}.mp3"
-        tasks.append(_synth_segment(seg["text"], voice, out, sem))
+        tasks.append(_synth_segment(seg["text"], voice, out, sem, fallback_voice=other))
     results = await asyncio.gather(*tasks, return_exceptions=True)
     errors = [r for r in results if isinstance(r, BaseException)]
     if errors:
