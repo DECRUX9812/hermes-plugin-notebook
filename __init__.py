@@ -215,6 +215,8 @@ def _cli_setup(parser) -> None:
     p.add_argument("notebook", nargs="?")
     p.add_argument("kind", choices=list(artifacts.ALL_KINDS))
     p.add_argument("--focus", default="")
+    p.add_argument("--format", dest="fmt", default=None, choices=["md", "csv"],
+                   help="flashcards only: 'csv' writes an Anki-importable CSV instead of markdown")
 
     p = sub.add_parser("audio", help="generate a two-host audio overview (mp3)")
     p.add_argument("notebook", nargs="?")
@@ -284,6 +286,8 @@ def _cli_run(args) -> int:
             print(json.dumps(json.loads(tools.notebook_ask(payload)), indent=1, ensure_ascii=False))
         elif cmd == "generate":
             payload = {"kind": args.kind, "focus": args.focus}
+            if args.fmt:
+                payload["format"] = args.fmt
             if args.notebook:
                 payload["notebook"] = args.notebook
             print(json.dumps(json.loads(tools.notebook_generate(payload)), indent=1, ensure_ascii=False))
