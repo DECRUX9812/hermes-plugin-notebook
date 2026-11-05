@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from typing import Any
 
-from . import artifacts, audio, ingest, llmio, retrieve, runtime, store
+from . import artifacts, audio, ingest, llmio, retrieve, runtime, store, video
 
 
 def _notebook_brief(nb_id: str) -> dict:
@@ -121,6 +121,15 @@ def notebook_generate(args: dict, **kw) -> str:
     return runtime.ok(**out)
 
 
+async def notebook_video(args: dict, **kw) -> str:
+    out = await video.make_video_overview(
+        args.get("notebook") or "",
+        length=args.get("length") or None,
+        focus=args.get("focus") or "",
+    )
+    return runtime.ok(**{k: v for k, v in out.items() if k != "ok"})
+
+
 async def notebook_audio(args: dict, **kw) -> str:
     out = await audio.make_audio_overview(
         args.get("notebook") or "",
@@ -194,6 +203,7 @@ HANDLERS = {
     "notebook_ask": notebook_ask,
     "notebook_generate": notebook_generate,
     "notebook_audio": notebook_audio,
+    "notebook_video": notebook_video,
     "notebook_suggest": notebook_suggest,
     "notebook_delete": notebook_delete,
 }

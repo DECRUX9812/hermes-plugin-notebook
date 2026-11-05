@@ -105,6 +105,23 @@ NOTEBOOK_AUDIO = {
     }},
 }
 
+NOTEBOOK_VIDEO = {
+    "name": "notebook_video",
+    "description": (
+        "Generate a VIDEO OVERVIEW — a cinematic narrated mp4 about the "
+        "notebook's sources (NotebookLM's video feature): single-narrator "
+        "documentary script, per-beat title cards in rotating color themes, "
+        "edge-tts voice + ffmpeg assembly. Writes .mp4 + transcript + script. "
+        "Takes 2-5 minutes; warn the user it runs long."
+    ),
+    "parameters": {"type": "object", "properties": {
+        "notebook": _NB,
+        "length": {"type": "string", "enum": ["short", "medium", "long"],
+                   "description": "short ≈2min, medium ≈4min (default), long ≈7min"},
+        "focus": {"type": "string", "description": "Optional video focus"},
+    }},
+}
+
 NOTEBOOK_SUGGEST = {
     "name": "notebook_suggest",
     "description": (
@@ -133,5 +150,5 @@ NOTEBOOK_DELETE = {
 
 ALL = [
     NOTEBOOK_LIST, NOTEBOOK_CREATE, NOTEBOOK_ADD_SOURCE, NOTEBOOK_ASK,
-    NOTEBOOK_GENERATE, NOTEBOOK_AUDIO, NOTEBOOK_SUGGEST, NOTEBOOK_DELETE,
+    NOTEBOOK_GENERATE, NOTEBOOK_AUDIO, NOTEBOOK_VIDEO, NOTEBOOK_SUGGEST, NOTEBOOK_DELETE,
 ]

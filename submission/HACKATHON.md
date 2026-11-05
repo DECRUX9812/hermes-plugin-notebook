@@ -40,6 +40,7 @@ the Hermes Marketplace.
   3. (20–40s) `notebook_ask` a real question → show cited answer [S1]/[S2]
   4. (40–55s) `notebook_generate mind_map` or `flashcards` → open the artifact
   5. (55–75s) `notebook_audio` → play 10s of the two-host podcast + show mp3
+     (or `notebook_video` → show the cinematic mp4 — stronger visual, slower to render)
   6. (75–90s) `/notebook suggest` or closing card: repo link
 - [ ] Keep it real — judges score reliability; a genuine run beats a mock
 - [ ] Post on X tagging **@NousResearch**, keep the URL

@@ -23,7 +23,8 @@ description: >-
   guide, FAQ, timeline, mind map (markdown + Mermaid + JSON), flashcards and
   quiz — into the notebook's artifacts directory. notebook_audio produces a
   two-host conversational podcast overview (edge-tts neural voices, ffmpeg
-  assembly) with a speaker-labeled transcript. Ships a /notebook slash
+  assembly) and notebook_video a cinematic single-narrator mp4 with
+  Pillow-rendered title cards, both with transcripts. Ships a /notebook slash
   command, a `hermes notebook` CLI, a bundled skill teaching grounded-research
   workflow, and an auxiliary task slot for cheap labeling calls. All state
   lives under $HERMES_HOME/plugin-data/hermes-notebook/ per profile. Disclosure
@@ -48,13 +49,14 @@ capabilities:
     - notebook_ask
     - notebook_generate
     - notebook_audio
+    - notebook_video
     - notebook_suggest
     - notebook_delete
   provides_hooks: []
   provides_middleware: []
   requires_env: []
 known_issues:
-  - "Audio overviews synthesize per-segment with edge-tts (network required) and need ffmpeg on PATH; a ~5-minute episode takes 1-3 minutes end to end."
+  - "Audio/video overviews synthesize per-segment with edge-tts (network required) and need ffmpeg on PATH (plus Pillow for video cards); a ~5-minute episode takes 1-3 minutes end to end."
   - "Context is bounded: ask_context_chars (default 28000) and podcast_context_chars (default 42000) cap source text per call; very large notebooks rely on head+tail digests for generation."
   - "PDF extraction needs the declared pypdf dependency; scanned/image-only PDFs have no text layer and are rejected with guidance."
   - "YouTube sources need public captions (youtube-transcript-api); region-locked or caption-less videos fail with a clear error."

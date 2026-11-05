@@ -11,7 +11,7 @@ import json
 import logging
 from pathlib import Path
 
-from .hermes_notebook import artifacts, audio, ingest, llmio, retrieve, runtime, store
+from .hermes_notebook import artifacts, audio, ingest, llmio, retrieve, runtime, store, video
 from .hermes_notebook import schemas, tools
 
 logger = logging.getLogger(__name__)
@@ -24,10 +24,11 @@ EMOJI = {
     "notebook_ask": "💬",
     "notebook_generate": "✨",
     "notebook_audio": "🎙️",
+    "notebook_video": "🎬",
     "notebook_suggest": "💡",
     "notebook_delete": "🗑️",
 }
-ASYNC_TOOLS = {"notebook_audio"}
+ASYNC_TOOLS = {"notebook_audio", "notebook_video"}
 
 
 def register(ctx) -> None:
@@ -193,6 +194,11 @@ def _cli_setup(parser) -> None:
     p.add_argument("--length", choices=list(audio.LENGTHS), default=None)
     p.add_argument("--focus", default="")
 
+    p = sub.add_parser("video", help="generate a cinematic video overview (mp4)")
+    p.add_argument("notebook", nargs="?")
+    p.add_argument("--length", choices=list(video.VIDEO_LENGTHS), default=None)
+    p.add_argument("--focus", default="")
+
     p = sub.add_parser("suggest", help="suggest questions/artifacts/gaps")
     p.add_argument("notebook", nargs="?")
 
@@ -235,6 +241,13 @@ def _cli_run(args) -> int:
             if args.notebook:
                 payload["notebook"] = args.notebook
             out = asyncio.run(tools.notebook_audio(payload))
+            print(out)
+        elif cmd == "video":
+            import asyncio
+            payload = {"length": args.length, "focus": args.focus}
+            if args.notebook:
+                payload["notebook"] = args.notebook
+            out = asyncio.run(tools.notebook_video(payload))
             print(out)
         elif cmd == "suggest":
             print(json.dumps(json.loads(tools.notebook_suggest({"notebook": args.notebook or ""})), indent=1, ensure_ascii=False))

@@ -14,6 +14,7 @@ Built for the 2026 Hermes Plugin Competition.
 | Suggestions | `notebook_suggest` — questions worth asking, artifacts worth making, source gaps |
 | Artifacts | `notebook_generate` — summary, briefing doc, study guide, FAQ, timeline, **mind map**, flashcards, quiz |
 | Audio Overview | `notebook_audio` — two-host conversational podcast (edge-tts voices + ffmpeg), with transcript |
+| Video Overview | `notebook_video` — cinematic narrated mp4: single-narrator documentary script, per-beat title cards in rotating palettes, ffmpeg assembly |
 | — Hermes extras — | `/notebook` slash command, `hermes notebook` CLI, bundled skill, auxiliary task slot, per-notebook persistent storage |
 
 ## Install
@@ -24,7 +25,7 @@ hermes plugins install DECRUX9812/hermes-plugin-notebook
 hermes plugins install /path/to/hermes-plugin-notebook
 ```
 
-Requires Python deps declared in `plugin.yaml` (`pypdf`, `edge-tts`, `youtube-transcript-api`, `trafilatura`, `openpyxl`) — installed by the plugin manager. Audio overviews additionally need `ffmpeg` on PATH.
+Requires Python deps declared in `plugin.yaml` (`pypdf`, `edge-tts`, `youtube-transcript-api`, `trafilatura`, `openpyxl`, `pillow`) — installed by the plugin manager. Audio/video overviews additionally need `ffmpeg` on PATH.
 
 ## Quickstart
 
@@ -47,6 +48,7 @@ CLI equivalents: `hermes notebook list|new|add|ask|generate|audio|suggest|delete
 - `notebook_ask` — grounded Q&A with citations; optional `source_ids` scope
 - `notebook_generate` — artifacts to `<notebook>/artifacts/`
 - `notebook_audio` — mp3 + transcript + script JSON
+- `notebook_video` — mp4 + transcript + script JSON (Pillow cards + ffmpeg)
 - `notebook_suggest` — next-step recommendations
 - `notebook_delete` — destructive, requires `confirm=true`
 
@@ -60,6 +62,9 @@ Under `plugins.entries.hermes-notebook.settings` (or `hermes plugins config`):
 | `ask_context_chars` | `28000` | context budget per `notebook_ask` |
 | `podcast_context_chars` | `42000` | context budget for scripts/artifacts |
 | `podcast_length` | `medium` | default audio length (short ≈5m, medium ≈10m, long ≈18m) |
+| `video_length` | `medium` | default video length (short ≈2m, medium ≈4m, long ≈7m) |
+| `video_voice` / `video_voice_rate` | `en-US-AndrewNeural` / `-4%` | narrator voice + pace for videos |
+| `audio_tts_concurrency` | `4` | parallel TTS segment workers |
 | `audio_voice_host_a` / `audio_voice_host_b` | `en-US-AndrewNeural` / `en-US-EmmaNeural` | edge-tts voice names |
 
 Cheap calls (source labeling, suggestions) route through the plugin's own `auxiliary.notebook` task slot — pin a model there if you want labels on a smaller/faster model.

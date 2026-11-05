@@ -21,6 +21,7 @@ provides_tools:
   - notebook_ask
   - notebook_generate
   - notebook_audio
+  - notebook_video
   - notebook_suggest
   - notebook_delete
 provides_hooks: []
@@ -56,7 +57,29 @@ config_schema:
     choices: [short, medium, long]
     label: Default podcast length
     description: Target runtime for audio overviews when the tool call does not say.
+  video_voice:
+    type: str
+    default: "en-US-AndrewNeural"
+    label: Video narrator voice (edge-tts)
+    description: Neural voice for the single narrator of video overviews.
+  video_voice_rate:
+    type: str
+    default: "-4%"
+    label: Video narrator rate
+    description: edge-tts rate modifier for the video narrator (e.g. -4% = slightly slower, cinematic).
+  video_length:
+    type: str
+    default: medium
+    choices: [short, medium, long]
+    label: Default video length
+    description: Target runtime for video overviews when the tool call does not say.
+  audio_tts_concurrency:
+    type: int
+    default: 4
+    label: TTS segment concurrency
+    description: Parallel edge-tts segment synthesis workers (1-8). Lower if you hit throttling.
 python_dependencies:
+  - "pillow>=10,<13"
   - "pypdf>=4.2,<7"
   - "edge-tts>=7.0,<8"
   - "youtube-transcript-api>=1.0,<2"
