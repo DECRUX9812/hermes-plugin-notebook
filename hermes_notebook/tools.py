@@ -127,7 +127,7 @@ async def notebook_audio(args: dict, **kw) -> str:
         length=args.get("length") or None,
         focus=args.get("focus") or "",
     )
-    return runtime.ok(**{k: v for k, v in out.items() if k != "ok"}, media=[out["audio"]])
+    return runtime.ok(**{k: v for k, v in out.items() if k != "ok"})
 
 
 _SUGGEST_SCHEMA = {
