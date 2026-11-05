@@ -210,6 +210,8 @@ def _cli_setup(parser) -> None:
     p = sub.add_parser("ask", help="ask a question answered from the sources")
     p.add_argument("notebook", nargs="?")
     p.add_argument("question", nargs="+")
+    p.add_argument("--thread", default=None,
+                   help="chat thread name for follow-up context (default: stateless)")
 
     p = sub.add_parser("generate", help="generate an artifact")
     p.add_argument("notebook", nargs="?")
@@ -294,6 +296,8 @@ def _cli_run(args) -> int:
             payload = {"question": " ".join(args.question)}
             if args.notebook:
                 payload["notebook"] = args.notebook
+            if args.thread:
+                payload["thread"] = args.thread
             print(json.dumps(json.loads(tools.notebook_ask(payload)), indent=1, ensure_ascii=False))
         elif cmd == "generate":
             payload = {"kind": args.kind, "focus": args.focus}
