@@ -49,20 +49,19 @@ def test_render_title_and_end_cards(tmp_path):
     assert t.stat().st_size > 5000 and e.stat().st_size > 5000
 
 
-def test_build_cards_list_writes_concat_file(tmp_path):
+def test_plan_cards_aligns_one_to_one(tmp_path):
     pytest.importorskip("PIL")
-    segs = [{"text": "narration one " * 5, "headline": "One", "palette": "indigo"},
-            {"text": "narration two " * 5, "headline": "Two", "palette": "mono"}]
-    durs = [3.2, 4.1]
-    lst = video._build_cards_list(tmp_path, segs, durs, "NB", "Ep", ["Src1", "Src2"])
-    text = lst.read_text()
-    assert "card_000.png" in text and "card_003.png" in text
-    assert "duration 3.200" in text and "duration 4.000" in text  # end card tail
-    assert text.count("file '") >= 5  # 4 entries + last-file repeat
-    # every referenced image exists
-    import re
-    for m in re.finditer(r"file '([^']+)'", text):
-        assert (tmp_path / m.group(1).split("/")[-1]).exists() or __import__("pathlib").Path(m.group(1)).exists()
+    segs = [{"text": "narration zero " * 5, "headline": "Zero", "palette": "indigo"},
+            {"text": "narration one " * 5, "headline": "One", "palette": "mono"},
+            {"text": "narration two " * 5, "headline": "Two", "palette": "ember"}]
+    cards = video._plan_cards(tmp_path, segs, "NB", "Ep", ["Src1", "Src2"])
+    # N segments → N narration-aligned cards + 1 end card
+    assert len(cards) == len(segs) + 1
+    assert cards[0][1] == 0 and cards[0][2] == "title"     # seg0 rides title card
+    assert [c[1] for c in cards[1:-1]] == [1, 2]           # beats 1..N-1
+    assert cards[-1][1] == -1 and cards[-1][2] == "end"
+    for png, _i, _k in cards:
+        assert png.exists() and png.stat().st_size > 5000
 
 
 def test_palettes_all_render(tmp_path):

@@ -166,7 +166,12 @@ def _wrap(text: str, font, max_w: int, draw: ImageDraw.ImageDraw) -> list[str]:
     return lines
 
 
+_GRADIENT_CACHE: dict = {}
+
+
 def _gradient(palette: str) -> Image.Image:
+    if palette in _GRADIENT_CACHE:
+        return _GRADIENT_CACHE[palette].copy()
     top, bottom, _accent = _CARD_COLORS.get(palette, _CARD_COLORS["indigo"])
     grad = Image.new("RGB", (CARD_W, CARD_H))
     px = grad.load()
@@ -177,7 +182,8 @@ def _gradient(palette: str) -> Image.Image:
         b = int(top[2] + (bottom[2] - top[2]) * t)
         for x in range(CARD_W):
             px[x, y] = (r, g, b)
-    return grad
+    _GRADIENT_CACHE[palette] = grad
+    return grad.copy()
 
 
 def _accent(palette: str):
@@ -199,16 +205,26 @@ def _render_card(path: Path, *, kind: str, headline: str = "", sub: str = "",
         f_big = _font(_BOLD_CANDIDATES, 72)
         f_sub = _font(_FONT_CANDIDATES, 34)
         f_tag = _font(_BOLD_CANDIDATES, 26)
+        f_head = _font(_BOLD_CANDIDATES, 40)
         tag = "VIDEO OVERVIEW"
         tw = draw.textlength(tag, font=f_tag)
-        draw.text(((CARD_W - tw) / 2, 210), tag, font=f_tag, fill=acc)
+        draw.text(((CARD_W - tw) / 2, 190), tag, font=f_tag, fill=acc)
         lines = _wrap(ep_title or notebook_title or "Notebook", f_big, CARD_W - 160, draw)[:3]
-        y = 260
+        y = 240
         for ln in lines:
             lw = draw.textlength(ln, font=f_big)
             draw.text(((CARD_W - lw) / 2, y), ln, font=f_big, fill=_TEXT)
             y += 84
-        if notebook_title and ep_title:
+        # the opening beat's headline rides the title card as a subtitle
+        if headline:
+            hl = _wrap(headline, f_head, CARD_W - 200, draw)[:2]
+            hy = y + 10
+            for ln in hl:
+                lw = draw.textlength(ln, font=f_head)
+                draw.text(((CARD_W - lw) / 2, hy), ln, font=f_head, fill=acc)
+                hy += 50
+            y = hy
+        if notebook_title:
             nw = draw.textlength(notebook_title, font=f_sub)
             draw.text(((CARD_W - nw) / 2, y + 14), notebook_title, font=f_sub, fill=_DIM)
         draw.rectangle([CARD_W / 2 - 90, CARD_H - 150, CARD_W / 2 + 90, CARD_H - 146], fill=acc)
@@ -260,75 +276,70 @@ def _probe(path: Path) -> float:
     return d if d and d > 0 else 3.0
 
 
-def _build_cards_list(work: Path, segs: list[dict], durs: list[float],
-                      nb_title: str, ep_title: str, src_titles: list[str]) -> Path:
-    """Write cards + ffmpeg concat list; returns the list path."""
+def _plan_cards(work: Path, segs: list[dict], nb_title: str, ep_title: str,
+                src_titles: list[str]) -> list[tuple[Path, int, str]]:
+    """Render every card PNG; returns [(png, seg_index, kind)] aligned 1:1
+    with narration — entry i's card covers segment i's audio (title card
+    covers segment 0), plus a trailing 'end' card with kind='end'."""
     total = len(segs)
-    entries = []  # (image_path, duration)
-    # segment 0 rides the title card
-    entries.append(("title", None))
-    for i, seg in enumerate(segs):
-        entries.append(("beat", i))
-    entries.append(("end", None))
-
-    card_paths: list[Path] = []
-    for j, (kind, seg_i) in enumerate(entries):
-        p = work / f"card_{j:03d}.png"
-        if kind == "title":
-            _render_card(p, kind="title", ep_title=ep_title, notebook_title=nb_title,
-                         palette="indigo")
-        elif kind == "end":
-            _render_card(p, kind="end", sources=src_titles)
-        else:
-            seg = segs[seg_i]
-            sub = seg["text"][:110].rsplit(" ", 1)[0] + "…" if len(seg["text"]) > 110 else seg["text"]
-            _render_card(p, kind="beat", headline=seg["headline"], sub=sub,
-                         palette=seg["palette"], notebook_title=nb_title,
-                         index=seg_i + 1, total=total)
-        card_paths.append(p)
-
-    # durations: title card = seg0 audio; beat i = seg i audio; end card = 4s tail
-    durations = []
-    for j, (kind, seg_i) in enumerate(entries):
-        if kind == "end":
-            durations.append(4.0)
-        else:
-            durations.append(durs[seg_i] if seg_i is not None else durs[0])
-
-    lst = work / "_cards.txt"
-    lines = []
-    for p, d in zip(card_paths, durations):
-        lines.append(f"file '{p.resolve()}'")
-        lines.append(f"duration {d:.3f}")
-    lines.append(f"file '{card_paths[-1].resolve()}'")  # concat demuxer quirk: last duration needs a repeat
-    lst.write_text("\n".join(lines) + "\n", encoding="utf-8")
-    return lst
+    entries: list[tuple[Path, int, str]] = []
+    # segment 0 rides the title card (its headline becomes the card subtitle)
+    p = work / "card_000.png"
+    _render_card(p, kind="title", headline=segs[0]["headline"], ep_title=ep_title,
+                 notebook_title=nb_title, palette="indigo")
+    entries.append((p, 0, "title"))
+    for i, seg in enumerate(segs[1:], start=1):
+        p = work / f"card_{i:03d}.png"
+        sub = seg["text"][:110].rsplit(" ", 1)[0] + "…" if len(seg["text"]) > 110 else seg["text"]
+        _render_card(p, kind="beat", headline=seg["headline"], sub=sub,
+                     palette=seg["palette"], notebook_title=nb_title,
+                     index=i + 1, total=total)
+        entries.append((p, i, "beat"))
+    p = work / "card_end.png"
+    _render_card(p, kind="end", sources=src_titles)
+    entries.append((p, -1, "end"))
+    return entries
 
 
-def _assemble_video(cards_list: Path, audio_path: Path, out_path: Path) -> None:
+_ZOOM_VF = ("scale=1280:720,"
+            "zoompan=z='min(zoom+0.0006,1.12)':d=1:x='iw/2-(iw/zoom/2)':"
+            "y='ih/2-(ih/zoom/2)':s=1280x720:fps=25,format=yuv420p")
+_PLAIN_VF = "fps=25,format=yuv420p"
+
+
+def _encode_clip(card: Path, audio_path: Optional[Path], dur: float,
+                 out: Path) -> None:
+    """One card + its narration segment → CFR mp4 clip (zoompan, plain fallback)."""
     ffmpeg = shutil.which("ffmpeg")
     if not ffmpeg:
         raise RuntimeError("ffmpeg not found — needed to assemble the video overview")
-    base = [ffmpeg, "-y", "-loglevel", "error", "-f", "concat", "-safe", "0",
-            "-i", str(cards_list), "-i", str(audio_path)]
-    attempts = [
-        # gentle ken-burns drift per card
-        base + ["-vf", "zoompan=z='min(zoom+0.0009,1.10)':d=1:x='iw/2-(iw/zoom/2)':"
-                      "y='ih/2-(ih/zoom/2)':s=1280x720:fps=25,format=yuv420p",
-                "-c:v", "libx264", "-preset", "veryfast", "-crf", "21",
-                "-c:a", "aac", "-b:a", "128k", "-movflags", "+faststart", str(out_path)],
-        # plain slideshow fallback
-        base + ["-vf", "fps=25,format=yuv420p",
-                "-c:v", "libx264", "-preset", "veryfast", "-crf", "21",
-                "-c:a", "aac", "-b:a", "128k", "-movflags", "+faststart", str(out_path)],
-    ]
+    ins = [ffmpeg, "-y", "-loglevel", "error",
+           "-loop", "1", "-framerate", "25", "-t", f"{dur:.3f}", "-i", str(card)]
+    if audio_path is not None:
+        ins += ["-i", str(audio_path)]
+    else:
+        ins += ["-f", "lavfi", "-t", f"{dur:.3f}", "-i", "anullsrc=r=44100:cl=stereo"]
     last_err = ""
-    for cmd in attempts:
-        r = subprocess.run(cmd, capture_output=True, text=True, timeout=900)
-        if r.returncode == 0 and out_path.exists() and out_path.stat().st_size > 10000:
+    for vf in (_ZOOM_VF, _PLAIN_VF):
+        cmd = ins + ["-vf", vf, "-c:v", "libx264", "-preset", "veryfast",
+                     "-crf", "21", "-r", "25", "-c:a", "aac", "-b:a", "128k",
+                     "-shortest", "-movflags", "+faststart", str(out)]
+        r = subprocess.run(cmd, capture_output=True, text=True, timeout=600)
+        if r.returncode == 0 and out.exists() and out.stat().st_size > 5000:
             return
         last_err = (r.stderr or "")[-400:]
-    raise RuntimeError(f"ffmpeg video assembly failed: {last_err}")
+    raise RuntimeError(f"ffmpeg clip encode failed: {last_err}")
+
+
+def _assemble_video(clips: list[Path], out_path: Path) -> None:
+    ffmpeg = shutil.which("ffmpeg")
+    lst = clips[0].parent / "_clips.txt"
+    lst.write_text("".join(f"file '{c.resolve()}'\n" for c in clips), encoding="utf-8")
+    cmd = [ffmpeg, "-y", "-loglevel", "error", "-f", "concat", "-safe", "0",
+           "-i", str(lst), "-c", "copy", "-movflags", "+faststart", str(out_path)]
+    r = subprocess.run(cmd, capture_output=True, text=True, timeout=300)
+    if r.returncode != 0 or not out_path.exists() or out_path.stat().st_size < 10000:
+        raise RuntimeError(f"ffmpeg video assembly failed: {(r.stderr or '')[-400:]}")
 
 
 async def make_video_overview(notebook: str, *, length: Optional[str] = None,
@@ -404,15 +415,22 @@ async def make_video_overview(notebook: str, *, length: Optional[str] = None,
     await asyncio.gather(*[_seg(i, s) for i, s in enumerate(segs)])
 
     parts = [work / f"seg_{i:03d}.mp3" for i in range(len(segs))]
-    audio_path = work / "full_audio.mp3"
-    audio._concat_mp3(parts, audio_path)
-
     durs = [_probe(p) for p in parts]
+
     src_titles = [s.get("title", "source") for s in sources][:12]
-    cards_list = _build_cards_list(work, segs, durs, meta.get("title", ""), ep_title, src_titles)
+    cards = _plan_cards(work, segs, meta.get("title", ""), ep_title, src_titles)
+
+    clips = []
+    for j, (card, seg_i, kind) in enumerate(cards):
+        clip = work / f"clip_{j:03d}.mp4"
+        if kind == "end":
+            _encode_clip(card, None, 4.0, clip)
+        else:
+            _encode_clip(card, parts[seg_i], durs[seg_i], clip)
+        clips.append(clip)
 
     mp4_path = nb_dir / "artifacts" / f"{stamp}-video_overview.mp4"
-    _assemble_video(cards_list, audio_path, mp4_path)
+    _assemble_video(clips, mp4_path)
 
     # transcript (reuse the podcast transcript shape, single narrator)
     txt_path = nb_dir / "artifacts" / f"{stamp}-video_overview.txt"

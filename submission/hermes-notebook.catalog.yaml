@@ -9,7 +9,7 @@
 
 name: hermes-notebook
 repo: https://github.com/DECRUX9812/hermes-plugin-notebook
-sha: "<PIN_SHA>"
+sha: "c3b1dabbdad9ff5d958988772505377f8db62417"
 version: "0.1.0"
 title: Hermes Notebook
 description: >-
@@ -33,12 +33,12 @@ description: >-
   plugin's auxiliary.notebook slot, then falls back); web pages go through the
   built-in web_extract tool with a direct-fetch fallback that refuses
   private-network addresses; YouTube sources fetch public transcripts; audio
-  synthesis calls the edge-tts service; ffmpeg must be on PATH for audio.
+  synthesis calls the edge-tts service; ffmpeg must be on PATH for audio/video.
 maintainer: DECRUX9812
 tier: community
 category: tools
 requires_hermes: ">=0.22"
-docs_url: https://github.com/DECRUX9812/hermes-plugin-notebook/blob/<PIN_SHA>/README.md
+docs_url: https://github.com/DECRUX9812/hermes-plugin-notebook/blob/c3b1dabbdad9ff5d958988772505377f8db62417/README.md
 readme: true
 platforms: [linux, macos, windows]
 capabilities:
