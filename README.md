@@ -1,8 +1,19 @@
 # Hermes Notebook
 
-NotebookLM-style notebooks for [Hermes Agent](https://github.com/NousResearch/hermes-agent): gather sources, ask questions answered **only** from those sources with citations, auto-label everything, generate study artifacts — including mind maps — and produce a two-host **audio overview** podcast.
+![Hermes Notebook](assets/banner.png)
+
+NotebookLM-style notebooks for [Hermes Agent](https://github.com/NousResearch/hermes-agent): gather sources, ask questions answered **only** from those sources with citations, auto-label everything, generate study artifacts — including mind maps — and produce **audio and video overviews**.
 
 Built for the 2026 Hermes Plugin Competition.
+
+## See it in action
+
+![Video overview](assets/shot-01-video-title.png)
+![Video overview — beat card](assets/shot-02-video-beat.png)
+![Audio overview](assets/shot-03-audio.png)
+![Grounded Q&A](assets/shot-04-ask.png)
+![Auto-labeled sources](assets/shot-05-sources.png)
+![Generated artifacts](assets/shot-06-artifacts.png)
 
 ## What it does
 
