@@ -158,6 +158,24 @@ def resolve_notebook(arg: str) -> str:
     raise ValueError(f"ambiguous notebook {arg!r}: {', '.join(hits)}")
 
 
+def update_meta(notebook_id: str, *, title: Optional[str] = None,
+                description: Optional[str] = None) -> dict:
+    """Rename / re-describe a notebook. Only provided fields change."""
+    nb_id = resolve_notebook(notebook_id)
+    d = _nb_dir(nb_id)
+    meta = get_meta(nb_id)
+    if title is not None:
+        t = title.strip()
+        if not t:
+            raise ValueError("title cannot be empty")
+        meta["title"] = t[:200]
+    if description is not None:
+        meta["description"] = description.strip()[:1000]
+    meta["updated_at"] = _iso(_now())
+    _write_json(d / "notebook.json", meta)
+    return meta
+
+
 def delete_notebook(notebook_id: str) -> dict:
     nb_id = resolve_notebook(notebook_id)
     d = _nb_dir(nb_id)
@@ -188,6 +206,20 @@ def get_source(notebook_id: str, source_id: str) -> Optional[dict]:
     return None
 
 
+def content_hash(text: str) -> str:
+    """Stable hash of normalized source text — for duplicate detection."""
+    import hashlib
+    norm = re.sub(r"\s+", " ", (text or "").strip().lower())
+    return hashlib.sha1(norm.encode("utf-8", errors="replace")).hexdigest()[:16]
+
+
+def find_source_by_hash(notebook_id: str, digest: str) -> Optional[dict]:
+    for s in list_sources(notebook_id):
+        if s.get("content_hash") == digest:
+            return s
+    return None
+
+
 def source_text_path(notebook_id: str, source_id: str) -> Path:
     return _nb_dir(notebook_id) / "sources" / f"{source_id}.txt"
 
@@ -197,7 +229,8 @@ def read_source_text(notebook_id: str, source: dict) -> str:
 
 
 def add_source(notebook_id: str, *, title: str, kind: str, origin: str, text: str,
-               labels: Optional[list[str]] = None, summary: str = "") -> dict:
+               labels: Optional[list[str]] = None, summary: str = "",
+               locator: Optional[str] = None) -> dict:
     """Persist extracted source text + index entry. Returns the index record."""
     nb_id = resolve_notebook(notebook_id)
     d = _nb_dir(nb_id)
@@ -218,12 +251,40 @@ def add_source(notebook_id: str, *, title: str, kind: str, origin: str, text: st
         "chars": len(text),
         "labels": list(labels or []),
         "summary": (summary or "").strip()[:500],
+        "content_hash": content_hash(text),
     }
+    if locator:
+        record["locator"] = locator[:1000]
     source_text_path(nb_id, src_id).write_text(text, encoding="utf-8")
     sources.append(record)
     _save_index(nb_id, sources)
     touch(nb_id)
     return record
+
+
+def update_source(notebook_id: str, source_id: str, *, text: Optional[str] = None,
+                  title: Optional[str] = None, labels: Optional[list[str]] = None,
+                  summary: Optional[str] = None) -> dict:
+    """Refresh a source's stored text/metadata in place (keeps its id)."""
+    nb_id = resolve_notebook(notebook_id)
+    sources = list_sources(nb_id)
+    rec = next((s for s in sources if s.get("id") == source_id), None)
+    if rec is None:
+        raise KeyError(f"source not found: {source_id}")
+    if text is not None:
+        source_text_path(nb_id, source_id).write_text(text, encoding="utf-8")
+        rec["chars"] = len(text)
+        rec["content_hash"] = content_hash(text)
+    if title is not None:
+        rec["title"] = title.strip()[:200] or rec["title"]
+    if labels is not None:
+        rec["labels"] = list(labels)[:5]
+    if summary is not None:
+        rec["summary"] = summary.strip()[:500]
+    rec["refreshed_at"] = _iso(_now())
+    _save_index(nb_id, sources)
+    touch(nb_id)
+    return rec
 
 
 def remove_source(notebook_id: str, source_id: str) -> dict:
@@ -278,3 +339,57 @@ def artifact_path(notebook_id: str, filename: str) -> Path:
     if base not in p.parents and p != base:
         raise ValueError(f"artifact escapes notebook dir: {filename!r}")
     return p
+
+
+# --------------------------------------------------------------- chat threads
+
+_THREAD_CAP = 24  # messages kept per thread (user+assistant pairs)
+
+
+def _thread_path(notebook_id: str, name: str) -> Path:
+    safe = runtime.slugify(name or "default", 60)
+    return _nb_dir(notebook_id) / "threads" / f"{safe}.json"
+
+
+def get_thread(notebook_id: str, name: str = "default") -> list[dict]:
+    return _read_json(_thread_path(notebook_id, name), [])
+
+
+def append_thread(notebook_id: str, name: str, role: str, content: str) -> list[dict]:
+    """Append one message; returns the trimmed thread."""
+    nb_id = resolve_notebook(notebook_id)
+    msgs = get_thread(nb_id, name)
+    msgs.append({"role": role, "content": content[:8000], "ts": _iso(_now())})
+    msgs = msgs[-_THREAD_CAP:]
+    _write_json(_thread_path(nb_id, name), msgs)
+    return msgs
+
+
+def clear_thread(notebook_id: str, name: str = "default") -> dict:
+    nb_id = resolve_notebook(notebook_id)
+    p = _thread_path(nb_id, name)
+    if p.exists():
+        p.unlink()
+    return {"cleared": name}
+
+
+# -------------------------------------------------------------------- export
+
+def export_notebook(notebook_id: str, out_dir: Optional[Path] = None) -> dict:
+    """Zip the whole notebook dir (sources + artifacts + threads + meta)."""
+    import zipfile
+    nb_id = resolve_notebook(notebook_id)
+    src_dir = _nb_dir(nb_id)
+    meta = get_meta(nb_id)
+    out_dir = Path(out_dir) if out_dir else runtime.plugin_data() / "exports"
+    out_dir.mkdir(parents=True, exist_ok=True)
+    zip_path = out_dir / f"{nb_id}-{runtime.utc_stamp()}.zip"
+    n_files = 0
+    with zipfile.ZipFile(zip_path, "w", zipfile.ZIP_DEFLATED) as zf:
+        for p in sorted(src_dir.rglob("*")):
+            if p.is_file():
+                zf.write(p, p.relative_to(src_dir.parent))
+                n_files += 1
+    return {"zip": str(zip_path), "files": n_files,
+            "size_bytes": zip_path.stat().st_size,
+            "title": meta.get("title")}

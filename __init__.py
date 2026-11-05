@@ -1,7 +1,8 @@
 """Hermes Notebook — NotebookLM-style notebooks: sources in, cited answers and
-study artifacts out, plus two-host audio overviews.
+study artifacts out, plus audio/video overviews, chat threads, notes, search,
+source discovery and export.
 
-Surfaces: 8 model tools, /notebook slash command, `hermes notebook` CLI, one
+Surfaces: 16 model tools, /notebook slash command, `hermes notebook` CLI, one
 bundled skill, one auxiliary task slot (cheap calls route there when pinned).
 """
 
@@ -26,6 +27,13 @@ EMOJI = {
     "notebook_audio": "🎙️",
     "notebook_video": "🎬",
     "notebook_suggest": "💡",
+    "notebook_search": "🔎",
+    "notebook_note": "📝",
+    "notebook_refresh": "🔄",
+    "notebook_delete_source": "✂️",
+    "notebook_update": "✏️",
+    "notebook_export": "📦",
+    "notebook_discover": "🧭",
     "notebook_delete": "🗑️",
 }
 ASYNC_TOOLS = {"notebook_audio", "notebook_video"}
@@ -107,6 +115,23 @@ def _slash(raw: str) -> str:
                 return f"Error: {out.get('error')}"
             cited = ", ".join(f"[S{s['n']}] {s['title']}" for s in out.get("sources_used", []))
             return f"{out['answer']}\n\n— sources: {cited}"
+        if cmd in {"note", "n"}:
+            nb, _, text = rest.partition(" ")
+            if not text.strip():
+                return "Usage: /notebook note <notebook> <text>"
+            out = json.loads(tools.notebook_note({"notebook": nb.strip(), "text": text.strip()}))
+            return f"Note saved as source `{out.get('source_id', '?')}` — it's searchable everywhere now." if out.get("ok") else f"Error: {out.get('error')}"
+        if cmd in {"search", "find"}:
+            nb, _, query = rest.partition(" ")
+            if not query.strip():
+                return "Usage: /notebook search <notebook> <query>"
+            out = json.loads(tools.notebook_search({"notebook": nb.strip(), "query": query.strip()}))
+            if not out.get("ok"):
+                return f"Error: {out.get('error')}"
+            lines = [f"**{len(out.get('hits', []))} hits for “{out.get('query')}”**"]
+            for h in out.get("hits", []):
+                lines.append(f"- `{h['source_id']}` **{h['title']}** — {h['snippet'][:140]}…")
+            return "\n".join(lines) if len(lines) > 1 else "No hits."
         if cmd in {"suggest", "ideas"}:
             out = json.loads(tools.notebook_suggest({"notebook": rest or ""}))
             if not out.get("ok"):
@@ -120,8 +145,10 @@ def _slash(raw: str) -> str:
             lines += [f"- {g}" for g in sug.get("gaps", [])]
             return "\n".join(lines)
         return ("Usage: /notebook [list | new <title> | add <nb> <path|url|text> | "
-                "sources <nb> | ask <nb> <question> | suggest <nb>]\n"
-                "For artifacts and audio overviews, ask me in chat (notebook_generate / notebook_audio).")
+                "sources <nb> | ask <nb> <question> | note <nb> <text> | "
+                "search <nb> <query> | suggest <nb>]\n"
+                "For artifacts, audio/video overviews, refresh, export and source "
+                "discovery, ask me in chat (the notebook_* tools).")
     except Exception as exc:
         return f"Notebook error: {exc}"
 
@@ -202,6 +229,31 @@ def _cli_setup(parser) -> None:
     p = sub.add_parser("suggest", help="suggest questions/artifacts/gaps")
     p.add_argument("notebook", nargs="?")
 
+    p = sub.add_parser("search", help="full-text search inside a notebook")
+    p.add_argument("notebook", nargs="?")
+    p.add_argument("query", nargs="+")
+
+    p = sub.add_parser("note", help="save a user note as a searchable source")
+    p.add_argument("notebook", nargs="?")
+    p.add_argument("text", nargs="+")
+
+    p = sub.add_parser("update", help="rename a notebook or change its description")
+    p.add_argument("notebook")
+    p.add_argument("--title", default=None)
+    p.add_argument("--description", default=None)
+
+    p = sub.add_parser("rm-source", help="remove one source from a notebook")
+    p.add_argument("notebook")
+    p.add_argument("source_id")
+
+    p = sub.add_parser("export", help="zip the whole notebook to plugin-data/exports")
+    p.add_argument("notebook", nargs="?")
+
+    p = sub.add_parser("discover", help="web-search candidate sources (does not add)")
+    p.add_argument("notebook", nargs="?")
+    p.add_argument("--query", default="")
+    p.add_argument("--max", type=int, default=6)
+
     p = sub.add_parser("delete", help="delete a notebook (asks for --yes)")
     p.add_argument("notebook")
     p.add_argument("--yes", action="store_true")
@@ -251,13 +303,39 @@ def _cli_run(args) -> int:
             print(out)
         elif cmd == "suggest":
             print(json.dumps(json.loads(tools.notebook_suggest({"notebook": args.notebook or ""})), indent=1, ensure_ascii=False))
+        elif cmd == "search":
+            payload = {"query": " ".join(args.query)}
+            if args.notebook:
+                payload["notebook"] = args.notebook
+            print(json.dumps(json.loads(tools.notebook_search(payload)), indent=1, ensure_ascii=False))
+        elif cmd == "note":
+            payload = {"text": " ".join(args.text)}
+            if args.notebook:
+                payload["notebook"] = args.notebook
+            print(json.dumps(json.loads(tools.notebook_note(payload)), indent=1, ensure_ascii=False))
+        elif cmd == "update":
+            payload = {"notebook": args.notebook}
+            if args.title is not None:
+                payload["title"] = args.title
+            if args.description is not None:
+                payload["description"] = args.description
+            print(json.dumps(json.loads(tools.notebook_update(payload)), indent=1, ensure_ascii=False))
+        elif cmd == "rm-source":
+            print(json.dumps(json.loads(tools.notebook_delete_source({"notebook": args.notebook, "source_id": args.source_id})), indent=1, ensure_ascii=False))
+        elif cmd == "export":
+            print(json.dumps(json.loads(tools.notebook_export({"notebook": args.notebook or ""})), indent=1, ensure_ascii=False))
+        elif cmd == "discover":
+            payload = {"query": args.query, "max_results": args.max}
+            if args.notebook:
+                payload["notebook"] = args.notebook
+            print(json.dumps(json.loads(tools.notebook_discover(payload)), indent=1, ensure_ascii=False))
         elif cmd == "delete":
             if not args.yes:
                 print("Refusing to delete without --yes")
                 return 2
             print(json.dumps(json.loads(tools.notebook_delete({"notebook": args.notebook, "confirm": True})), indent=1))
         else:
-            print("usage: hermes notebook <list|new|add|ask|generate|audio|suggest|delete> ...")
+            print("usage: hermes notebook <list|new|add|ask|generate|audio|video|suggest|search|note|update|rm-source|export|discover|delete> ...")
             return 2
         return 0
     except Exception as exc:

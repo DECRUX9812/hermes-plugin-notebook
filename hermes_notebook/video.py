@@ -67,13 +67,28 @@ _VIDEO_SCHEMA = {
 }
 
 
-def _video_script_prompt(meta: dict, digest: str, length: str, focus: str) -> str:
+STYLES = ("cinematic", "explainer")
+_EXPLAINER_PALETTES = ("ember", "forest", "mono", "indigo")
+
+
+def _video_script_prompt(meta: dict, digest: str, length: str, focus: str,
+                         style: str = "cinematic") -> str:
     lo, hi = VIDEO_LENGTHS[length]["words"]
     focus_line = f"\nFocus requested by the user: {focus.strip()}\n" if focus.strip() else ""
+    if style == "explainer":
+        voice = (
+            "QUICK EXPLAINER style — like a crisp 3-minute tech explainer: "
+            "punchy, keyword-forward beats, one idea per segment, energetic "
+            "but not breathless."
+        )
+    else:
+        voice = (
+            "CINEMATIC documentary style — a single narrator with a warm, "
+            "contemplative tone walks the viewer through the material."
+        )
     return (
-        "Write a CINEMATIC VIDEO OVERVIEW script about the notebook sources "
-        "below — the style of NotebookLM's Video Overview: a single narrator "
-        "with a warm, documentary tone walks the viewer through the material.\n\n"
+        f"Write a VIDEO OVERVIEW script about the notebook sources below — "
+        f"{voice}\n\n"
         f"TARGET LENGTH: {VIDEO_LENGTHS[length]['label']} — roughly {lo}-{hi} "
         f"words across ~15-35 segments. Each segment is one narrated beat of "
         "20-60 words with a matching slide headline (<= 8 words) and a palette "
@@ -372,7 +387,7 @@ def _assemble_video(clips: list[Path], out_path: Path) -> None:
 
 
 async def make_video_overview(notebook: str, *, length: Optional[str] = None,
-                              focus: str = "") -> dict:
+                              focus: str = "", style: Optional[str] = None) -> dict:
     """Generate the cinematic video overview. Async — runs under an event loop."""
     if Image is None:
         raise RuntimeError(
@@ -388,6 +403,9 @@ async def make_video_overview(notebook: str, *, length: Optional[str] = None,
     length = (length or str(runtime.config("video_length", default="medium")) or "medium").lower()
     if length not in VIDEO_LENGTHS:
         length = "medium"
+    style = (style or str(runtime.config("video_style", default="cinematic")) or "cinematic").lower()
+    if style not in STYLES:
+        style = "cinematic"
 
     try:
         import edge_tts  # noqa: F401
@@ -400,7 +418,7 @@ async def make_video_overview(notebook: str, *, length: Optional[str] = None,
     digest = retrieve.notebook_digest(nb_id, max_chars=int(runtime.config("podcast_context_chars", default=42000)))
     parsed = llmio.structured(
         instructions="Write the full cinematic video-overview script as JSON.",
-        input=[{"type": "text", "text": _video_script_prompt(meta, digest, length, focus)}],
+        input=[{"type": "text", "text": _video_script_prompt(meta, digest, length, focus, style)}],
         json_schema=_VIDEO_SCHEMA,
         schema_name="notebook.video_script",
         system_prompt=(
@@ -415,6 +433,10 @@ async def make_video_overview(notebook: str, *, length: Optional[str] = None,
     if parsed is None:
         raise RuntimeError("model did not return a valid video script JSON")
     segs, ep_title = _write_video_script(parsed)
+    if style == "explainer":
+        # brighter, faster-cutting palette rhythm for the explainer style
+        for i, seg in enumerate(segs):
+            seg["palette"] = _EXPLAINER_PALETTES[i % len(_EXPLAINER_PALETTES)]
 
     voice = str(runtime.config("video_voice", default="en-US-AndrewNeural"))
     rate = str(runtime.config("video_voice_rate", default="-4%"))
@@ -522,5 +544,6 @@ async def make_video_overview(notebook: str, *, length: Optional[str] = None,
         "estimated_minutes": round(words / 140.0, 1) if words else None,
         "voice": voice,
         "length": length,
+        "style": style,
         "media": [str(mp4_path)],
     }

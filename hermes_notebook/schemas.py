@@ -66,6 +66,8 @@ NOTEBOOK_ASK = {
                        "description": "Optional: restrict to these source ids (from notebook_list)"},
         "max_chars": {"type": "integer",
                       "description": "Optional context budget override (default ~28000 chars)"},
+        "thread": {"type": "string",
+                   "description": "Optional conversation thread name — prior Q&A in this thread is included as context (NotebookLM chat history). Omit for stateless ask."},
     }, "required": ["question"]},
 }
 
@@ -81,11 +83,13 @@ NOTEBOOK_GENERATE = {
         "notebook": _NB,
         "kind": {"type": "string",
                  "enum": ["summary", "briefing_doc", "study_guide", "faq", "timeline",
-                          "mind_map", "flashcards", "quiz"]},
+                          "mind_map", "flashcards", "quiz", "slides", "infographic"]},
         "focus": {"type": "string",
                   "description": "Optional focus/topic for the artifact (e.g. 'only the pricing sections')"},
         "count_hint": {"type": "string",
                        "description": "Optional amount hint, e.g. '10 cards', 'short'"},
+        "format": {"type": "string", "enum": ["md", "csv"],
+                   "description": "flashcards only: 'csv' writes an Anki-importable CSV instead of markdown"},
     }, "required": ["kind"]},
 }
 
@@ -119,6 +123,8 @@ NOTEBOOK_VIDEO = {
         "length": {"type": "string", "enum": ["short", "medium", "long"],
                    "description": "short ≈2min, medium ≈4min (default), long ≈7min"},
         "focus": {"type": "string", "description": "Optional video focus"},
+        "style": {"type": "string", "enum": ["cinematic", "explainer"],
+                  "description": "cinematic = documentary narration (default); explainer = punchy tech-explainer pacing + brighter cards"},
     }},
 }
 
@@ -136,6 +142,100 @@ NOTEBOOK_SUGGEST = {
     }},
 }
 
+NOTEBOOK_SEARCH = {
+    "name": "notebook_search",
+    "description": (
+        "Full-text SEARCH inside a notebook's sources — ranked hits with "
+        "snippets and source titles (BM25, deterministic, no LLM). Use to find "
+        "where something is discussed before asking a question, or to quote "
+        "exact passages."
+    ),
+    "parameters": {"type": "object", "properties": {
+        "notebook": _NB,
+        "query": {"type": "string", "description": "Search query — keywords work best"},
+        "top_k": {"type": "integer", "description": "Max hits (default 8)"},
+    }, "required": ["query"]},
+}
+
+NOTEBOOK_NOTE = {
+    "name": "notebook_note",
+    "description": (
+        "Add a USER NOTE to a notebook — your own words become a first-class "
+        "source (kind 'note') that ask/search/generate/audio all see, exactly "
+        "like NotebookLM's note-taking. Use for annotations, reminders, or "
+        "context the sources lack."
+    ),
+    "parameters": {"type": "object", "properties": {
+        "notebook": _NB,
+        "text": {"type": "string", "description": "The note content"},
+        "title": {"type": "string", "description": "Optional note title"},
+    }, "required": ["text"]},
+}
+
+NOTEBOOK_REFRESH = {
+    "name": "notebook_refresh",
+    "description": (
+        "Re-fetch a URL/file source in place — picks up page edits or file "
+        "changes, updates text + labels + summary while keeping the source id "
+        "(citations stay stable). Notes and pasted text can't be refreshed."
+    ),
+    "parameters": {"type": "object", "properties": {
+        "notebook": _NB,
+        "source_id": {"type": "string", "description": "Source id from notebook_list"},
+    }, "required": ["source_id"]},
+}
+
+NOTEBOOK_DELETE_SOURCE = {
+    "name": "notebook_delete_source",
+    "description": (
+        "Remove ONE source from a notebook (its text + index entry). Use when a "
+        "source is wrong, duplicated, or no longer wanted — the rest of the "
+        "notebook is untouched."
+    ),
+    "parameters": {"type": "object", "properties": {
+        "notebook": _NB,
+        "source_id": {"type": "string", "description": "Source id from notebook_list"},
+    }, "required": ["source_id"]},
+}
+
+NOTEBOOK_UPDATE = {
+    "name": "notebook_update",
+    "description": (
+        "Rename a notebook or change its description. Provide only the fields "
+        "you want to change."
+    ),
+    "parameters": {"type": "object", "properties": {
+        "notebook": _NB,
+        "title": {"type": "string", "description": "New title"},
+        "description": {"type": "string", "description": "New description"},
+    }},
+}
+
+NOTEBOOK_EXPORT = {
+    "name": "notebook_export",
+    "description": (
+        "Export a whole notebook — sources, artifacts, chat threads, metadata — "
+        "as a single zip under the plugin data dir. Returns the zip path."
+    ),
+    "parameters": {"type": "object", "properties": {"notebook": _NB}},
+}
+
+NOTEBOOK_DISCOVER = {
+    "name": "notebook_discover",
+    "description": (
+        "DISCOVER candidate web sources for a notebook — runs a web search on "
+        "the notebook's topic and returns ranked titles/URLs/snippets the user "
+        "can then add with notebook_add_source. Fills NotebookLM's 'discover "
+        "sources' gap. Does NOT add anything itself."
+    ),
+    "parameters": {"type": "object", "properties": {
+        "notebook": _NB,
+        "query": {"type": "string",
+                  "description": "Optional search query — defaults to notebook title + description"},
+        "max_results": {"type": "integer", "description": "Default 6, max 10"},
+    }},
+}
+
 NOTEBOOK_DELETE = {
     "name": "notebook_delete",
     "description": (
@@ -150,5 +250,7 @@ NOTEBOOK_DELETE = {
 
 ALL = [
     NOTEBOOK_LIST, NOTEBOOK_CREATE, NOTEBOOK_ADD_SOURCE, NOTEBOOK_ASK,
-    NOTEBOOK_GENERATE, NOTEBOOK_AUDIO, NOTEBOOK_VIDEO, NOTEBOOK_SUGGEST, NOTEBOOK_DELETE,
+    NOTEBOOK_GENERATE, NOTEBOOK_AUDIO, NOTEBOOK_VIDEO, NOTEBOOK_SUGGEST,
+    NOTEBOOK_SEARCH, NOTEBOOK_NOTE, NOTEBOOK_REFRESH, NOTEBOOK_DELETE_SOURCE,
+    NOTEBOOK_UPDATE, NOTEBOOK_EXPORT, NOTEBOOK_DISCOVER, NOTEBOOK_DELETE,
 ]

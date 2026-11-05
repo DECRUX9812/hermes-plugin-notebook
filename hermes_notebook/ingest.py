@@ -180,24 +180,17 @@ def _describe_image(path: Path) -> str:
 
 # -------------------------------------------------------------------- main
 
-def ingest(notebook: str, *, path: Optional[str] = None, url: Optional[str] = None,
-           text: Optional[str] = None, title: Optional[str] = None,
-           kind_hint: Optional[str] = None) -> dict:
-    """Ingest one source into the notebook. Returns the stored index record."""
-    nb_id = store.resolve_notebook(notebook)
+def _extract_any(*, path: str = "", url: str = "", text: Optional[str] = None,
+                 title: Optional[str] = None, kind_hint: Optional[str] = None,
+                 ) -> tuple[str, str, str, str]:
+    """Shared extraction core → (title, kind, origin, body)."""
     path = (path or "").strip()
     url = (url or "").strip()
-    text = text if text is not None else None
-
     if path and (url or text):
         raise ValueError("pass only one of path / url / text")
-
-    src_kind = ""
-    origin = ""
     if path:
         p = Path(path).expanduser()
         if not p.is_absolute():
-            # try cwd then hermes cwd
             p = Path(path).expanduser().resolve()
         if not p.exists():
             raise FileNotFoundError(f"source file not found: {path}")
@@ -206,35 +199,38 @@ def ingest(notebook: str, *, path: Optional[str] = None, url: Optional[str] = No
         fkind = extract.kind_for_path(p)
         origin = str(p)
         if fkind == "image":
-            src_kind = "image"
             body = _describe_image(p)
-            src_title = title or p.stem
-        elif fkind == "unknown":
+            return (title or p.stem), "image", origin, body
+        if fkind == "unknown":
             raise extract.ExtractionError(
                 f"unsupported file type {p.suffix!r} — supported: pdf, office docs "
                 "(docx/pptx/xlsx/epub), notebooks, text/code/markup, images"
             )
-        else:
-            src_kind = fkind
-            fkind, body = extract.extract_file(p)
-            src_kind = fkind
-            src_title = title or p.stem
-    elif url:
+        fkind, body = extract.extract_file(p)
+        return (title or p.stem), fkind, origin, body
+    if url:
         origin = url
         if kind_hint == "text" or not _looks_like_url(url):
-            src_kind = "text"
-            body = url
-            src_title = title or url[:80]
-        else:
-            src_title, src_kind, body = ingest_url(url)
-            src_title = title or src_title
-    elif text is not None:
-        src_kind = "text"
-        origin = "pasted text"
-        body = text
-        src_title = title or (body.strip().splitlines() or ["pasted text"])[0][:80]
-    else:
-        raise ValueError("nothing to ingest — pass path, url, or text")
+            return (title or url[:80]), "text", origin, url
+        src_title, src_kind, body = ingest_url(url)
+        return (title or src_title), src_kind, origin, body
+    if text is not None:
+        body = (text or "").strip()
+        first = (body.splitlines() or ["pasted text"])[0][:80]
+        return (title or first), "text", "pasted text", text or ""
+    raise ValueError("nothing to ingest — pass path, url, or text")
+
+
+def ingest(notebook: str, *, path: Optional[str] = None, url: Optional[str] = None,
+           text: Optional[str] = None, title: Optional[str] = None,
+           kind_hint: Optional[str] = None,
+           allow_duplicate: bool = False) -> dict:
+    """Ingest one source into the notebook. Returns the stored index record,
+    or {"skipped": "duplicate", "duplicate_of": {...}} when the normalized
+    text already exists (unless allow_duplicate)."""
+    nb_id = store.resolve_notebook(notebook)
+    src_title, src_kind, origin, body = _extract_any(
+        path=path or "", url=url or "", text=text, title=title, kind_hint=kind_hint)
 
     body = (body or "").strip()
     if not body:
@@ -242,12 +238,75 @@ def ingest(notebook: str, *, path: Optional[str] = None, url: Optional[str] = No
     if len(body) > MAX_TEXT_SOURCE_CHARS:
         body = body[:MAX_TEXT_SOURCE_CHARS] + "\n\n[... source truncated ...]"
 
+    digest = store.content_hash(body)
+    if not allow_duplicate:
+        dup = store.find_source_by_hash(nb_id, digest)
+        if dup is not None:
+            return {"skipped": "duplicate", "duplicate_of": {
+                "id": dup.get("id"), "title": dup.get("title"),
+                "kind": dup.get("kind"), "origin": dup.get("origin")}}
+
     labels, summary = _auto_label(src_title, src_kind, origin, body)
+    locator = origin if (path or url) else None
     record = store.add_source(
         nb_id, title=src_title or src_kind, kind=src_kind, origin=origin,
-        text=body, labels=labels, summary=summary,
+        text=body, labels=labels, summary=summary, locator=locator,
     )
     return record
+
+
+def add_note(notebook: str, text: str, title: Optional[str] = None) -> dict:
+    """User note → a first-class source (kind='note') searchable everywhere.
+    No LLM labeling — notes are the user's own words."""
+    nb_id = store.resolve_notebook(notebook)
+    body = (text or "").strip()
+    if not body:
+        raise ValueError("note text is required")
+    if len(body) > MAX_TEXT_SOURCE_CHARS:
+        body = body[:MAX_TEXT_SOURCE_CHARS]
+    first = (body.splitlines() or ["note"])[0][:80]
+    src_title = (title or first).strip()[:200] or "note"
+    digest = store.content_hash(body)
+    dup = store.find_source_by_hash(nb_id, digest)
+    if dup is not None:
+        return {"skipped": "duplicate", "duplicate_of": {
+            "id": dup.get("id"), "title": dup.get("title"), "kind": dup.get("kind")}}
+    record = store.add_source(
+        nb_id, title=src_title, kind="note", origin="user note",
+        text=body, labels=["note"], summary="",
+    )
+    return record
+
+
+def refresh_source(notebook: str, source_id: str) -> dict:
+    """Re-extract a url/file source from its stored locator and update in place.
+    Notes/pasted text have no locator — they error with guidance."""
+    nb_id = store.resolve_notebook(notebook)
+    rec = store.get_source(nb_id, source_id)
+    if rec is None:
+        raise KeyError(f"source not found: {source_id}")
+    kind = rec.get("kind") or ""
+    locator = rec.get("locator") or (rec.get("origin") or "")
+    if kind in {"url", "youtube"} and _looks_like_url(locator):
+        src_title, src_kind, origin, body = _extract_any(url=locator)
+    elif locator and Path(locator).expanduser().exists() and Path(locator).is_file():
+        src_title, src_kind, origin, body = _extract_any(path=locator)
+    else:
+        raise ValueError(
+            f"source {source_id!r} ({kind}) has no refreshable locator — "
+            "only url/file sources can be re-fetched; delete and re-add instead")
+    body = (body or "").strip()
+    if not body:
+        raise extract.ExtractionError("re-fetch produced no text")
+    if len(body) > MAX_TEXT_SOURCE_CHARS:
+        body = body[:MAX_TEXT_SOURCE_CHARS] + "\n\n[... source truncated ...]"
+    labels, summary = _auto_label(src_title, src_kind, origin, body)
+    old_chars = rec.get("chars", 0)
+    updated = store.update_source(
+        nb_id, source_id, text=body, title=src_title,
+        labels=labels, summary=summary)
+    updated["chars_delta"] = len(body) - old_chars
+    return updated
 
 
 _LABEL_SCHEMA = {

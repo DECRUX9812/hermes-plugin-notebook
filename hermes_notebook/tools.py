@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 from typing import Any
 
 from . import artifacts, audio, ingest, llmio, retrieve, runtime, store, video
@@ -60,11 +61,112 @@ def notebook_add_source(args: dict, **kw) -> str:
         text=args.get("text"),
         title=args.get("title"),
     )
+    if isinstance(rec, dict) and rec.get("skipped") == "duplicate":
+        dup = rec.get("duplicate_of") or {}
+        return runtime.ok(
+            notebook=nb_id, skipped="duplicate",
+            duplicate_of=dup,
+            hint="Identical content already in this notebook — nothing added.",
+        )
     total = len(store.list_sources(nb_id))
     return runtime.ok(
         notebook=nb_id, source_id=rec["id"], title=rec["title"], kind=rec["kind"],
         origin=rec["origin"], chars=rec["chars"], labels=rec.get("labels", []),
         summary=rec.get("summary", ""), sources_in_notebook=total,
+    )
+
+
+def notebook_search(args: dict, **kw) -> str:
+    nb_id = store.resolve_notebook(args.get("notebook") or "")
+    query = (args.get("query") or "").strip()
+    if not query:
+        raise ValueError("query is required")
+    top_k = max(1, min(20, int(args.get("top_k") or 8)))
+    out = retrieve.search(nb_id, query, top_k=top_k)
+    if not out["hits"]:
+        return runtime.ok(notebook=nb_id, query=query, hits=[],
+                          hint="No matching passages — try different keywords or notebook_ask.")
+    return runtime.ok(notebook=nb_id, **out)
+
+
+def notebook_note(args: dict, **kw) -> str:
+    nb_id = store.resolve_notebook(args.get("notebook") or "")
+    rec = ingest.add_note(nb_id, args.get("text") or "", args.get("title") or None)
+    if isinstance(rec, dict) and rec.get("skipped") == "duplicate":
+        return runtime.ok(notebook=nb_id, skipped="duplicate",
+                          duplicate_of=rec.get("duplicate_of"))
+    return runtime.ok(
+        notebook=nb_id, source_id=rec["id"], title=rec["title"], kind="note",
+        chars=rec["chars"], note="Stored as a searchable source — ask/search/generate see it.",
+    )
+
+
+def notebook_refresh(args: dict, **kw) -> str:
+    nb_id = store.resolve_notebook(args.get("notebook") or "")
+    rec = ingest.refresh_source(nb_id, args.get("source_id") or "")
+    return runtime.ok(
+        notebook=nb_id, source_id=rec["id"], title=rec.get("title"),
+        kind=rec.get("kind"), chars=rec.get("chars"),
+        chars_delta=rec.get("chars_delta"), labels=rec.get("labels", []),
+        summary=rec.get("summary", ""), refreshed_at=rec.get("refreshed_at"),
+    )
+
+
+def notebook_delete_source(args: dict, **kw) -> str:
+    nb_id = store.resolve_notebook(args.get("notebook") or "")
+    out = store.remove_source(nb_id, args.get("source_id") or "")
+    return runtime.ok(notebook=nb_id, **out)
+
+
+def notebook_update(args: dict, **kw) -> str:
+    nb_id = store.resolve_notebook(args.get("notebook") or "")
+    meta = store.update_meta(
+        nb_id,
+        title=args.get("title") if args.get("title") is not None else None,
+        description=args.get("description") if args.get("description") is not None else None,
+    )
+    return runtime.ok(notebook=meta["id"], title=meta["title"],
+                      description=meta.get("description", ""))
+
+
+def notebook_export(args: dict, **kw) -> str:
+    out = store.export_notebook(args.get("notebook") or "")
+    return runtime.ok(**out)
+
+
+def notebook_discover(args: dict, **kw) -> str:
+    nb_id = store.resolve_notebook(args.get("notebook") or "")
+    meta = store.get_meta(nb_id)
+    query = (args.get("query") or "").strip() or (
+        f"{meta.get('title', '')} {meta.get('description', '')}".strip())
+    if not query:
+        raise ValueError("no query and notebook has no title/description")
+    limit = max(1, min(10, int(args.get("max_results") or 6)))
+    raw = runtime.dispatch("web_search", {"query": query, "limit": limit})
+    try:
+        data = json.loads(raw) if isinstance(raw, str) else raw
+    except (ValueError, TypeError):
+        data = {"results": []}
+    results = data.get("results") if isinstance(data, dict) else None
+    if not isinstance(results, list):
+        results = data if isinstance(data, list) else []
+    # drop urls already in the notebook
+    existing = {s.get("origin") for s in store.list_sources(nb_id)}
+    cands = []
+    for r in results[:limit]:
+        if not isinstance(r, dict):
+            continue
+        url = str(r.get("url") or r.get("link") or "")
+        if not url or url in existing:
+            continue
+        cands.append({
+            "title": str(r.get("title") or url)[:200],
+            "url": url,
+            "snippet": str(r.get("snippet") or r.get("description") or "")[:400],
+        })
+    return runtime.ok(
+        notebook=nb_id, query=query, candidates=cands,
+        hint="Add a candidate with notebook_add_source url=<url> — nothing was added automatically.",
     )
 
 
@@ -99,13 +201,27 @@ def notebook_ask(args: dict, **kw) -> str:
         f"Question: {question}\n\n"
         f"Source excerpts (tags [S1]…[Sn] map to sources):\n\n{result['context']}"
     )
+    # optional chat thread — prior exchanges ride along as context
+    thread_name = (args.get("thread") or "").strip() or None
+    messages = [{"role": "system", "content": _ASK_SYSTEM}]
+    if thread_name:
+        history = store.get_thread(nb_id, thread_name)[-12:]
+        for m in history:
+            if m.get("role") in {"user", "assistant"} and m.get("content"):
+                messages.append({"role": m["role"], "content": str(m["content"])[:4000]})
+        messages.append({"role": "user", "content": user})
+    else:
+        messages += [{"role": "user", "content": user}]
     answer = llmio.complete(
-        [{"role": "system", "content": _ASK_SYSTEM},
-         {"role": "user", "content": user}],
+        messages,
         purpose="hermes-notebook.ask", max_tokens=4000, temperature=0.3,
     )
+    if thread_name:
+        store.append_thread(nb_id, thread_name, "user", question)
+        store.append_thread(nb_id, thread_name, "assistant", answer)
     return runtime.ok(
         notebook=nb_id, question=question, answer=answer,
+        thread=thread_name,
         sources_used=result["sources_used"],
         chunks_used=result["chunks_used"], total_chunks=result["total_chunks"],
     )
@@ -117,6 +233,7 @@ def notebook_generate(args: dict, **kw) -> str:
         args.get("kind") or "",
         focus=args.get("focus") or "",
         count_hint=args.get("count_hint") or "",
+        fmt=args.get("format") or "md",
     )
     return runtime.ok(**out)
 
@@ -126,6 +243,7 @@ async def notebook_video(args: dict, **kw) -> str:
         args.get("notebook") or "",
         length=args.get("length") or None,
         focus=args.get("focus") or "",
+        style=args.get("style") or None,
     )
     return runtime.ok(**{k: v for k, v in out.items() if k != "ok"})
 
@@ -205,5 +323,12 @@ HANDLERS = {
     "notebook_audio": notebook_audio,
     "notebook_video": notebook_video,
     "notebook_suggest": notebook_suggest,
+    "notebook_search": notebook_search,
+    "notebook_note": notebook_note,
+    "notebook_refresh": notebook_refresh,
+    "notebook_delete_source": notebook_delete_source,
+    "notebook_update": notebook_update,
+    "notebook_export": notebook_export,
+    "notebook_discover": notebook_discover,
     "notebook_delete": notebook_delete,
 }

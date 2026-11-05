@@ -14,7 +14,7 @@ from typing import Any, Optional
 from . import llmio, retrieve, runtime, store
 
 MD_KINDS = ("summary", "briefing_doc", "study_guide", "faq", "timeline")
-STRUCT_KINDS = ("mind_map", "flashcards", "quiz")
+STRUCT_KINDS = ("mind_map", "flashcards", "quiz", "slides", "infographic")
 ALL_KINDS = MD_KINDS + STRUCT_KINDS
 
 _KIND_LABEL = {
@@ -26,6 +26,8 @@ _KIND_LABEL = {
     "mind_map": "Mind Map",
     "flashcards": "Flashcards",
     "quiz": "Quiz",
+    "slides": "Slide Deck",
+    "infographic": "Infographic",
 }
 
 _MD_PROMPTS = {
@@ -117,6 +119,48 @@ _STRUCT_SCHEMAS = {
         },
         "required": ["questions"],
     },
+    "slides": {
+        "type": "object",
+        "properties": {
+            "title": {"type": "string", "description": "deck title"},
+            "slides": {"type": "array", "items": {
+                "type": "object",
+                "properties": {
+                    "title": {"type": "string", "description": "slide headline (<= 10 words)"},
+                    "bullets": {"type": "array", "items": {"type": "string"},
+                                "description": "3-6 punchy bullets, each <= 18 words"},
+                    "note": {"type": "string", "description": "optional speaker note"},
+                },
+                "required": ["title", "bullets"],
+            }},
+        },
+        "required": ["title", "slides"],
+    },
+    "infographic": {
+        "type": "object",
+        "properties": {
+            "title": {"type": "string"},
+            "takeaway": {"type": "string", "description": "one-line bottom-line takeaway"},
+            "stats": {"type": "array", "items": {
+                "type": "object",
+                "properties": {
+                    "value": {"type": "string", "description": "big number/short stat, e.g. '1789' or '3x'"},
+                    "label": {"type": "string", "description": "what the stat means (<= 8 words)"},
+                    "detail": {"type": "string", "description": "optional one-line source-backed detail"},
+                },
+                "required": ["value", "label"],
+            }, "description": "3-6 headline stats/facts from the sources"},
+            "quotes": {"type": "array", "items": {
+                "type": "object",
+                "properties": {
+                    "text": {"type": "string", "description": "a striking fact or near-quote from the sources"},
+                    "source": {"type": "string"},
+                },
+                "required": ["text"],
+            }, "description": "2-4 key facts worth highlighting"},
+        },
+        "required": ["title", "stats", "quotes", "takeaway"],
+    },
 }
 
 _STRUCT_INSTRUCTIONS = {
@@ -135,6 +179,19 @@ _STRUCT_INSTRUCTIONS = {
         "Create a PRACTICE QUIZ from these sources: 8-12 questions. Mix formats — "
         "some multiple-choice (4 choices), some short-answer. Every answer must "
         "be verifiable from the sources; include a one-line explanation."
+    ),
+    "slides": (
+        "Design a SLIDE DECK from these sources: 8-14 slides. First slide = title "
+        "+ one-line framing; last slide = key takeaways. Middle slides each cover "
+        "one idea with a punchy headline (<=10 words) and 3-6 bullets of <=18 "
+        "words. Order for narrative flow. Every bullet must be grounded in the "
+        "sources — this is a presentation, not an essay."
+    ),
+    "infographic": (
+        "Design an INFOGRAPHIC's content from these sources: pick the 3-6 most "
+        "striking stats/facts/dates (the 'value' should be the number or short "
+        "fact itself, e.g. '1789', '70%', '3 treaties'), 2-4 quotable key facts, "
+        "and a one-line takeaway. All grounded in the sources."
     ),
 }
 
@@ -158,8 +215,10 @@ def _write_artifact(notebook_id: str, kind: str, ext: str, content: str) -> Path
     return path
 
 
-def generate(notebook: str, kind: str, *, focus: str = "", count_hint: str = "") -> dict:
-    """Generate one artifact; returns {path, kind, preview} or raises."""
+def generate(notebook: str, kind: str, *, focus: str = "", count_hint: str = "",
+             fmt: str = "md") -> dict:
+    """Generate one artifact; returns {path, kind, preview} or raises.
+    fmt='csv' switches flashcards to an Anki-importable CSV."""
     kind = (kind or "").strip().lower().replace("-", "_").replace(" ", "_")
     if kind not in ALL_KINDS:
         raise ValueError(
@@ -221,16 +280,37 @@ def generate(notebook: str, kind: str, *, focus: str = "", count_hint: str = "")
     if parsed is None:
         raise RuntimeError("model did not return valid JSON for this artifact")
 
+    json_path = _write_artifact(nb_id, kind, "json", json.dumps(parsed, indent=2, ensure_ascii=False))
+    header = f"# {meta.get('title')} — {_KIND_LABEL[kind]}\n\n"
+    header += f"_Generated {runtime.utc_stamp()} · {len(sources)} sources_\n\n---\n\n"
+
+    if kind == "slides":
+        html = _render_slides_html(parsed, meta.get("title") or nb_id)
+        path = _write_artifact(nb_id, kind, "html", html)
+        return {"path": str(path), "kind": kind, "preview": html[:1200]}
+
+    if kind == "infographic":
+        png = _render_infographic(parsed, meta.get("title") or nb_id)
+        d = store._nb_dir(nb_id) / "artifacts"
+        d.mkdir(parents=True, exist_ok=True)
+        path = d / f"{runtime.utc_stamp()}-{kind}.png"
+        png.save(path, "PNG")
+        store.touch(nb_id)
+        return {"path": str(path), "json": str(json_path), "kind": kind,
+                "preview": json.dumps(parsed, ensure_ascii=False)[:1200]}
+
     if kind == "mind_map":
         md = _render_mind_map(parsed)
+    elif kind == "flashcards" and fmt == "csv":
+        csv_text = _render_flashcards_csv(parsed)
+        path = _write_artifact(nb_id, kind, "csv", csv_text)
+        return {"path": str(path), "json": str(json_path), "kind": kind,
+                "format": "csv", "preview": csv_text[:1200]}
     elif kind == "flashcards":
         md = _render_flashcards(parsed)
     else:
         md = _render_quiz(parsed)
-    header = f"# {meta.get('title')} — {_KIND_LABEL[kind]}\n\n"
-    header += f"_Generated {runtime.utc_stamp()} · {len(sources)} sources_\n\n---\n\n"
     path = _write_artifact(nb_id, kind, "md", header + md)
-    json_path = _write_artifact(nb_id, kind, "json", json.dumps(parsed, indent=2, ensure_ascii=False))
     return {"path": str(path), "json": str(json_path), "kind": kind, "preview": md[:1200]}
 
 
@@ -279,6 +359,147 @@ def _render_flashcards(data: dict) -> str:
         src = str(c.get("source") or "").strip()
         lines += ["", f"**Card {i}**" + (f" · _{src}_" if src else ""), "", f"**Q:** {front}", "", f"**A:** {back}"]
     return "\n".join(lines)
+
+
+def _render_flashcards_csv(data: dict) -> str:
+    """Anki-importable CSV: front,back,source (semicolon-safe quoting)."""
+    import csv
+    import io
+    buf = io.StringIO()
+    w = csv.writer(buf)
+    w.writerow(["front", "back", "source"])
+    for c in data.get("cards") or []:
+        if isinstance(c, dict):
+            w.writerow([str(c.get("front", "")).strip(),
+                        str(c.get("back", "")).strip(),
+                        str(c.get("source", "")).strip()])
+    return buf.getvalue()
+
+
+def _esc(s: str) -> str:
+    return (s or "").replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
+
+
+def _render_slides_html(data: dict, deck_title: str) -> str:
+    """Self-contained HTML slide deck — arrow keys / click / space to navigate."""
+    slides = [s for s in (data.get("slides") or []) if isinstance(s, dict)]
+    if not slides:
+        slides = [{"title": data.get("title") or deck_title, "bullets": []}]
+    cards = []
+    for i, s in enumerate(slides):
+        title = _esc(str(s.get("title") or f"Slide {i + 1}"))
+        note = _esc(str(s.get("note") or ""))
+        lis = "".join(f"<li>{_esc(str(b))}</li>" for b in (s.get("bullets") or [])[:8])
+        cards.append(
+            f'<section class="slide{" title-slide" if i == 0 else ""}">'
+            f'<div class="num">{i + 1:02d} / {len(slides):02d}</div>'
+            f'<h1>{title}</h1><ul>{lis}</ul>'
+            + (f'<div class="note">{note}</div>' if note else "")
+            + "</section>")
+    title_esc = _esc(data.get("title") or deck_title)
+    return f"""<!doctype html><html><head><meta charset="utf-8">
+<title>{title_esc} — slides</title>
+<style>
+body{{margin:0;background:#0b0b14;color:#f4f4fa;font-family:system-ui,-apple-system,'Segoe UI',sans-serif;overflow:hidden}}
+.slide{{display:none;height:100vh;flex-direction:column;justify-content:center;padding:7vh 9vw;box-sizing:border-box}}
+.slide.on{{display:flex}}
+h1{{font-size:clamp(2rem,4.5vw,3.6rem);margin:0 0 4vh;line-height:1.12;font-weight:800}}
+.title-slide h1{{font-size:clamp(2.6rem,6vw,4.6rem)}}
+ul{{list-style:none;padding:0;margin:0}}
+li{{font-size:clamp(1.1rem,2vw,1.6rem);line-height:1.5;padding:.55em 0 .55em 1.6em;position:relative;color:#d8d8ea}}
+li::before{{content:"";position:absolute;left:0;top:.95em;width:.7em;height:.7em;border-radius:50%;background:#8b6cff}}
+.num{{position:absolute;top:3vh;right:4vw;font-size:.85rem;letter-spacing:.2em;color:#8b6cff;font-weight:600}}
+.note{{margin-top:5vh;font-size:.95rem;color:#8a8aa5;font-style:italic}}
+.hint{{position:fixed;bottom:2.5vh;width:100%;text-align:center;font-size:.8rem;color:#55556e;letter-spacing:.15em}}
+.bar{{position:fixed;top:0;left:0;height:3px;background:linear-gradient(90deg,#8b6cff,#ec945c);transition:width .3s}}
+</style></head><body>
+<div class="bar" id="bar"></div>
+{''.join(cards)}
+<div class="hint">← → or space to navigate · esc for overview</div>
+<script>
+let i=0;const s=document.querySelectorAll('.slide');
+function show(n){{i=Math.max(0,Math.min(s.length-1,n));s.forEach((e,j)=>e.classList.toggle('on',j===i));
+ document.getElementById('bar').style.width=((i+1)/s.length*100)+'%';}}
+addEventListener('keydown',e=>{{if(e.key==='ArrowRight'||e.key===' '||e.key==='PageDown'){{show(i+1);e.preventDefault();}}
+ else if(e.key==='ArrowLeft'||e.key==='PageUp'){{show(i-1);e.preventDefault();}}
+ else if(e.key==='Home')show(0);else if(e.key==='End')show(s.length-1);}});
+addEventListener('click',e=>{{e.clientX>innerWidth/2?show(i+1):show(i-1);}});
+show(0);
+</script></body></html>"""
+
+
+def _render_infographic(data: dict, title: str):
+    """PIL-rendered infographic PNG (1200x900, dark card style)."""
+    try:
+        from PIL import Image, ImageDraw
+        from . import video as _v
+    except ImportError as exc:
+        raise RuntimeError("infographic needs Pillow (declared plugin dependency)") from exc
+    Wd, Ht = 1200, 900
+    # build gradient directly (video._gradient is fixed 1280x720)
+    top, bottom, acc = _v._CARD_COLORS["indigo"]
+    img = Image.new("RGB", (Wd, Ht))
+    px = img.load()
+    for y in range(Ht):
+        t = y / (Ht - 1)
+        row = tuple(int(top[c] + (bottom[c] - top[c]) * t) for c in range(3))
+        for x in range(Wd):
+            px[x, y] = row
+    d = ImageDraw.Draw(img)
+    f_title = _v._font(_v._BOLD_CANDIDATES, 56)
+    f_stat = _v._font(_v._BOLD_CANDIDATES, 64)
+    f_label = _v._font(_v._FONT_CANDIDATES, 26)
+    f_small = _v._font(_v._FONT_CANDIDATES, 22)
+    f_quote = _v._font(_v._FONT_CANDIDATES, 26)
+
+    d.rectangle([0, 0, Wd, 8], fill=acc)
+    d.text((60, 50), "INFOGRAPHIC", font=f_label, fill=acc)
+    for j, ln in enumerate(_v._wrap(data.get("title") or title, f_title, Wd - 120, d)[:2]):
+        d.text((60, 90 + j * 66), ln, font=f_title, fill=_v._TEXT)
+
+    stats = [s for s in (data.get("stats") or []) if isinstance(s, dict)][:6]
+    quotes = [q for q in (data.get("quotes") or []) if isinstance(q, dict)][:4]
+    # stat cards row
+    n = max(1, len(stats))
+    cw = (Wd - 120 - (n - 1) * 20) // n
+    y = 260
+    for i, st in enumerate(stats):
+        x = 60 + i * (cw + 20)
+        d.rounded_rectangle([x, y, x + cw, y + 190], radius=14, fill=(18, 18, 32))
+        d.rectangle([x, y, x + cw, y + 6], fill=acc)
+        val = str(st.get("value", ""))[:18]
+        for j, ln in enumerate(_v._wrap(val, f_stat, cw - 24, d)[:2]):
+            lw = d.textlength(ln, font=f_stat)
+            d.text((x + (cw - lw) / 2, y + 26 + j * 70), ln, font=f_stat, fill=acc)
+        lab = _v._wrap(str(st.get("label", "")), f_label, cw - 24, d)[:3]
+        ly = y + 130
+        for ln in lab:
+            lw = d.textlength(ln, font=f_label)
+            d.text((x + (cw - lw) / 2, ly), ln, font=f_label, fill=_v._DIM)
+            ly += 32
+
+    y += 240
+    d.text((60, y), "Key facts", font=f_label, fill=_v._TEXT)
+    y += 50
+    for q in quotes:
+        txt = str(q.get("text", ""))
+        src = str(q.get("source") or "")
+        for j, ln in enumerate(_v._wrap(txt, f_quote, Wd - 200, d)[:3]):
+            d.text((80, y + j * 36), ln, font=f_quote, fill=_v._TEXT)
+        if src:
+            d.text((Wd - 60 - d.textlength(src[:30], font=f_small), y + 4),
+                   src[:30], font=f_small, fill=_v._DIM)
+        y += 120
+        if y > Ht - 160:
+            break
+
+    take = str(data.get("takeaway") or "").strip()
+    if take:
+        ty = Ht - 120
+        d.rounded_rectangle([60, ty, Wd - 60, ty + 80], radius=14, fill=(24, 22, 48))
+        for j, ln in enumerate(_v._wrap("Takeaway: " + take, f_quote, Wd - 160, d)[:2]):
+            d.text((84, ty + 14 + j * 34), ln, font=f_quote, fill=_v._TEXT)
+    return img
 
 
 def _render_quiz(data: dict) -> str:

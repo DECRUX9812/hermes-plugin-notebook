@@ -170,6 +170,36 @@ def retrieve(notebook_id: str, query: str, *, max_chars: int = 28000,
     }
 
 
+def search(notebook_id: str, query: str, *, top_k: int = 8,
+           snippet_chars: int = 320) -> dict:
+    """Full-text search across all sources → ranked hits with snippets.
+
+    Returns {"query", "hits": [{source_id, title, kind, score, snippet,
+    chunk_index}], "total_chunks"}. Deterministic — no LLM involved."""
+    pairs = store.all_source_texts(notebook_id)
+    if not pairs:
+        return {"query": query, "hits": [], "total_chunks": 0}
+    chunk_docs: list[tuple[dict, int, str, list[str]]] = []
+    for rec, text in pairs:
+        for ci, ch in enumerate(chunk_text(text)):
+            chunk_docs.append((rec, ci, ch, tokenize(ch)))
+    if not chunk_docs:
+        return {"query": query, "hits": [], "total_chunks": 0}
+    scores = _bm25_scores(tokenize(query), [d[3] for d in chunk_docs])
+    order = sorted(range(len(chunk_docs)), key=lambda i: scores[i], reverse=True)
+    hits = []
+    for i in order[:top_k]:
+        if scores[i] <= 0:
+            break
+        rec, ci, ch, _ = chunk_docs[i]
+        hits.append({
+            "source_id": rec.get("id"), "title": rec.get("title"),
+            "kind": rec.get("kind"), "score": round(scores[i], 3),
+            "chunk_index": ci, "snippet": ch[:snippet_chars].strip(),
+        })
+    return {"query": query, "hits": hits, "total_chunks": len(chunk_docs)}
+
+
 def notebook_digest(notebook_id: str, *, max_chars: int = 42000) -> str:
     """Broad-coverage digest for artifact/podcast prompts: head + tail slices of
     every source so generation sees the whole notebook, not just one query."""
