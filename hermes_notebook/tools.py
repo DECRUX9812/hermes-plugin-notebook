@@ -172,6 +172,7 @@ def notebook_discover(args: dict, **kw) -> str:
         })
     return runtime.ok(
         notebook=nb_id, query=query, candidates=cands,
+        _debug_raw=str(raw)[:300],
         hint="Add a candidate with notebook_add_source url=<url> — nothing was added automatically.",
     )
 
