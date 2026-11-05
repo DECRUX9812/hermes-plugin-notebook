@@ -70,3 +70,14 @@ def test_palettes_all_render(tmp_path):
         p = tmp_path / f"{pal}.png"
         video._render_card(p, kind="beat", headline="H", palette=pal)
         assert p.exists()
+
+
+def test_video_script_prompt_styles():
+    from hermes_notebook import video
+    base = {"title": "T", "description": ""}
+    cine = video._video_script_prompt(base, "digest", "short", "", "cinematic")
+    expl = video._video_script_prompt(base, "digest", "short", "", "explainer")
+    assert "CINEMATIC" in cine and "QUICK EXPLAINER" in expl
+    assert cine != expl
+    # unknown style falls back to cinematic inside make_video_overview
+    assert video.STYLES == ("cinematic", "explainer")
