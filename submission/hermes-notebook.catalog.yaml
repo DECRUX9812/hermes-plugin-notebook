@@ -13,27 +13,33 @@ sha: "05b3c11014c4a3fbdd2b500ec4f4ff4d37ac2c30"
 version: "0.1.0"
 title: Hermes Notebook
 description: >-
-  NotebookLM-style notebooks for Hermes: gather sources (local files, PDFs,
-  Office docs, web pages, YouTube videos, pasted text, images described by
-  vision), then ask questions answered ONLY from those sources with [S1]
-  citations mapped back to source titles. Every ingested source is auto-labeled
-  with topic tags and a one-line summary, and notebook_suggest recommends
-  questions worth asking, artifacts worth generating, and gaps to fill.
+  NotebookLM-style notebooks for Hermes — full parity plus Hermes-native
+  extras. Gather sources (local files, PDFs, Office docs, web pages, YouTube
+  videos, pasted text, images described by vision, user notes), then ask
+  questions answered ONLY from those sources with [S1] citations mapped back
+  to source titles — with chat threads for follow-ups. Every source is
+  auto-labeled with topic tags + a one-line summary, duplicates are detected
+  by content hash, and notebook_suggest recommends questions, artifacts and
+  gaps. notebook_search does ranked full-text lookup; notebook_discover finds
+  candidate web sources; notebook_refresh re-pulls changed sources;
+  notebook_update/notebook_export/notebook_delete_source manage the notebook.
   notebook_generate writes study artifacts — summary, briefing doc, study
-  guide, FAQ, timeline, mind map (markdown + Mermaid + JSON), flashcards and
-  quiz — into the notebook's artifacts directory. notebook_audio produces a
-  two-host conversational podcast overview (edge-tts neural voices, ffmpeg
-  assembly) and notebook_video a cinematic single-narrator mp4 with
-  Pillow-rendered title cards, both with transcripts. Ships a /notebook slash
-  command, a `hermes notebook` CLI, a bundled skill teaching grounded-research
+  guide, FAQ, timeline, mind map (markdown + Mermaid + JSON), flashcards
+  (markdown or Anki-importable CSV), quiz, slide deck (self-contained HTML)
+  and infographic (PNG). notebook_audio produces a two-host conversational
+  podcast overview and notebook_video a cinematic narrated mp4 (cinematic or
+  explainer style), both with transcripts. Ships a /notebook slash command,
+  a `hermes notebook` CLI, a bundled skill teaching grounded-research
   workflow, and an auxiliary task slot for cheap labeling calls. All state
-  lives under $HERMES_HOME/plugin-data/hermes-notebook/ per profile. Disclosure
-  — notebook_add_source/ask/generate/audio/suggest make host-owned LLM calls
-  through ctx.llm on the user's active model (labeling first tries the
-  plugin's auxiliary.notebook slot, then falls back); web pages go through the
-  built-in web_extract tool with a direct-fetch fallback that refuses
-  private-network addresses; YouTube sources fetch public transcripts; audio
-  synthesis calls the edge-tts service; ffmpeg must be on PATH for audio/video.
+  lives under $HERMES_HOME/plugin-data/hermes-notebook/ per profile.
+  Disclosure — notebook_add_source/ask/generate/audio/suggest make host-owned
+  LLM calls through ctx.llm on the user's active model (labeling first tries
+  the plugin's auxiliary.notebook slot, then falls back); web pages go
+  through the built-in web_extract tool with a direct-fetch fallback that
+  refuses private-network addresses; notebook_discover uses the built-in
+  web_search tool; YouTube sources fetch public transcripts; audio/video
+  synthesis calls the edge-tts service; ffmpeg must be on PATH for
+  audio/video; infographic/slide rendering uses Pillow.
 maintainer: DECRUX9812
 tier: community
 category: tools
@@ -59,6 +65,13 @@ capabilities:
     - notebook_audio
     - notebook_video
     - notebook_suggest
+    - notebook_search
+    - notebook_note
+    - notebook_refresh
+    - notebook_delete_source
+    - notebook_update
+    - notebook_export
+    - notebook_discover
     - notebook_delete
   provides_hooks: []
   provides_middleware: []
