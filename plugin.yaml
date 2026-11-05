@@ -82,6 +82,12 @@ config_schema:
     choices: [short, medium, long]
     label: Default video length
     description: Target runtime for video overviews when the tool call does not say.
+  video_style:
+    type: str
+    default: cinematic
+    choices: [cinematic, explainer]
+    label: Default video style
+    description: Documentary (cinematic) or quick tech-explainer narration for video overviews when the tool call does not say.
   audio_tts_concurrency:
     type: int
     default: 4
