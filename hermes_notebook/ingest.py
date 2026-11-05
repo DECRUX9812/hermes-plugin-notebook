@@ -262,32 +262,48 @@ _LABEL_SCHEMA = {
 }
 
 
+def _label_call(sample_input: list[dict], task: Optional[str]):
+    return runtime.llm().complete_structured(
+        instructions=(
+            "Label this source for a notebook UI. Pick 2-5 short topic labels "
+            "(1-3 words, like 'machine-learning', '19th-century-history') and "
+            "write a one-sentence summary of what the source contains. "
+            "Respond with ONLY the JSON object."
+        ),
+        input=sample_input,
+        json_schema=_LABEL_SCHEMA,
+        schema_name="source.labels",
+        purpose="hermes-notebook.label_source",
+        task=task,
+        temperature=0.0,
+        max_tokens=300,
+    )
+
+
 def _auto_label(title: str, kind: str, origin: str, body: str) -> tuple[list[str], str]:
-    """Cheap structured LLM pass for source chips + one-line summary. Best-effort."""
+    """Cheap structured LLM pass for source chips + one-line summary. Best-effort:
+    tries the plugin's auxiliary slot first (users can pin a fast model there),
+    then the main model, then a deterministic title-word fallback."""
     sample = body[:3500]
-    try:
-        result = runtime.llm().complete_structured(
-            instructions=(
-                "Label this source for a notebook UI. Pick 2-5 short topic labels "
-                "(1-3 words, like 'machine-learning', '19th-century-history') and "
-                "write a one-sentence summary of what the source contains."
-            ),
-            input=[{"type": "text", "text":
-                    f"Title: {title}\nKind: {kind}\nOrigin: {origin}\n\n{sample}"}],
-            json_schema=_LABEL_SCHEMA,
-            schema_name="source.labels",
-            purpose="hermes-notebook.label_source",
-            task="notebook",
-            temperature=0.0,
-            max_tokens=200,
-        )
-        parsed = result.parsed if isinstance(result.parsed, dict) else {}
-        labels = [str(x)[:40] for x in (parsed.get("labels") or []) if str(x).strip()][:5]
-        summary = str(parsed.get("summary") or "").strip()[:300]
-        if labels or summary:
-            return labels, summary
-    except Exception as exc:
-        runtime.logger.debug("auto-label failed (non-fatal): %s", exc)
+    user_input = [{"type": "text", "text":
+                   f"Title: {title}\nKind: {kind}\nOrigin: {origin}\n\n{sample}"}]
+    for task in ("notebook", None):
+        try:
+            result = _label_call(user_input, task)
+            parsed = result.parsed if isinstance(result.parsed, dict) else None
+            if parsed is None:
+                # some aux models ignore response_format — try parsing raw text
+                try:
+                    parsed = json.loads(result.text)
+                except (ValueError, TypeError):
+                    parsed = None
+            if isinstance(parsed, dict):
+                labels = [str(x)[:40] for x in (parsed.get("labels") or []) if str(x).strip()][:5]
+                summary = str(parsed.get("summary") or "").strip()[:300]
+                if labels or summary:
+                    return labels, summary
+        except Exception as exc:
+            runtime.logger.debug("auto-label attempt task=%r failed (non-fatal): %s", task, exc)
     # deterministic fallback: first meaningful words of title
     words = re.findall(r"[A-Za-z][A-Za-z0-9-]{2,}", title or "")[:3]
     return [w.lower() for w in words] or [kind], ""

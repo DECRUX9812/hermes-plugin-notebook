@@ -170,7 +170,6 @@ def notebook_suggest(args: dict, **kw) -> str:
         json_schema=_SUGGEST_SCHEMA,
         schema_name="notebook.suggestions",
         purpose="hermes-notebook.suggest",
-        task="notebook",
         max_tokens=1500, temperature=0.5,
     )
     if parsed is None:

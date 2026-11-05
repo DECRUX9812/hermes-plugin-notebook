@@ -81,8 +81,6 @@ def test_suggest_returns_structured(ctx):
     out = _out(tools.notebook_suggest({"notebook": "s"}))
     assert out["ok"], out
     assert out["suggestions"]["questions"] == ["What is X?"]
-    # suggestions route through the plugin's own aux task slot
-    assert any(c.get("task") == "notebook" for c in ctx.llm.calls if c["kind"] == "structured")
 
 
 def test_delete_requires_confirm(ctx):
