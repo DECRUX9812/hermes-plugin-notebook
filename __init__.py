@@ -263,6 +263,13 @@ def _cli_setup(parser) -> None:
 
 def _cli_run(args) -> int:
     cmd = getattr(args, "notebook_cmd", None)
+    # CLI subcommands run in-process without the agent loop, so builtin tools
+    # (web_search/web_extract for discover + URL ingest) are not registered yet.
+    # Importing model_tools triggers discover_builtin_tools() — idempotent.
+    try:
+        import model_tools  # noqa: F401
+    except Exception:
+        pass
     try:
         if cmd == "list":
             print(json.dumps(json.loads(tools.notebook_list({"notebook": args.notebook} if args.notebook else {})), indent=1, ensure_ascii=False))
