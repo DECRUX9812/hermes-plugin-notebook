@@ -1,0 +1,64 @@
+name: hermes-notebook
+version: 0.1.0
+manifest_version: 2
+api_version: 1
+description: >-
+  NotebookLM-style notebooks for Hermes: gather sources (files, PDFs, Office docs,
+  web pages, YouTube videos, pasted text, images), ask questions answered only
+  from those sources with citations, generate study artifacts (summary, study
+  guide, flashcards, quiz, mind map, timeline, FAQ, briefing doc), and produce a
+  two-host audio overview podcast. Sources are auto-labeled and the notebook
+  suggests what to ask or make next.
+author: Ritesh Patel
+license: MIT
+homepage: https://github.com/DECRUX9812/hermes-plugin-notebook
+tags: [notebook, research, citations, study, podcast, audio-overview, knowledge]
+requires_hermes: ">=0.22"
+provides_tools:
+  - notebook_list
+  - notebook_create
+  - notebook_add_source
+  - notebook_ask
+  - notebook_generate
+  - notebook_audio
+  - notebook_suggest
+  - notebook_delete
+provides_hooks: []
+config_schema:
+  default_notebook:
+    type: str
+    default: ""
+    label: Default notebook
+    description: Notebook used when a tool call does not name one.
+  ask_context_chars:
+    type: int
+    default: 28000
+    label: Chat context budget
+    description: Max characters of source text sent to the model per notebook_ask call.
+  podcast_context_chars:
+    type: int
+    default: 42000
+    label: Podcast context budget
+    description: Max characters of source text used to write an audio overview script.
+  audio_voice_host_a:
+    type: str
+    default: "en-US-AndrewNeural"
+    label: Host A voice (edge-tts)
+    description: Neural voice for the first podcast host. edge-tts voice names, e.g. en-US-AndrewNeural.
+  audio_voice_host_b:
+    type: str
+    default: "en-US-EmmaNeural"
+    label: Host B voice (edge-tts)
+    description: Neural voice for the second podcast host.
+  podcast_length:
+    type: str
+    default: medium
+    choices: [short, medium, long]
+    label: Default podcast length
+    description: Target runtime for audio overviews when the tool call does not say.
+python_dependencies:
+  - "pypdf>=4.2,<7"
+  - "edge-tts>=7.0,<8"
+  - "youtube-transcript-api>=1.0,<2"
+  - "trafilatura>=1.6,<3"
+  - "openpyxl>=3.1,<4"
