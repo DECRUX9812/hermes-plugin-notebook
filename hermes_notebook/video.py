@@ -276,6 +276,29 @@ def _probe(path: Path) -> float:
     return d if d and d > 0 else 3.0
 
 
+def _real_duration(path: Path) -> float:
+    """Decoded (ground-truth) duration in seconds.
+
+    edge-tts mp3s carry unreliable container duration metadata — ffprobe's
+    format=duration under-reports by ~2x on these files, which silently
+    desynced card length vs narration. Decoding is the only trustworthy
+    measure; segments are seconds long so this stays cheap."""
+    ffmpeg = shutil.which("ffmpeg")
+    if not ffmpeg:
+        return _probe(path)
+    try:
+        r = subprocess.run(
+            [ffmpeg, "-nostats", "-progress", "pipe:1", "-i", str(path),
+             "-map", "0:a:0", "-f", "null", "-"],
+            capture_output=True, text=True, timeout=180)
+        marks = re.findall(r"out_time_us=(\d+)", r.stdout)
+        if marks:
+            return int(marks[-1]) / 1_000_000
+    except Exception:
+        pass
+    return _probe(path)
+
+
 def _plan_cards(work: Path, segs: list[dict], nb_title: str, ep_title: str,
                 src_titles: list[str]) -> list[tuple[Path, int, str]]:
     """Render every card PNG; returns [(png, seg_index, kind)] aligned 1:1
@@ -309,21 +332,26 @@ _PLAIN_VF = "fps=25,format=yuv420p"
 
 def _encode_clip(card: Path, audio_path: Optional[Path], dur: float,
                  out: Path) -> None:
-    """One card + its narration segment → CFR mp4 clip (zoompan, plain fallback)."""
+    """One card + its narration segment → CFR mp4 clip (zoompan, plain fallback).
+
+    The card loops indefinitely and the OUTPUT is capped at the segment's
+    real decoded duration — sync is guaranteed by construction, no reliance
+    on -shortest (unreliable with -loop image inputs)."""
     ffmpeg = shutil.which("ffmpeg")
     if not ffmpeg:
         raise RuntimeError("ffmpeg not found — needed to assemble the video overview")
     ins = [ffmpeg, "-y", "-loglevel", "error",
-           "-loop", "1", "-framerate", "25", "-t", f"{dur:.3f}", "-i", str(card)]
+           "-loop", "1", "-framerate", "25", "-i", str(card)]
     if audio_path is not None:
         ins += ["-i", str(audio_path)]
     else:
-        ins += ["-f", "lavfi", "-t", f"{dur:.3f}", "-i", "anullsrc=r=44100:cl=stereo"]
+        ins += ["-f", "lavfi", "-i", "anullsrc=r=44100:cl=stereo"]
     last_err = ""
     for vf in (_ZOOM_VF, _PLAIN_VF):
         cmd = ins + ["-vf", vf, "-c:v", "libx264", "-preset", "veryfast",
                      "-crf", "21", "-r", "25", "-c:a", "aac", "-b:a", "128k",
-                     "-shortest", "-movflags", "+faststart", str(out)]
+                     "-ac", "2", "-ar", "44100",
+                     "-t", f"{dur:.3f}", "-movflags", "+faststart", str(out)]
         r = subprocess.run(cmd, capture_output=True, text=True, timeout=600)
         if r.returncode == 0 and out.exists() and out.stat().st_size > 5000:
             return
@@ -336,7 +364,8 @@ def _assemble_video(clips: list[Path], out_path: Path) -> None:
     lst = clips[0].parent / "_clips.txt"
     lst.write_text("".join(f"file '{c.resolve()}'\n" for c in clips), encoding="utf-8")
     cmd = [ffmpeg, "-y", "-loglevel", "error", "-f", "concat", "-safe", "0",
-           "-i", str(lst), "-c", "copy", "-movflags", "+faststart", str(out_path)]
+           "-i", str(lst), "-c:v", "copy", "-c:a", "aac", "-b:a", "128k",
+           "-ac", "2", "-ar", "44100", "-movflags", "+faststart", str(out_path)]
     r = subprocess.run(cmd, capture_output=True, text=True, timeout=300)
     if r.returncode != 0 or not out_path.exists() or out_path.stat().st_size < 10000:
         raise RuntimeError(f"ffmpeg video assembly failed: {(r.stderr or '')[-400:]}")
@@ -415,7 +444,7 @@ async def make_video_overview(notebook: str, *, length: Optional[str] = None,
     await asyncio.gather(*[_seg(i, s) for i, s in enumerate(segs)])
 
     parts = [work / f"seg_{i:03d}.mp3" for i in range(len(segs))]
-    durs = [_probe(p) for p in parts]
+    durs = [_real_duration(p) for p in parts]
 
     src_titles = [s.get("title", "source") for s in sources][:12]
     cards = _plan_cards(work, segs, meta.get("title", ""), ep_title, src_titles)
