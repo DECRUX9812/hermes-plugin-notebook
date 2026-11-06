@@ -46,10 +46,14 @@ the Hermes Marketplace.
 
 ## 3. Demo video (<90 seconds, public, on X)
 
-- [x] Demo video RENDERED: `~/Desktop/GetBB x Hermes/videos/hermes-notebook-demo/renders/demo-final.mp4`
-      (88s, 1920x1080, ambient pad). Real plugin output: title → ingest with
-      auto-labels → cited ask → mind_map/slides/audio artifacts → install CTA.
-      Source project: same dir (`index.html` + `record.mjs`, re-recordable).
+- [x] Demo videos RENDERED (both in `~/Desktop/GetBB x Hermes/videos/hermes-notebook-demo/renders/`):
+  - `explainer.mp4` — 144s narrated explainer (Groq Orpheus VO + music bed):
+    title → sources/auto-labels → live terminal (ingest, cited ask, note/
+    search/discover/export, slides/infographic/CSV/video) → REAL plugin
+    video_overview.mp4 clip + REAL two-host podcast audio → 16-tools close.
+    Best for YouTube/Loom + Typeform.
+  - `demo-final.mp4` — 88s terminal-style cut (<90s X limit): ingest →
+    cited ask → artifacts → install CTA. Post this one on X.
 - [ ] Post it on X tagging **@NousResearch** (upload the mp4), keep the URL
 - [ ] Upload the same video to YouTube/Loom as backup link
 - [ ] (Optional reference arc below if a re-record is needed:)
