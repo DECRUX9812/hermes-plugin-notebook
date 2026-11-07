@@ -1,0 +1,177 @@
+{
+ "ok": true,
+ "measured_at": "2026-11-07 10:43:11 -0600",
+ "hosts": [
+  {
+   "id": "local",
+   "name": "Decrux-Linux",
+   "role": "workstation",
+   "dial": "100.84.81.81",
+   "reachable": true,
+   "hostname": "Decrux-Linux",
+   "os": "Ubuntu 26.04.1 LTS",
+   "kernel": "7.0.0-38-generic",
+   "uptime_s": 438745,
+   "load": [
+    3.22,
+    3.85,
+    3.81
+   ],
+   "cores": 10,
+   "mem": {
+    "total_gb": 95.9,
+    "used_gb": 35.3,
+    "pct": 36.8
+   },
+   "disk": {
+    "total_gb": 431.0,
+    "used_gb": 369.5,
+    "pct": 85.7
+   },
+   "reboot_required": true,
+   "mptcp_enabled": false,
+   "mitigation": false,
+   "failed_units": 0,
+   "containers_up": 26,
+   "patch_state": "vulnerable",
+   "kernel_fix": "7.0.0-43.43",
+   "kernel_fix_note": "Ubuntu 7.0.0-43.43 (resolute-updates)",
+   "can": [
+    "docker",
+    "services",
+    "patch",
+    "logs"
+   ],
+   "measured_ms": 329
+  },
+  {
+   "id": "pve",
+   "name": "pve",
+   "role": "hypervisor",
+   "dial": "192.168.0.181",
+   "reachable": true,
+   "hostname": "pve",
+   "os": "Debian GNU/Linux 13 (trixie)",
+   "kernel": "7.0.14-26-pve",
+   "uptime_s": 438784,
+   "load": [
+    3.64,
+    3.89,
+    4.03
+   ],
+   "cores": 12,
+   "mem": {
+    "total_gb": 125.5,
+    "used_gb": 104.4,
+    "pct": 83.2
+   },
+   "disk": {
+    "total_gb": 67.7,
+    "used_gb": 15.1,
+    "pct": 22.3
+   },
+   "reboot_required": false,
+   "mptcp_enabled": false,
+   "mitigation": true,
+   "failed_units": 0,
+   "containers_up": 0,
+   "patch_state": "patched",
+   "kernel_fix": "7.0.14-25-pve",
+   "kernel_fix_note": "proxmox-kernel 7.0.14-25 or newer",
+   "can": [
+    "proxmox",
+    "services",
+    "patch",
+    "reboot",
+    "logs"
+   ],
+   "measured_ms": 732
+  },
+  {
+   "id": "vm100",
+   "name": "Ubuntu-Desktop (VM 100)",
+   "role": "vm",
+   "dial": "192.168.0.223",
+   "reachable": true,
+   "hostname": "Decrux-Linux",
+   "os": "Ubuntu 26.04.1 LTS",
+   "kernel": "7.0.0-38-generic",
+   "uptime_s": 438747,
+   "load": [
+    3.22,
+    3.85,
+    3.81
+   ],
+   "cores": 10,
+   "mem": {
+    "total_gb": 95.9,
+    "used_gb": 35.3,
+    "pct": 36.8
+   },
+   "disk": {
+    "total_gb": 431.0,
+    "used_gb": 369.5,
+    "pct": 85.7
+   },
+   "reboot_required": true,
+   "mptcp_enabled": false,
+   "mitigation": true,
+   "failed_units": 0,
+   "containers_up": 26,
+   "patch_state": "vulnerable",
+   "kernel_fix": "7.0.0-43.43",
+   "kernel_fix_note": "Ubuntu 7.0.0-43.43 (resolute-updates)",
+   "can": [
+    "docker",
+    "services",
+    "logs"
+   ],
+   "measured_ms": 3259
+  },
+  {
+   "id": "decruxhome",
+   "name": "decruxhome",
+   "role": "server",
+   "dial": "100.78.212.22",
+   "reachable": false,
+   "error": "timed out after 14.0s",
+   "can": []
+  },
+  {
+   "id": "laptop",
+   "name": "decrux (laptop)",
+   "role": "laptop",
+   "dial": "100.66.131.72",
+   "reachable": false,
+   "error": "ssh: connect to host 100.66.131.72 port 2222: Connection timed out",
+   "can": []
+  },
+  {
+   "id": "decrux-box",
+   "name": "decrux-box",
+   "role": "server",
+   "dial": "100.88.212.27",
+   "reachable": false,
+   "error": "ssh: connect to host decrux-box port 22: Connection timed out",
+   "can": []
+  },
+  {
+   "id": "grok-bot-box",
+   "name": "grok-bot-box",
+   "role": "bot host",
+   "dial": "100.65.56.10",
+   "reachable": false,
+   "error": "ssh: connect to host grok-bot-box port 22: Connection timed out",
+   "can": []
+  },
+  {
+   "id": "alien",
+   "name": "alien (Windows)",
+   "role": "desktop",
+   "dial": "100.64.187.24",
+   "reachable": false,
+   "error": "rites@100.64.187.24: Permission denied (publickey).",
+   "can": []
+  }
+ ]
+}

@@ -1,0 +1,40 @@
+{
+  "title": "Fusion 2026: the funding is private, the gaps are physical",
+  "takeaway": "Assembly is ahead of plan; the fuel cycle is not on the plan at all.",
+  "stats": [
+    {
+      "value": "$790M",
+      "label": "US FES budget, FY2025",
+      "detail": "about 21% to ITER"
+    },
+    {
+      "value": "$4.48B",
+      "label": "private fusion, 12 months",
+      "detail": "to July 2026 (FIA)"
+    },
+    {
+      "value": "6 / 9",
+      "label": "ITER sector modules",
+      "detail": "two-thirds of the torus, Jul 2026"
+    },
+    {
+      "value": "2027",
+      "label": "final module planned",
+      "detail": "then first plasma campaign"
+    }
+  ],
+  "quotes": [
+    {
+      "text": "Neutron-resistant materials and a tritium breeding blanket remain unsolved at plant scale.",
+      "source": "Reuters, 25 Aug 2026"
+    },
+    {
+      "text": "No defensible levelised cost figure exists yet.",
+      "source": "CRS R48866"
+    },
+    {
+      "text": "The 2022 authorisation of $1.1B for FY2027 is a ceiling, not an appropriation.",
+      "source": "CRS R48866"
+    }
+  ]
+}

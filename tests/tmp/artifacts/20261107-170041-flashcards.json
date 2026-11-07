@@ -1,0 +1,44 @@
+{
+  "cards": [
+    {
+      "front": "What does ITER's 'six of nine' refer to?",
+      "back": "Tokamak sector modules installed in the pit — two-thirds of the torus core, as of 28 July 2026.",
+      "source": "ITER Organization"
+    },
+    {
+      "front": "How much did private fusion raise in the year to July 2026?",
+      "back": "$4.48B worldwide, with $14.24B cumulative since 2021 (Fusion Industry Association).",
+      "source": "Reuters"
+    },
+    {
+      "front": "What is the DOE FES budget for FY2025, and ITER's share?",
+      "back": "$790M; about 21% of the FY2026 appropriation ($806M) is directed at ITER.",
+      "source": "CRS R48866"
+    },
+    {
+      "front": "Name the three engineering gaps the sources keep repeating.",
+      "back": "Neutron-resistant structural materials, a tritium breeding blanket, and a supply chain able to qualify both at scale.",
+      "source": "Reuters / CRS"
+    },
+    {
+      "front": "Why is scientific breakeven not a power plant?",
+      "back": "It compares fusion output to energy delivered on target, not to grid energy; a plant also needs thermal conversion, duty cycle and tritium self-sufficiency.",
+      "source": "Fusion power (reference)"
+    },
+    {
+      "front": "What does the Milestone programme pay for?",
+      "back": "$415M over 2022-2027, reimbursing eight companies after pre-negotiated technical targets — payment on delivery, not grants.",
+      "source": "Reuters"
+    },
+    {
+      "front": "What does the CRS say about fusion's levelised cost?",
+      "back": "That no defensible figure exists yet — any number quoted today is a projection.",
+      "source": "CRS R48866"
+    },
+    {
+      "front": "Where do the two funding trackers disagree?",
+      "back": "CRS puts cumulative private investment at nearly $9B (2021-2025); FIA puts it at $14.24B. Different survey populations, same direction.",
+      "source": "CRS / Reuters"
+    }
+  ]
+}

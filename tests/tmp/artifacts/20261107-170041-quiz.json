@@ -1,0 +1,59 @@
+{
+  "questions": [
+    {
+      "question": "Which body counts $4.48B of fusion investment in the twelve months to July 2026?",
+      "choices": [
+        "The IAEA",
+        "The Fusion Industry Association",
+        "The Congressional Research Service",
+        "The DOE"
+      ],
+      "answer": "The Fusion Industry Association",
+      "explanation": "Reuters reports the FIA figure; the CRS runs its own, smaller, survey."
+    },
+    {
+      "question": "How many ITER tokamak sector modules are installed as of the sources?",
+      "choices": [
+        "Four of nine",
+        "Six of nine",
+        "Eight of nine",
+        "All nine"
+      ],
+      "answer": "Six of nine",
+      "explanation": "The sixth was lowered on 28 July 2026, two-thirds of the torus; the ninth is planned for 2027."
+    },
+    {
+      "question": "What is the DOE fusion energy sciences budget for FY2025?",
+      "choices": [
+        "$415M",
+        "$700M",
+        "$790M",
+        "$1.1B"
+      ],
+      "answer": "$790M",
+      "explanation": "$790M appropriated for FY2025, $806M for 2026; $1.1B is the FY2027 authorisation ceiling, not an appropriation."
+    },
+    {
+      "question": "Which problem is NOT named as an open engineering gap in these sources?",
+      "choices": [
+        "Neutron-resistant structural materials",
+        "Tritium breeding blankets",
+        "Superconducting tape supply",
+        "A qualified supply chain"
+      ],
+      "answer": "Superconducting tape supply",
+      "explanation": "The sources name materials, tritium and supply-chain qualification; HTS tape is discussed as an enabler, not a stated gap."
+    },
+    {
+      "question": "What does the Reuters piece say the sector needs per year over the next decade?",
+      "choices": [
+        "$250M",
+        "More than $1B",
+        "$4.5B",
+        "$14B"
+      ],
+      "answer": "More than $1B",
+      "explanation": "Industry's own number, against a $790M appropriation."
+    }
+  ]
+}

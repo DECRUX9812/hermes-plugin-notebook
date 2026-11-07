@@ -1,0 +1,45 @@
+{
+  "notebook": {
+    "slug": "commercial-fusion-2026",
+    "title": "Commercial Fusion Energy in 2026",
+    "description": "Six real sources on the state of commercial fusion: the CRS briefing for Congress, the US deployment roadmap, ITER's assembly progress, IAEA's 2025 outlook and Wikipedia's reference article. Files under tests/demo-raw keep the unmodified extraction."
+  },
+  "sources": [
+    {
+      "id": "crs-toward-commercial-fusion-energy",
+      "title": "Toward Commercial Fusion Energy: Considerations for Congress (CRS R48866)",
+      "url": "https://www.congress.gov/crs_external_products/R/HTML/R48866.html",
+      "file": "crs-toward-commercial-fusion-energy.md"
+    },
+    {
+      "id": "reuters-us-fusion-roadmap-mid-2030s",
+      "title": "US roadmap targets fusion deployment by mid 2030s - Reuters",
+      "url": "https://www.reuters.com/business/energy/us-roadmap-targets-fusion-deployment-by-mid-2030s--reeii-2026-08-25/",
+      "file": "reuters-us-fusion-roadmap-mid-2030s.md"
+    },
+    {
+      "id": "ans-iter-assembly-progress",
+      "title": "ITER reports \u201csubstantial progress\u201d in assembly and installation work - ANS Nuclear Newswire",
+      "url": "https://www.ans.org/news/2026-09-09/article-8375/iter-reports-substantial-progress-in-assembly-and-installation-work/",
+      "file": "ans-iter-assembly-progress.md"
+    },
+    {
+      "id": "iter-two-thirds-tokamak-core",
+      "title": "Two-thirds of ITER tokamak core now in place - ITER Organization",
+      "url": "https://www.iter.org/two-thirds-iter-tokamak-core-now-place",
+      "file": "iter-two-thirds-tokamak-core.md"
+    },
+    {
+      "id": "iaea-world-fusion-outlook-2025",
+      "title": "IAEA World Fusion Outlook 2025 (IAEA/PAT/012)",
+      "url": "https://www.iaea.org/publications/15935/iaea-world-fusion-outlook-2025",
+      "file": "iaea-world-fusion-outlook-2025.md"
+    },
+    {
+      "id": "wikipedia-fusion-power",
+      "title": "Fusion power - Wikipedia",
+      "url": "https://en.wikipedia.org/wiki/Fusion_power",
+      "file": "wikipedia-fusion-power.md"
+    }
+  ]
+}

@@ -1,0 +1,15 @@
+{
+ "ok": true,
+ "result": {
+  "at": "2026-11-07 11:28:09 -0600",
+  "action": "shell",
+  "host": "pve",
+  "target": "uptime; df -h / | tail -1",
+  "ok": true,
+  "code": 0,
+  "ms": 570,
+  "cmd": "uptime; df -h / | tail -1",
+  "out": "11:28:09 up 5 days,  2:38,  1 user,  load average: 3.20, 3.27, 3.43\n/dev/mapper/pve-root   68G   16G   50G  24% /",
+  "err": ""
+ }
+}

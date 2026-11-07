@@ -1,0 +1,50 @@
+{
+  "title": "Commercial fusion, 2026",
+  "slides": [
+    {
+      "title": "Six sources, one question",
+      "bullets": [
+        "Does commercial fusion arrive on the mid-2030s schedule?",
+        "Public money flat, private money at a record",
+        "Assembly is ahead; the fuel cycle is not"
+      ],
+      "note": "Set the frame: this is a funding story with an engineering tail."
+    },
+    {
+      "title": "The money has changed hands",
+      "bullets": [
+        "FES: $790M in FY2025, $806M for 2026",
+        "Private: $4.48B in the year to July 2026",
+        "Cumulative since 2021: $14.24B (FIA)"
+      ],
+      "note": "Note the tracker disagreement — nearly $9B on the CRS basis."
+    },
+    {
+      "title": "ITER is assembling on pace",
+      "bullets": [
+        "Six of nine sector modules installed",
+        "~1,100-tonne module, 30-hour lift",
+        "Two-thirds of the torus; last module 2027"
+      ],
+      "note": "Assembly pace improved; that is not the same as first plasma."
+    },
+    {
+      "title": "Three gaps no schedule closes",
+      "bullets": [
+        "Neutron-resistant structural materials",
+        "A tritium breeding blanket at plant flux",
+        "A supply chain qualified to build either"
+      ],
+      "note": "These are the items to watch in any diligence."
+    },
+    {
+      "title": "What the sources refuse to say",
+      "bullets": [
+        "No defensible levelised cost — CRS is explicit",
+        "No consensus grid date beyond a policy target",
+        "No tritium budget for a commercial fleet"
+      ],
+      "note": "Absence of a number is the finding."
+    }
+  ]
+}

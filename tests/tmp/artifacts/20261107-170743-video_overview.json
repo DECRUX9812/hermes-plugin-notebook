@@ -1,0 +1,39 @@
+{
+  "title": "Fusion 2026 — where the money went",
+  "notebook": "Commercial Fusion Energy in 2026",
+  "length": "short",
+  "voice": "en-US-AndrewNeural",
+  "rate": "-4%",
+  "segments": [
+    {
+      "text": "Does commercial fusion arrive on the mid-2030s schedule? Six documents: a CRS briefing for Congress, the DOE roadmap as reported by Reuters, two ITER releases, the IAEA outlook and the reference article.",
+      "headline": "Six sources, one question",
+      "palette": "indigo"
+    },
+    {
+      "text": "Fusion energy sciences got seven hundred ninety million dollars in fiscal 2025. In the twelve months to July 2026, private companies raised four point four eight billion. Cumulative private investment since 2021 is fourteen point two four billion.",
+      "headline": "$790M public. $4.48B private.",
+      "palette": "ember"
+    },
+    {
+      "text": "The Congressional Research Service counts nearly nine billion for 2021 to 2025. The Fusion Industry Association counts fourteen point two four. Same direction, different populations.",
+      "headline": "Two trackers, two totals",
+      "palette": "mono"
+    },
+    {
+      "text": "The sixth of nine tokamak sector modules went into the pit on 28 July 2026: eleven hundred tonnes, a thirty-hour lift, six months ahead of plan. The ninth module is scheduled for 2027.",
+      "headline": "ITER: two-thirds assembled",
+      "palette": "forest"
+    },
+    {
+      "text": "Neutron-resistant structural materials. A tritium breeding blanket that works at plant flux. A supply chain qualified to build either. None of these is a physics question with a date attached.",
+      "headline": "Three gaps no schedule closes",
+      "palette": "indigo"
+    },
+    {
+      "text": "Levelised cost. The CRS is explicit that no defensible figure exists yet. Industry says the programme needs more than a billion dollars a year for a decade; Congress appropriated seven hundred ninety million.",
+      "headline": "The number nobody will defend",
+      "palette": "ember"
+    }
+  ]
+}

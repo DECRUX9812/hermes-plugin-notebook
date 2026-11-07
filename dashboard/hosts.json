@@ -1,0 +1,120 @@
+{
+  "_comment": "Inventory the control deck drives. ssh=null means this machine. via=null means direct ssh; otherwise the command prefix used to reach it (e.g. a Proxmox guest agent). fix.* is the patched kernel for that host's distro line, taken from the vendor tracker \u2014 the page compares it against the running kernel live, it does not trust this value as 'patched'.",
+  "hosts": [
+    {
+      "id": "local",
+      "name": "Decrux-Linux",
+      "role": "workstation",
+      "ssh": null,
+      "dial": "100.84.81.81",
+      "os_line": "Ubuntu 26.04",
+      "kernel_fix": "7.0.0-43.43",
+      "kernel_fix_note": "Ubuntu 7.0.0-43.43 (resolute-updates)",
+      "can": [
+        "docker",
+        "services",
+        "patch",
+        "logs"
+      ]
+    },
+    {
+      "id": "pve",
+      "name": "pve",
+      "role": "hypervisor",
+      "ssh": "pve",
+      "dial": "192.168.0.181",
+      "os_line": "Proxmox VE 9.2.5 \u00b7 Debian 13",
+      "kernel_fix": "7.0.14-25-pve",
+      "kernel_fix_note": "proxmox-kernel 7.0.14-25 or newer",
+      "can": [
+        "proxmox",
+        "services",
+        "patch",
+        "reboot",
+        "logs"
+      ],
+      "identity": "~/.ssh/pve"
+    },
+    {
+      "id": "vm100",
+      "name": "Ubuntu-Desktop (VM 100)",
+      "role": "vm",
+      "ssh": "pve",
+      "via": "qm guest exec 100 --timeout 25 --",
+      "dial": "192.168.0.223",
+      "os_line": "Ubuntu 26.04",
+      "kernel_fix": "7.0.0-43.43",
+      "kernel_fix_note": "Ubuntu 7.0.0-43.43 (resolute-updates)",
+      "can": [
+        "docker",
+        "services",
+        "logs"
+      ],
+      "identity": "~/.ssh/pve"
+    },
+    {
+      "id": "decruxhome",
+      "name": "decruxhome",
+      "role": "server",
+      "ssh": "decruxhome",
+      "dial": "100.78.212.22",
+      "os_line": "linux",
+      "kernel_fix": null,
+      "kernel_fix_note": "no vendor mapping yet",
+      "can": []
+    },
+    {
+      "id": "laptop",
+      "name": "decrux (laptop)",
+      "role": "laptop",
+      "ssh": "laptop",
+      "dial": "100.66.131.72",
+      "os_line": "linux",
+      "kernel_fix": null,
+      "kernel_fix_note": "rolling distro \u2014 patch = reboot into newest",
+      "can": []
+    },
+    {
+      "id": "decrux-box",
+      "name": "decrux-box",
+      "role": "server",
+      "ssh": "decrux-box",
+      "dial": "100.88.212.27",
+      "os_line": "linux",
+      "kernel_fix": null,
+      "kernel_fix_note": "no vendor mapping yet",
+      "can": []
+    },
+    {
+      "id": "grok-bot-box",
+      "name": "grok-bot-box",
+      "role": "bot host",
+      "ssh": "grok-bot-box",
+      "dial": "100.65.56.10",
+      "os_line": "linux",
+      "kernel_fix": null,
+      "kernel_fix_note": "no vendor mapping yet",
+      "can": []
+    },
+    {
+      "id": "alien",
+      "name": "alien (Windows)",
+      "role": "desktop",
+      "ssh": "alien",
+      "dial": "100.64.187.24",
+      "os_line": "Windows",
+      "kernel_fix": "n/a",
+      "kernel_fix_note": "not a Linux kernel target",
+      "can": []
+    }
+  ],
+  "proxmox": {
+    "host": "pve"
+  },
+  "cve": {
+    "id": "CVE-2026-98432",
+    "title": "Linux IPv4 TCP handshake use-after-free",
+    "cvss": "9.8",
+    "mitigation": "nft drop of inbound IPv4 TCP packets carrying IP options"
+  }
+}
