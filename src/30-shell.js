@@ -29,9 +29,13 @@ function App() {
   const notebook = data && data.notebook
   const kinds = (data && data.kinds) || []
 
-  // the first notebook in the list is the default when nothing is stored
+  // the first notebook in the list is the default when nothing is stored, and a
+  // stored id the backend no longer has must not stay marked as current — the
+  // rail would show one notebook selected and another notebook's sources.
   useEffect(() => {
-    if (!nb && data && data.notebooks && data.notebooks.length) setNb(data.notebooks[0].id)
+    if (!data || !data.notebooks || !data.notebooks.length) return
+    const ids = data.notebooks.map((n) => n.id)
+    if (!nb || !ids.includes(nb)) setNb(data.notebook ? data.notebook.id : ids[0])
   }, [data, nb])
 
   // A studio card can be opened by name from outside the page (palette command,
@@ -216,7 +220,7 @@ function Rail({ data, nb, setNb, q, setQ, filter, setFilter, onNewNotebook, onAd
                     el('span', { style: { minWidth: 0, flex: 1 } },
                       el('span', { className: 'nb-src-title', children: s.title }),
                       el('span', { className: 'nb-src-meta' },
-                        el('span', { className: 'nb-chip', children: `${s.kind} · ${nfmt(s.chars)}` }),
+                        el('span', { className: 'nb-chip', children: `${s.kind} · ${nfmt(s.chars)} chars` }),
                         (s.labels || []).slice(0, 2).map((l) => el('span', { className: 'nb-chip', children: l }, l))
                       ))
                   ]

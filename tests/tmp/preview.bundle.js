@@ -14814,7 +14814,10 @@ var CSS2 = `
   font-family:inherit;font-weight:550;color:${T.text2};gap:6px}
 .nb-citechip b{font-family:var(--ui-font-mono,ui-monospace,monospace);color:${T.accent};font-weight:650;
   letter-spacing:.06em;font-size:10.5px}
-.nb-chip[data-click=true]{cursor:pointer;min-height:32px;height:32px;padding:0 10px;font-size:10px}
+.nb-chip[data-click=true]{cursor:pointer;min-height:32px;height:32px;padding:0 10px;font-size:10px;
+  background:color-mix(in srgb, ${T.text} 5%, transparent);border-color:var(--nb-hair-soft)}
+.nb-chip:not([data-click]):not(.nb-citechip):not([data-tone]){color:${T.text4};border-color:transparent;
+  padding-left:0;padding-right:8px;font-size:9.5px}
 .nb-chip[data-click=true]:hover{background:var(--nb-wash-2);color:${T.text};border-color:var(--nb-hair)}
 .nb-chip[data-click=true][data-tone=accent]:hover{color:${T.accent}}
 .nb-chip[data-click=true][aria-pressed=true]{background:color-mix(in srgb,${T.accent} 16%, transparent);color:${T.accent};
@@ -15600,7 +15603,9 @@ function App() {
   const notebook = data && data.notebook;
   const kinds = data && data.kinds || [];
   (0, import_react.useEffect)(() => {
-    if (!nb && data && data.notebooks && data.notebooks.length) setNb(data.notebooks[0].id);
+    if (!data || !data.notebooks || !data.notebooks.length) return;
+    const ids = data.notebooks.map((n) => n.id);
+    if (!nb || !ids.includes(nb)) setNb(data.notebook ? data.notebook.id : ids[0]);
   }, [data, nb]);
   (0, import_react.useEffect)(() => {
     if (!notebook) return;
@@ -15867,7 +15872,7 @@ function Rail({ data, nb, setNb, q: q2, setQ, filter, setFilter, onNewNotebook, 
               el(
                 "span",
                 { className: "nb-src-meta" },
-                el("span", { className: "nb-chip", children: `${s.kind} \xB7 ${nfmt(s.chars)}` }),
+                el("span", { className: "nb-chip", children: `${s.kind} \xB7 ${nfmt(s.chars)} chars` }),
                 (s.labels || []).slice(0, 2).map((l) => el("span", { className: "nb-chip", children: l }, l))
               )
             )
