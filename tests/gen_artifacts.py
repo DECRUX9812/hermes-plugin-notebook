@@ -8,6 +8,9 @@ configured model (the `hermes chat -q … --oneshot` door, no tools bound).
 
     python3 tests/gen_artifacts.py --notebook commercial-fusion-2026 --kinds mind_map,flashcards
 """
+
+# needs: PYTHONPATH=<hermes checkout> HERMES_HOME=<profile> and a working model
+
 from __future__ import annotations
 
 import argparse

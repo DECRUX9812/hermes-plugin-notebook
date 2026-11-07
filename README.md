@@ -210,6 +210,15 @@ node tests/shots-docs.mjs           # assets/shot-*.png + banner.png
 python3 tests/serve_api.py 8917     # throwaway FastAPI mount to curl the routes
 ```
 
+The demo seeders (`seed_demo.py`, `gen_artifacts.py`) need the Hermes package on the
+path and edge-tts/Pillow installed, or they fail with `No module named 'plugins'` and
+`audio overviews need the edge-tts package`:
+
+```bash
+PYTHONPATH=<hermes-agent checkout> HERMES_HOME=~/.hermes \
+  /path/to/venv/bin/python tests/seed_demo.py --notebook commercial-fusion-2026
+```
+
 `tests/gates.mjs` is the contract: the built bundle registers every area against
 both SDK generations, a ready card opens its viewer, asking renders an answer
 with citations, a citation opens its source, the label filter and search narrow

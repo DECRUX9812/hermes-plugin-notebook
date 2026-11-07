@@ -13,6 +13,9 @@ labelling is marked in `tests/demo-sources.json`. Re-run with a working model
 
     HERMES_HOME=~/.hermes python3 tests/seed_demo.py --notebook commercial-fusion-2026
 """
+
+# needs: PYTHONPATH=<hermes checkout> HERMES_HOME=<profile> python with edge-tts+Pillow
+
 from __future__ import annotations
 
 import argparse
