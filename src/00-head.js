@@ -215,6 +215,9 @@ const CSS = `
   border-color:color-mix(in srgb,${T.warn} 42%, transparent)}
 .nb-chip[data-tone=danger]{color:${T.danger};background:transparent;
   border-color:color-mix(in srgb,${T.danger} 42%, transparent)}
+.nb-cite-row{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-top:12px;
+  padding-top:10px;border-top:1px solid var(--nb-hair-soft)}
+.nb-cite-row > .nb-meta{color:${T.text4};flex:1 0 100%;margin-bottom:2px}
 .nb-citechip{text-transform:none;letter-spacing:.02em;font-size:10.5px;height:24px;
   font-family:inherit;font-weight:550;color:${T.text2};gap:6px}
 .nb-citechip b{font-family:var(--ui-font-mono,ui-monospace,monospace);color:${T.accent};font-weight:650;
@@ -259,9 +262,9 @@ const CSS = `
 /* ------------------------------------------------------------------- chat */
 .nb-chat{flex:1;min-height:0;display:flex;flex-direction:column}
 .nb-thread{flex:1;min-height:0;overflow:auto;padding:26px 26px 10px;display:flex;flex-direction:column;gap:26px}
-.nb-msg{max-width:70ch}
+.nb-msg{max-width:38em}
 .nb-msg[data-role=assistant]{display:grid;grid-template-columns:28px minmax(0,1fr);gap:14px;align-self:flex-start}
-.nb-msg[data-role=user]{align-self:flex-end;max-width:60ch;border-left:2px solid ${T.accent};
+.nb-msg[data-role=user]{align-self:flex-end;max-width:34em;border-left:2px solid ${T.accent};
   padding:2px 0 2px 14px}
 .nb-msg-body{min-width:0}
 .nb-msg[data-role=user] .nb-bubble{font-size:15px;line-height:1.55;color:${T.text2}}
@@ -344,7 +347,7 @@ const CSS = `
   background:color-mix(in srgb, ${T.text} 1.5%, transparent)}
 .nb-view-title{font-size:15px;font-weight:650;letter-spacing:-.01em}
 .nb-view-body{flex:1;min-height:0;overflow:auto;padding:26px}
-.nb-doc{max-width:68ch;font-size:16px;line-height:1.68}
+.nb-doc{max-width:36em;font-size:16px;line-height:1.68}
 .nb-doc h1{font-size:22px;line-height:1.2;letter-spacing:-.025em;margin:0 0 14px;text-wrap:balance}
 .nb-doc em{color:${T.text2}}
 .nb-doc hr{border:0;border-top:1px solid var(--nb-hair);margin:22px 0}

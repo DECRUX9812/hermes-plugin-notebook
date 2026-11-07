@@ -232,7 +232,8 @@ function Msg({ msg, onCite }) {
             el('div', { className: 'nb-bubble' },
               jsx(Markdown, { text: msg.content, onCite })),
             (msg.citations || []).length
-              ? el('div', { style: { display: 'flex', gap: '6px', flexWrap: 'wrap', marginTop: '10px' }, role: 'list', 'aria-label': 'Citations' },
+              ? el('div', { className: 'nb-cite-row', role: 'list', 'aria-label': 'Sources cited' },
+                  el('span', { className: 'nb-meta', children: 'Cited' }),
                   msg.citations.map((c) => el('button', {
                     key: `${c.n}-${c.title}`, type: 'button', className: 'nb-chip nb-citechip',
                     onClick: () => onCite && onCite(c.n),

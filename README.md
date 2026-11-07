@@ -41,6 +41,17 @@ through `ctx.rest` and handed to a blob URL, because a renderer cannot put the
 desktop grant on a media element), an audio waveform that seeks, and a
 transcript rendered from the generated text rather than raw markdown.
 
+**Design: "Filed".** The surface is styled as an editorial-technical instrument —
+sharp 0-radius geometry, hairline rules instead of boxes, mono uppercase eyebrows and
+plate numbers, one accent doing interactive and provenance work, and the graph-paper
+ground kept to the title block so long-form reading stays on a flat canvas. The studio
+list is an index grouped Documents / Study / Media / Visual with plate numbers, a
+one-line *why you'd open it* and a status column, rather than twelve identical cards.
+The structure is borrowed (with the palette and webfonts deliberately dropped) from two
+OpenDesign design-system packages, `tom-modern` and `atelier-zero`; see
+[`docs/design/OPEN-DESIGN.md`](docs/design/OPEN-DESIGN.md) for what was taken, what was
+rejected and the rules the page now follows.
+
 **Hermes-native by construction.** Every colour resolves through the app's theme
 variables (`--ui-text-primary`, `--ui-accent`, `--ui-stroke-secondary`, …) so the
 page follows light/dark and the user's accent. Contributions go through the
