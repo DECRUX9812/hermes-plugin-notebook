@@ -354,6 +354,31 @@ async def ask(payload: Dict[str, Any] = Body(...)) -> Any:
     }
 
 
+@router.get("/source_text")
+def source_text(notebook: str = Query(...), id: str = Query(...),
+                chars: int = Query(24000)) -> Any:
+    """The stored text of one source, for the page's source peek.
+
+    Reads what `store.add_source` wrote — the same bytes retrieval scores — so a
+    citation opens exactly what the answer was built from.
+    """
+    try:
+        nb_id = store.resolve_notebook(notebook)
+    except Exception as exc:
+        return _fail(str(exc), 404)
+    src = store.get_source(nb_id, id)
+    if not src:
+        return _fail(f"source {id!r} is not in this notebook", 404)
+    try:
+        text = store.read_source_text(nb_id, src)
+    except Exception as exc:
+        return _fail(f"source text unreadable: {exc}", 500)
+    limit = max(500, min(200_000, int(chars or 24000)))
+    return {"ok": True, "id": src.get("id", id), "title": src.get("title") or id,
+            "kind": src.get("kind", ""), "origin": src.get("origin", ""),
+            "chars": len(text), "truncated": len(text) > limit, "text": text[:limit]}
+
+
 @router.post("/search")
 def search(payload: Dict[str, Any] = Body(...)) -> Any:
     from hermes_notebook import tools as tools_mod
