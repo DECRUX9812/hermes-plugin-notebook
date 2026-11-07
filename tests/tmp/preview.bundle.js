@@ -14580,6 +14580,7 @@ var import_client = __toESM(require_client(), 1);
 var ROUTES_AREA = "routes";
 var SIDEBAR_NAV_AREA = "sidebar.nav";
 var PALETTE_AREA = "palette";
+var TRANSCRIPT_DIRECTIVE_AREA = "transcript.directives";
 var STATUSBAR_AREAS = { left: "statusBar.left", right: "statusBar.right" };
 var ListRow = (p) => {
   const h = window.React && window.React.createElement;
@@ -14626,6 +14627,12 @@ var host = {
 // tests/tmp/preview.mjs
 var import_react = __toESM(require_react(), 1);
 var import_jsx_runtime = __toESM(require_jsx_runtime(), 1);
+var host2 = host;
+var ROUTES_AREA2 = ROUTES_AREA || "routes";
+var SIDEBAR_NAV_AREA2 = SIDEBAR_NAV_AREA || "sidebar.nav";
+var PALETTE_AREA2 = PALETTE_AREA || "palette";
+var STATUSBAR_AREAS2 = STATUSBAR_AREAS || { left: "statusBar.left", right: "statusBar.right" };
+var TRANSCRIPT_DIRECTIVE_AREA2 = TRANSCRIPT_DIRECTIVE_AREA || "transcript.directives";
 var ID = "hermes-notebook";
 var ROUTE = "/notebook";
 var T = {
@@ -14645,301 +14652,396 @@ var T = {
   purple: "var(--ui-purple, #9e94d5)"
 };
 var CSS2 = `
+/* ============================================================================
+   SYSTEM: "Filed" \u2014 editorial-technical instrument.
+   Adapted from Open Design packages "tom-modern" (structure: sharp 0-radius
+   geometry, hairline rules, hard offset elevation, mono eyebrows, single accent,
+   graph-paper ground) and "atelier-zero" (editorial metadata: plate numbers,
+   filed-under stamps, Roman-numeral index, one accent period per heading).
+   Every value still resolves through the app's own tokens, so the page follows
+   the user's light/dark theme and accent. No pinned surface hexes.
+   ========================================================================== */
+
 .nb-root{
   --nb-rail: 300px; --nb-studio: 392px;
+  --nb-hair: color-mix(in srgb, ${T.text} 19%, transparent);
+  --nb-hair-soft: color-mix(in srgb, ${T.text} 11%, transparent);
+  --nb-wash: color-mix(in srgb, ${T.text} 3.5%, transparent);
+  --nb-wash-2: color-mix(in srgb, ${T.text} 6%, transparent);
+  --nb-gridline: color-mix(in srgb, ${T.text} 5.5%, transparent);
   display:flex; flex-direction:column; height:100%; min-height:0;
   color:${T.text}; font-size:16px; line-height:1.5;
   font-variant-numeric: tabular-nums;
 }
 .nb-root *{box-sizing:border-box}
-.nb-root :focus-visible{outline:2px solid ${T.accent}; outline-offset:2px; border-radius:6px}
+.nb-root :focus-visible{outline:2px solid ${T.accent}; outline-offset:2px; border-radius:0}
 .nb-mono{font-family:var(--ui-font-mono,ui-monospace,SFMono-Regular,Menlo,monospace);font-variant-ligatures:none}
-.nb-meta{font-size:12.5px;letter-spacing:.07em;text-transform:uppercase;color:${T.text3};font-weight:600}
 .nb-num{font-family:var(--ui-font-mono,ui-monospace,SFMono-Regular,Menlo,monospace);font-variant-numeric:tabular-nums}
 
-/* app bar */
-.nb-bar{display:flex;align-items:center;gap:14px;height:54px;flex:0 0 54px;
-  padding:0 16px;border-bottom:1px solid ${T.line};}
-.nb-brand{display:flex;align-items:center;gap:10px;min-width:0}
-.nb-mark{width:26px;height:26px;border-radius:8px;display:grid;place-items:center;flex:0 0 auto;
-  background:color-mix(in srgb,${T.accent} 16%, transparent);
-  border:1px solid color-mix(in srgb,${T.accent} 32%, transparent);color:${T.accent}}
-.nb-brandname{font-weight:650;letter-spacing:-.01em;font-size:16px}
-.nb-crumb{color:${T.text3};font-size:14px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.nb-crumb b{color:${T.text2};font-weight:550}
-.nb-spacer{flex:1 1 auto}
-.nb-actions{display:flex;align-items:center;gap:8px}
+/* every section label on the page is the same mono eyebrow */
+.nb-meta{font-family:var(--ui-font-mono,ui-monospace,monospace);font-size:10.5px;letter-spacing:.18em;
+  text-transform:uppercase;color:${T.text3};font-weight:600}
 
-/* controls */
-.nb-btn{display:inline-flex;align-items:center;justify-content:center;gap:7px;
-  min-height:34px;padding:0 12px;border-radius:9px;cursor:pointer;font-size:14px;
-  font-weight:560;border:1px solid ${T.line};background:${T.card};color:${T.text};
-  transition:background .12s ease,border-color .12s ease,transform .06s ease}
-.nb-btn:hover{background:color-mix(in srgb,${T.text} 9%, transparent);border-color:${T.lineSoft}}
-.nb-btn:active{transform:translateY(0.5px)}
-.nb-btn[disabled]{opacity:.45;cursor:not-allowed}
-.nb-btn[data-variant=primary]{background:color-mix(in srgb,${T.accent} 20%, transparent);
-  border-color:color-mix(in srgb,${T.accent} 46%, transparent);color:${T.accent};font-weight:650}
-.nb-btn[data-variant=primary]:hover{background:color-mix(in srgb,${T.accent} 30%, transparent);
-  border-color:color-mix(in srgb,${T.accent} 62%, transparent)}
+/* ------------------------------------------------------------------ app bar */
+.nb-bar{display:flex;align-items:center;gap:16px;height:52px;flex:0 0 52px;
+  padding:0 18px;border-bottom:1px solid var(--nb-hair)}
+.nb-brand{display:flex;align-items:center;gap:12px;min-width:0}
+.nb-mark{width:24px;height:24px;display:grid;place-items:center;flex:0 0 auto;
+  background:transparent;border:1px solid color-mix(in srgb,${T.accent} 60%, transparent);color:${T.accent}}
+.nb-brandname{font-family:var(--ui-font-mono,ui-monospace,monospace);font-weight:700;letter-spacing:.2em;
+  font-size:11.5px;text-transform:uppercase;color:${T.text}}
+.nb-crumb{font-family:var(--ui-font-mono,ui-monospace,monospace);color:${T.text3};font-size:11.5px;
+  letter-spacing:.06em;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
+  border-left:1px solid var(--nb-hair);padding-left:12px}
+.nb-crumb b{color:${T.text2};font-weight:600}
+.nb-spacer{flex:1 1 auto}
+.nb-actions{display:flex;align-items:center;gap:10px}
+
+/* ---------------------------------------------------------------- controls */
+.nb-btn{display:inline-flex;align-items:center;justify-content:center;gap:8px;
+  min-height:32px;padding:0 14px;border-radius:0;cursor:pointer;
+  font-size:12.5px;font-weight:650;letter-spacing:.06em;text-transform:uppercase;
+  font-family:var(--ui-font-mono,ui-monospace,monospace);
+  border:1px solid var(--nb-hair);background:transparent;color:${T.text};
+  transition:background .12s ease,border-color .12s ease,box-shadow .12s ease}
+.nb-btn:hover{background:var(--nb-wash-2);border-color:color-mix(in srgb,${T.text} 30%, transparent)}
+.nb-btn:active{transform:translateY(1px)}
+.nb-btn[disabled]{opacity:.4;cursor:not-allowed}
+.nb-btn[data-variant=primary]{background:${T.accent};border-color:${T.accent};
+  color:#0b0c11;font-weight:700}
+.nb-btn[data-variant=primary]:hover{background:color-mix(in srgb,${T.accent} 86%, ${T.text});
+  border-color:color-mix(in srgb,${T.accent} 86%, ${T.text});box-shadow:3px 3px 0 color-mix(in srgb,${T.text} 12%, transparent)}
+.nb-btn[data-variant=primary][disabled]{background:transparent;border-color:var(--nb-hair);color:${T.text3}}
+.nb-btn[data-variant=primary][disabled]:hover{box-shadow:none}
 .nb-btn[data-variant=ghost]{background:transparent;border-color:transparent;color:${T.text2}}
-.nb-btn[data-variant=ghost]:hover{background:color-mix(in srgb,${T.text} 7%, transparent);color:${T.text}}
-.nb-btn[data-size=sm]{min-height:28px;font-size:13px;padding:0 9px;border-radius:7px}
-.nb-icon{width:36px;height:36px;min-height:36px;padding:0;border-radius:9px;display:grid;place-items:center;
-  cursor:pointer;border:1px solid transparent;background:transparent;color:${T.text2}}
-.nb-icon:hover{background:color-mix(in srgb,${T.text} 8%, transparent);color:${T.text}}
-.nb-icon[data-active=true]{background:color-mix(in srgb,${T.accent} 16%, transparent);color:${T.accent}}
-.nb-seg{display:inline-flex;padding:3px;gap:2px;border-radius:10px;background:${T.cardDeep};
-  border:1px solid ${T.lineSoft}}
+.nb-btn[data-variant=ghost]:hover{background:var(--nb-wash-2);color:${T.text}}
+.nb-btn[data-size=sm]{min-height:28px;padding:0 10px;font-size:11px}
+.nb-icon{width:32px;height:32px;min-height:32px;padding:0;border-radius:0;display:grid;place-items:center;
+  cursor:pointer;border:1px solid transparent;background:transparent;color:${T.text3}}
+.nb-icon:hover{border-color:var(--nb-hair);background:var(--nb-wash);color:${T.text}}
+.nb-icon[data-active=true]{border-color:color-mix(in srgb,${T.accent} 50%, transparent);color:${T.accent}}
+
+.nb-seg{display:inline-flex;border:1px solid var(--nb-hair);background:transparent;padding:0}
 .nb-seg[data-fill="true"]{display:flex;width:100%}
-.nb-seg[data-fill="true"] > button{flex:1;justify-content:center;padding:0 10px;font-size:13px}
-.nb-seg > button{min-height:32px;padding:0 12px;border-radius:7px;border:0;background:transparent;
-  color:${T.text3};font-size:13.5px;font-weight:600;cursor:pointer;letter-spacing:.01em;
-  display:inline-flex;align-items:center;gap:6px}
-.nb-seg > button:hover{color:${T.text}}
-.nb-seg > button[aria-selected=true]{background:color-mix(in srgb,${T.text} 15%, transparent);
-  color:${T.text};box-shadow:inset 0 0 0 1px ${T.line}, 0 1px 0 rgba(0,0,0,.18)}
-.nb-field{display:flex;align-items:center;gap:8px;height:36px;padding:0 10px;border-radius:9px;
-  border:1px solid ${T.line};background:${T.cardDeep};color:${T.text2}}
+.nb-seg[data-fill="true"] > button{flex:1;justify-content:center}
+.nb-seg > button{min-height:32px;padding:0 12px;border:0;border-right:1px solid var(--nb-hair-soft);
+  background:transparent;color:${T.text3};cursor:pointer;
+  font-family:var(--ui-font-mono,ui-monospace,monospace);font-size:10.5px;font-weight:650;
+  letter-spacing:.14em;text-transform:uppercase;
+  display:inline-flex;align-items:center;justify-content:center;gap:6px;
+  transition:background .12s ease,color .12s ease}
+.nb-seg > button:last-child{border-right:0}
+.nb-seg > button:hover{color:${T.text};background:var(--nb-wash)}
+.nb-seg > button[aria-selected=true]{background:color-mix(in srgb,${T.text} 10%, transparent);color:${T.text};
+  box-shadow:inset 0 -2px 0 ${T.accent}}
+
+.nb-field{display:flex;align-items:center;gap:9px;height:34px;padding:0 10px;border-radius:0;
+  border:1px solid var(--nb-hair);background:transparent;color:${T.text3}}
+.nb-field:focus-within{border-color:color-mix(in srgb,${T.accent} 55%, transparent)}
 .nb-field input{flex:1;min-width:0;height:100%;border:0;outline:0;background:transparent;
-  color:${T.text};font-size:14.5px;font-family:inherit}
+  color:${T.text};font-size:14px;font-family:inherit}
 .nb-field input::placeholder{color:${T.text4}}
 
-/* body */
+/* ------------------------------------------------------------------- body */
 .nb-body{flex:1 1 auto;display:grid;grid-template-columns:var(--nb-rail) minmax(0,1fr) var(--nb-studio);
   min-height:0;overflow:hidden}
 .nb-col{min-width:0;min-height:0;display:flex;flex-direction:column}
-.nb-rail{position:relative;border-right:1px solid ${T.line};background:color-mix(in srgb,${T.text} 2%, transparent)}
-.nb-studio{position:relative;border-left:1px solid ${T.line};background:color-mix(in srgb,${T.text} 2%, transparent)}
-.nb-fade{position:absolute;left:0;right:0;bottom:0;height:34px;pointer-events:none;
-  background:linear-gradient(to top, color-mix(in srgb, ${T.text} 6%, #0b0c11), transparent)}
-.nb-pane-head{display:flex;align-items:center;gap:8px;height:44px;flex:0 0 44px;padding:0 14px;
-  border-bottom:1px solid ${T.lineSoft}}
+/* The graph-paper ground belongs to the title block (chrome), not to the
+   reading surface: long-form text and a transcript read better on a flat
+   canvas, and the grid still sets the page's character at the top. */
+.nb-body > main{background:transparent}
+.nb-main-head{background-image:
+  linear-gradient(var(--nb-gridline) 1px, transparent 1px),
+  linear-gradient(90deg, var(--nb-gridline) 1px, transparent 1px);
+  background-size:24px 24px;background-position:-1px -1px}
+.nb-rail{position:relative;border-right:1px solid var(--nb-hair)}
+.nb-studio{position:relative;border-left:1px solid var(--nb-hair);background:var(--nb-wash)}
+.nb-fade{position:absolute;left:0;right:0;bottom:0;height:38px;pointer-events:none;
+  background:linear-gradient(to top, color-mix(in srgb, ${T.text} 5%, ${T.card}), transparent)}
+.nb-pane-head{display:flex;align-items:center;gap:8px;height:40px;flex:0 0 40px;padding:0 14px;
+  border-bottom:1px solid var(--nb-hair)}
 .nb-pane-head .nb-meta{flex:1}
-.nb-scroll{flex:1;min-height:0;overflow:auto;overscroll-behavior:contain}
+.nb-scroll{flex:1;min-height:0;overflow:auto;overscroll-behavior:contain;scrollbar-width:thin}
 .nb-pad{padding:12px}
 
-/* rail */
-.nb-nbrow{display:flex;gap:10px;align-items:flex-start;width:100%;text-align:left;cursor:pointer;
-  border:1px solid transparent;background:transparent;border-radius:10px;padding:9px 10px;color:${T.text}}
-.nb-nbrow:hover{background:color-mix(in srgb,${T.text} 5%, transparent)}
-.nb-nbrow[aria-current=true]{background:color-mix(in srgb,${T.accent} 12%, transparent);
-  border-color:color-mix(in srgb,${T.accent} 26%, transparent)}
+/* ------------------------------------------------------------------- rail */
+.nb-nbrow{display:grid;grid-template-columns:24px minmax(0,1fr);gap:12px;align-items:start;width:100%;
+  text-align:left;cursor:pointer;border:0;border-left:2px solid transparent;background:transparent;
+  border-radius:0;padding:10px 12px 11px 10px;color:${T.text};
+  border-bottom:1px solid var(--nb-hair-soft)}
+.nb-nbrow:hover{background:var(--nb-wash)}
+.nb-nbrow[aria-current=true]{background:var(--nb-wash-2);border-left-color:${T.accent}}
+.nb-nbtitle{font-size:14px;font-weight:600;line-height:1.32;color:${T.text2};letter-spacing:-.005em;
+  overflow:hidden;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical}
 .nb-nbrow[aria-current=true] .nb-nbtitle{color:${T.text}}
-.nb-nbtitle{font-size:14.5px;font-weight:600;line-height:1.3;color:${T.text2};
-  overflow:hidden;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical}
-.nb-nbsub{font-size:12.5px;color:${T.text3};margin-top:2px}
-.nb-avatar{width:30px;height:30px;border-radius:8px;flex:0 0 auto;display:grid;place-items:center;
-  font-size:12px;font-weight:700;letter-spacing:-.02em;color:${T.accent};
-  background:color-mix(in srgb,${T.accent} 13%, transparent);
-  border:1px solid color-mix(in srgb,${T.accent} 22%, transparent)}
+.nb-nbsub{font-family:var(--ui-font-mono,ui-monospace,monospace);font-size:10.5px;letter-spacing:.04em;
+  color:${T.text3};margin-top:4px;display:block}
+.nb-avatar{width:24px;height:24px;flex:0 0 auto;display:grid;place-items:center;
+  font-family:var(--ui-font-mono,ui-monospace,monospace);font-size:10.5px;font-weight:600;
+  letter-spacing:.04em;color:${T.text3};border:1px solid var(--nb-hair);background:transparent}
+.nb-nbrow[aria-current=true] .nb-avatar{color:${T.accent};border-color:color-mix(in srgb,${T.accent} 55%, transparent)}
 
-.nb-src{display:flex;gap:10px;width:100%;text-align:left;cursor:pointer;border-radius:10px;
-  padding:9px 10px;border:1px solid transparent;background:transparent;color:${T.text}}
-.nb-src:hover{background:color-mix(in srgb,${T.text} 5%, transparent)}
-.nb-src[data-on=true]{background:color-mix(in srgb,${T.accent} 10%, transparent);
-  border-color:color-mix(in srgb,${T.accent} 24%, transparent)}
-.nb-cite{font-family:var(--ui-font-mono,ui-monospace,monospace);font-size:11.5px;font-weight:700;
-  color:${T.text3};padding-top:2px;min-width:22px}
+.nb-src{display:grid;grid-template-columns:26px minmax(0,1fr);gap:10px;width:100%;text-align:left;
+  cursor:pointer;border:0;border-left:2px solid transparent;border-radius:0;
+  padding:9px 12px 10px 10px;background:transparent;color:${T.text};
+  border-bottom:1px solid var(--nb-hair-soft)}
+.nb-src:hover{background:var(--nb-wash)}
+.nb-src[data-on=true]{border-left-color:${T.accent};background:var(--nb-wash-2)}
+.nb-cite{font-family:var(--ui-font-mono,ui-monospace,monospace);font-size:10.5px;font-weight:600;
+  letter-spacing:.04em;color:${T.text3};padding-top:3px}
 .nb-src[data-on=true] .nb-cite{color:${T.accent}}
-.nb-src-title{font-size:14.5px;font-weight:550;line-height:1.32;color:${T.text};
+.nb-src-title{font-size:13.5px;font-weight:550;line-height:1.36;color:${T.text};
   overflow:hidden;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical}
-.nb-src-meta{display:flex;align-items:center;gap:6px;margin-top:4px;flex-wrap:wrap}
-.nb-chip{display:inline-flex;align-items:center;gap:4px;height:21px;padding:0 7px;border-radius:6px;
-  font-size:11.5px;font-weight:550;letter-spacing:.01em;color:${T.text2};
-  background:color-mix(in srgb,${T.text} 7%, transparent);
-  border:1px solid ${T.lineSoft};white-space:nowrap}
-.nb-chip[data-tone=accent]{color:${T.accent};background:color-mix(in srgb,${T.accent} 18%, transparent);
-  border-color:color-mix(in srgb,${T.accent} 40%, transparent)}
-.nb-chip[data-tone=ok]{color:${T.ok};background:color-mix(in srgb,${T.ok} 12%, transparent);
-  border-color:color-mix(in srgb,${T.ok} 26%, transparent)}
-.nb-chip[data-tone=warn]{color:${T.warn};background:color-mix(in srgb,${T.warn} 13%, transparent);
-  border-color:color-mix(in srgb,${T.warn} 28%, transparent)}
-.nb-chip[data-tone=danger]{color:${T.danger};background:color-mix(in srgb,${T.danger} 13%, transparent);
-  border-color:color-mix(in srgb,${T.danger} 28%, transparent)}
-.nb-chip[data-click=true]{cursor:pointer;min-height:32px;height:32px;padding:0 11px;font-size:12.5px}
-.nb-chip[data-click=true]:hover{background:color-mix(in srgb,${T.text} 12%, transparent)}
+.nb-src-meta{display:flex;align-items:center;gap:8px;margin-top:5px;flex-wrap:wrap}
 
-/* main */
-.nb-main-head{padding:16px 22px 12px;border-bottom:1px solid ${T.lineSoft};flex:0 0 auto}
-.nb-h1{font-size:23px;font-weight:650;letter-spacing:-.02em;line-height:1.2;margin:0}
-.nb-sub{color:${T.text3};font-size:14.5px;margin-top:5px;max-width:70ch}
-.nb-strip{display:flex;align-items:stretch;margin-top:14px;border:1px solid ${T.line};
-  border-radius:11px;overflow:hidden;background:${T.card}} 
-.nb-cell{flex:1;padding:9px 14px;border-right:1px solid ${T.lineSoft};min-width:0}
-.nb-cell:last-child{border-right:0}
-.nb-cell b{display:block;font-size:18px;font-weight:650;letter-spacing:-.01em;line-height:1.15}
-.nb-cell span{display:block;font-size:11.5px;letter-spacing:.05em;text-transform:uppercase;
-  color:${T.text3};margin-top:3px;font-weight:600}
-.nb-tabs{display:flex;gap:4px;align-items:center;margin:12px 0 0}
-.nb-tab{min-height:32px;padding:0 12px;border-radius:8px;border:1px solid transparent;
-  background:transparent;color:${T.text3};font-size:14px;font-weight:600;cursor:pointer;
-  display:inline-flex;align-items:center;gap:7px}
-.nb-tab:hover{color:${T.text};background:color-mix(in srgb,${T.text} 6%, transparent)}
-.nb-tab[aria-selected=true]{color:${T.text};background:color-mix(in srgb,${T.text} 10%, transparent);
-  border-color:${T.line}}
+/* chips are labels, not pills: mono, hairline, square */
+.nb-chip{display:inline-flex;align-items:center;gap:5px;height:20px;padding:0 6px;border-radius:0;
+  font-family:var(--ui-font-mono,ui-monospace,monospace);font-size:10px;font-weight:600;
+  letter-spacing:.12em;text-transform:uppercase;color:${T.text3};
+  background:transparent;border:1px solid var(--nb-hair-soft);white-space:nowrap}
+.nb-chip[data-tone=accent]{color:${T.accent};background:transparent;
+  border-color:color-mix(in srgb,${T.accent} 50%, transparent)}
+.nb-chip[data-tone=ok]{color:${T.ok};background:transparent;
+  border-color:color-mix(in srgb,${T.ok} 40%, transparent)}
+.nb-chip[data-tone=warn]{color:${T.warn};background:transparent;
+  border-color:color-mix(in srgb,${T.warn} 42%, transparent)}
+.nb-chip[data-tone=danger]{color:${T.danger};background:transparent;
+  border-color:color-mix(in srgb,${T.danger} 42%, transparent)}
+.nb-citechip{text-transform:none;letter-spacing:.02em;font-size:10.5px;height:24px;
+  font-family:inherit;font-weight:550;color:${T.text2};gap:6px}
+.nb-citechip b{font-family:var(--ui-font-mono,ui-monospace,monospace);color:${T.accent};font-weight:650;
+  letter-spacing:.06em;font-size:10.5px}
+.nb-chip[data-click=true]{cursor:pointer;min-height:32px;height:32px;padding:0 10px;font-size:10px}
+.nb-chip[data-click=true]:hover{background:var(--nb-wash-2);color:${T.text};border-color:var(--nb-hair)}
+.nb-chip[data-click=true][data-tone=accent]:hover{color:${T.accent}}
+.nb-chip[data-click=true][aria-pressed=true]{background:color-mix(in srgb,${T.accent} 16%, transparent);color:${T.accent};
+  border-color:color-mix(in srgb,${T.accent} 55%, transparent)}
 
-/* chat */
+/* ------------------------------------------------------- title block (main) */
+.nb-main-head{padding:18px 26px 0;border-bottom:1px solid var(--nb-hair);flex:0 0 auto;position:relative;
+  background:color-mix(in srgb, ${T.text} 1.5%, transparent)}
+.nb-filed{display:flex;align-items:center;gap:10px;margin-bottom:12px;
+  font-family:var(--ui-font-mono,ui-monospace,monospace);font-size:10.5px;font-weight:600;
+  letter-spacing:.2em;text-transform:uppercase;color:${T.text3}}
+.nb-filed b{color:${T.text2};font-weight:600}
+.nb-filed i{flex:1;height:1px;background:var(--nb-hair);display:block}
+.nb-h1{font-size:30px;font-weight:700;letter-spacing:-.035em;line-height:1.06;margin:0;max-width:26ch;
+  text-wrap:balance}
+.nb-h1::after{content:"";display:inline-block;width:6px;height:6px;margin-left:9px;
+  background:${T.accent};vertical-align:baseline;position:relative;bottom:2px}
+.nb-sub{color:${T.text2};font-size:14px;line-height:1.55;margin:10px 0 0;max-width:66ch}
+.nb-strip{display:flex;align-items:stretch;margin:16px 0 0;border-top:1px solid var(--nb-hair);
+  border-bottom:1px solid var(--nb-hair);background:transparent;border-radius:0}
+.nb-cell{flex:1;padding:10px 14px 11px;border-right:1px solid var(--nb-hair-soft);min-width:0}
+.nb-cell:first-child{padding-left:0}
+.nb-cell:last-child b,.nb-cell:last-child span{text-align:right}
+.nb-cell:last-child{border-right:0;padding-right:0}
+.nb-cell b{display:block;font-family:var(--ui-font-mono,ui-monospace,monospace);font-size:20px;font-weight:600;
+  letter-spacing:-.02em;line-height:1;font-variant-numeric:tabular-nums}
+.nb-cell span{display:block;font-family:var(--ui-font-mono,ui-monospace,monospace);font-size:10px;
+  letter-spacing:.16em;text-transform:uppercase;color:${T.text3};margin-top:8px;font-weight:600}
+.nb-tabs{display:flex;gap:24px;align-items:flex-end;margin:16px 0 0;position:relative;bottom:-1px}
+.nb-tab{min-height:36px;padding:0 0 10px;border:0;border-bottom:2px solid transparent;border-radius:0;
+  background:transparent;color:${T.text2};font-size:13.5px;font-weight:600;cursor:pointer;
+  display:inline-flex;align-items:center;gap:7px;letter-spacing:.01em}
+.nb-tab:hover{color:${T.text}}
+.nb-tab[aria-selected=true]{color:${T.text};border-bottom-color:${T.accent}}
+.nb-tab[disabled]{opacity:.45;cursor:default}
+
+/* ------------------------------------------------------------------- chat */
 .nb-chat{flex:1;min-height:0;display:flex;flex-direction:column}
-.nb-thread{flex:1;min-height:0;overflow:auto;padding:20px 22px 8px;display:flex;flex-direction:column;gap:18px}
-.nb-msg{display:flex;gap:12px;max-width:78ch}
-.nb-msg[data-role=user]{align-self:flex-end;flex-direction:row-reverse}
+.nb-thread{flex:1;min-height:0;overflow:auto;padding:26px 26px 10px;display:flex;flex-direction:column;gap:26px}
+.nb-msg{max-width:70ch}
+.nb-msg[data-role=assistant]{display:grid;grid-template-columns:28px minmax(0,1fr);gap:14px;align-self:flex-start}
+.nb-msg[data-role=user]{align-self:flex-end;max-width:60ch;border-left:2px solid ${T.accent};
+  padding:2px 0 2px 14px}
 .nb-msg-body{min-width:0}
-.nb-msg[data-role=user] .nb-bubble{background:color-mix(in srgb,${T.accent} 13%, transparent);
-  border:1px solid color-mix(in srgb,${T.accent} 22%, transparent);border-radius:12px 12px 4px 12px;
-  padding:10px 14px;font-size:15.5px}
-.nb-msg[data-role=assistant] .nb-bubble{font-size:16px;line-height:1.62;color:${T.text}}
-.nb-who{font-size:11.5px;letter-spacing:.08em;text-transform:uppercase;color:${T.text4};
-  font-weight:700;margin-bottom:6px}
-.nb-md p{margin:0 0 10px}
-.nb-md h2{font-size:17px;margin:16px 0 8px;letter-spacing:-.01em}
-.nb-md h3{font-size:15.5px;margin:14px 0 6px;color:${T.text2}}
-.nb-md ul{margin:0 0 10px;padding-left:20px}
-.nb-md li{margin:4px 0}
-.nb-md code{font-family:var(--ui-font-mono,ui-monospace,monospace);font-size:13.5px;
-  background:color-mix(in srgb,${T.text} 9%, transparent);padding:1px 5px;border-radius:5px}
+.nb-msg[data-role=user] .nb-bubble{font-size:15px;line-height:1.55;color:${T.text2}}
+.nb-msg[data-role=assistant] .nb-bubble{font-size:16px;line-height:1.66;color:${T.text}}
+.nb-msg[data-role=assistant] .nb-avatar{width:28px;height:28px;margin-top:2px}
+.nb-who{font-family:var(--ui-font-mono,ui-monospace,monospace);font-size:10px;letter-spacing:.16em;
+  text-transform:uppercase;color:${T.text3};font-weight:650;margin-bottom:9px}
+.nb-md p{margin:0 0 11px}
+.nb-md p:last-child{margin-bottom:0}
+.nb-md h2{font-size:16.5px;margin:20px 0 8px;letter-spacing:-.015em;padding-bottom:6px;
+  border-bottom:1px solid var(--nb-hair-soft)}
+.nb-md h3{font-size:14.5px;margin:16px 0 6px;color:${T.text2};letter-spacing:.01em}
+.nb-md ul{margin:0 0 11px;padding-left:18px}
+.nb-md li{margin:5px 0}
+.nb-md li::marker{color:${T.accent}}
+.nb-md code{font-family:var(--ui-font-mono,ui-monospace,monospace);font-size:13px;
+  background:var(--nb-wash-2);padding:1px 5px;border:1px solid var(--nb-hair-soft)}
 .nb-md strong{font-weight:650;color:${T.text}}
-.nb-md blockquote{margin:10px 0;padding:2px 0 2px 12px;border-left:2px solid ${T.accent};color:${T.text2}}
-.nb-inline-cite{display:inline-flex;align-items:center;min-height:26px;padding:0 7px;margin:0 2px;
-  border-radius:6px;font-size:12.5px;font-weight:700;cursor:pointer;vertical-align:baseline;
-  font-family:var(--ui-font-mono,ui-monospace,monospace);color:${T.accent};
-  background:color-mix(in srgb,${T.accent} 12%, transparent);
-  border:1px solid color-mix(in srgb,${T.accent} 26%, transparent)}
-.nb-inline-cite:hover{background:color-mix(in srgb,${T.accent} 22%, transparent)}
-.nb-composer{flex:0 0 auto;padding:12px 22px 16px;border-top:1px solid ${T.lineSoft}}
-.nb-askbox{display:flex;flex-direction:column;gap:8px;border:1px solid ${T.line};border-radius:12px;
-  background:${T.card};padding:10px 12px}
-.nb-askbox:focus-within{border-color:color-mix(in srgb,${T.accent} 45%, transparent)}
+.nb-md blockquote{margin:12px 0;padding:2px 0 2px 14px;border-left:2px solid ${T.accent};color:${T.text2}}
+/* inline citations are plate references: superscript mono, underlined, no pill */
+.nb-inline-cite{display:inline-flex;align-items:center;min-height:16px;padding:0 3px;margin:0 1px;
+  border:0;background:color-mix(in srgb,${T.accent} 10%, transparent);
+  font-family:var(--ui-font-mono,ui-monospace,monospace);font-size:11px;font-weight:650;
+  color:${T.accent};cursor:pointer;vertical-align:super;line-height:1;
+  text-decoration:underline;text-underline-offset:3px;text-decoration-thickness:1px}
+.nb-inline-cite:hover{background:color-mix(in srgb,${T.accent} 18%, transparent)}
+.nb-composer{flex:0 0 auto;padding:14px 26px 18px;border-top:1px solid var(--nb-hair)}
+.nb-askbox{display:flex;flex-direction:column;gap:9px;border:1px solid var(--nb-hair);border-radius:0;
+  background:color-mix(in srgb, ${T.text} 2.5%, transparent);padding:11px 13px;transition:border-color .12s ease}
+.nb-askbox:focus-within{border-color:color-mix(in srgb,${T.accent} 60%, transparent);
+  box-shadow:3px 3px 0 color-mix(in srgb,${T.text} 8%, transparent)}
 .nb-askbox textarea{width:100%;min-height:44px;max-height:150px;resize:none;border:0;outline:0;
   background:transparent;color:${T.text};font-size:16px;line-height:1.5;font-family:inherit}
-.nb-askbox textarea::placeholder{color:${T.text4}}
+.nb-askbox textarea::placeholder{color:${T.text3}}
 .nb-askfoot{display:flex;align-items:center;gap:8px}
-.nb-hint{font-size:12.5px;color:${T.text3}}
+.nb-hint{font-family:var(--ui-font-mono,ui-monospace,monospace);font-size:10.5px;letter-spacing:.06em;
+  color:${T.text3}}
 
-/* studio cards */
-.nb-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px;padding:12px}
-.nb-card{display:flex;flex-direction:column;gap:6px;min-height:104px;padding:11px;border-radius:11px;
-  border:1px solid ${T.line};background:${T.card};cursor:pointer;text-align:left;color:${T.text};
-  position:relative;transition:border-color .12s ease,background .12s ease}
-.nb-card:hover{border-color:color-mix(in srgb,${T.accent} 34%, transparent);
-  background:color-mix(in srgb,${T.accent} 7%, ${T.card})}
-.nb-card[data-ready=true]{background:linear-gradient(180deg,
-  color-mix(in srgb,${T.accent} 9%, ${T.card}), ${T.card})}
-.nb-card[data-busy=true]{border-color:color-mix(in srgb,${T.accent} 50%, transparent)}
-.nb-card-top{display:flex;align-items:center;gap:8px}
-.nb-card-ic{width:26px;height:26px;border-radius:7px;display:grid;place-items:center;flex:0 0 auto;
-  color:${T.accent};background:color-mix(in srgb,${T.accent} 12%, transparent)}
-.nb-card-name{font-size:14.5px;font-weight:620;letter-spacing:-.01em;line-height:1.2}
-.nb-card-blurb{font-size:13px;color:${T.text3};line-height:1.38;flex:1}
-.nb-card-state{display:flex;align-items:center;gap:6px;font-size:12px;color:${T.text3};
-  letter-spacing:.01em;font-weight:600;margin-top:auto}
-.nb-card[data-ready="false"]{background:color-mix(in srgb,${T.text} 2.5%, transparent)}
-.nb-card[data-ready="false"]:hover{border-color:color-mix(in srgb,${T.accent} 38%, transparent);
-  background:color-mix(in srgb,${T.accent} 6%, transparent)}
-.nb-card[data-ready="false"] .nb-card-state{color:${T.accent};font-weight:650}
-.nb-card[data-ready="true"] .nb-card-state{color:${T.text3}}
-.nb-card[data-ready="true"]:hover .nb-card-state{color:${T.text2}}
-.nb-bar-track{height:3px;border-radius:2px;background:color-mix(in srgb,${T.text} 10%, transparent);
-  overflow:hidden;margin-top:2px}
-.nb-bar-fill{height:100%;background:${T.accent};border-radius:2px;transition:width .4s ease}
-.nb-dot{width:6px;height:6px;border-radius:99px;background:${T.ok};box-shadow:0 0 6px ${T.ok}}
+/* --------------------------------------------------------- studio (index) */
+.nb-grid{display:flex;flex-direction:column;gap:0;padding:0 0 30px}
+.nb-grouprow{display:flex;align-items:center;gap:10px;padding:12px 14px 6px}
+.nb-grouprow span{font-family:var(--ui-font-mono,ui-monospace,monospace);font-size:10px;font-weight:650;
+  letter-spacing:.2em;text-transform:uppercase;color:${T.text2}}
+.nb-grouprow i{flex:1;height:1px;background:var(--nb-hair-soft);display:block}
+.nb-grouprow em{font-family:var(--ui-font-mono,ui-monospace,monospace);font-size:9.5px;font-style:normal;
+  letter-spacing:.1em;color:${T.text4}}
+.nb-card{display:grid;grid-template-columns:22px minmax(0,1fr) auto;gap:11px;align-items:start;
+  width:100%;min-height:52px;padding:9px 14px 10px;border:0;border-bottom:1px solid var(--nb-hair-soft);
+  border-radius:0;background:transparent;cursor:pointer;text-align:left;color:${T.text};
+  position:relative;transition:background .1s ease}
+.nb-card:hover{background:var(--nb-wash-2)}
+.nb-card:hover .nb-card-state{color:${T.accent}}
+.nb-card[data-ready=true]{background:transparent}
+.nb-card[data-ready=true] .nb-plate{color:${T.text2}}
+.nb-card[data-busy=true]{background:color-mix(in srgb,${T.accent} 7%, transparent)}
+.nb-card-main{min-width:0;display:block}
+.nb-card-main > *{display:block}
+.nb-plate{font-family:var(--ui-font-mono,ui-monospace,monospace);font-size:10px;font-weight:600;
+  letter-spacing:.06em;color:${T.text4};padding-top:3px;font-variant-numeric:tabular-nums}
+.nb-card[data-ready=true] .nb-plate::before{content:"\u25CF";display:block;font-size:6px;line-height:1;
+  color:${T.ok};margin-bottom:4px}
+.nb-card-name{display:flex;align-items:center;gap:7px;font-size:13.5px;font-weight:620;
+  letter-spacing:-.005em;line-height:1.25;color:${T.text}}
+.nb-card-name svg{color:${T.text4};flex:0 0 auto;margin-top:1px}
+.nb-card-blurb{display:block;font-size:11.5px;line-height:1.42;color:${T.text3};margin-top:3px;
+  overflow:hidden;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical}
+.nb-card-state{display:flex;align-items:center;gap:6px;justify-self:end;padding-top:4px;white-space:nowrap;
+  font-family:var(--ui-font-mono,ui-monospace,monospace);font-size:10px;letter-spacing:.1em;
+  text-transform:uppercase;color:${T.text3};font-weight:600}
+.nb-card[data-ready=false] .nb-card-state{color:${T.text4}}
+.nb-card[data-ready=false] .nb-card-state::after{content:"\u2192";margin-left:2px;color:${T.accent}}
+.nb-bar-track{height:2px;margin-top:8px;background:color-mix(in srgb,${T.text} 12%, transparent);overflow:hidden;display:block}
+.nb-bar-fill{height:100%;background:${T.accent};transition:width .4s ease}
+.nb-dot{width:5px;height:5px;border-radius:99px;background:${T.ok};display:inline-block;flex:0 0 auto}
+.nb-card[data-ready=false] .nb-dot{background:${T.text4}}
 
-/* viewer */
+/* ----------------------------------------------------------------- viewer */
 .nb-view{flex:1;min-height:0;display:flex;flex-direction:column}
-.nb-view-head{display:flex;align-items:center;gap:10px;padding:10px 18px;border-bottom:1px solid ${T.lineSoft}}
-.nb-view-title{font-size:15px;font-weight:620;letter-spacing:-.01em}
-.nb-view-body{flex:1;min-height:0;overflow:auto;padding:20px 24px}
-.nb-doc{max-width:74ch;font-size:16px;line-height:1.66}
-.nb-doc h2{font-size:19px;margin:22px 0 10px;letter-spacing:-.015em}
+.nb-view-head{display:flex;align-items:center;gap:12px;padding:12px 26px;border-bottom:1px solid var(--nb-hair);
+  background:color-mix(in srgb, ${T.text} 1.5%, transparent)}
+.nb-view-title{font-size:15px;font-weight:650;letter-spacing:-.01em}
+.nb-view-body{flex:1;min-height:0;overflow:auto;padding:26px}
+.nb-doc{max-width:68ch;font-size:16px;line-height:1.68}
+.nb-doc h1{font-size:22px;line-height:1.2;letter-spacing:-.025em;margin:0 0 14px;text-wrap:balance}
+.nb-doc em{color:${T.text2}}
+.nb-doc hr{border:0;border-top:1px solid var(--nb-hair);margin:22px 0}
+.nb-doc h2{font-size:19px;margin:26px 0 10px;letter-spacing:-.02em;padding-bottom:8px;
+  border-bottom:1px solid var(--nb-hair)}
 .nb-doc h2:first-child{margin-top:0}
-.nb-doc h3{font-size:16px;margin:18px 0 6px;color:${T.text2}}
-.nb-doc ul,.nb-doc ol{padding-left:22px;margin:0 0 12px}
+.nb-doc h3{font-size:15px;margin:20px 0 6px;color:${T.text2};
+  font-family:var(--ui-font-mono,ui-monospace,monospace);letter-spacing:.08em;text-transform:uppercase}
+.nb-doc ul,.nb-doc ol{padding-left:20px;margin:0 0 12px}
 .nb-doc li{margin:5px 0}
-.nb-doc table{border-collapse:collapse;width:100%;font-size:14.5px;margin:12px 0}
-.nb-doc th,.nb-doc td{border:1px solid ${T.line};padding:7px 10px;text-align:left}
-.nb-doc th{background:${T.cardDeep};font-weight:620}
-.nb-doc pre{background:${T.cardDeep};border:1px solid ${T.lineSoft};border-radius:9px;padding:12px;
-  overflow:auto;font-size:13.5px}
+.nb-doc table{border-collapse:collapse;width:100%;font-size:14px;margin:14px 0}
+.nb-doc th,.nb-doc td{border:1px solid var(--nb-hair-soft);padding:8px 10px;text-align:left}
+.nb-doc th{background:var(--nb-wash-2);font-family:var(--ui-font-mono,ui-monospace,monospace);
+  font-size:10px;letter-spacing:.12em;text-transform:uppercase;font-weight:650;color:${T.text2}}
+.nb-doc pre{background:color-mix(in srgb, ${T.text} 5%, transparent);border:1px solid var(--nb-hair-soft);
+  padding:14px;overflow:auto;font-size:13.5px}
 
-/* stage (media) */
-.nb-stage{display:flex;flex-direction:column;gap:14px}
-.nb-screen{position:relative;border-radius:14px;overflow:hidden;background:#07080b;
-  border:1px solid ${T.line};aspect-ratio:16/9;display:grid;place-items:center}
-.nb-screen video,.nb-screen iframe{width:100%;height:100%;border:0;display:block;background:#07080b}
-.nb-screen-audio{aspect-ratio:auto;padding:18px;display:flex;flex-direction:column;gap:14px;
-  place-items:stretch;width:100%;
-  background:linear-gradient(150deg,color-mix(in srgb,${T.accent} 16%, #0a0b10),#0a0b10)}
+/* -------------------------------------------------------------- stage/media */
+.nb-stage{display:flex;flex-direction:column;gap:16px}
+.nb-screen{position:relative;overflow:hidden;background:color-mix(in srgb, ${T.text} 6%, transparent);
+  border:1px solid var(--nb-hair);aspect-ratio:16/9;display:grid;place-items:center}
+.nb-screen video,.nb-screen iframe{width:100%;height:100%;border:0;display:block;background:color-mix(in srgb, ${T.text} 6%, transparent)}
+.nb-screen-audio{aspect-ratio:auto;padding:20px;display:flex;flex-direction:column;gap:16px;
+  place-items:stretch;width:100%;background:color-mix(in srgb, ${T.text} 4%, transparent)}
 .nb-wave{display:flex;align-items:center;gap:2px;height:64px;width:100%}
-.nb-wave i{flex:1 1 0;min-width:2px;background:color-mix(in srgb,${T.accent} 72%, white);
-  border-radius:2px;opacity:.55;transition:opacity .2s,transform .2s}
-.nb-wave i[data-past=true]{opacity:1}
+.nb-wave i{flex:1 1 0;min-width:2px;background:${T.text3};opacity:.4}
+.nb-wave i[data-past=true]{background:${T.accent};opacity:1}
 .nb-ctrl{display:flex;align-items:center;gap:10px}
 .nb-timeline{display:flex;flex-direction:column;gap:0;margin:0;padding:0;list-style:none}
-.nb-tl{display:grid;grid-template-columns:96px 1fr;gap:14px;padding:10px 0;border-top:1px solid ${T.lineSoft}}
+.nb-tl{display:grid;grid-template-columns:96px 1fr;gap:16px;padding:11px 0;border-top:1px solid var(--nb-hair-soft)}
 .nb-tl:first-child{border-top:0}
-.nb-tl-when{font-size:13px;font-weight:650;color:${T.accent};letter-spacing:.02em}
+.nb-tl-when{font-family:var(--ui-font-mono,ui-monospace,monospace);font-size:10.5px;font-weight:650;
+  color:${T.accent};letter-spacing:.1em;text-transform:uppercase;padding-top:3px}
 .nb-tl-what{font-size:15px;color:${T.text2}}
 
-/* mind map */
+/* ---------------------------------------------------------------- mind map */
 .nb-map{width:100%;height:100%;min-height:320px;display:block;cursor:grab;
-  border-radius:12px;background:radial-gradient(circle at 50% 45%,
-   color-mix(in srgb,${T.accent} 9%, transparent), transparent 62%)}
+  border:1px solid var(--nb-hair-soft);background:
+  radial-gradient(circle at 50% 45%, color-mix(in srgb,${T.accent} 8%, transparent), transparent 60%)}
 .nb-map:active{cursor:grabbing}
 
-/* flashcards */
+/* -------------------------------------------------------------- flashcards */
 .nb-deck{display:flex;flex-direction:column;gap:16px;max-width:620px;margin:0 auto}
 .nb-flip{perspective:1400px;cursor:pointer;border:0;background:transparent;padding:0}
 .nb-flip-inner{position:relative;width:100%;min-height:300px;transition:transform .5s cubic-bezier(.2,.7,.2,1);
   transform-style:preserve-3d}
 .nb-flip[data-flipped=true] .nb-flip-inner{transform:rotateY(180deg)}
-.nb-face{position:absolute;inset:0;backface-visibility:hidden;border-radius:14px;
-  border:1px solid ${T.line};background:${T.card};padding:26px;display:flex;flex-direction:column;
+.nb-face{position:absolute;inset:0;backface-visibility:hidden;border:1px solid var(--nb-hair);
+  background:color-mix(in srgb, ${T.text} 4%, transparent);padding:28px;display:flex;flex-direction:column;
   justify-content:center;gap:10px;font-size:19px;line-height:1.45}
-.nb-face[data-side=back]{transform:rotateY(180deg);
-  background:linear-gradient(160deg,color-mix(in srgb,${T.accent} 12%, ${T.card}),${T.card})}
+.nb-face[data-side=back]{transform:rotateY(180deg);border-left:2px solid ${T.accent};
+  background:color-mix(in srgb,${T.accent} 9%, transparent)}
 .nb-face .nb-meta{position:absolute;top:16px;left:20px}
-.nb-face-hint{font-size:12.5px;color:${T.text4};margin-top:auto;letter-spacing:.01em}
+.nb-face-hint{font-family:var(--ui-font-mono,ui-monospace,monospace);font-size:10px;letter-spacing:.14em;
+  text-transform:uppercase;color:${T.text4};margin-top:auto}
 
-/* ops */
-.nb-fleet{display:flex;flex-direction:column;gap:2px;padding:8px}
-.nb-frow{display:grid;grid-template-columns:10px minmax(0,1fr) auto;align-items:center;gap:10px;
-  padding:8px 10px;border-radius:9px;border:1px solid transparent;background:transparent;
-  cursor:pointer;text-align:left;color:${T.text};min-height:44px}
-.nb-frow:hover{background:color-mix(in srgb,${T.text} 5%, transparent)}
-.nb-frow[aria-current=true]{background:color-mix(in srgb,${T.accent} 11%, transparent);
-  border-color:color-mix(in srgb,${T.accent} 24%, transparent)}
-.nb-fname{font-size:14.5px;font-weight:600;line-height:1.25}
-.nb-frole{font-size:12px;color:${T.text4};text-transform:uppercase;letter-spacing:.05em;font-weight:600}
+/* -------------------------------------------------------------------- ops */
+.nb-fleet{display:flex;flex-direction:column;gap:0;padding:6px 0}
+.nb-frow{display:grid;grid-template-columns:8px minmax(0,1fr) auto;align-items:center;gap:12px;
+  padding:8px 14px;border:0;border-left:2px solid transparent;border-bottom:1px solid var(--nb-hair-soft);
+  background:transparent;cursor:pointer;text-align:left;color:${T.text};min-height:46px}
+.nb-frow:hover{background:var(--nb-wash)}
+.nb-frow[aria-current=true]{border-left-color:${T.accent};background:var(--nb-wash-2)}
+.nb-fname{font-size:14px;font-weight:600;line-height:1.25}
+.nb-frole{font-family:var(--ui-font-mono,ui-monospace,monospace);font-size:9.5px;color:${T.text3};
+  text-transform:uppercase;letter-spacing:.14em;font-weight:600}
 .nb-term{font-family:var(--ui-font-mono,ui-monospace,monospace);font-size:13.5px;line-height:1.55;flex:1 1 auto;
-  background:#08090d;color:#d6d8e6;border-radius:10px;border:1px solid ${T.line};
-  padding:12px 14px;min-height:120px;max-height:none;overflow:auto;white-space:pre-wrap;
-  word-break:break-word}
+  background:color-mix(in srgb, ${T.text} 5%, transparent);color:${T.text2};
+  border:1px solid var(--nb-hair);padding:14px;min-height:120px;max-height:none;overflow:auto;
+  white-space:pre-wrap;word-break:break-word}
 .nb-term-in{display:flex;gap:8px;align-items:center;margin-top:10px}
-.nb-term-in input{flex:1;height:38px;border-radius:9px;border:1px solid ${T.line};
-  background:${T.cardDeep};color:${T.text};padding:0 12px;font-size:14px;
+.nb-term-in input{flex:1;height:36px;border-radius:0;border:1px solid var(--nb-hair);
+  background:transparent;color:${T.text};padding:0 12px;font-size:13.5px;
   font-family:var(--ui-font-mono,ui-monospace,monospace);outline:0}
-.nb-term-in input:focus{border-color:color-mix(in srgb,${T.accent} 45%, transparent)}
+.nb-term-in input:focus{border-color:color-mix(in srgb,${T.accent} 55%, transparent)}
 
-/* status bar */
-.nb-status{flex:0 0 32px;height:32px;display:flex;align-items:center;gap:16px;padding:0 14px;
-  border-top:1px solid ${T.line};background:color-mix(in srgb,${T.text} 3%, transparent);
-  font-size:12.5px;color:${T.text3}}
+/* -------------------------------------------------------------- status bar */
+.nb-status{flex:0 0 30px;height:30px;display:flex;align-items:center;gap:18px;padding:0 16px;
+  border-top:1px solid var(--nb-hair);background:var(--nb-wash);
+  font-family:var(--ui-font-mono,ui-monospace,monospace);font-size:10.5px;letter-spacing:.05em;
+  color:${T.text3}}
 .nb-status b{color:${T.text2};font-weight:600}
-.nb-sdot{width:7px;height:7px;border-radius:99px;display:inline-block;margin-right:6px}
-.nb-void{display:grid;place-items:center;height:100%;padding:32px;text-align:center;color:${T.text3}}
-.nb-void h3{color:${T.text};font-size:18px;margin:0 0 8px;letter-spacing:-.01em}
-.nb-void p{margin:0;max-width:46ch;font-size:14.5px;line-height:1.6}
+.nb-sdot{width:6px;height:6px;border-radius:99px;display:inline-block;margin-right:7px;vertical-align:middle}
+.nb-void{display:grid;place-items:center;height:100%;padding:36px;text-align:center;color:${T.text3}}
+.nb-void h3{color:${T.text};font-size:22px;margin:0 0 10px;letter-spacing:-.02em;font-weight:700}
+.nb-void p{margin:0;max-width:48ch;font-size:14px;line-height:1.62}
 
 @media (max-width:1280px){
-  .nb-root{--nb-rail:264px; --nb-studio:340px}
+  .nb-root{--nb-rail:268px; --nb-studio:344px}
+  .nb-h1{font-size:27px}
 }
 @media (max-width:1100px){
-  .nb-body{grid-template-columns:240px minmax(0,1fr)}
+  .nb-body{grid-template-columns:248px minmax(0,1fr)}
   .nb-studio{display:none}
+  .nb-thread{padding:22px 20px 10px}
+  .nb-main-head{padding:20px 20px 0}
+  .nb-composer{padding:12px 20px 16px}
 }
 @media (max-width:820px){
   .nb-body{grid-template-columns:minmax(0,1fr)}
   .nb-rail{display:none}
+  .nb-h1{font-size:24px}
+  .nb-strip{flex-wrap:wrap}
+  .nb-cell{flex:1 1 40%;border-top:1px solid var(--nb-hair-soft)}
+  .nb-cell:nth-child(1),.nb-cell:nth-child(2){border-top:0}
 }
 `;
 var el = (tag, props, ...kids) => {
@@ -15209,9 +15311,9 @@ function Dialog({ open, onClose, title, children, width = 520 }) {
           overflow: "auto",
           background: "var(--ui-bg-elevated, var(--ui-bg-primary, #14151b))",
           border: `1px solid ${T.line}`,
-          borderRadius: "14px",
-          padding: "18px",
-          boxShadow: "0 24px 60px rgba(0,0,0,.45)"
+          borderRadius: 0,
+          padding: "20px",
+          boxShadow: "8px 8px 0 color-mix(in srgb, currentColor 10%, transparent), 0 24px 60px rgba(0,0,0,.45)"
         }
       },
       el(
@@ -15228,7 +15330,7 @@ function Dialog({ open, onClose, title, children, width = 520 }) {
     )
   );
 }
-var INLINE = /(\*\*[^*]+\*\*|`[^`]+`|\*[^*\n]+\*|\[S\d+\]|\[[^\]]+\]\([^)]+\))/g;
+var INLINE = /(\*\*[^*]+\*\*|__[^_\n]+__|`[^`]+`|\*[^*\n]+\*|_[^_\n]+_|\[S\d+\]|\[[^\]]+\]\([^)]+\))/g;
 function inlineNodes(text, keyBase, onCite) {
   const out = [];
   let last = 0;
@@ -15239,11 +15341,11 @@ function inlineNodes(text, keyBase, onCite) {
     if (m.index > last) out.push(s.slice(last, m.index));
     const tok = m[0];
     const k = `${keyBase}-${m.index}`;
-    if (tok.startsWith("**")) {
+    if (tok.startsWith("**") || tok.startsWith("__")) {
       out.push(el("strong", { children: tok.slice(2, -2) }, k));
     } else if (tok.startsWith("`")) {
       out.push(el("code", { children: tok.slice(1, -1) }, k));
-    } else if (tok.startsWith("*")) {
+    } else if (tok.startsWith("*") || tok.startsWith("_")) {
       out.push(el("em", { children: tok.slice(1, -1) }, k));
     } else if (/^\[S\d+\]$/.test(tok)) {
       const n = Number(tok.slice(2, -1));
@@ -15307,6 +15409,11 @@ function parseBlocks(text) {
       blocks.push({ t: "code", lang, text: buf2.join("\n") });
       continue;
     }
+    if (/^\s*([-*_])(?:\s*\1){2,}\s*$/.test(line)) {
+      blocks.push({ t: "hr" });
+      i += 1;
+      continue;
+    }
     const h = /^(#{1,4})\s+(.*)$/.exec(line);
     if (h) {
       blocks.push({ t: "h" + h[1].length, text: h[2] });
@@ -15366,6 +15473,7 @@ function renderBlock(b, i, onCite) {
       el("tbody", { children: rows.map((r, j) => el("tr", { children: r.map((c, k2) => el("td", { children: inlineNodes(c, `${key}r${j}c${k2}`, onCite) }, `${key}-${j}-${k2}`)) }, `${key}-r-${j}`)) })
     );
   }
+  if (b.t === "hr") return el("hr", { key });
   if (b.t === "code") {
     return el("pre", { key }, el("code", { children: b.text }));
   }
@@ -15676,14 +15784,14 @@ function Rail({ data, nb, setNb, q: q2, setQ, filter, setFilter, onNewNotebook, 
           "div",
           { className: "nb-hint", style: { padding: "8px", lineHeight: 1.5 } },
           "No notebooks yet. Create one, then add sources \u2014 every answer and artifact is derived from them."
-        ) : notebooks.map((item) => el("button", {
+        ) : notebooks.map((item, i) => el("button", {
           type: "button",
           className: "nb-nbrow",
           "aria-current": item.id === nb ? "true" : "false",
           onClick: () => setNb(item.id),
           title: item.description || item.title,
           children: [
-            el("span", { className: "nb-avatar", children: (item.title || "?").slice(0, 2).toUpperCase() }),
+            el("span", { className: "nb-avatar", children: roman(i + 1) }),
             el(
               "span",
               { style: { minWidth: 0, flex: 1 } },
@@ -15771,6 +15879,8 @@ function Rail({ data, nb, setNb, q: q2, setQ, filter, setFilter, onNewNotebook, 
     )
   );
 }
+var ROMAN = ["I", "II", "III", "IV", "V", "VI", "VII", "VIII", "IX", "X", "XI", "XII"];
+var roman = (n) => ROMAN[n - 1] || String(n);
 var pickedCite = 0;
 var setPickedCite = (n) => {
   pickedCite = n;
@@ -15862,6 +15972,14 @@ function Main({
     el(
       "div",
       { className: "nb-main-head" },
+      el(
+        "div",
+        { className: "nb-filed" },
+        el("b", { children: "Notebook" }),
+        el("span", { className: "nb-mono", children: notebook.id }),
+        el("i", { "aria-hidden": "true" }),
+        el("span", { children: modelReady ? "grounded \xB7 every line cites a source" : "model offline" })
+      ),
       el("h1", { className: "nb-h1", children: notebook.title }),
       notebook.description ? el("p", { className: "nb-sub", children: notebook.description }) : el("p", { className: "nb-sub", children: "Answers are generated only from the sources on the left; each citation opens the source it came from." }),
       el(
@@ -16023,7 +16141,7 @@ ${e.message || e}`,
           { style: { display: "grid", placeItems: "center", gap: "10px" } },
           el(
             "span",
-            { className: "nb-mark", style: { width: "40px", height: "40px", borderRadius: "12px" } },
+            { className: "nb-mark", style: { width: "38px", height: "38px" } },
             (0, import_jsx_runtime.jsx)(Glyph, { name: "sparkle", size: 19 })
           ),
           el("div", { style: { fontSize: "20px", fontWeight: 650, letterSpacing: "-.015em" }, children: "Ask the sources" }),
@@ -16037,7 +16155,7 @@ ${e.message || e}`,
       pending ? el(
         "div",
         { className: "nb-msg", "data-role": "assistant" },
-        el("span", { className: "nb-avatar", children: "HK" }),
+        el("span", { className: "nb-avatar", children: "HN" }),
         el(
           "div",
           { className: "nb-msg-body" },
@@ -16106,11 +16224,16 @@ function Msg({ msg, onCite }) {
   return el(
     "div",
     { className: "nb-msg", "data-role": isUser ? "user" : "assistant" },
-    isUser ? null : el("span", { className: "nb-avatar", children: "HK" }),
+    isUser ? null : el("span", { className: "nb-avatar", children: "HN" }),
     el(
       "div",
       { className: "nb-msg-body" },
-      isUser ? el("div", { className: "nb-bubble", children: msg.content }) : el(
+      isUser ? el(
+        "div",
+        { className: "nb-bubble" },
+        el("div", { className: "nb-who", children: "You" }),
+        el("div", { children: msg.content })
+      ) : el(
         "div",
         null,
         el(
@@ -16127,12 +16250,15 @@ function Msg({ msg, onCite }) {
         (msg.citations || []).length ? el(
           "div",
           { style: { display: "flex", gap: "6px", flexWrap: "wrap", marginTop: "10px" }, role: "list", "aria-label": "Citations" },
-          msg.citations.map((c) => (0, import_jsx_runtime.jsx)(Chip, {
-            tone: "accent",
+          msg.citations.map((c) => el("button", {
+            key: `${c.n}-${c.title}`,
+            type: "button",
+            className: "nb-chip nb-citechip",
             onClick: () => onCite && onCite(c.n),
             title: c.origin || c.title,
-            children: `S${c.n} \xB7 ${c.title}`
-          }, `${c.n}-${c.title}`))
+            "aria-label": `Citation ${c.n} \u2014 ${c.title}`,
+            children: [el("b", { children: `S${c.n}` }), el("span", { children: c.title })]
+          }))
         ) : null
       )
     )
@@ -16169,7 +16295,7 @@ function SourcePeek({ source, notebook, onClose }) {
           children: `${source.kind} \xB7 ${nfmt(source.chars)} chars \xB7 ${source.origin || "stored text"}`
         })
       ),
-      source.origin && source.origin.startsWith("http") ? (0, import_jsx_runtime.jsx)(IconBtn, { icon: "external", label: "Open the original", onClick: () => host.openLink ? host.openLink(source.origin) : window.open(source.origin, "_blank") }) : null,
+      source.origin && source.origin.startsWith("http") ? (0, import_jsx_runtime.jsx)(IconBtn, { icon: "external", label: "Open the original", onClick: () => host2.openLink ? host2.openLink(source.origin) : window.open(source.origin, "_blank") }) : null,
       (0, import_jsx_runtime.jsx)(IconBtn, { icon: "close", label: "Close source", onClick: onClose })
     ),
     el(
@@ -16201,17 +16327,55 @@ function StudioPanel({ kinds, notebook, busy, generate, filter, setFilter, picke
       node.removeEventListener("scroll", check);
     };
   }, [shown.length]);
+  const buckets = /* @__PURE__ */ new Map();
+  for (const k of shown) {
+    const g = k.group || "other";
+    if (!buckets.has(g)) buckets.set(g, []);
+    buckets.get(g).push(k);
+  }
+  const groupOrder = GROUP_ORDER.filter((g) => buckets.has(g)).concat([...buckets.keys()].filter((g) => !GROUP_ORDER.includes(g)));
+  let plate = 0;
+  const rows = [];
+  for (const g of groupOrder) {
+    const list = buckets.get(g);
+    if (filter === "all") {
+      const readyHere = list.filter((x) => ready[x.id]).length;
+      rows.push(el(
+        "div",
+        { className: "nb-grouprow", key: `g-${g}` },
+        el("span", { children: GROUP_LABEL[g] || "Outputs" }),
+        el("i", { "aria-hidden": "true" }),
+        el("em", { children: `${readyHere}/${list.length}` })
+      ));
+    }
+    for (const k of list) {
+      plate += 1;
+      rows.push((0, import_jsx_runtime.jsx)(StudioCard, {
+        key: k.id,
+        kind: k,
+        art: ready[k.id],
+        started: busy[k.id],
+        plate: String(plate).padStart(2, "0"),
+        onOpen: () => {
+          const a = ready[k.id];
+          if (a) onOpen(a);
+          else generate(k.id);
+        },
+        onRegenerate: () => generate(k.id)
+      }));
+    }
+  }
   return el(
     "aside",
     { className: "nb-col nb-studio", "aria-label": "Studio outputs" },
     el(
       "div",
       { className: "nb-pane-head" },
-      el("span", { className: "nb-meta", children: "Studio" }),
+      el("span", { className: "nb-meta", children: "Studio index" }),
       el("span", {
         className: "nb-chip",
         "data-tone": Object.keys(ready).length ? "ok" : void 0,
-        children: `${Object.keys(ready).length} of ${kinds.length} ready`
+        children: `${Object.keys(ready).length}/${kinds.length} ready`
       })
     ),
     el(
@@ -16232,27 +16396,20 @@ function StudioPanel({ kinds, notebook, busy, generate, filter, setFilter, picke
     el(
       "div",
       { className: "nb-scroll", ref: scrollRef, "data-scrollable": canScroll ? "true" : "false" },
-      el(
-        "div",
-        { className: "nb-grid" },
-        shown.map((k) => (0, import_jsx_runtime.jsx)(StudioCard, {
-          key: k.id,
-          kind: k,
-          art: ready[k.id],
-          started: busy[k.id],
-          onOpen: () => {
-            const a = ready[k.id];
-            if (a) onOpen(a);
-            else generate(k.id);
-          },
-          onRegenerate: () => generate(k.id)
-        }))
-      )
+      el("div", { className: "nb-grid" }, rows)
     ),
     canScroll ? (0, import_jsx_runtime.jsx)("div", { className: "nb-fade", "aria-hidden": "true" }) : null
   );
 }
-function StudioCard({ kind, art, started, onOpen, onRegenerate }) {
+var GROUP_ORDER = ["docs", "study", "media", "visual"];
+var GROUP_LABEL = {
+  docs: "Documents",
+  study: "Study",
+  media: "Media",
+  visual: "Visual",
+  other: "Other"
+};
+function StudioCard({ kind, art, started, plate, onOpen, onRegenerate }) {
   const [, force] = (0, import_react.useState)(0);
   (0, import_react.useEffect)(() => {
     if (!started) return void 0;
@@ -16260,7 +16417,7 @@ function StudioCard({ kind, art, started, onOpen, onRegenerate }) {
     return () => clearInterval(t);
   }, [started]);
   const secs = started ? Math.max(0, Math.round((Date.now() - started) / 1e3)) : 0;
-  const state = started ? `writing \xB7 ${secs}s` : art ? `ready \xB7 ${ago(art.modified)}` : `Generate`;
+  const state = started ? `writing \xB7 ${secs}s` : art ? `ready \xB7 ${ago(art.modified)}` : "Generate";
   return el("button", {
     type: "button",
     className: "nb-card",
@@ -16270,32 +16427,34 @@ function StudioCard({ kind, art, started, onOpen, onRegenerate }) {
     "aria-label": `${kind.label} \u2014 ${state}. ${art ? "Open it" : "Generate it"}`,
     title: art ? `${kind.label} \xB7 ${art.primary}` : `Generate ${kind.label}`,
     children: [
+      el("span", { className: "nb-plate", children: plate }),
       el(
-        "div",
-        { className: "nb-card-top" },
-        el("span", { className: "nb-card-ic" }, (0, import_jsx_runtime.jsx)(Glyph, { name: KIND_ICON[kind.id] || "doc", size: 14 })),
-        el("span", { className: "nb-card-name", children: kind.label })
+        "span",
+        { className: "nb-card-main" },
+        el(
+          "span",
+          { className: "nb-card-name" },
+          (0, import_jsx_runtime.jsx)(Glyph, { name: KIND_ICON[kind.id] || "doc", size: 13 }),
+          el("span", { children: kind.label })
+        ),
+        el("span", { className: "nb-card-blurb", children: kind.blurb }),
+        started ? el(
+          "span",
+          { className: "nb-bar-track" },
+          el("span", {
+            className: "nb-bar-fill",
+            style: { width: `${Math.min(96, 12 + secs * 2.2)}%`, opacity: 0.9 }
+          })
+        ) : null
       ),
-      el("span", { className: "nb-card-blurb", children: kind.blurb }),
-      started ? el(
-        "div",
-        { className: "nb-bar-track" },
-        el("div", {
-          className: "nb-bar-fill",
-          style: { width: `${Math.min(96, 12 + secs * 2.2)}%`, opacity: 0.85 }
-        })
-      ) : null,
       el(
-        "div",
+        "span",
         { className: "nb-card-state" },
         el("span", {
           className: "nb-dot",
-          style: {
-            background: started ? T.accent : art ? T.ok : T.text4,
-            boxShadow: started ? `0 0 8px ${T.accent}` : art ? `0 0 6px ${T.ok}` : "none"
-          }
+          style: { background: started ? T.accent : art ? T.ok : void 0 }
         }),
-        state
+        started ? `${secs}s` : art ? ago(art.modified) : "generate"
       )
     ]
   });
@@ -17435,7 +17594,7 @@ function OpsDeck({ onSay, onStats }) {
       });
     }
   }, [hosts, onStats, state.measured_at]);
-  const host2 = hosts.find((h) => h.id === sel) || hosts[0] || null;
+  const host3 = hosts.find((h) => h.id === sel) || hosts[0] || null;
   (0, import_react.useEffect)(() => {
     if (hosts.length && !hosts.some((h) => h.id === sel)) setSel(hosts[0].id);
   }, [hosts, sel]);
@@ -17487,7 +17646,7 @@ function OpsDeck({ onSay, onStats }) {
               type: "button",
               className: "nb-frow",
               role: "listitem",
-              "aria-current": host2 && h.id === host2.id ? "true" : "false",
+              "aria-current": host3 && h.id === host3.id ? "true" : "false",
               onClick: () => setSel(h.id),
               title: h.error || `${h.name} \xB7 ${h.dial || ""}`
             },
@@ -17536,7 +17695,7 @@ function OpsDeck({ onSay, onStats }) {
     el(
       "section",
       { className: "nb-col", "aria-label": "Selected host" },
-      host2 ? (0, import_jsx_runtime.jsx)(HostView, { host: host2, tab, setTab, onSay, key: host2.id }) : el(
+      host3 ? (0, import_jsx_runtime.jsx)(HostView, { host: host3, tab, setTab, onSay, key: host3.id }) : el(
         "div",
         { className: "nb-void" },
         el(
@@ -17549,8 +17708,8 @@ function OpsDeck({ onSay, onStats }) {
     )
   );
 }
-function HostView({ host: host2, tab, setTab, onSay }) {
-  const ok = host2.reachable;
+function HostView({ host: host3, tab, setTab, onSay }) {
+  const ok = host3.reachable;
   return el(
     "div",
     { className: "nb-col", style: { minHeight: 0 } },
@@ -17560,25 +17719,25 @@ function HostView({ host: host2, tab, setTab, onSay }) {
       el(
         "div",
         { style: { display: "flex", alignItems: "center", gap: "10px" } },
-        el("h1", { className: "nb-h1", children: host2.name }),
-        el("span", { className: "nb-chip", children: host2.role }),
+        el("h1", { className: "nb-h1", children: host3.name }),
+        el("span", { className: "nb-chip", children: host3.role }),
         ok ? el("span", {
           className: "nb-chip",
-          "data-tone": host2.patch_state === "patched" ? "ok" : "warn",
-          children: host2.patch_state === "patched" ? "kernel patched" : `upgrade to ${host2.kernel_fix || "fix"}`
+          "data-tone": host3.patch_state === "patched" ? "ok" : "warn",
+          children: host3.patch_state === "patched" ? "kernel patched" : `upgrade to ${host3.kernel_fix || "fix"}`
         }) : el("span", { className: "nb-chip", "data-tone": "danger", children: "unreachable" }),
         el("span", { style: { flex: 1 } }),
-        el("span", { className: "nb-mono", style: { fontSize: "12px", color: T.text4 }, children: host2.dial || "" })
+        el("span", { className: "nb-mono", style: { fontSize: "12px", color: T.text4 }, children: host3.dial || "" })
       ),
-      ok ? el("p", { className: "nb-sub", children: `${host2.os || ""} \xB7 kernel ${host2.kernel || "?"} \xB7 up ${fmtUptime(host2.uptime_s)} \xB7 ${host2.cores || "?"} cores \xB7 load ${(host2.load || []).map((n) => Number(n).toFixed(2)).join(" / ")}` }) : el("p", { className: "nb-sub", style: { color: T.danger }, children: host2.error || "this host did not answer" }),
+      ok ? el("p", { className: "nb-sub", children: `${host3.os || ""} \xB7 kernel ${host3.kernel || "?"} \xB7 up ${fmtUptime(host3.uptime_s)} \xB7 ${host3.cores || "?"} cores \xB7 load ${(host3.load || []).map((n) => Number(n).toFixed(2)).join(" / ")}` }) : el("p", { className: "nb-sub", style: { color: T.danger }, children: host3.error || "this host did not answer" }),
       ok ? el(
         "div",
         { className: "nb-strip", role: "group", "aria-label": "Host measurements" },
-        el("div", { className: "nb-cell" }, el("b", { children: `${Math.round((host2.mem || {}).pct || 0)}%` }), el("span", { children: "memory" })),
-        el("div", { className: "nb-cell" }, el("b", { children: `${Math.round((host2.disk || {}).pct || 0)}%` }), el("span", { children: "disk" })),
-        el("div", { className: "nb-cell" }, el("b", { children: host2.containers_up || 0 }), el("span", { children: "containers" })),
-        el("div", { className: "nb-cell" }, el("b", { style: { color: host2.failed_units ? T.danger : T.ok }, children: host2.failed_units || 0 }), el("span", { children: "failed units" })),
-        el("div", { className: "nb-cell" }, el("b", { children: `${host2.measured_ms || 0}ms` }), el("span", { children: "probe" }))
+        el("div", { className: "nb-cell" }, el("b", { children: `${Math.round((host3.mem || {}).pct || 0)}%` }), el("span", { children: "memory" })),
+        el("div", { className: "nb-cell" }, el("b", { children: `${Math.round((host3.disk || {}).pct || 0)}%` }), el("span", { children: "disk" })),
+        el("div", { className: "nb-cell" }, el("b", { children: host3.containers_up || 0 }), el("span", { children: "containers" })),
+        el("div", { className: "nb-cell" }, el("b", { style: { color: host3.failed_units ? T.danger : T.ok }, children: host3.failed_units || 0 }), el("span", { children: "failed units" })),
+        el("div", { className: "nb-cell" }, el("b", { children: `${host3.measured_ms || 0}ms` }), el("span", { children: "probe" }))
       ) : null,
       el(
         "div",
@@ -17595,7 +17754,7 @@ function HostView({ host: host2, tab, setTab, onSay }) {
         }, t.id))
       )
     ),
-    ok ? tab === "services" ? (0, import_jsx_runtime.jsx)(ServicesTab, { host: host2, onSay }) : tab === "terminal" ? (0, import_jsx_runtime.jsx)(TerminalTab, { host: host2, onSay }) : tab === "files" ? (0, import_jsx_runtime.jsx)(FilesTab, { host: host2 }) : tab === "snapshots" ? (0, import_jsx_runtime.jsx)(SnapshotsTab, { host: host2, onSay }) : (0, import_jsx_runtime.jsx)(AuditTab, { onSay }) : el(
+    ok ? tab === "services" ? (0, import_jsx_runtime.jsx)(ServicesTab, { host: host3, onSay }) : tab === "terminal" ? (0, import_jsx_runtime.jsx)(TerminalTab, { host: host3, onSay }) : tab === "files" ? (0, import_jsx_runtime.jsx)(FilesTab, { host: host3 }) : tab === "snapshots" ? (0, import_jsx_runtime.jsx)(SnapshotsTab, { host: host3, onSay }) : (0, import_jsx_runtime.jsx)(AuditTab, { onSay }) : el(
       "div",
       { className: "nb-void" },
       el(
@@ -17614,7 +17773,7 @@ var fmtUptime = (s) => {
   if (d) return `${d}d ${h}h`;
   return `${h}h ${Math.floor(v % 3600 / 60)}m`;
 };
-function ServicesTab({ host: host2, onSay }) {
+function ServicesTab({ host: host3, onSay }) {
   const [state, setState] = (0, import_react.useState)({ loading: true, units: [], failed: 0, error: "" });
   const [q2, setQ] = (0, import_react.useState)("");
   const [busy, setBusy] = (0, import_react.useState)("");
@@ -17622,12 +17781,12 @@ function ServicesTab({ host: host2, onSay }) {
   const load = (0, import_react.useCallback)(async () => {
     setState((s) => ({ ...s, loading: true }));
     try {
-      const out = await api(`/ops/services?${qs({ host: host2.id })}`, { timeoutMs: 45e3 });
+      const out = await api(`/ops/services?${qs({ host: host3.id })}`, { timeoutMs: 45e3 });
       setState({ loading: false, units: out.units || [], failed: out.failed || 0, error: "" });
     } catch (e) {
       setState({ loading: false, units: [], failed: 0, error: e.message || String(e) });
     }
-  }, [host2.id]);
+  }, [host3.id]);
   (0, import_react.useEffect)(() => {
     load();
   }, [load]);
@@ -17637,7 +17796,7 @@ function ServicesTab({ host: host2, onSay }) {
     try {
       const out = await api("/ops/service", {
         method: "POST",
-        body: { host: host2.id, unit, op: verb, confirm: verb === "stop" || verb === "mask" ? unit : "" },
+        body: { host: host3.id, unit, op: verb, confirm: verb === "stop" || verb === "mask" ? unit : "" },
         timeoutMs: 6e4
       });
       setResult({ unit, verb, ...out.result || {} });
@@ -17720,7 +17879,7 @@ ${(result.out || result.err || "").trim().slice(0, 400)}`
     )
   );
 }
-function TerminalTab({ host: host2, onSay }) {
+function TerminalTab({ host: host3, onSay }) {
   const [lines, setLines] = (0, import_react.useState)([]);
   const [cmd, setCmd] = (0, import_react.useState)("");
   const [busy, setBusy] = (0, import_react.useState)(false);
@@ -17738,7 +17897,7 @@ function TerminalTab({ host: host2, onSay }) {
     try {
       const out = await api("/ops/exec", {
         method: "POST",
-        body: { host: host2.id, cmd: c },
+        body: { host: host3.id, cmd: c },
         timeoutMs: 9e4
       });
       const r = out.result || {};
@@ -17767,7 +17926,7 @@ ${r.err}` : ""),
       el(
         "div",
         { className: "nb-term", ref: boxRef, role: "log", "aria-live": "polite", "aria-label": "Command output" },
-        lines.length === 0 ? el("span", { style: { color: "#6f7488" }, children: `# ${host2.name} \u2014 commands run over ssh, every call lands in the audit log
+        lines.length === 0 ? el("span", { style: { color: "#6f7488" }, children: `# ${host3.name} \u2014 commands run over ssh, every call lands in the audit log
 # try: uptime; df -h / ; docker ps --format '{{.Names}}\\t{{.Status}}'` }) : lines.map((l, i) => l.kind === "cmd" ? el("div", { key: `c${i}`, style: { marginTop: i ? "10px" : 0, color: "#8fd4a8" }, children: `\u276F ${l.text}` }) : el(
           "div",
           { key: `o${i}`, style: { color: l.ok ? "#d6d8e6" : "#ff8b8b", whiteSpace: "pre-wrap" } },
@@ -17787,7 +17946,7 @@ ${r.err}` : ""),
           onKeyDown: (e) => {
             if (e.key === "Enter") run();
           },
-          placeholder: `run a command on ${host2.name}`,
+          placeholder: `run a command on ${host3.name}`,
           "aria-label": "Command to run"
         }),
         (0, import_jsx_runtime.jsx)(Btn, {
@@ -17806,27 +17965,27 @@ ${r.err}` : ""),
     )
   );
 }
-function FilesTab({ host: host2 }) {
+function FilesTab({ host: host3 }) {
   const [path, setPath] = (0, import_react.useState)("/home");
   const [state, setState] = (0, import_react.useState)({ loading: true, entries: [], parent: "/", error: "" });
   const [open, setOpen] = (0, import_react.useState)(null);
   const load = (0, import_react.useCallback)(async (p) => {
     setState((s) => ({ ...s, loading: true, error: "" }));
     try {
-      const out = await api(`/ops/files?${qs({ host: host2.id, path: p })}`, { timeoutMs: 45e3 });
+      const out = await api(`/ops/files?${qs({ host: host3.id, path: p })}`, { timeoutMs: 45e3 });
       setState({ loading: false, entries: out.entries || [], parent: out.parent || "/", error: "" });
       setPath(out.path || p);
     } catch (e) {
       setState({ loading: false, entries: [], parent: "/", error: e.message || String(e) });
     }
-  }, [host2.id]);
+  }, [host3.id]);
   (0, import_react.useEffect)(() => {
     load(path);
   }, [load]);
   const readFile = async (name) => {
     const full = path.endsWith("/") ? path + name : `${path}/${name}`;
     try {
-      const out = await api(`/ops/file?${qs({ host: host2.id, path: full, bytes: 6e4 })}`, { timeoutMs: 45e3 });
+      const out = await api(`/ops/file?${qs({ host: host3.id, path: full, bytes: 6e4 })}`, { timeoutMs: 45e3 });
       setOpen({ name, text: out.text || "", size: out.size, truncated: out.truncated });
     } catch (e) {
       setOpen({ name, text: e.message || String(e), error: true });
@@ -17923,7 +18082,7 @@ function FilesTab({ host: host2 }) {
     ) : null
   );
 }
-function SnapshotsTab({ host: host2, onSay }) {
+function SnapshotsTab({ host: host3, onSay }) {
   const [vmid, setVmid] = (0, import_react.useState)("100");
   const [state, setState] = (0, import_react.useState)({ loading: false, list: [], raw: "", error: "" });
   const [name, setName] = (0, import_react.useState)("");
@@ -17931,16 +18090,16 @@ function SnapshotsTab({ host: host2, onSay }) {
   const load = (0, import_react.useCallback)(async () => {
     setState((s) => ({ ...s, loading: true, error: "" }));
     try {
-      const out = await api(`/ops/snapshots?${qs({ host: host2.id, vmid })}`, { timeoutMs: 6e4 });
+      const out = await api(`/ops/snapshots?${qs({ host: host3.id, vmid })}`, { timeoutMs: 6e4 });
       setState({ loading: false, list: out.snapshots || [], raw: out.raw || "", error: out.ok ? "" : out.raw || "qm refused" });
     } catch (e) {
       setState({ loading: false, list: [], raw: "", error: e.message || String(e) });
     }
-  }, [host2.id, vmid]);
+  }, [host3.id, vmid]);
   const create = async () => {
     setBusy(true);
     try {
-      const out = await api("/ops/snapshot", { method: "POST", body: { host: host2.id, vmid, name }, timeoutMs: 2e5 });
+      const out = await api("/ops/snapshot", { method: "POST", body: { host: host3.id, vmid, name }, timeoutMs: 2e5 });
       if (onSay) onSay(`snapshot ${out.label} ${out.ok ? "created" : "failed"}`);
       await load();
     } catch (e) {
@@ -18095,7 +18254,7 @@ function StatusChip() {
     type: "button",
     title: counts ? `${counts.sources} sources \xB7 ${counts.artifacts} artifacts` : "Hermes Notebook",
     "aria-label": "Open Hermes Notebook",
-    onClick: () => host.navigate(ROUTE),
+    onClick: () => host2.navigate(ROUTE),
     style: {
       display: "inline-flex",
       alignItems: "center",
@@ -18123,6 +18282,9 @@ function StatusChip() {
   });
 }
 function SettingsPage() {
+  const ListRow2 = ListRow;
+  const ToggleRow2 = ToggleRow;
+  const SegmentedControl2 = SegmentedControl;
   const [surface, setSurface] = (0, import_react.useState)(() => persist.get("mode", "studio"));
   const [chip, setChip] = (0, import_react.useState)(() => persist.get("statusChip", true));
   const [state, setState] = (0, import_react.useState)(null);
@@ -18130,12 +18292,12 @@ function SettingsPage() {
     api("/health").then(setState).catch(() => setState(null));
   }, []);
   const rows = [];
-  if (ListRow) {
-    rows.push((0, import_jsx_runtime.jsx)(ListRow, {
+  if (ListRow2) {
+    rows.push((0, import_jsx_runtime.jsx)(ListRow2, {
       key: "surface",
       title: "Default surface",
       description: "Which half of the plugin opens first: the research studio, or the lab deck.",
-      action: SegmentedControl ? (0, import_jsx_runtime.jsx)(SegmentedControl, {
+      action: SegmentedControl2 ? (0, import_jsx_runtime.jsx)(SegmentedControl2, {
         value: surface,
         onChange: (v) => {
           setSurface(v);
@@ -18145,8 +18307,8 @@ function SettingsPage() {
       }) : null
     }));
   }
-  if (ToggleRow) {
-    rows.push((0, import_jsx_runtime.jsx)(ToggleRow, {
+  if (ToggleRow2) {
+    rows.push((0, import_jsx_runtime.jsx)(ToggleRow2, {
       key: "chip",
       label: "Status-bar chip",
       description: "Show the active notebook\u2019s source and artifact counts in the status bar.",
@@ -18157,14 +18319,14 @@ function SettingsPage() {
       }
     }));
   }
-  if (ListRow) {
-    rows.push((0, import_jsx_runtime.jsx)(ListRow, {
+  if (ListRow2) {
+    rows.push((0, import_jsx_runtime.jsx)(ListRow2, {
       key: "data",
       title: "Notebook store",
       description: state && state.data_root ? el("span", { className: "nb-mono", style: { fontSize: "12px" }, children: state.data_root }) : "backend not reachable from this window",
       hint: state && state.model_ready ? "model bound \u2014 answers and artifacts run through your provider" : "the agent half is not registered in this process (enable the plugin, restart the gateway)"
     }));
-    rows.push((0, import_jsx_runtime.jsx)(ListRow, {
+    rows.push((0, import_jsx_runtime.jsx)(ListRow2, {
       key: "kinds",
       title: "Studio outputs",
       description: (state && state.kinds ? state.kinds : KINDS_FALLBACK).map((k) => String(k).replace(/_/g, " ")).join(" \xB7 ")
@@ -18214,7 +18376,7 @@ function NotebookDirective({ attrs }) {
       type: "button",
       className: "nb-btn",
       "data-size": "sm",
-      onClick: () => host.navigate(ROUTE),
+      onClick: () => host2.navigate(ROUTE),
       children: "Open"
     })
   );
@@ -18223,38 +18385,39 @@ var plugin = {
   id: ID,
   name: "Notebook",
   description: "Ground sources into cited answers and study artifacts, and drive the lab fleet from the same window.",
-  defaultEnabled: false,
+  // On by default: the page is the product. A user's explicit toggle still wins.
+  defaultEnabled: true,
   register(ctx) {
     setCtx(ctx);
     const shells = [
-      ["route", ROUTES_AREA, { path: ROUTE }, () => (0, import_jsx_runtime.jsx)(App, {})],
-      ["nav", SIDEBAR_NAV_AREA, { path: ROUTE, label: "Notebook", codicon: "notebook" }, void 0],
+      ["route", ROUTES_AREA2, { path: ROUTE }, () => (0, import_jsx_runtime.jsx)(App, {})],
+      ["nav", SIDEBAR_NAV_AREA2, { path: ROUTE, label: "Notebook", codicon: "notebook" }, void 0],
       [
         "status",
-        STATUSBAR_AREAS ? STATUSBAR_AREAS.right : "statusBar.right",
+        STATUSBAR_AREAS2 ? STATUSBAR_AREAS2.right : "statusBar.right",
         { order: 118 },
         () => (0, import_jsx_runtime.jsx)(StatusChip, {})
       ],
-      ["palette-studio", PALETTE_AREA, {
+      ["palette-studio", PALETTE_AREA2, {
         id: "notebook.open",
         label: "Notebook: open the studio",
         keywords: ["notebook", "studio", "sources", "research"],
-        run: () => host.navigate(ROUTE)
+        run: () => host2.navigate(ROUTE)
       }, void 0],
-      ["palette-ops", PALETTE_AREA, {
+      ["palette-ops", PALETTE_AREA2, {
         id: "notebook.ops",
         label: "Notebook: open the lab deck",
         keywords: ["lab", "fleet", "ops", "homelab", "servers"],
-        run: () => host.navigate(`${ROUTE}?surface=ops`)
+        run: () => host2.navigate(`${ROUTE}?surface=ops`)
       }, void 0],
-      ["palette-ask", PALETTE_AREA, {
+      ["palette-ask", PALETTE_AREA2, {
         id: "notebook.ask",
         label: "Notebook: ask the active notebook",
         keywords: ["ask", "notebook", "citation", "grounded"],
         run: () => {
-          host.navigate(ROUTE);
-          if (host.composer && host.composer.setDraft) {
-            host.composer.setDraft(null, "Ask my active Hermes notebook a question grounded in its sources");
+          host2.navigate(ROUTE);
+          if (host2.composer && host2.composer.setDraft) {
+            host2.composer.setDraft(null, "Ask my active Hermes notebook a question grounded in its sources");
           }
         }
       }, void 0]
@@ -18262,7 +18425,7 @@ var plugin = {
     for (const [id, area, data, render] of shells) {
       contribute(ctx, id, area, render ? { ...data, render } : data);
     }
-    contribute(ctx, "directive", "transcript.directives", {
+    contribute(ctx, "directive", TRANSCRIPT_DIRECTIVE_AREA2, {
       name: "notebook",
       render: ({ attrs }) => (0, import_jsx_runtime.jsx)(NotebookDirective, { attrs })
     });
@@ -18285,7 +18448,7 @@ var plugin = {
 };
 
 // tests/tmp/payloads.mjs
-var STATE = { "ok": true, "generated_at": "2026-11-07T17:35:15Z", "model_ready": false, "notebooks": [{ "id": "commercial-fusion-2026", "title": "Commercial Fusion Energy in 2026", "description": "Six sources on the state of commercial fusion: the CRS briefing for Congress, the DOE deployment roadmap, two ITER releases, the IAEA outlook and the reference article.", "updated_at": "2026-11-07T17:35:15+00:00", "sources": 6, "artifacts": 12, "chars": 157369 }, { "id": "smoke-test-notebook", "title": "Smoke Test Notebook v2", "description": "Scratch notebook from the plugin's smoke tests.", "updated_at": "2026-11-07T17:35:15+00:00", "sources": 3, "artifacts": 6, "chars": 24919 }], "notebook": { "id": "commercial-fusion-2026", "title": "Commercial Fusion Energy in 2026", "description": "Six sources on the state of commercial fusion: the CRS briefing for Congress, the DOE deployment roadmap, two ITER releases, the IAEA outlook and the reference article.", "created_at": "2026-11-07T16:36:51+00:00", "updated_at": "2026-11-07T17:35:15+00:00", "sources": [{ "n": 1, "id": "crs-toward-commercial-fusion-energy", "title": "Toward Commercial Fusion Energy: Considerations for Congress (CRS R48866)", "kind": "url", "origin": "https://www.congress.gov/crs_external_products/R/HTML/R48866.html", "chars": 59746, "labels": ["CRS", "policy", "federal funding", "FY2025 budget"], "summary": "Congressional Research Service briefing: fusion physics, the DOE/FES programme ($790M in FY2025), inertial confinement (~$700M), and the policy questions a commercial build-out raises.", "added_at": "2026-11-07T16:36:51+00:00", "refreshed_at": "2026-11-07T17:00:41+00:00" }, { "n": 2, "id": "reuters-us-fusion-roadmap-mid-2030s", "title": "US roadmap targets fusion deployment by mid 2030s - Reuters", "kind": "url", "origin": "https://www.reuters.com/business/energy/us-roadmap-targets-fusion-deployment-by-mid-2030s--reeii-2026-08-25/", "chars": 14406, "labels": ["roadmap", "Reuters", "FIA funding", "engineering gaps"], "summary": "DOE's Fusion Science and Technology Roadmap (June) targets pilot plants by the mid-2030s; industry says it needs >$1B a year. FIA counts $4.48B raised to July 2026 and $14.24B cumulative since 2021.", "added_at": "2026-11-07T16:36:51+00:00", "refreshed_at": "2026-11-07T17:00:41+00:00" }, { "n": 3, "id": "ans-iter-assembly-progress", "title": "ITER reports \u201Csubstantial progress\u201D in assembly and installation work - ANS Nuclear Newswire", "kind": "url", "origin": "https://www.ans.org/news/2026-09-09/article-8375/iter-reports-substantial-progress-in-assembly-and-installation-work/", "chars": 11601, "labels": ["ITER", "assembly", "schedule"], "summary": "ANS Nuclear Newswire on ITER's assembly campaign: sector-module installation running ahead of plan under the accelerated assembly approach.", "added_at": "2026-11-07T16:36:51+00:00", "refreshed_at": "2026-11-07T17:00:41+00:00" }, { "n": 4, "id": "iter-two-thirds-tokamak-core", "title": "Two-thirds of ITER tokamak core now in place - ITER Organization", "kind": "url", "origin": "https://www.iter.org/two-thirds-iter-tokamak-core-now-place", "chars": 6116, "labels": ["ITER", "tokamak", "sector module", "milestone"], "summary": "ITER's own release: sixth of nine sector modules installed on 28 July 2026, ~30 hours of lifting, a 1,100-tonne module, two-thirds of the torus in place, final module due 2027.", "added_at": "2026-11-07T16:36:51+00:00", "refreshed_at": "2026-11-07T17:00:41+00:00" }, { "n": 5, "id": "iaea-world-fusion-outlook-2025", "title": "IAEA World Fusion Outlook 2025 (IAEA/PAT/012)", "kind": "url", "origin": "https://www.iaea.org/publications/15935/iaea-world-fusion-outlook-2025", "chars": 6329, "labels": ["IAEA", "outlook", "global fleet"], "summary": "IAEA's World Fusion Outlook 2025: the international reference on device counts, timelines and the regulatory picture across member states.", "added_at": "2026-11-07T16:36:51+00:00", "refreshed_at": "2026-11-07T17:00:41+00:00" }, { "n": 6, "id": "wikipedia-fusion-power", "title": "Fusion power - Wikipedia", "kind": "url", "origin": "https://en.wikipedia.org/wiki/Fusion_power", "chars": 59171, "labels": ["reference", "confinement", "tritium", "history"], "summary": "Reference article: confinement approaches, tritium breeding, the neutron-damage problem and the historical funding curve.", "added_at": "2026-11-07T16:36:51+00:00", "refreshed_at": "2026-11-07T17:00:41+00:00" }], "artifacts": [{ "key": "20261107-audio_overview", "kind": "audio_overview", "label": "Audio Overview", "group": "media", "primary": "20261107-171108-audio_overview.mp3", "ext": "mp3", "media": true, "bytes": 1118613, "files": [{ "name": "20261107-171108-audio_overview.json", "ext": "json", "size": 4454 }, { "name": "20261107-171108-audio_overview.txt", "ext": "txt", "size": 3395 }, { "name": "20261107-171108-audio_overview.mp3", "ext": "mp3", "size": 1110764 }], "modified": "2026-11-07T17:11:34+00:00" }, { "key": "20261107-video_overview", "kind": "video_overview", "label": "Video Overview", "group": "media", "primary": "20261107-170743-video_overview.mp4", "ext": "mp4", "media": true, "bytes": 1829333, "files": [{ "name": "20261107-170743-video_overview.json", "ext": "json", "size": 2042 }, { "name": "20261107-170743-video_overview.txt", "ext": "txt", "size": 1459 }, { "name": "20261107-170743-video_overview.mp4", "ext": "mp4", "size": 1825832 }], "modified": "2026-11-07T17:08:31+00:00" }, { "key": "20261107-faq", "kind": "faq", "label": "FAQ", "group": "docs", "primary": "20261107-170050-faq.md", "ext": "md", "media": false, "bytes": 1647, "files": [{ "name": "20261107-170050-faq.md", "ext": "md", "size": 1647 }], "modified": "2026-11-07T17:00:50+00:00" }, { "key": "20261107-study_guide", "kind": "study_guide", "label": "Study Guide", "group": "study", "primary": "20261107-170050-study_guide.md", "ext": "md", "media": false, "bytes": 2041, "files": [{ "name": "20261107-170050-study_guide.md", "ext": "md", "size": 2041 }], "modified": "2026-11-07T17:00:50+00:00" }, { "key": "20261107-briefing_doc", "kind": "briefing_doc", "label": "Briefing Doc", "group": "docs", "primary": "20261107-170050-briefing_doc.md", "ext": "md", "media": false, "bytes": 2293, "files": [{ "name": "20261107-170050-briefing_doc.md", "ext": "md", "size": 2293 }], "modified": "2026-11-07T17:00:50+00:00" }, { "key": "20261107-timeline", "kind": "timeline", "label": "Timeline", "group": "docs", "primary": "20261107-170042-timeline.md", "ext": "md", "media": false, "bytes": 1309, "files": [{ "name": "20261107-170042-timeline.md", "ext": "md", "size": 1309 }], "modified": "2026-11-07T17:00:42+00:00" }, { "key": "20261107-infographic", "kind": "infographic", "label": "Infographic", "group": "visual", "primary": "20261107-170042-infographic.png", "ext": "png", "media": true, "bytes": 87390, "files": [{ "name": "20261107-170042-infographic.png", "ext": "png", "size": 86310 }, { "name": "20261107-170041-infographic.json", "ext": "json", "size": 1080 }], "modified": "2026-11-07T17:00:42+00:00" }, { "key": "20261107-slides", "kind": "slides", "label": "Slides", "group": "visual", "primary": "20261107-170041-slides.html", "ext": "html", "media": true, "bytes": 5267, "files": [{ "name": "20261107-170041-slides.html", "ext": "html", "size": 3631 }, { "name": "20261107-170041-slides.json", "ext": "json", "size": 1636 }], "modified": "2026-11-07T17:00:41+00:00" }, { "key": "20261107-quiz", "kind": "quiz", "label": "Quiz", "group": "study", "primary": "20261107-170041-quiz.md", "ext": "md", "media": false, "bytes": 3469, "files": [{ "name": "20261107-170041-quiz.md", "ext": "md", "size": 1498 }, { "name": "20261107-170041-quiz.json", "ext": "json", "size": 1971 }], "modified": "2026-11-07T17:00:41+00:00" }, { "key": "20261107-flashcards", "kind": "flashcards", "label": "Flashcards", "group": "study", "primary": "20261107-170041-flashcards.md", "ext": "md", "media": false, "bytes": 3696, "files": [{ "name": "20261107-170041-flashcards.md", "ext": "md", "size": 1760 }, { "name": "20261107-170041-flashcards.json", "ext": "json", "size": 1936 }], "modified": "2026-11-07T17:00:41+00:00" }, { "key": "20261107-mind_map", "kind": "mind_map", "label": "Mind Map", "group": "visual", "primary": "20261107-170041-mind_map.md", "ext": "md", "media": false, "bytes": 3417, "files": [{ "name": "20261107-170041-mind_map.md", "ext": "md", "size": 1577 }, { "name": "20261107-170041-mind_map.json", "ext": "json", "size": 1840 }], "modified": "2026-11-07T17:00:41+00:00" }, { "key": "20261107-summary", "kind": "summary", "label": "Summary", "group": "docs", "primary": "20261107-170041-summary.md", "ext": "md", "media": false, "bytes": 1955, "files": [{ "name": "20261107-170041-summary.md", "ext": "md", "size": 1955 }], "modified": "2026-11-07T17:00:41+00:00" }], "labels": [{ "label": "ITER", "count": 2 }, { "label": "CRS", "count": 1 }, { "label": "FIA funding", "count": 1 }, { "label": "FY2025 budget", "count": 1 }, { "label": "IAEA", "count": 1 }, { "label": "Reuters", "count": 1 }, { "label": "assembly", "count": 1 }, { "label": "confinement", "count": 1 }, { "label": "engineering gaps", "count": 1 }, { "label": "federal funding", "count": 1 }, { "label": "global fleet", "count": 1 }, { "label": "history", "count": 1 }, { "label": "milestone", "count": 1 }, { "label": "outlook", "count": 1 }, { "label": "policy", "count": 1 }, { "label": "reference", "count": 1 }, { "label": "roadmap", "count": 1 }, { "label": "schedule", "count": 1 }, { "label": "sector module", "count": 1 }, { "label": "tokamak", "count": 1 }, { "label": "tritium", "count": 1 }], "thread": [{ "role": "user", "content": "Where does ITER's machine assembly actually stand?", "ts": "2026-11-07T16:36:51+00:00" }, { "role": "assistant", "content": "As of 29 July 2026 the ITER Organization had installed the sixth of nine tokamak sector modules in the tokamak pit, putting roughly two-thirds of the torus-shaped core in place. The organisation says the milestone landed almost six months ahead of schedule, and the module involved weighed about 1,100 tonnes and was transferred from the Assembly Hall in a coordinated lifting operation. Sources: 'Two-thirds of ITER tokamak core now in place' (ITER, 29 Jul 2026) and ANS Nuclear Newswire's 9 Sep 2026 assembly report.", "ts": "2026-11-07T16:36:51+00:00" }, { "role": "user", "content": "Is the US roadmap to fusion deployment by the mid-2030s credible?", "ts": "2026-11-07T16:36:51+00:00" }, { "role": "assistant", "content": `Reuters (25 Aug 2026) reports the US government launched a strategy to catalyse early-stage fusion plants by the mid-2030s, and that success hinges on more federal funding. Developers point to unsolved engineering: neutron-resistant structural materials, tritium separation and reprocessing, and components that survive constant high-energy neutron flux. Robb Hughes of Realta Fusion framed it as "The plan isn't the problem. We all agree on the plan. The X factor is the funding." The roadmap leans on existing DOE programmes such as Milestone-Based Fusion Development and INFUSE. Treat the timeline as policy intent, not a committed delivery date.`, "ts": "2026-11-07T16:36:51+00:00" }], "stats": { "sources": 6, "chars": 157369, "labels": 21, "unlabeled": 0, "artifacts": 12, "kinds": ["audio_overview", "briefing_doc", "faq", "flashcards", "infographic", "mind_map", "quiz", "slides", "study_guide", "summary", "timeline", "video_overview"] } }, "kinds": [{ "id": "video_overview", "label": "Video Overview", "group": "media", "ext": "mp4", "blurb": "Narrated slideshow, cinematic or explainer", "secs": 60 }, { "id": "audio_overview", "label": "Audio Overview", "group": "media", "ext": "mp3", "blurb": "Two hosts talking through the sources", "secs": 90 }, { "id": "summary", "label": "Summary", "group": "docs", "ext": "md", "blurb": "The notebook in a page", "secs": 12 }, { "id": "briefing_doc", "label": "Briefing Doc", "group": "docs", "ext": "md", "blurb": "Decisions, risks, what to do next", "secs": 18 }, { "id": "study_guide", "label": "Study Guide", "group": "study", "ext": "md", "blurb": "Concepts, questions, answers", "secs": 18 }, { "id": "faq", "label": "FAQ", "group": "docs", "ext": "md", "blurb": "The questions the sources answer", "secs": 14 }, { "id": "timeline", "label": "Timeline", "group": "docs", "ext": "md", "blurb": "Dated events in order", "secs": 14 }, { "id": "mind_map", "label": "Mind Map", "group": "visual", "ext": "md", "blurb": "Radial structure you can pan", "secs": 16 }, { "id": "flashcards", "label": "Flashcards", "group": "study", "ext": "md", "blurb": "Flip deck, Anki-ready export", "secs": 16 }, { "id": "quiz", "label": "Quiz", "group": "study", "ext": "md", "blurb": "Multiple choice with explanations", "secs": 16 }, { "id": "slides", "label": "Slides", "group": "visual", "ext": "html", "blurb": "Self-contained deck, arrow keys", "secs": 22 }, { "id": "infographic", "label": "Infographic", "group": "visual", "ext": "png", "blurb": "One dense poster of the thesis", "secs": 20 }] };
+var STATE = { "ok": true, "generated_at": "2026-11-07T18:38:54Z", "model_ready": false, "notebooks": [{ "id": "business-analyst-job-interview-you-know-thanks", "title": "Business Analyst Job Interview you know. Thanks", "description": "", "updated_at": "2026-11-07T18:34:28+00:00", "sources": 0, "artifacts": 0, "chars": 0 }, { "id": "commercial-fusion-2026", "title": "Commercial Fusion Energy in 2026", "description": "Six sources on the state of commercial fusion: the CRS briefing for Congress, the DOE deployment roadmap, two ITER releases, the IAEA outlook and the reference article.", "updated_at": "2026-11-07T17:53:27+00:00", "sources": 6, "artifacts": 12, "chars": 157369 }, { "id": "smoke-test-notebook", "title": "Scratchpad", "description": "Short sources used to smoke-test labels and artifacts.", "updated_at": "2026-11-07T17:38:11+00:00", "sources": 3, "artifacts": 6, "chars": 24919 }], "notebook": { "id": "commercial-fusion-2026", "title": "Commercial Fusion Energy in 2026", "description": "Six sources on the state of commercial fusion: the CRS briefing for Congress, the DOE deployment roadmap, two ITER releases, the IAEA outlook and the reference article.", "created_at": "2026-11-07T16:36:51+00:00", "updated_at": "2026-11-07T17:53:27+00:00", "sources": [{ "n": 1, "id": "crs-toward-commercial-fusion-energy", "title": "Toward Commercial Fusion Energy: Considerations for Congress (CRS R48866)", "kind": "url", "origin": "https://www.congress.gov/crs_external_products/R/HTML/R48866.html", "chars": 59746, "labels": ["CRS", "policy", "federal funding", "FY2025 budget"], "summary": "Congressional Research Service briefing: fusion physics, the DOE/FES programme ($790M in FY2025), inertial confinement (~$700M), and the policy questions a commercial build-out raises.", "added_at": "2026-11-07T16:36:51+00:00", "refreshed_at": "2026-11-07T17:00:41+00:00" }, { "n": 2, "id": "reuters-us-fusion-roadmap-mid-2030s", "title": "US roadmap targets fusion deployment by mid 2030s - Reuters", "kind": "url", "origin": "https://www.reuters.com/business/energy/us-roadmap-targets-fusion-deployment-by-mid-2030s--reeii-2026-08-25/", "chars": 14406, "labels": ["roadmap", "Reuters", "FIA funding", "engineering gaps"], "summary": "DOE's Fusion Science and Technology Roadmap (June) targets pilot plants by the mid-2030s; industry says it needs >$1B a year. FIA counts $4.48B raised to July 2026 and $14.24B cumulative since 2021.", "added_at": "2026-11-07T16:36:51+00:00", "refreshed_at": "2026-11-07T17:00:41+00:00" }, { "n": 3, "id": "ans-iter-assembly-progress", "title": "ITER reports \u201Csubstantial progress\u201D in assembly and installation work - ANS Nuclear Newswire", "kind": "url", "origin": "https://www.ans.org/news/2026-09-09/article-8375/iter-reports-substantial-progress-in-assembly-and-installation-work/", "chars": 11601, "labels": ["ITER", "assembly", "schedule"], "summary": "ANS Nuclear Newswire on ITER's assembly campaign: sector-module installation running ahead of plan under the accelerated assembly approach.", "added_at": "2026-11-07T16:36:51+00:00", "refreshed_at": "2026-11-07T17:00:41+00:00" }, { "n": 4, "id": "iter-two-thirds-tokamak-core", "title": "Two-thirds of ITER tokamak core now in place - ITER Organization", "kind": "url", "origin": "https://www.iter.org/two-thirds-iter-tokamak-core-now-place", "chars": 6116, "labels": ["ITER", "tokamak", "sector module", "milestone"], "summary": "ITER's own release: sixth of nine sector modules installed on 28 July 2026, ~30 hours of lifting, a 1,100-tonne module, two-thirds of the torus in place, final module due 2027.", "added_at": "2026-11-07T16:36:51+00:00", "refreshed_at": "2026-11-07T17:00:41+00:00" }, { "n": 5, "id": "iaea-world-fusion-outlook-2025", "title": "IAEA World Fusion Outlook 2025 (IAEA/PAT/012)", "kind": "url", "origin": "https://www.iaea.org/publications/15935/iaea-world-fusion-outlook-2025", "chars": 6329, "labels": ["IAEA", "outlook", "global fleet"], "summary": "IAEA's World Fusion Outlook 2025: the international reference on device counts, timelines and the regulatory picture across member states.", "added_at": "2026-11-07T16:36:51+00:00", "refreshed_at": "2026-11-07T17:00:41+00:00" }, { "n": 6, "id": "wikipedia-fusion-power", "title": "Fusion power - Wikipedia", "kind": "url", "origin": "https://en.wikipedia.org/wiki/Fusion_power", "chars": 59171, "labels": ["reference", "confinement", "tritium", "history"], "summary": "Reference article: confinement approaches, tritium breeding, the neutron-damage problem and the historical funding curve.", "added_at": "2026-11-07T16:36:51+00:00", "refreshed_at": "2026-11-07T17:00:41+00:00" }], "artifacts": [{ "key": "20261107-audio_overview", "kind": "audio_overview", "label": "Audio Overview", "group": "media", "primary": "20261107-171108-audio_overview.mp3", "ext": "mp3", "media": true, "bytes": 1118613, "files": [{ "name": "20261107-171108-audio_overview.json", "ext": "json", "size": 4454 }, { "name": "20261107-171108-audio_overview.mp3", "ext": "mp3", "size": 1110764 }, { "name": "20261107-171108-audio_overview.txt", "ext": "txt", "size": 3395 }], "modified": "2026-11-07T17:53:13+00:00" }, { "key": "20261107-video_overview", "kind": "video_overview", "label": "Video Overview", "group": "media", "primary": "20261107-170743-video_overview.mp4", "ext": "mp4", "media": true, "bytes": 1829333, "files": [{ "name": "20261107-170743-video_overview.json", "ext": "json", "size": 2042 }, { "name": "20261107-170743-video_overview.txt", "ext": "txt", "size": 1459 }, { "name": "20261107-170743-video_overview.mp4", "ext": "mp4", "size": 1825832 }], "modified": "2026-11-07T17:53:13+00:00" }, { "key": "20261107-faq", "kind": "faq", "label": "FAQ", "group": "docs", "primary": "20261107-170050-faq.md", "ext": "md", "media": false, "bytes": 1647, "files": [{ "name": "20261107-170050-faq.md", "ext": "md", "size": 1647 }], "modified": "2026-11-07T17:53:13+00:00" }, { "key": "20261107-study_guide", "kind": "study_guide", "label": "Study Guide", "group": "study", "primary": "20261107-170050-study_guide.md", "ext": "md", "media": false, "bytes": 2041, "files": [{ "name": "20261107-170050-study_guide.md", "ext": "md", "size": 2041 }], "modified": "2026-11-07T17:53:13+00:00" }, { "key": "20261107-briefing_doc", "kind": "briefing_doc", "label": "Briefing Doc", "group": "docs", "primary": "20261107-170050-briefing_doc.md", "ext": "md", "media": false, "bytes": 2293, "files": [{ "name": "20261107-170050-briefing_doc.md", "ext": "md", "size": 2293 }], "modified": "2026-11-07T17:53:13+00:00" }, { "key": "20261107-timeline", "kind": "timeline", "label": "Timeline", "group": "docs", "primary": "20261107-170042-timeline.md", "ext": "md", "media": false, "bytes": 1309, "files": [{ "name": "20261107-170042-timeline.md", "ext": "md", "size": 1309 }], "modified": "2026-11-07T17:53:13+00:00" }, { "key": "20261107-infographic", "kind": "infographic", "label": "Infographic", "group": "visual", "primary": "20261107-170042-infographic.png", "ext": "png", "media": true, "bytes": 87390, "files": [{ "name": "20261107-170042-infographic.png", "ext": "png", "size": 86310 }, { "name": "20261107-170041-infographic.json", "ext": "json", "size": 1080 }], "modified": "2026-11-07T17:53:13+00:00" }, { "key": "20261107-slides", "kind": "slides", "label": "Slides", "group": "visual", "primary": "20261107-170041-slides.html", "ext": "html", "media": true, "bytes": 5267, "files": [{ "name": "20261107-170041-slides.html", "ext": "html", "size": 3631 }, { "name": "20261107-170041-slides.json", "ext": "json", "size": 1636 }], "modified": "2026-11-07T17:53:13+00:00" }, { "key": "20261107-quiz", "kind": "quiz", "label": "Quiz", "group": "study", "primary": "20261107-170041-quiz.md", "ext": "md", "media": false, "bytes": 3469, "files": [{ "name": "20261107-170041-quiz.md", "ext": "md", "size": 1498 }, { "name": "20261107-170041-quiz.json", "ext": "json", "size": 1971 }], "modified": "2026-11-07T17:53:13+00:00" }, { "key": "20261107-flashcards", "kind": "flashcards", "label": "Flashcards", "group": "study", "primary": "20261107-170041-flashcards.md", "ext": "md", "media": false, "bytes": 3696, "files": [{ "name": "20261107-170041-flashcards.md", "ext": "md", "size": 1760 }, { "name": "20261107-170041-flashcards.json", "ext": "json", "size": 1936 }], "modified": "2026-11-07T17:53:13+00:00" }, { "key": "20261107-mind_map", "kind": "mind_map", "label": "Mind Map", "group": "visual", "primary": "20261107-170041-mind_map.md", "ext": "md", "media": false, "bytes": 3417, "files": [{ "name": "20261107-170041-mind_map.md", "ext": "md", "size": 1577 }, { "name": "20261107-170041-mind_map.json", "ext": "json", "size": 1840 }], "modified": "2026-11-07T17:53:13+00:00" }, { "key": "20261107-summary", "kind": "summary", "label": "Summary", "group": "docs", "primary": "20261107-170041-summary.md", "ext": "md", "media": false, "bytes": 1955, "files": [{ "name": "20261107-170041-summary.md", "ext": "md", "size": 1955 }], "modified": "2026-11-07T17:53:13+00:00" }], "labels": [{ "label": "ITER", "count": 2 }, { "label": "CRS", "count": 1 }, { "label": "FIA funding", "count": 1 }, { "label": "FY2025 budget", "count": 1 }, { "label": "IAEA", "count": 1 }, { "label": "Reuters", "count": 1 }, { "label": "assembly", "count": 1 }, { "label": "confinement", "count": 1 }, { "label": "engineering gaps", "count": 1 }, { "label": "federal funding", "count": 1 }, { "label": "global fleet", "count": 1 }, { "label": "history", "count": 1 }, { "label": "milestone", "count": 1 }, { "label": "outlook", "count": 1 }, { "label": "policy", "count": 1 }, { "label": "reference", "count": 1 }, { "label": "roadmap", "count": 1 }, { "label": "schedule", "count": 1 }, { "label": "sector module", "count": 1 }, { "label": "tokamak", "count": 1 }, { "label": "tritium", "count": 1 }], "thread": [{ "role": "user", "content": "Where does ITER's machine assembly actually stand?", "ts": "2026-11-07T16:36:51+00:00" }, { "role": "assistant", "content": "As of 29 July 2026 the ITER Organization had installed the sixth of nine tokamak sector modules in the tokamak pit, putting roughly two-thirds of the torus-shaped core in place. The organisation says the milestone landed almost six months ahead of schedule, and the module involved weighed about 1,100 tonnes and was transferred from the Assembly Hall in a coordinated lifting operation. Sources: 'Two-thirds of ITER tokamak core now in place' (ITER, 29 Jul 2026) and ANS Nuclear Newswire's 9 Sep 2026 assembly report.", "ts": "2026-11-07T16:36:51+00:00" }, { "role": "user", "content": "Is the US roadmap to fusion deployment by the mid-2030s credible?", "ts": "2026-11-07T16:36:51+00:00" }, { "role": "assistant", "content": `Reuters (25 Aug 2026) reports the US government launched a strategy to catalyse early-stage fusion plants by the mid-2030s, and that success hinges on more federal funding. Developers point to unsolved engineering: neutron-resistant structural materials, tritium separation and reprocessing, and components that survive constant high-energy neutron flux. Robb Hughes of Realta Fusion framed it as "The plan isn't the problem. We all agree on the plan. The X factor is the funding." The roadmap leans on existing DOE programmes such as Milestone-Based Fusion Development and INFUSE. Treat the timeline as policy intent, not a committed delivery date.`, "ts": "2026-11-07T16:36:51+00:00" }], "stats": { "sources": 6, "chars": 157369, "labels": 21, "unlabeled": 0, "artifacts": 12, "kinds": ["audio_overview", "briefing_doc", "faq", "flashcards", "infographic", "mind_map", "quiz", "slides", "study_guide", "summary", "timeline", "video_overview"] } }, "kinds": [{ "id": "video_overview", "label": "Video Overview", "group": "media", "ext": "mp4", "blurb": "Narrated slideshow, cinematic or explainer", "secs": 60 }, { "id": "audio_overview", "label": "Audio Overview", "group": "media", "ext": "mp3", "blurb": "Two hosts talking through the sources", "secs": 90 }, { "id": "summary", "label": "Summary", "group": "docs", "ext": "md", "blurb": "The notebook in a page", "secs": 12 }, { "id": "briefing_doc", "label": "Briefing Doc", "group": "docs", "ext": "md", "blurb": "Decisions, risks, what to do next", "secs": 18 }, { "id": "study_guide", "label": "Study Guide", "group": "study", "ext": "md", "blurb": "Concepts, questions, answers", "secs": 18 }, { "id": "faq", "label": "FAQ", "group": "docs", "ext": "md", "blurb": "The questions the sources answer", "secs": 14 }, { "id": "timeline", "label": "Timeline", "group": "docs", "ext": "md", "blurb": "Dated events in order", "secs": 14 }, { "id": "mind_map", "label": "Mind Map", "group": "visual", "ext": "md", "blurb": "Radial structure you can pan", "secs": 16 }, { "id": "flashcards", "label": "Flashcards", "group": "study", "ext": "md", "blurb": "Flip deck, Anki-ready export", "secs": 16 }, { "id": "quiz", "label": "Quiz", "group": "study", "ext": "md", "blurb": "Multiple choice with explanations", "secs": 16 }, { "id": "slides", "label": "Slides", "group": "visual", "ext": "html", "blurb": "Self-contained deck, arrow keys", "secs": 22 }, { "id": "infographic", "label": "Infographic", "group": "visual", "ext": "png", "blurb": "One dense poster of the thesis", "secs": 20 }] };
 var FLEET = {
   "ok": true,
   "measured_at": "2026-11-07 10:43:11 -0600",

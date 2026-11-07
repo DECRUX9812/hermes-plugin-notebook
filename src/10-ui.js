@@ -188,8 +188,8 @@ function Dialog({ open, onClose, title, children, width = 520 }) {
     style: {
       width: `min(${width}px, 100%)`, maxHeight: '84vh', overflow: 'auto',
       background: 'var(--ui-bg-elevated, var(--ui-bg-primary, #14151b))',
-      border: `1px solid ${T.line}`, borderRadius: '14px', padding: '18px',
-      boxShadow: '0 24px 60px rgba(0,0,0,.45)'
+      border: `1px solid ${T.line}`, borderRadius: 0, padding: '20px',
+      boxShadow: '8px 8px 0 color-mix(in srgb, currentColor 10%, transparent), 0 24px 60px rgba(0,0,0,.45)'
     }
   },
   el('div', { style: { display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '14px' } },

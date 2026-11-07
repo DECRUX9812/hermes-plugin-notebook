@@ -4,7 +4,7 @@
  * shipping them as raw text in a "polished" viewer is the difference between a
  * product and a debug pane — but a full markdown library is not importable here.
  */
-const INLINE = /(\*\*[^*]+\*\*|`[^`]+`|\*[^*\n]+\*|\[S\d+\]|\[[^\]]+\]\([^)]+\))/g
+const INLINE = /(\*\*[^*]+\*\*|__[^_\n]+__|`[^`]+`|\*[^*\n]+\*|_[^_\n]+_|\[S\d+\]|\[[^\]]+\]\([^)]+\))/g
 
 function inlineNodes(text, keyBase, onCite) {
   const out = []
@@ -16,11 +16,11 @@ function inlineNodes(text, keyBase, onCite) {
     if (m.index > last) out.push(s.slice(last, m.index))
     const tok = m[0]
     const k = `${keyBase}-${m.index}`
-    if (tok.startsWith('**')) {
+    if (tok.startsWith('**') || tok.startsWith('__')) {
       out.push(el('strong', { children: tok.slice(2, -2) }, k))
     } else if (tok.startsWith('`')) {
       out.push(el('code', { children: tok.slice(1, -1) }, k))
-    } else if (tok.startsWith('*')) {
+    } else if (tok.startsWith('*') || tok.startsWith('_')) {
       out.push(el('em', { children: tok.slice(1, -1) }, k))
     } else if (/^\[S\d+\]$/.test(tok)) {
       const n = Number(tok.slice(2, -1))
@@ -72,6 +72,7 @@ function parseBlocks(text) {
       blocks.push({ t: 'code', lang, text: buf.join('\n') })
       continue
     }
+    if (/^\s*([-*_])(?:\s*\1){2,}\s*$/.test(line)) { blocks.push({ t: 'hr' }); i += 1; continue }
     const h = /^(#{1,4})\s+(.*)$/.exec(line)
     if (h) { blocks.push({ t: 'h' + h[1].length, text: h[2] }); i += 1; continue }
     if (/^>\s?/.test(line)) {
@@ -126,6 +127,7 @@ function renderBlock(b, i, onCite) {
         el('tr', { children: r.map((c, k2) =>
           el('td', { children: inlineNodes(c, `${key}r${j}c${k2}`, onCite) }, `${key}-${j}-${k2}`)) }, `${key}-r-${j}`)) }))
   }
+  if (b.t === 'hr') return el('hr', { key })
   if (b.t === 'code') {
     return el('pre', { key }, el('code', { children: b.text }))
   }

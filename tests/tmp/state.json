@@ -1,22 +1,31 @@
 {
  "ok": true,
- "generated_at": "2026-11-07T17:35:15Z",
+ "generated_at": "2026-11-07T18:38:54Z",
  "model_ready": false,
  "notebooks": [
+  {
+   "id": "business-analyst-job-interview-you-know-thanks",
+   "title": "Business Analyst Job Interview you know. Thanks",
+   "description": "",
+   "updated_at": "2026-11-07T18:34:28+00:00",
+   "sources": 0,
+   "artifacts": 0,
+   "chars": 0
+  },
   {
    "id": "commercial-fusion-2026",
    "title": "Commercial Fusion Energy in 2026",
    "description": "Six sources on the state of commercial fusion: the CRS briefing for Congress, the DOE deployment roadmap, two ITER releases, the IAEA outlook and the reference article.",
-   "updated_at": "2026-11-07T17:35:15+00:00",
+   "updated_at": "2026-11-07T17:53:27+00:00",
    "sources": 6,
    "artifacts": 12,
    "chars": 157369
   },
   {
    "id": "smoke-test-notebook",
-   "title": "Smoke Test Notebook v2",
-   "description": "Scratch notebook from the plugin's smoke tests.",
-   "updated_at": "2026-11-07T17:35:15+00:00",
+   "title": "Scratchpad",
+   "description": "Short sources used to smoke-test labels and artifacts.",
+   "updated_at": "2026-11-07T17:38:11+00:00",
    "sources": 3,
    "artifacts": 6,
    "chars": 24919
@@ -27,7 +36,7 @@
   "title": "Commercial Fusion Energy in 2026",
   "description": "Six sources on the state of commercial fusion: the CRS briefing for Congress, the DOE deployment roadmap, two ITER releases, the IAEA outlook and the reference article.",
   "created_at": "2026-11-07T16:36:51+00:00",
-  "updated_at": "2026-11-07T17:35:15+00:00",
+  "updated_at": "2026-11-07T17:53:27+00:00",
   "sources": [
    {
     "n": 1,
@@ -147,17 +156,17 @@
       "size": 4454
      },
      {
-      "name": "20261107-171108-audio_overview.txt",
-      "ext": "txt",
-      "size": 3395
-     },
-     {
       "name": "20261107-171108-audio_overview.mp3",
       "ext": "mp3",
       "size": 1110764
+     },
+     {
+      "name": "20261107-171108-audio_overview.txt",
+      "ext": "txt",
+      "size": 3395
      }
     ],
-    "modified": "2026-11-07T17:11:34+00:00"
+    "modified": "2026-11-07T17:53:13+00:00"
    },
    {
     "key": "20261107-video_overview",
@@ -185,7 +194,7 @@
       "size": 1825832
      }
     ],
-    "modified": "2026-11-07T17:08:31+00:00"
+    "modified": "2026-11-07T17:53:13+00:00"
    },
    {
     "key": "20261107-faq",
@@ -203,7 +212,7 @@
       "size": 1647
      }
     ],
-    "modified": "2026-11-07T17:00:50+00:00"
+    "modified": "2026-11-07T17:53:13+00:00"
    },
    {
     "key": "20261107-study_guide",
@@ -221,7 +230,7 @@
       "size": 2041
      }
     ],
-    "modified": "2026-11-07T17:00:50+00:00"
+    "modified": "2026-11-07T17:53:13+00:00"
    },
    {
     "key": "20261107-briefing_doc",
@@ -239,7 +248,7 @@
       "size": 2293
      }
     ],
-    "modified": "2026-11-07T17:00:50+00:00"
+    "modified": "2026-11-07T17:53:13+00:00"
    },
    {
     "key": "20261107-timeline",
@@ -257,7 +266,7 @@
       "size": 1309
      }
     ],
-    "modified": "2026-11-07T17:00:42+00:00"
+    "modified": "2026-11-07T17:53:13+00:00"
    },
    {
     "key": "20261107-infographic",
@@ -280,7 +289,7 @@
       "size": 1080
      }
     ],
-    "modified": "2026-11-07T17:00:42+00:00"
+    "modified": "2026-11-07T17:53:13+00:00"
    },
    {
     "key": "20261107-slides",
@@ -303,7 +312,7 @@
       "size": 1636
      }
     ],
-    "modified": "2026-11-07T17:00:41+00:00"
+    "modified": "2026-11-07T17:53:13+00:00"
    },
    {
     "key": "20261107-quiz",
@@ -326,7 +335,7 @@
       "size": 1971
      }
     ],
-    "modified": "2026-11-07T17:00:41+00:00"
+    "modified": "2026-11-07T17:53:13+00:00"
    },
    {
     "key": "20261107-flashcards",
@@ -349,7 +358,7 @@
       "size": 1936
      }
     ],
-    "modified": "2026-11-07T17:00:41+00:00"
+    "modified": "2026-11-07T17:53:13+00:00"
    },
    {
     "key": "20261107-mind_map",
@@ -372,7 +381,7 @@
       "size": 1840
      }
     ],
-    "modified": "2026-11-07T17:00:41+00:00"
+    "modified": "2026-11-07T17:53:13+00:00"
    },
    {
     "key": "20261107-summary",
@@ -390,7 +399,7 @@
       "size": 1955
      }
     ],
-    "modified": "2026-11-07T17:00:41+00:00"
+    "modified": "2026-11-07T17:53:13+00:00"
    }
   ],
   "labels": [

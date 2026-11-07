@@ -45,6 +45,11 @@ function Main({ notebook, kinds, tab, setTab, picked, setPicked, busy, generate,
 
   return el('main', { className: 'nb-col' },
     el('div', { className: 'nb-main-head' },
+      el('div', { className: 'nb-filed' },
+        el('b', { children: 'Notebook' }),
+        el('span', { className: 'nb-mono', children: notebook.id }),
+        el('i', { 'aria-hidden': 'true' }),
+        el('span', { children: modelReady ? 'grounded · every line cites a source' : 'model offline' })),
       el('h1', { className: 'nb-h1', children: notebook.title }),
       notebook.description ? el('p', { className: 'nb-sub', children: notebook.description })
         : el('p', { className: 'nb-sub', children: 'Answers are generated only from the sources on the left; each citation opens the source it came from.' }),
@@ -163,7 +168,7 @@ function Chat({ notebook, askOpen, onSay, modelReady, onCite, onOpenSource }) {
       msgs.length === 0 && !pending
         ? el('div', { style: { margin: 'auto', textAlign: 'center', maxWidth: '54ch' } },
             el('div', { style: { display: 'grid', placeItems: 'center', gap: '10px' } },
-              el('span', { className: 'nb-mark', style: { width: '40px', height: '40px', borderRadius: '12px' } },
+              el('span', { className: 'nb-mark', style: { width: '38px', height: '38px' } },
                 jsx(Glyph, { name: 'sparkle', size: 19 })),
               el('div', { style: { fontSize: '20px', fontWeight: 650, letterSpacing: '-.015em' }, children: 'Ask the sources' }),
               el('div', {
@@ -174,7 +179,7 @@ function Chat({ notebook, askOpen, onSay, modelReady, onCite, onOpenSource }) {
       msgs.map((m) => jsx(Msg, { msg: m, onCite, onOpenSource }, m.k)),
       pending
         ? el('div', { className: 'nb-msg', 'data-role': 'assistant' },
-            el('span', { className: 'nb-avatar', children: 'HK' }),
+            el('span', { className: 'nb-avatar', children: 'HN' }),
             el('div', { className: 'nb-msg-body' },
               el('div', { className: 'nb-who', children: 'Reading sources' }),
               el('div', { style: { display: 'flex', alignItems: 'center', gap: '10px', color: T.text3, fontSize: '14.5px' } },
@@ -214,10 +219,12 @@ function Chat({ notebook, askOpen, onSay, modelReady, onCite, onOpenSource }) {
 function Msg({ msg, onCite }) {
   const isUser = msg.role === 'user'
   return el('div', { className: 'nb-msg', 'data-role': isUser ? 'user' : 'assistant' },
-    isUser ? null : el('span', { className: 'nb-avatar', children: 'HK' }),
+    isUser ? null : el('span', { className: 'nb-avatar', children: 'HN' }),
     el('div', { className: 'nb-msg-body' },
       isUser
-        ? el('div', { className: 'nb-bubble', children: msg.content })
+        ? el('div', { className: 'nb-bubble' },
+            el('div', { className: 'nb-who', children: 'You' }),
+            el('div', { children: msg.content }))
         : el('div', null,
             el('div', { className: 'nb-who' },
               'Hermes Notebook',
@@ -226,10 +233,13 @@ function Msg({ msg, onCite }) {
               jsx(Markdown, { text: msg.content, onCite })),
             (msg.citations || []).length
               ? el('div', { style: { display: 'flex', gap: '6px', flexWrap: 'wrap', marginTop: '10px' }, role: 'list', 'aria-label': 'Citations' },
-                  msg.citations.map((c) => jsx(Chip, {
-                    tone: 'accent', onClick: () => onCite && onCite(c.n),
-                    title: c.origin || c.title, children: `S${c.n} · ${c.title}`
-                  }, `${c.n}-${c.title}`)))
+                  msg.citations.map((c) => el('button', {
+                    key: `${c.n}-${c.title}`, type: 'button', className: 'nb-chip nb-citechip',
+                    onClick: () => onCite && onCite(c.n),
+                    title: c.origin || c.title,
+                    'aria-label': `Citation ${c.n} — ${c.title}`,
+                    children: [el('b', { children: `S${c.n}` }), el('span', { children: c.title })]
+                  })))
               : null))
   )
 }
@@ -292,13 +302,48 @@ function StudioPanel({ kinds, notebook, busy, generate, filter, setFilter, picke
     node.addEventListener('scroll', check, { passive: true })
     return () => { if (ro) ro.disconnect(); node.removeEventListener('scroll', check) }
   }, [shown.length])
+
+  // The index is grouped like a table of contents: a section rule, then its
+  // plates. The backend's kind order interleaves groups (media, docs, study,
+  // docs…), so bucket first and walk the groups in a fixed reading order —
+  // a run-length scan would emit a header every time the group changed.
+  const buckets = new Map()
+  for (const k of shown) {
+    const g = k.group || 'other'
+    if (!buckets.has(g)) buckets.set(g, [])
+    buckets.get(g).push(k)
+  }
+  const groupOrder = GROUP_ORDER.filter((g) => buckets.has(g))
+    .concat([...buckets.keys()].filter((g) => !GROUP_ORDER.includes(g)))
+  let plate = 0
+  const rows = []
+  for (const g of groupOrder) {
+    const list = buckets.get(g)
+    if (filter === 'all') {
+      const readyHere = list.filter((x) => ready[x.id]).length
+      rows.push(el('div', { className: 'nb-grouprow', key: `g-${g}` },
+        el('span', { children: GROUP_LABEL[g] || 'Outputs' }),
+        el('i', { 'aria-hidden': 'true' }),
+        el('em', { children: `${readyHere}/${list.length}` })))
+    }
+    for (const k of list) {
+      plate += 1
+      rows.push(jsx(StudioCard, {
+        key: k.id, kind: k, art: ready[k.id], started: busy[k.id],
+        plate: String(plate).padStart(2, '0'),
+        onOpen: () => { const a = ready[k.id]; if (a) onOpen(a); else generate(k.id) },
+        onRegenerate: () => generate(k.id)
+      }))
+    }
+  }
+
   return el('aside', { className: 'nb-col nb-studio', 'aria-label': 'Studio outputs' },
     el('div', { className: 'nb-pane-head' },
-      el('span', { className: 'nb-meta', children: 'Studio' }),
+      el('span', { className: 'nb-meta', children: 'Studio index' }),
       el('span', {
         className: 'nb-chip',
         'data-tone': Object.keys(ready).length ? 'ok' : undefined,
-        children: `${Object.keys(ready).length} of ${kinds.length} ready`
+        children: `${Object.keys(ready).length}/${kinds.length} ready`
       })
     ),
     el('div', { className: 'nb-pad', style: { paddingBottom: 0 } },
@@ -312,19 +357,18 @@ function StudioPanel({ kinds, notebook, busy, generate, filter, setFilter, picke
       })
     ),
     el('div', { className: 'nb-scroll', ref: scrollRef, 'data-scrollable': canScroll ? 'true' : 'false' },
-      el('div', { className: 'nb-grid' },
-        shown.map((k) => jsx(StudioCard, {
-          key: k.id, kind: k, art: ready[k.id], started: busy[k.id],
-          onOpen: () => { const a = ready[k.id]; if (a) onOpen(a); else generate(k.id) },
-          onRegenerate: () => generate(k.id)
-        }))
-      )
+      el('div', { className: 'nb-grid' }, rows)
     ),
     canScroll ? jsx('div', { className: 'nb-fade', 'aria-hidden': 'true' }) : null
   )
 }
 
-function StudioCard({ kind, art, started, onOpen, onRegenerate }) {
+const GROUP_ORDER = ['docs', 'study', 'media', 'visual']
+const GROUP_LABEL = {
+  docs: 'Documents', study: 'Study', media: 'Media', visual: 'Visual', other: 'Other'
+}
+
+function StudioCard({ kind, art, started, plate, onOpen, onRegenerate }) {
   const [, force] = useState(0)
   useEffect(() => {
     if (!started) return undefined
@@ -332,7 +376,7 @@ function StudioCard({ kind, art, started, onOpen, onRegenerate }) {
     return () => clearInterval(t)
   }, [started])
   const secs = started ? Math.max(0, Math.round((Date.now() - started) / 1000)) : 0
-  const state = started ? `writing · ${secs}s` : art ? `ready · ${ago(art.modified)}` : `Generate`
+  const state = started ? `writing · ${secs}s` : art ? `ready · ${ago(art.modified)}` : 'Generate'
   return el('button', {
     type: 'button', className: 'nb-card',
     'data-ready': art ? 'true' : 'false', 'data-busy': started ? 'true' : 'false',
@@ -340,26 +384,25 @@ function StudioCard({ kind, art, started, onOpen, onRegenerate }) {
     'aria-label': `${kind.label} — ${state}. ${art ? 'Open it' : 'Generate it'}`,
     title: art ? `${kind.label} · ${art.primary}` : `Generate ${kind.label}`,
     children: [
-      el('div', { className: 'nb-card-top' },
-        el('span', { className: 'nb-card-ic' }, jsx(Glyph, { name: KIND_ICON[kind.id] || 'doc', size: 14 })),
-        el('span', { className: 'nb-card-name', children: kind.label })),
-      el('span', { className: 'nb-card-blurb', children: kind.blurb }),
-      started
-        ? el('div', { className: 'nb-bar-track' },
-            el('div', {
-              className: 'nb-bar-fill',
-              style: { width: `${Math.min(96, 12 + secs * 2.2)}%`, opacity: 0.85 }
-            }))
-        : null,
-      el('div', { className: 'nb-card-state' },
+      el('span', { className: 'nb-plate', children: plate }),
+      el('span', { className: 'nb-card-main' },
+        el('span', { className: 'nb-card-name' },
+          jsx(Glyph, { name: KIND_ICON[kind.id] || 'doc', size: 13 }),
+          el('span', { children: kind.label })),
+        el('span', { className: 'nb-card-blurb', children: kind.blurb }),
+        started
+          ? el('span', { className: 'nb-bar-track' },
+              el('span', {
+                className: 'nb-bar-fill',
+                style: { width: `${Math.min(96, 12 + secs * 2.2)}%`, opacity: 0.9 }
+              }))
+          : null),
+      el('span', { className: 'nb-card-state' },
         el('span', {
           className: 'nb-dot',
-          style: {
-            background: started ? T.accent : art ? T.ok : T.text4,
-            boxShadow: started ? `0 0 8px ${T.accent}` : art ? `0 0 6px ${T.ok}` : 'none'
-          }
+          style: { background: started ? T.accent : art ? T.ok : undefined }
         }),
-        state)
+        started ? `${secs}s` : art ? ago(art.modified) : 'generate')
     ]
   })
 }

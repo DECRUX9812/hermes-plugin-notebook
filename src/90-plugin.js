@@ -59,6 +59,9 @@ function StatusChip() {
 /** Settings → Plugins: the app's ListRow / ToggleRow / SegmentedControl, not
  *  hand-rolled chrome that reads foreign next to the rest of Settings. */
 function SettingsPage() {
+  const ListRow = SDK.ListRow
+  const ToggleRow = SDK.ToggleRow
+  const SegmentedControl = SDK.SegmentedControl
   const [surface, setSurface] = useState(() => persist.get('mode', 'studio'))
   const [chip, setChip] = useState(() => persist.get('statusChip', true))
   const [state, setState] = useState(null)
@@ -175,7 +178,7 @@ const plugin = {
     }
 
     // transcript directive: the agent hands the studio a notebook
-    contribute(ctx, 'directive', 'transcript.directives', {
+    contribute(ctx, 'directive', TRANSCRIPT_DIRECTIVE_AREA, {
       name: 'notebook',
       render: ({ attrs }) => jsx(NotebookDirective, { attrs })
     })

@@ -158,12 +158,12 @@ function Rail({ data, nb, setNb, q, setQ, filter, setFilter, onNewNotebook, onAd
           : notebooks.length === 0
             ? el('div', { className: 'nb-hint', style: { padding: '8px', lineHeight: 1.5 } },
                 'No notebooks yet. Create one, then add sources — every answer and artifact is derived from them.')
-            : notebooks.map((item) =>
+            : notebooks.map((item, i) =>
                 el('button', {
                   type: 'button', className: 'nb-nbrow', 'aria-current': item.id === nb ? 'true' : 'false',
                   onClick: () => setNb(item.id), title: item.description || item.title,
                   children: [
-                    el('span', { className: 'nb-avatar', children: (item.title || '?').slice(0, 2).toUpperCase() }),
+                    el('span', { className: 'nb-avatar', children: roman(i + 1) }),
                     el('span', { style: { minWidth: 0, flex: 1 } },
                       el('span', { className: 'nb-nbtitle', children: item.title }),
                       el('span', { className: 'nb-nbsub' },
@@ -228,6 +228,10 @@ function Rail({ data, nb, setNb, q, setQ, filter, setFilter, onNewNotebook, onAd
     )
   )
 }
+
+/* An index, not an avatar row: I, II, III … (atelier-zero's Roman-numeral walk). */
+const ROMAN = ['I', 'II', 'III', 'IV', 'V', 'VI', 'VII', 'VIII', 'IX', 'X', 'XI', 'XII']
+const roman = (n) => ROMAN[n - 1] || String(n)
 
 // citation focus is shared state: a [S3] click in the answer highlights S3 here
 let pickedCite = 0
