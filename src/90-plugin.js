@@ -141,7 +141,8 @@ const plugin = {
   id: ID,
   name: 'Notebook',
   description: 'Ground sources into cited answers and study artifacts, and drive the lab fleet from the same window.',
-  defaultEnabled: false,
+  // On by default: the page is the product. A user's explicit toggle still wins.
+  defaultEnabled: true,
   register(ctx) {
     setCtx(ctx)
 

@@ -84,6 +84,6 @@ PY
 fi
 
 echo
-echo "next: restart the gateway (plugin_api routes are imported once at startup),"
-echo "then reload the desktop window. Prove the deploy landed:"
-echo "  grep -c 'the twelve outputs' \$(ls -d ~/.hermes*/desktop-plugins/$ID/plugin.js /home/*/.hermes/desktop-plugins/$ID/plugin.js 2>/dev/null)"
+echo "next: reload the desktop window (the app watches desktop-plugins/; palette ->"
+echo "\"Reload desktop plugins\"). The gateway hot-mounts /api/plugins/$ID/ on the"
+echo "first request, so a *new* plugin needs no restart — only an *edited* one does."
