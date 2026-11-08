@@ -2157,16 +2157,25 @@ function Main({ notebook, kinds, tab, setTab, picked, setPicked, busy, generate,
           })
         })()
       : tab === 'view' && picked
-        ? jsx(Viewer, {
-            artifact: picked, notebook, onSearch: () => {},
-            regenerating: !!(busy && busy[picked.kind]),
-            onRegenerate: () => generate(picked.kind, picked.opts || {}),
-            onChanged: () => reload && reload(true),
-            onCite: (n) => {
-              const src = sources.find((s) => s.n === n)
-              if (src) { setPeek(src); setTab('peek') }
-            }
-          })
+        ? (() => {
+            // sibling runs of the same kind, oldest first — ‹ › flips versions
+            const sibs = (notebook.artifacts || []).filter((a) => a.kind === picked.kind)
+              .slice().sort((a, b) => String(a.modified).localeCompare(String(b.modified)))
+            const si = sibs.findIndex((a) => a.key === picked.key)
+            return jsx(Viewer, {
+              artifact: picked, notebook, onSearch: () => {},
+              regenerating: !!(busy && busy[picked.kind]),
+              onRegenerate: () => generate(picked.kind, picked.opts || {}),
+              onChanged: () => reload && reload(true),
+              onPrevRun: si > 0 ? () => setPicked(sibs[si - 1]) : null,
+              onNextRun: si >= 0 && si < sibs.length - 1 ? () => setPicked(sibs[si + 1]) : null,
+              runPos: sibs.length > 1 ? `${si + 1} of ${sibs.length}` : '',
+              onCite: (n) => {
+                const src = sources.find((s) => s.n === n)
+                if (src) { setPeek(src); setTab('peek') }
+              }
+            })
+          })()
         : jsx(Chat, {
             notebook, kinds, askOpen, onSay, modelReady, reload, askScope, setAskScope,
             generate,
@@ -3763,7 +3772,7 @@ function useFile(notebookId, name) {
   return st
 }
 
-function Viewer({ artifact, notebook, onCite, onRegenerate, regenerating, onChanged }) {
+function Viewer({ artifact, notebook, onCite, onRegenerate, regenerating, onChanged, onPrevRun, onNextRun, runPos }) {
   const [renOpen, setRenOpen] = useState(false)
   const [renVal, setRenVal] = useState('')
   const [renBusy, setRenBusy] = useState(false)
@@ -3837,6 +3846,9 @@ function Viewer({ artifact, notebook, onCite, onRegenerate, regenerating, onChan
         icon: 'download', label: `Download ${artifact.label}`,
         onClick: () => downloading(primary.url, artifact.primary)
       }),
+      onPrevRun ? jsx(IconBtn, { icon: 'arrowLeft', label: 'Older version', onClick: onPrevRun }) : null,
+      onNextRun ? jsx(IconBtn, { icon: 'arrowRight', label: 'Newer version', onClick: onNextRun }) : null,
+      runPos ? el('span', { className: 'nb-meta', style: { fontSize: '12px' }, children: runPos }) : null,
       onRegenerate ? jsx(IconBtn, {
         icon: 'refresh', label: `Regenerate ${artifact.label}`,
         active: !!regenerating, disabled: !!regenerating,
