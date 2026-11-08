@@ -418,6 +418,19 @@ def append_thread(notebook_id: str, name: str, role: str, content: str) -> list[
     return msgs
 
 
+def pop_thread_exchange(notebook_id: str, name: str = "default") -> list[dict]:
+    """Drop the trailing assistant message and its user question — a retry
+    regenerates the exchange instead of duplicating it."""
+    nb_id = resolve_notebook(notebook_id)
+    msgs = get_thread(nb_id, name)
+    if msgs and msgs[-1].get("role") == "assistant":
+        msgs.pop()
+    if msgs and msgs[-1].get("role") == "user":
+        msgs.pop()
+    _write_json(_thread_path(nb_id, name), msgs)
+    return msgs
+
+
 def clear_thread(notebook_id: str, name: str = "default") -> dict:
     nb_id = resolve_notebook(notebook_id)
     p = _thread_path(nb_id, name)

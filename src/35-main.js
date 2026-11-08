@@ -243,13 +243,30 @@ function Chat({ notebook, askOpen, onSay, modelReady, onCite, onOpenSource, onFi
     if (node) node.scrollTop = node.scrollHeight
   }, [msgs.length, pending && pending.since])
 
-  const send = async (question) => {
-    const q = (question || text).trim()
-    if (!q || pending) return
+  const send = async (question, opts) => {
+    if (pending) return
+    const retry = !!(opts && opts.retry)
     const t = thread
     const key = `${notebook.id}:${t}`
-    setText('')
-    setMsgs((m) => cacheMsgs(key, [...m, { role: 'user', content: q, k: `u${Date.now()}` }]))
+    let q
+    if (retry) {
+      // regenerate the last exchange: keep through the last user message,
+      // drop the answer(s) after it — the backend pops the stored pair too
+      const cur = threadCache.get(key) || msgs
+      let lastUser = -1
+      for (let i = cur.length - 1; i >= 0; i--) { if (cur[i].role === 'user') { lastUser = i; break } }
+      if (lastUser < 0) return
+      q = String(cur[lastUser].content || '').trim()
+      if (!q) return
+      const cut = cur.slice(0, lastUser + 1)
+      cacheMsgs(key, cut)
+      setMsgs(cut)
+    } else {
+      q = (question || text).trim()
+      if (!q) return
+      setText('')
+      setMsgs((m) => cacheMsgs(key, [...m, { role: 'user', content: q, k: `u${Date.now()}` }]))
+    }
     const started = Date.now()
     setPending({ since: started, q })
     const tick = setInterval(() => setPending((p) => (p ? { ...p, now: Date.now() } : p)), 500)
@@ -258,6 +275,7 @@ function Chat({ notebook, askOpen, onSay, modelReady, onCite, onOpenSource, onFi
         method: 'POST',
         body: {
           notebook: notebook.id, question: q, thread: t,
+          ...(retry ? { retry: true } : {}),
           ...(askScope ? { source_ids: [askScope.id] } : {})
         },
         timeoutMs: 180000
@@ -343,7 +361,12 @@ function Chat({ notebook, askOpen, onSay, modelReady, onCite, onOpenSource, onFi
                   })))
               : null)
         : null,
-      msgs.map((m) => jsx(Msg, { msg: m, onCite, onOpenSource, notebook }, m.k)),
+      msgs.map((m, i) => jsx(Msg, {
+        msg: m, onCite, onOpenSource, notebook,
+        canRetry: !pending && m.role === 'assistant' && i === msgs.length - 1 &&
+                  msgs.slice(0, i).some((x) => x.role === 'user'),
+        onRetry: () => send(null, { retry: true })
+      }, m.k)),
       pending
         ? el('div', { className: 'nb-msg', 'data-role': 'assistant' },
             el('span', { className: 'nb-avatar', children: 'HN' }),
@@ -537,7 +560,7 @@ function ThreadDialog({ notebook, threads, current, onClose, onPick, onNew, onCl
 
 const CITE_TEXT_CACHE = new Map()
 
-function Msg({ msg, onCite, notebook }) {
+function Msg({ msg, onCite, notebook, canRetry, onRetry }) {
   const isUser = msg.role === 'user'
   const [citePop, setCitePop] = useState(null)
 
@@ -584,6 +607,15 @@ function Msg({ msg, onCite, notebook }) {
             el('div', { className: 'nb-who' },
               'Hermes Notebook',
               msg.meta ? el('span', { style: { marginLeft: '8px', color: T.text4, fontWeight: 500, textTransform: 'none', letterSpacing: 0 }, children: `· ${msg.meta}` }) : null,
+              jsx(IconBtn, {
+                icon: 'copy', size: 13, label: 'Copy answer',
+                onClick: () => {
+                  try { if (navigator.clipboard) navigator.clipboard.writeText(msg.content) } catch { /* clipboard unavailable */ }
+                }
+              }),
+              canRetry
+                ? jsx(IconBtn, { icon: 'refresh', size: 13, label: 'Regenerate this answer', onClick: onRetry })
+                : null,
               notebook ? jsx(IconBtn, {
                 icon: 'pin', size: 13, label: 'Save this answer as a note',
                 onClick: async () => {

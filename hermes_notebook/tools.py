@@ -241,6 +241,9 @@ def notebook_ask(args: dict, **kw) -> str:
     )
     # optional chat thread — prior exchanges ride along as context
     thread_name = (args.get("thread") or "").strip() or None
+    if thread_name and args.get("retry"):
+        # regenerate the last exchange rather than growing the thread
+        store.pop_thread_exchange(nb_id, thread_name)
     system_prompt, max_tokens = _ask_system(nb_id)
     messages = [{"role": "system", "content": system_prompt}]
     if thread_name:

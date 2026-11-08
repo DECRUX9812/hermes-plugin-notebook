@@ -652,6 +652,8 @@ async def ask(payload: Dict[str, Any] = Body(...)) -> Any:
         ids = payload.get("source_ids")
         if isinstance(ids, list) and ids:
             args["source_ids"] = [str(x) for x in ids][:12]
+        if payload.get("retry"):
+            args["retry"] = True
         out = json.loads(tools_mod.notebook_ask(args))
         return out
 
