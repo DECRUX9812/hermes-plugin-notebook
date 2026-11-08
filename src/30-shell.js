@@ -303,8 +303,17 @@ function App() {
   const ops = mode === 'ops'
   const home = mode === 'home'
 
-  return el('div', { className: 'nb-root', 'data-mode': mode, 'data-plugin': ID },
+  return el('div', {
+    className: 'nb-root', 'data-mode': mode, 'data-plugin': ID,
+    // the room takes on the notebook's colour — its sigil hue becomes the
+    // ambient field behind every panel; home keeps a fixed violet
+    style: { '--nb-hue': sigHue(notebook ? notebook.id : 'hermes-home') }
+  },
     el('style', { dangerouslySetInnerHTML: { __html: CSS } }),
+    el('div', { className: 'nb-aurora', 'aria-hidden': 'true' },
+      el('i', { className: 'nb-blob' }),
+      el('i', { className: 'nb-blob' }),
+      el('i', { className: 'nb-blob' })),
     el('header', { className: 'nb-bar' },
       el('div', { className: 'nb-brand' },
         el('span', { className: 'nb-mark' }, jsx(Glyph, { name: 'notebook', size: 15 })),

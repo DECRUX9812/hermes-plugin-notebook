@@ -68,7 +68,10 @@ function Main({ notebook, kinds, tab, setTab, picked, setPicked, busy, generate,
   return el('main', { className: 'nb-col nb-main-col' },
     el('div', { className: 'nb-main-head' },
       el('div', { className: 'nb-hero' },
-        el('span', { className: 'nb-hero-emoji', 'aria-hidden': 'true', children: emojiFor(notebook.id, notebook.emoji) }),
+        el('span', { className: 'nb-hero-emoji', 'aria-hidden': 'true',
+          children: (notebook.emoji && String(notebook.emoji).trim())
+            ? emojiFor(notebook.id, notebook.emoji)
+            : jsx(Sigil, { seed: notebook.id, size: 52 }) }),
         el('div', { className: 'nb-hero-main' },
           el('h1', { className: 'nb-h1', children: notebook.title }),
           el('p', { className: 'nb-sub', children:

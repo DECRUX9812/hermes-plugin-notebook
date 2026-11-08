@@ -14675,7 +14675,20 @@ var CSS2 = `
   display:flex; flex-direction:column; height:100%; min-height:0;
   color:${T.text}; font-size:16px; line-height:1.5;
   font-variant-numeric: tabular-nums;
+  position:relative;
 }
+/* ambient generative field \u2014 each notebook's sigil hue bleeds into the room */
+.nb-aurora{position:absolute;inset:0;z-index:0;overflow:hidden;pointer-events:none}
+.nb-blob{position:absolute;border-radius:50%;filter:blur(90px);opacity:.15;
+  background:radial-gradient(circle,hsl(var(--nb-hue, 265) 80% 60% / .9),transparent 70%);
+  width:52vmax;height:52vmax;top:-16%;left:-10%;
+  animation:nb-drift 26s ease-in-out infinite alternate}
+.nb-blob:nth-child(2){background:radial-gradient(circle,hsl(calc(var(--nb-hue, 265) + 70) 80% 60% / .8),transparent 70%);
+  width:44vmax;height:44vmax;top:-10%;right:-8%;animation-duration:32s;animation-delay:-9s}
+.nb-blob:nth-child(3){background:radial-gradient(circle,hsl(calc(var(--nb-hue, 265) + 165) 75% 58% / .7),transparent 70%);
+  width:40vmax;height:40vmax;bottom:-16%;left:-6%;animation-duration:38s;animation-delay:-17s}
+@keyframes nb-drift{from{transform:translate3d(-3%,-2%,0) scale(1)}to{transform:translate3d(4%,3%,0) scale(1.08)}}
+.nb-bar,.nb-body,.nb-home,.nb-ops{position:relative;z-index:1}
 .nb-root *{box-sizing:border-box}
 .nb-root :focus-visible{outline:2px solid ${T.accent}; outline-offset:2px; border-radius:8px}
 .nb-mono{font-family:var(--ui-font-mono,ui-monospace,SFMono-Regular,Menlo,monospace);font-variant-ligatures:none}
@@ -15418,6 +15431,9 @@ function _sigRnd(seed) {
     t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t;
     return ((t ^ t >>> 14) >>> 0) / 4294967296;
   };
+}
+function sigHue(seed) {
+  return _sigHash(seed) % 360;
 }
 function Sigil({ seed, size = 44 }) {
   const rnd = _sigRnd(_sigHash(seed));
@@ -16280,8 +16296,22 @@ function App() {
   const home = mode2 === "home";
   return el(
     "div",
-    { className: "nb-root", "data-mode": mode2, "data-plugin": ID },
+    {
+      className: "nb-root",
+      "data-mode": mode2,
+      "data-plugin": ID,
+      // the room takes on the notebook's colour — its sigil hue becomes the
+      // ambient field behind every panel; home keeps a fixed violet
+      style: { "--nb-hue": sigHue(notebook ? notebook.id : "hermes-home") }
+    },
     el("style", { dangerouslySetInnerHTML: { __html: CSS2 } }),
+    el(
+      "div",
+      { className: "nb-aurora", "aria-hidden": "true" },
+      el("i", { className: "nb-blob" }),
+      el("i", { className: "nb-blob" }),
+      el("i", { className: "nb-blob" })
+    ),
     el(
       "header",
       { className: "nb-bar" },
@@ -17307,7 +17337,11 @@ function Main({
       el(
         "div",
         { className: "nb-hero" },
-        el("span", { className: "nb-hero-emoji", "aria-hidden": "true", children: emojiFor(notebook.id, notebook.emoji) }),
+        el("span", {
+          className: "nb-hero-emoji",
+          "aria-hidden": "true",
+          children: notebook.emoji && String(notebook.emoji).trim() ? emojiFor(notebook.id, notebook.emoji) : (0, import_jsx_runtime.jsx)(Sigil, { seed: notebook.id, size: 52 })
+        }),
         el(
           "div",
           { className: "nb-hero-main" },

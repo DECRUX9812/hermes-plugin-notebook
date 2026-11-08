@@ -86,6 +86,9 @@ function _sigRnd(seed) {
     return ((t ^ (t >>> 14)) >>> 0) / 4294967296
   }
 }
+function sigHue(seed) {
+  return _sigHash(seed) % 360
+}
 function Sigil({ seed, size = 44 }) {
   const rnd = _sigRnd(_sigHash(seed))
   const hue = Math.floor(rnd() * 360)
