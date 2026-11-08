@@ -650,6 +650,11 @@ const CSS = `
 .nb-citepop-body{font-size:13px;line-height:1.55;color:${T.text2};
   display:-webkit-box;-webkit-line-clamp:5;-webkit-box-orient:vertical;overflow:hidden}
 
+.nb-scope-check{flex:none;width:18px;height:18px;border-radius:6px;
+  border:1.5px solid ${T.line};display:grid;place-items:center;font-size:11px;
+  color:#fff;transition:all .12s}
+.nb-scope-check.on{background:${T.accent};border-color:${T.accent}}
+
 .nb-search-hit{display:block;width:100%;text-align:left;background:transparent;
   border:1px solid ${T.line};border-radius:12px;padding:10px 12px;cursor:pointer;
   color:${T.text};font:inherit;transition:border-color .12s,background .12s}
@@ -2110,7 +2115,7 @@ function Main({ notebook, kinds, tab, setTab, picked, setPicked, busy, generate,
       ? jsx(SourcePeek, {
           source: peek, notebook,
           onClose: () => { setPeek(null); setTab('chat') },
-          onAskAbout: (s) => { setAskScope({ id: s.id, title: s.title }); setTab('chat') },
+          onAskAbout: (s) => { setAskScope({ ids: [s.id], title: s.title }); setTab('chat') },
           onRefresh: onRefreshSource ? () => onRefreshSource(peek) : null
         })
       : tab === 'view' && picked
@@ -2165,6 +2170,7 @@ function Chat({ notebook, kinds, askOpen, onSay, modelReady, onCite, onOpenSourc
   const [ov, setOv] = useState('')
   const [sugg, setSugg] = useState(null)
   const [cfgOpen, setCfgOpen] = useState(false)
+  const [scopeOpen, setScopeOpen] = useState(false)
   const [cfg, setCfg] = useState({})
   const [cfgBusy, setCfgBusy] = useState(false)
   const threadRef = useRef(null)
@@ -2304,7 +2310,9 @@ function Chat({ notebook, kinds, askOpen, onSay, modelReady, onCite, onOpenSourc
         body: {
           notebook: notebook.id, question: q, thread: t,
           ...(retry ? { retry: true } : {}),
-          ...(askScope ? { source_ids: [askScope.id] } : {})
+          ...(askScope && (askScope.ids || askScope.id)
+            ? { source_ids: askScope.ids || [askScope.id] }
+            : {})
         },
         timeoutMs: 180000
       })
@@ -2452,9 +2460,13 @@ function Chat({ notebook, kinds, askOpen, onSay, modelReady, onCite, onOpenSourc
                 tone: 'accent',
                 title: `Answering from ${askScope.title} only — click to clear`,
                 onClick: () => setAskScope && setAskScope(null),
-                children: `only: ${String(askScope.title || 'source').slice(0, 28)}`
+                children: `only: ${String(askScope.title || 'sources').slice(0, 28)}`
               })
             : null,
+          jsx(IconBtn, {
+            icon: 'layers', label: 'Choose which sources to answer from',
+            onClick: () => setScopeOpen(true)
+          }),
           jsx(IconBtn, {
             icon: 'sliders', label: 'Configure chat',
             onClick: () => {
@@ -2549,6 +2561,13 @@ function Chat({ notebook, kinds, askOpen, onSay, modelReady, onCite, onOpenSourc
                 })))
             })
         : null,
+      scopeOpen
+        ? jsx(ScopeDialog, {
+            notebook, current: askScope,
+            onClose: () => setScopeOpen(false),
+            onPick: (scope) => { if (setAskScope) setAskScope(scope); setScopeOpen(false) }
+          })
+        : null,
       thrOpen
         ? jsx(ThreadDialog, {
             notebook, threads, current: thread,
@@ -2578,6 +2597,56 @@ function Chat({ notebook, kinds, askOpen, onSay, modelReady, onCite, onOpenSourc
         : null
     )
   )
+}
+
+/* pick which sources the next answers draw from — NotebookLM's per-chat
+   source selection. Scope rides /ask's source_ids (max 12 server-side). */
+function ScopeDialog({ notebook, current, onClose, onPick }) {
+  const sources = (notebook && notebook.sources) || []
+  const curIds = new Set((current && (current.ids || (current.id ? [current.id] : []))) || [])
+  const [sel, setSel] = useState(() => new Set(curIds))
+  const toggle = (id) => setSel((s) => {
+    const n = new Set(s)
+    if (n.has(id)) n.delete(id); else n.add(id)
+    return n
+  })
+  const ids = [...sel]
+  const title = ids.length === 1
+    ? (sources.find((s) => s.id === ids[0]) || {}).title || '1 source'
+    : `${ids.length} sources`
+  return jsx(Dialog, {
+    open: true, onClose, title: 'Answer from', width: 480,
+    children: el('div', { style: { display: 'grid', gap: '8px' } },
+      sources.length > 12
+        ? el('div', { className: 'nb-hint', style: { marginBottom: '4px' },
+            children: 'At most 12 sources can scope one answer — pick the most relevant.' })
+        : null,
+      sources.map((s) => el('button', {
+        key: s.id, type: 'button', className: 'nb-thrrow',
+        onClick: () => toggle(s.id),
+        'aria-pressed': sel.has(s.id) ? 'true' : 'false'
+      },
+        el('span', {
+          className: 'nb-scope-check' + (sel.has(s.id) ? ' on' : ''),
+          'aria-hidden': 'true',
+          children: sel.has(s.id) ? '✓' : ''
+        }),
+        el('span', { className: 'nb-chip', 'data-tone': 'accent', children: `S${s.n}` }),
+        el('span', { style: { flex: 1, minWidth: 0, textAlign: 'left' } },
+          el('div', { style: { fontSize: '13.5px', fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' },
+            children: s.title }),
+          el('div', { className: 'nb-meta', children: kindLabel(s.kind) })))),
+      el('div', { style: { display: 'flex', gap: '8px', justifyContent: 'space-between', marginTop: '10px' } },
+        jsx(Btn, {
+          size: 'sm', onClick: () => onPick(null),
+          children: 'All sources'
+        }),
+        jsx(Btn, {
+          size: 'sm', variant: 'primary', disabled: !ids.length,
+          onClick: () => onPick({ ids: ids.slice(0, 12), title }),
+          children: ids.length ? `Use ${ids.length} source${ids.length === 1 ? '' : 's'}` : 'Pick sources'
+        })))
+  })
 }
 
 function ThreadDialog({ notebook, threads, current, onClose, onPick, onNew, onClear }) {

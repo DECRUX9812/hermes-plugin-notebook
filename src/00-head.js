@@ -650,6 +650,11 @@ const CSS = `
 .nb-citepop-body{font-size:13px;line-height:1.55;color:${T.text2};
   display:-webkit-box;-webkit-line-clamp:5;-webkit-box-orient:vertical;overflow:hidden}
 
+.nb-scope-check{flex:none;width:18px;height:18px;border-radius:6px;
+  border:1.5px solid ${T.line};display:grid;place-items:center;font-size:11px;
+  color:#fff;transition:all .12s}
+.nb-scope-check.on{background:${T.accent};border-color:${T.accent}}
+
 .nb-search-hit{display:block;width:100%;text-align:left;background:transparent;
   border:1px solid ${T.line};border-radius:12px;padding:10px 12px;cursor:pointer;
   color:${T.text};font:inherit;transition:border-color .12s,background .12s}
