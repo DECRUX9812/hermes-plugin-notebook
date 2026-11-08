@@ -14943,8 +14943,21 @@ var CSS2 = `
 /* home cards arrive in a stagger \u2014 the directory assembles itself */
 .nb-nbcard-wrap,.nb-feature{animation:nb-card-in .4s cubic-bezier(.2,.7,.3,1) both}
 @keyframes nb-card-in{from{opacity:0;transform:translateY(12px) scale(.985)}to{opacity:1;transform:none}}
+/* sigil inscription \u2014 ribbons draw themselves in sequence, nodes pop after */
+.nb-sigil-draw path{stroke-dasharray:1;stroke-dashoffset:1;animation:nb-draw .9s cubic-bezier(.45,.05,.3,1) forwards}
+.nb-sigil-draw path:nth-child(2){animation-delay:.18s}
+.nb-sigil-draw path:nth-child(3){animation-delay:.36s}
+.nb-sigil-draw circle{opacity:0;animation:nb-pop .45s cubic-bezier(.2,.9,.3,1.4) forwards}
+.nb-sigil-draw circle:nth-child(4){animation-delay:.75s}
+.nb-sigil-draw circle:nth-child(5){animation-delay:.9s}
+@keyframes nb-draw{to{stroke-dashoffset:0}}
+@keyframes nb-pop{from{opacity:0;transform:scale(.4)}to{opacity:1;transform:scale(1)}}
+.nb-sigil-draw{transform-origin:center;animation:nb-sigil-settle 1.1s cubic-bezier(.2,.7,.3,1) both}
+@keyframes nb-sigil-settle{from{opacity:0;transform:scale(.92)}to{opacity:1;transform:scale(1)}}
 @media (prefers-reduced-motion:reduce){
-  .nb-msg,.nb-nbcard-wrap,.nb-feature,.nb-hero-emoji svg,.nb-nbcard-emoji svg,.nb-feature-emoji svg,.nb-blob{animation:none!important}
+  .nb-msg,.nb-nbcard-wrap,.nb-feature,.nb-hero-emoji svg,.nb-nbcard-emoji svg,.nb-feature-emoji svg,.nb-blob,.nb-sigil-draw{animation:none!important}
+  .nb-sigil-draw path{stroke-dashoffset:0!important}
+  .nb-sigil-draw circle{opacity:1!important;transform:none!important}
 }
 .nb-msg[data-role=assistant]{display:grid;grid-template-columns:30px minmax(0,1fr);gap:14px;align-self:flex-start}
 .nb-msg[data-role=user]{align-self:flex-end;max-width:62ch}
@@ -15447,7 +15460,7 @@ function _sigRnd(seed) {
 function sigHue(seed) {
   return _sigHash(seed) % 360;
 }
-function Sigil({ seed, size = 44 }) {
+function Sigil({ seed, size = 44, draw = false }) {
   const rnd = _sigRnd(_sigHash(seed));
   const hue = Math.floor(rnd() * 360);
   const out = [];
@@ -15458,6 +15471,7 @@ function Sigil({ seed, size = 44 }) {
     const h2 = (hue + i * 47 + Math.floor(rnd() * 36)) % 360;
     out.push(el("path", {
       key: `r${i}`,
+      pathLength: 1,
       d: `M -6 ${y1.toFixed(1)} C ${cx2.toFixed(1)} ${(y1 - 16 - rnd() * 12).toFixed(1)}, ${(54 - cx2).toFixed(1)} ${(y2 + 16 + rnd() * 12).toFixed(1)}, 54 ${y2.toFixed(1)}`,
       fill: "none",
       stroke: `hsl(${h2} 72% 66% / ${(0.45 + rnd() * 0.35).toFixed(2)})`,
@@ -15480,6 +15494,7 @@ function Sigil({ seed, size = 44 }) {
     viewBox: "-6 -6 60 60",
     "aria-hidden": "true",
     focusable: "false",
+    className: draw ? "nb-sigil-draw" : void 0,
     style: { display: "block" },
     children: out
   });
@@ -17357,7 +17372,7 @@ function Main({
         el("span", {
           className: "nb-hero-emoji",
           "aria-hidden": "true",
-          children: notebook.emoji && String(notebook.emoji).trim() ? emojiFor(notebook.id, notebook.emoji) : (0, import_jsx_runtime.jsx)(Sigil, { seed: notebook.id, size: 52 })
+          children: notebook.emoji && String(notebook.emoji).trim() ? emojiFor(notebook.id, notebook.emoji) : (0, import_jsx_runtime.jsx)(Sigil, { seed: notebook.id, size: 52, draw: true })
         }),
         el(
           "div",

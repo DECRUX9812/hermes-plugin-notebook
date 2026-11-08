@@ -89,7 +89,7 @@ function _sigRnd(seed) {
 function sigHue(seed) {
   return _sigHash(seed) % 360
 }
-function Sigil({ seed, size = 44 }) {
+function Sigil({ seed, size = 44, draw = false }) {
   const rnd = _sigRnd(_sigHash(seed))
   const hue = Math.floor(rnd() * 360)
   const out = []
@@ -100,6 +100,7 @@ function Sigil({ seed, size = 44 }) {
       const h2 = (hue + i * 47 + Math.floor(rnd() * 36)) % 360
       out.push(el('path', {
         key: `r${i}`,
+        pathLength: 1,
         d: `M -6 ${y1.toFixed(1)} C ${cx.toFixed(1)} ${(y1 - 16 - rnd() * 12).toFixed(1)}, ` +
            `${(54 - cx).toFixed(1)} ${(y2 + 16 + rnd() * 12).toFixed(1)}, 54 ${y2.toFixed(1)}`,
         fill: 'none',
@@ -119,6 +120,7 @@ function Sigil({ seed, size = 44 }) {
     return el('svg', {
       width: size, height: size, viewBox: '-6 -6 60 60',
       'aria-hidden': 'true', focusable: 'false',
+      className: draw ? 'nb-sigil-draw' : undefined,
       style: { display: 'block' },
       children: out
     })
