@@ -16,7 +16,7 @@ import subprocess
 from pathlib import Path
 from typing import Any, Optional
 
-from . import llmio, retrieve, runtime, store
+from . import llmio, retrieve, runtime, store, voices
 
 LENGTHS = {
     "short": {"words": (550, 850), "label": "about 5 minutes"},
@@ -259,6 +259,14 @@ async def make_audio_overview(notebook: str, *, length: Optional[str] = None,
 
     voice_a = str(runtime.config("audio_voice_host_a", default="en-US-AndrewNeural"))
     voice_b = str(runtime.config("audio_voice_host_b", default="en-US-EmmaNeural"))
+    # a requested language swaps in matching neural voices — but only where the
+    # operator hasn't pinned a custom voice in config (defaults get replaced)
+    lang_pair = voices.pair_for(language)
+    if lang_pair:
+        if voice_a == "en-US-AndrewNeural":
+            voice_a = lang_pair[0]
+        if voice_b == "en-US-EmmaNeural":
+            voice_b = lang_pair[1]
 
     # artifacts dir + per-episode workdir
     nb_dir = store._nb_dir(nb_id)

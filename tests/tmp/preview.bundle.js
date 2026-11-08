@@ -14979,6 +14979,12 @@ var CSS2 = `
 .nb-suggest-go{color:${T.text4};display:flex;justify-content:flex-end}
 .nb-gaprow{display:flex;gap:6px;flex-wrap:wrap;align-items:center}
 .nb-gaprow .nb-chip[data-click=true]{border-style:dashed}
+.nb-thrrow{display:flex;align-items:center;gap:10px;width:100%;text-align:left;
+  padding:10px 12px;border-radius:12px;cursor:pointer;font-family:inherit;
+  border:1px solid transparent;background:transparent;color:${T.text}}
+.nb-thrrow:hover{background:var(--nb-wash)}
+.nb-thrrow.is-current{border-color:color-mix(in srgb,${T.accent} 40%, transparent);
+  background:color-mix(in srgb,${T.accent} 8%, transparent)}
 
 /* --------------------------------------------------------- studio (index) */
 .nb-grid{display:flex;flex-direction:column;gap:10px;padding:12px 14px 26px}
@@ -15977,6 +15983,26 @@ function App() {
       say(`delete failed: ${e.message || e}`);
     }
   }, [nb, studio, say]);
+  const exportNotebook = (0, import_react.useCallback)(async () => {
+    if (!notebook) return;
+    try {
+      const out = await api(`/export?${qs({ notebook: notebook.id, b64: 1 })}`, { timeoutMs: 12e4 });
+      const raw = atob(out.b64 || "");
+      const bytes = new Uint8Array(raw.length);
+      for (let i = 0; i < raw.length; i += 1) bytes[i] = raw.charCodeAt(i);
+      const url = URL.createObjectURL(new Blob([bytes], { type: "application/zip" }));
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = out.name || "notebook.zip";
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      setTimeout(() => URL.revokeObjectURL(url), 5e3);
+      say("notebook exported");
+    } catch (e) {
+      say(`export failed: ${e.message || e}`);
+    }
+  }, [notebook, say]);
   const renameNotebook = (0, import_react.useCallback)(async (id, title, desc) => {
     try {
       await api("/notebook/update", {
@@ -16037,6 +16063,11 @@ function App() {
           onClick: () => openAddSource(),
           disabled: !notebook,
           children: "Add source"
+        }) : null,
+        mode2 === "studio" && notebook ? (0, import_jsx_runtime.jsx)(IconBtn, {
+          icon: "download",
+          label: "Export notebook (.zip)",
+          onClick: exportNotebook
         }) : null
       )
     ),
@@ -16930,8 +16961,15 @@ var SUGGEST = [
   "What is missing that I should go and find?"
 ];
 var ovCache = /* @__PURE__ */ new Map();
+var threadCache = /* @__PURE__ */ new Map();
 function Chat({ notebook, askOpen, onSay, modelReady, onCite, onOpenSource, onFindSources, reload, askScope, setAskScope }) {
-  const [msgs, setMsgs] = (0, import_react.useState)(() => (notebook.thread || []).map((m, i) => ({ ...m, k: `t${i}` })));
+  const nbKey = `${notebook.id}:default`;
+  const [thread, setThread] = (0, import_react.useState)("default");
+  const [threads, setThreads] = (0, import_react.useState)(() => notebook.threads || []);
+  const [thrOpen, setThrOpen] = (0, import_react.useState)(false);
+  const curThread = (0, import_react.useRef)("default");
+  curThread.current = thread;
+  const [msgs, setMsgs] = (0, import_react.useState)(() => threadCache.get(nbKey) || (notebook.thread || []).map((m, i) => ({ ...m, k: `t${i}` })));
   const [text, setText] = (0, import_react.useState)("");
   const [pending, setPending] = (0, import_react.useState)(null);
   const [ov, setOv] = (0, import_react.useState)("");
@@ -16944,13 +16982,49 @@ function Chat({ notebook, askOpen, onSay, modelReady, onCite, onOpenSource, onFi
   const stats = notebook.stats || {};
   const activeCount = stats.active !== void 0 ? stats.active : (notebook.sources || []).length;
   const cacheKey = `${notebook.id}:${stats.sources || 0}:${activeCount}`;
+  const cacheMsgs = (key, list) => {
+    threadCache.set(key, list);
+    return list;
+  };
   (0, import_react.useEffect)(() => {
-    const stored = (notebook.thread || []).map((m, i) => ({ ...m, k: `t${i}` }));
-    setMsgs(stored);
-  }, [notebook.id, notebook.thread && notebook.thread.length]);
-  (0, import_react.useEffect)(() => {
+    setThread("default");
     if (setAskScope) setAskScope(null);
+    setThreads(notebook.threads || []);
+    const key = `${notebook.id}:default`;
+    const cached = threadCache.get(key);
+    const mapped = cached || (notebook.thread || []).map((m, i) => ({ ...m, k: `t${i}` }));
+    cacheMsgs(key, mapped);
+    setMsgs(mapped);
   }, [notebook.id]);
+  (0, import_react.useEffect)(() => {
+    setThreads(notebook.threads || []);
+  }, [notebook.threads]);
+  (0, import_react.useEffect)(() => {
+    const key = `${notebook.id}:${thread}`;
+    const cached = threadCache.get(key);
+    if (cached) {
+      setMsgs(cached);
+      return void 0;
+    }
+    if (thread === "default") {
+      const mapped = (notebook.thread || []).map((m, i) => ({ ...m, k: `t${i}` }));
+      cacheMsgs(key, mapped);
+      setMsgs(mapped);
+      return void 0;
+    }
+    let live = true;
+    setMsgs([]);
+    api(`/thread?${qs({ notebook: notebook.id, name: thread })}`, { timeoutMs: 3e4 }).then((out) => {
+      if (!live) return;
+      const mapped = (out.messages || []).map((m, i) => ({ ...m, k: `t${i}` }));
+      cacheMsgs(key, mapped);
+      setMsgs(mapped);
+    }).catch(() => {
+    });
+    return () => {
+      live = false;
+    };
+  }, [notebook.id, thread]);
   (0, import_react.useEffect)(() => {
     const cached = ovCache.get(notebook.id);
     if (cached && cached.key === cacheKey) {
@@ -17017,8 +17091,10 @@ function Chat({ notebook, askOpen, onSay, modelReady, onCite, onOpenSource, onFi
   const send = async (question) => {
     const q2 = (question || text).trim();
     if (!q2 || pending) return;
+    const t = thread;
+    const key = `${notebook.id}:${t}`;
     setText("");
-    setMsgs((m) => [...m, { role: "user", content: q2, k: `u${Date.now()}` }]);
+    setMsgs((m) => cacheMsgs(key, [...m, { role: "user", content: q2, k: `u${Date.now()}` }]));
     const started = Date.now();
     setPending({ since: started, q: q2 });
     const tick = setInterval(() => setPending((p) => p ? { ...p, now: Date.now() } : p), 500);
@@ -17028,28 +17104,35 @@ function Chat({ notebook, askOpen, onSay, modelReady, onCite, onOpenSource, onFi
         body: {
           notebook: notebook.id,
           question: q2,
-          thread: "default",
+          thread: t,
           ...askScope ? { source_ids: [askScope.id] } : {}
         },
         timeoutMs: 18e4
       });
-      setMsgs((m) => [...m, {
+      const answer = {
         role: "assistant",
         content: out.answer,
         k: `a${Date.now()}`,
         citations: out.citations || [],
         seconds: out.seconds,
         meta: `${out.chunks_used || 0} of ${out.total_chunks || 0} passages`
-      }]);
+      };
+      const prev = threadCache.get(key) || [];
+      const next = cacheMsgs(key, [...prev, answer]);
+      if (curThread.current === t) setMsgs(next);
+      if (reload) reload(true);
     } catch (e) {
-      setMsgs((m) => [...m, {
+      const errMsg = {
         role: "assistant",
         content: `**That question did not get an answer.**
 
 ${e.message || e}`,
         k: `e${Date.now()}`,
         error: true
-      }]);
+      };
+      const prev = threadCache.get(key) || [];
+      const next = cacheMsgs(key, [...prev, errMsg]);
+      if (curThread.current === t) setMsgs(next);
       if (onSay) onSay(e.message || "ask failed");
     } finally {
       clearInterval(tick);
@@ -17063,6 +17146,8 @@ ${e.message || e}`,
     }
   };
   const elapsed = pending ? Math.round(((pending.now || Date.now()) - pending.since) / 1e3) : 0;
+  const thrMeta = (threads || []).find((x) => x.name === thread);
+  const thrLabel = thrMeta && thrMeta.title || (thread === "default" ? "Chat" : "New chat");
   return el(
     "div",
     { className: "nb-chat" },
@@ -17191,6 +17276,11 @@ ${e.message || e}`,
           "div",
           { className: "nb-askfoot" },
           (0, import_jsx_runtime.jsx)(Chip, {
+            title: "Conversations \u2014 switch or start a new chat",
+            onClick: () => setThrOpen(true),
+            children: `\u{1F4AC} ${thrLabel}`
+          }),
+          (0, import_jsx_runtime.jsx)(Chip, {
             title: `${activeCount} of ${stats.sources || 0} sources are in context`,
             children: `${activeCount} source${activeCount === 1 ? "" : "s"}`
           }),
@@ -17314,9 +17404,81 @@ ${e.message || e}`,
             })
           )
         )
+      }) : null,
+      thrOpen ? (0, import_jsx_runtime.jsx)(ThreadDialog, {
+        notebook,
+        threads,
+        current: thread,
+        onClose: () => setThrOpen(false),
+        onPick: (name) => {
+          setThread(name);
+          setThrOpen(false);
+        },
+        onNew: () => {
+          const name = `chat-${Date.now().toString(36)}`;
+          threadCache.set(`${notebook.id}:${name}`, []);
+          setThread(name);
+          setThrOpen(false);
+        },
+        onClear: async () => {
+          try {
+            await api("/thread/clear", {
+              method: "POST",
+              body: { notebook: notebook.id, thread },
+              timeoutMs: 3e4
+            });
+            const key = `${notebook.id}:${thread}`;
+            cacheMsgs(key, []);
+            setMsgs([]);
+            setThreads((ts) => ts.filter((t) => t.name !== thread));
+            if (reload) reload(true);
+            setThrOpen(false);
+          } catch (e) {
+            onSay && onSay(`could not clear chat: ${e.message || e}`);
+          }
+        }
       }) : null
     )
   );
+}
+function ThreadDialog({ notebook, threads, current, onClose, onPick, onNew, onClear }) {
+  const list = threads && threads.length ? threads : [{ name: "default", title: "Chat", count: 0 }];
+  return (0, import_jsx_runtime.jsx)(Dialog, {
+    open: true,
+    onClose,
+    title: "Conversations",
+    width: 460,
+    children: el(
+      "div",
+      { style: { display: "grid", gap: "8px" } },
+      list.map((t) => el(
+        "button",
+        {
+          key: t.name,
+          type: "button",
+          className: "nb-thrrow" + (t.name === current ? " is-current" : ""),
+          onClick: () => onPick(t.name),
+          "aria-current": t.name === current ? "true" : void 0
+        },
+        el(
+          "div",
+          { style: { flex: 1, minWidth: 0 } },
+          el("div", {
+            style: { fontSize: "14px", fontWeight: 600, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" },
+            children: t.title || t.name
+          }),
+          el("div", { className: "nb-meta", children: `${t.count || 0} messages` })
+        ),
+        t.name === current ? (0, import_jsx_runtime.jsx)(Glyph, { name: "check", size: 15 }) : null
+      )),
+      el(
+        "div",
+        { style: { display: "flex", gap: "8px", justifyContent: "space-between", marginTop: "10px" } },
+        (0, import_jsx_runtime.jsx)(Btn, { size: "sm", icon: "trash", onClick: onClear, children: "Clear this chat" }),
+        (0, import_jsx_runtime.jsx)(Btn, { size: "sm", variant: "primary", icon: "plus", onClick: onNew, children: "New chat" })
+      )
+    )
+  });
 }
 var CITE_TEXT_CACHE = /* @__PURE__ */ new Map();
 function Msg({ msg, onCite, notebook }) {
@@ -17713,7 +17875,7 @@ function GenPill({ kind, art, started, nbId, onOpen, onGenerate }) {
             try {
               const out = await api("/video_notes", {
                 method: "POST",
-                body: { notebook: nbId, style: opts.style || "cinematic", length: opts.length || "short" },
+                body: { notebook: nbId, style: opts.style || "cinematic", length: opts.length || "short", language: opts.language || "" },
                 timeoutMs: 18e4
               });
               setNotes(out);
@@ -20279,7 +20441,7 @@ var plugin = {
 };
 
 // tests/tmp/payloads.mjs
-var STATE = { "ok": true, "generated_at": "2026-11-07T18:38:54Z", "model_ready": false, "notebooks": [{ "id": "business-analyst-job-interview-you-know-thanks", "title": "Business Analyst Job Interview you know. Thanks", "description": "", "updated_at": "2026-11-07T18:34:28+00:00", "sources": 0, "artifacts": 0, "chars": 0 }, { "id": "commercial-fusion-2026", "title": "Commercial Fusion Energy in 2026", "description": "Six sources on the state of commercial fusion: the CRS briefing for Congress, the DOE deployment roadmap, two ITER releases, the IAEA outlook and the reference article.", "updated_at": "2026-11-07T17:53:27+00:00", "sources": 6, "artifacts": 12, "chars": 157369 }, { "id": "smoke-test-notebook", "title": "Scratchpad", "description": "Short sources used to smoke-test labels and artifacts.", "updated_at": "2026-11-07T17:38:11+00:00", "sources": 3, "artifacts": 6, "chars": 24919 }], "notebook": { "id": "commercial-fusion-2026", "title": "Commercial Fusion Energy in 2026", "description": "Six sources on the state of commercial fusion: the CRS briefing for Congress, the DOE deployment roadmap, two ITER releases, the IAEA outlook and the reference article.", "created_at": "2026-11-07T16:36:51+00:00", "updated_at": "2026-11-07T17:53:27+00:00", "sources": [{ "n": 1, "id": "crs-toward-commercial-fusion-energy", "title": "Toward Commercial Fusion Energy: Considerations for Congress (CRS R48866)", "kind": "url", "origin": "https://www.congress.gov/crs_external_products/R/HTML/R48866.html", "chars": 59746, "labels": ["CRS", "policy", "federal funding", "FY2025 budget"], "summary": "Congressional Research Service briefing: fusion physics, the DOE/FES programme ($790M in FY2025), inertial confinement (~$700M), and the policy questions a commercial build-out raises.", "added_at": "2026-11-07T16:36:51+00:00", "refreshed_at": "2026-11-07T17:00:41+00:00" }, { "n": 2, "id": "reuters-us-fusion-roadmap-mid-2030s", "title": "US roadmap targets fusion deployment by mid 2030s - Reuters", "kind": "url", "origin": "https://www.reuters.com/business/energy/us-roadmap-targets-fusion-deployment-by-mid-2030s--reeii-2026-08-25/", "chars": 14406, "labels": ["roadmap", "Reuters", "FIA funding", "engineering gaps"], "summary": "DOE's Fusion Science and Technology Roadmap (June) targets pilot plants by the mid-2030s; industry says it needs >$1B a year. FIA counts $4.48B raised to July 2026 and $14.24B cumulative since 2021.", "added_at": "2026-11-07T16:36:51+00:00", "refreshed_at": "2026-11-07T17:00:41+00:00" }, { "n": 3, "id": "ans-iter-assembly-progress", "title": "ITER reports \u201Csubstantial progress\u201D in assembly and installation work - ANS Nuclear Newswire", "kind": "url", "origin": "https://www.ans.org/news/2026-09-09/article-8375/iter-reports-substantial-progress-in-assembly-and-installation-work/", "chars": 11601, "labels": ["ITER", "assembly", "schedule"], "summary": "ANS Nuclear Newswire on ITER's assembly campaign: sector-module installation running ahead of plan under the accelerated assembly approach.", "added_at": "2026-11-07T16:36:51+00:00", "refreshed_at": "2026-11-07T17:00:41+00:00" }, { "n": 4, "id": "iter-two-thirds-tokamak-core", "title": "Two-thirds of ITER tokamak core now in place - ITER Organization", "kind": "url", "origin": "https://www.iter.org/two-thirds-iter-tokamak-core-now-place", "chars": 6116, "labels": ["ITER", "tokamak", "sector module", "milestone"], "summary": "ITER's own release: sixth of nine sector modules installed on 28 July 2026, ~30 hours of lifting, a 1,100-tonne module, two-thirds of the torus in place, final module due 2027.", "added_at": "2026-11-07T16:36:51+00:00", "refreshed_at": "2026-11-07T17:00:41+00:00" }, { "n": 5, "id": "iaea-world-fusion-outlook-2025", "title": "IAEA World Fusion Outlook 2025 (IAEA/PAT/012)", "kind": "url", "origin": "https://www.iaea.org/publications/15935/iaea-world-fusion-outlook-2025", "chars": 6329, "labels": ["IAEA", "outlook", "global fleet"], "summary": "IAEA's World Fusion Outlook 2025: the international reference on device counts, timelines and the regulatory picture across member states.", "added_at": "2026-11-07T16:36:51+00:00", "refreshed_at": "2026-11-07T17:00:41+00:00" }, { "n": 6, "id": "wikipedia-fusion-power", "title": "Fusion power - Wikipedia", "kind": "url", "origin": "https://en.wikipedia.org/wiki/Fusion_power", "chars": 59171, "labels": ["reference", "confinement", "tritium", "history"], "summary": "Reference article: confinement approaches, tritium breeding, the neutron-damage problem and the historical funding curve.", "added_at": "2026-11-07T16:36:51+00:00", "refreshed_at": "2026-11-07T17:00:41+00:00" }], "artifacts": [{ "key": "20261107-audio_overview", "kind": "audio_overview", "label": "Audio Overview", "group": "media", "primary": "20261107-171108-audio_overview.mp3", "ext": "mp3", "media": true, "bytes": 1118613, "files": [{ "name": "20261107-171108-audio_overview.json", "ext": "json", "size": 4454 }, { "name": "20261107-171108-audio_overview.mp3", "ext": "mp3", "size": 1110764 }, { "name": "20261107-171108-audio_overview.txt", "ext": "txt", "size": 3395 }], "modified": "2026-11-07T17:53:13+00:00" }, { "key": "20261107-video_overview", "kind": "video_overview", "label": "Video Overview", "group": "media", "primary": "20261107-170743-video_overview.mp4", "ext": "mp4", "media": true, "bytes": 1829333, "files": [{ "name": "20261107-170743-video_overview.json", "ext": "json", "size": 2042 }, { "name": "20261107-170743-video_overview.txt", "ext": "txt", "size": 1459 }, { "name": "20261107-170743-video_overview.mp4", "ext": "mp4", "size": 1825832 }], "modified": "2026-11-07T17:53:13+00:00" }, { "key": "20261107-faq", "kind": "faq", "label": "FAQ", "group": "docs", "primary": "20261107-170050-faq.md", "ext": "md", "media": false, "bytes": 1647, "files": [{ "name": "20261107-170050-faq.md", "ext": "md", "size": 1647 }], "modified": "2026-11-07T17:53:13+00:00" }, { "key": "20261107-study_guide", "kind": "study_guide", "label": "Study Guide", "group": "study", "primary": "20261107-170050-study_guide.md", "ext": "md", "media": false, "bytes": 2041, "files": [{ "name": "20261107-170050-study_guide.md", "ext": "md", "size": 2041 }], "modified": "2026-11-07T17:53:13+00:00" }, { "key": "20261107-briefing_doc", "kind": "briefing_doc", "label": "Briefing Doc", "group": "docs", "primary": "20261107-170050-briefing_doc.md", "ext": "md", "media": false, "bytes": 2293, "files": [{ "name": "20261107-170050-briefing_doc.md", "ext": "md", "size": 2293 }], "modified": "2026-11-07T17:53:13+00:00" }, { "key": "20261107-timeline", "kind": "timeline", "label": "Timeline", "group": "docs", "primary": "20261107-170042-timeline.md", "ext": "md", "media": false, "bytes": 1309, "files": [{ "name": "20261107-170042-timeline.md", "ext": "md", "size": 1309 }], "modified": "2026-11-07T17:53:13+00:00" }, { "key": "20261107-infographic", "kind": "infographic", "label": "Infographic", "group": "visual", "primary": "20261107-170042-infographic.png", "ext": "png", "media": true, "bytes": 87390, "files": [{ "name": "20261107-170042-infographic.png", "ext": "png", "size": 86310 }, { "name": "20261107-170041-infographic.json", "ext": "json", "size": 1080 }], "modified": "2026-11-07T17:53:13+00:00" }, { "key": "20261107-slides", "kind": "slides", "label": "Slides", "group": "visual", "primary": "20261107-170041-slides.html", "ext": "html", "media": true, "bytes": 5267, "files": [{ "name": "20261107-170041-slides.html", "ext": "html", "size": 3631 }, { "name": "20261107-170041-slides.json", "ext": "json", "size": 1636 }], "modified": "2026-11-07T17:53:13+00:00" }, { "key": "20261107-quiz", "kind": "quiz", "label": "Quiz", "group": "study", "primary": "20261107-170041-quiz.md", "ext": "md", "media": false, "bytes": 3469, "files": [{ "name": "20261107-170041-quiz.md", "ext": "md", "size": 1498 }, { "name": "20261107-170041-quiz.json", "ext": "json", "size": 1971 }], "modified": "2026-11-07T17:53:13+00:00" }, { "key": "20261107-flashcards", "kind": "flashcards", "label": "Flashcards", "group": "study", "primary": "20261107-170041-flashcards.md", "ext": "md", "media": false, "bytes": 3696, "files": [{ "name": "20261107-170041-flashcards.md", "ext": "md", "size": 1760 }, { "name": "20261107-170041-flashcards.json", "ext": "json", "size": 1936 }], "modified": "2026-11-07T17:53:13+00:00" }, { "key": "20261107-mind_map", "kind": "mind_map", "label": "Mind Map", "group": "visual", "primary": "20261107-170041-mind_map.md", "ext": "md", "media": false, "bytes": 3417, "files": [{ "name": "20261107-170041-mind_map.md", "ext": "md", "size": 1577 }, { "name": "20261107-170041-mind_map.json", "ext": "json", "size": 1840 }], "modified": "2026-11-07T17:53:13+00:00" }, { "key": "20261107-summary", "kind": "summary", "label": "Summary", "group": "docs", "primary": "20261107-170041-summary.md", "ext": "md", "media": false, "bytes": 1955, "files": [{ "name": "20261107-170041-summary.md", "ext": "md", "size": 1955 }], "modified": "2026-11-07T17:53:13+00:00" }], "labels": [{ "label": "ITER", "count": 2 }, { "label": "CRS", "count": 1 }, { "label": "FIA funding", "count": 1 }, { "label": "FY2025 budget", "count": 1 }, { "label": "IAEA", "count": 1 }, { "label": "Reuters", "count": 1 }, { "label": "assembly", "count": 1 }, { "label": "confinement", "count": 1 }, { "label": "engineering gaps", "count": 1 }, { "label": "federal funding", "count": 1 }, { "label": "global fleet", "count": 1 }, { "label": "history", "count": 1 }, { "label": "milestone", "count": 1 }, { "label": "outlook", "count": 1 }, { "label": "policy", "count": 1 }, { "label": "reference", "count": 1 }, { "label": "roadmap", "count": 1 }, { "label": "schedule", "count": 1 }, { "label": "sector module", "count": 1 }, { "label": "tokamak", "count": 1 }, { "label": "tritium", "count": 1 }], "thread": [{ "role": "user", "content": "Where does ITER's machine assembly actually stand?", "ts": "2026-11-07T16:36:51+00:00" }, { "role": "assistant", "content": "As of 29 July 2026 the ITER Organization had installed the sixth of nine tokamak sector modules in the tokamak pit, putting roughly two-thirds of the torus-shaped core in place. The organisation says the milestone landed almost six months ahead of schedule, and the module involved weighed about 1,100 tonnes and was transferred from the Assembly Hall in a coordinated lifting operation. Sources: 'Two-thirds of ITER tokamak core now in place' (ITER, 29 Jul 2026) and ANS Nuclear Newswire's 9 Sep 2026 assembly report.", "ts": "2026-11-07T16:36:51+00:00" }, { "role": "user", "content": "Is the US roadmap to fusion deployment by the mid-2030s credible?", "ts": "2026-11-07T16:36:51+00:00" }, { "role": "assistant", "content": `Reuters (25 Aug 2026) reports the US government launched a strategy to catalyse early-stage fusion plants by the mid-2030s, and that success hinges on more federal funding. Developers point to unsolved engineering: neutron-resistant structural materials, tritium separation and reprocessing, and components that survive constant high-energy neutron flux. Robb Hughes of Realta Fusion framed it as "The plan isn't the problem. We all agree on the plan. The X factor is the funding." The roadmap leans on existing DOE programmes such as Milestone-Based Fusion Development and INFUSE. Treat the timeline as policy intent, not a committed delivery date.`, "ts": "2026-11-07T16:36:51+00:00" }], "stats": { "sources": 6, "chars": 157369, "labels": 21, "unlabeled": 0, "artifacts": 12, "kinds": ["audio_overview", "briefing_doc", "faq", "flashcards", "infographic", "mind_map", "quiz", "slides", "study_guide", "summary", "timeline", "video_overview"] }, "options": {} }, "kinds": [{ "id": "video_overview", "label": "Video Overview", "group": "media", "ext": "mp4", "blurb": "Narrated slideshow, cinematic or explainer", "secs": 60, "options": [{ "id": "style", "label": "Style", "choices": ["cinematic", "explainer"] }, { "id": "length", "label": "Length", "choices": ["short", "medium", "long"] }] }, { "id": "audio_overview", "label": "Audio Overview", "group": "media", "ext": "mp3", "blurb": "Hosts talking through the sources", "secs": 90, "options": [{ "id": "format", "label": "Format", "choices": ["deep_dive", "brief", "critique", "debate"] }, { "id": "length", "label": "Length", "choices": ["short", "medium", "long"] }, { "id": "language", "label": "Language", "kind": "text", "placeholder": "Auto (English)" }] }, { "id": "summary", "label": "Summary", "group": "docs", "ext": "md", "blurb": "The notebook in a page", "secs": 12 }, { "id": "briefing_doc", "label": "Briefing Doc", "group": "docs", "ext": "md", "blurb": "Decisions, risks, what to do next", "secs": 18 }, { "id": "study_guide", "label": "Study Guide", "group": "study", "ext": "md", "blurb": "Concepts, questions, answers", "secs": 18 }, { "id": "faq", "label": "FAQ", "group": "docs", "ext": "md", "blurb": "The questions the sources answer", "secs": 14 }, { "id": "timeline", "label": "Timeline", "group": "docs", "ext": "md", "blurb": "Dated events in order", "secs": 14 }, { "id": "mind_map", "label": "Mind Map", "group": "visual", "ext": "md", "blurb": "Radial structure you can pan", "secs": 16 }, { "id": "flashcards", "label": "Flashcards", "group": "study", "ext": "md", "blurb": "Flip deck, Anki-ready export", "secs": 16 }, { "id": "quiz", "label": "Quiz", "group": "study", "ext": "md", "blurb": "Multiple choice with explanations", "secs": 16 }, { "id": "slides", "label": "Slides", "group": "visual", "ext": "html", "blurb": "Self-contained deck, arrow keys", "secs": 22 }, { "id": "infographic", "label": "Infographic", "group": "visual", "ext": "png", "blurb": "One dense poster of the thesis", "secs": 20, "options": [{ "id": "style", "label": "Style", "choices": ["sections", "poster", "editorial"] }] }, { "id": "data_table", "label": "Data Table", "group": "docs", "ext": "csv", "blurb": "Structured rows, exports to Sheets", "secs": 14 }] };
+var STATE = { "ok": true, "generated_at": "2026-11-07T18:38:54Z", "model_ready": false, "notebooks": [{ "id": "business-analyst-job-interview-you-know-thanks", "title": "Business Analyst Job Interview you know. Thanks", "description": "", "updated_at": "2026-11-07T18:34:28+00:00", "sources": 0, "artifacts": 0, "chars": 0 }, { "id": "commercial-fusion-2026", "title": "Commercial Fusion Energy in 2026", "description": "Six sources on the state of commercial fusion: the CRS briefing for Congress, the DOE deployment roadmap, two ITER releases, the IAEA outlook and the reference article.", "updated_at": "2026-11-07T17:53:27+00:00", "sources": 6, "artifacts": 12, "chars": 157369 }, { "id": "smoke-test-notebook", "title": "Scratchpad", "description": "Short sources used to smoke-test labels and artifacts.", "updated_at": "2026-11-07T17:38:11+00:00", "sources": 3, "artifacts": 6, "chars": 24919 }], "notebook": { "id": "commercial-fusion-2026", "title": "Commercial Fusion Energy in 2026", "description": "Six sources on the state of commercial fusion: the CRS briefing for Congress, the DOE deployment roadmap, two ITER releases, the IAEA outlook and the reference article.", "created_at": "2026-11-07T16:36:51+00:00", "updated_at": "2026-11-07T17:53:27+00:00", "sources": [{ "n": 1, "id": "crs-toward-commercial-fusion-energy", "title": "Toward Commercial Fusion Energy: Considerations for Congress (CRS R48866)", "kind": "url", "origin": "https://www.congress.gov/crs_external_products/R/HTML/R48866.html", "chars": 59746, "labels": ["CRS", "policy", "federal funding", "FY2025 budget"], "summary": "Congressional Research Service briefing: fusion physics, the DOE/FES programme ($790M in FY2025), inertial confinement (~$700M), and the policy questions a commercial build-out raises.", "added_at": "2026-11-07T16:36:51+00:00", "refreshed_at": "2026-11-07T17:00:41+00:00" }, { "n": 2, "id": "reuters-us-fusion-roadmap-mid-2030s", "title": "US roadmap targets fusion deployment by mid 2030s - Reuters", "kind": "url", "origin": "https://www.reuters.com/business/energy/us-roadmap-targets-fusion-deployment-by-mid-2030s--reeii-2026-08-25/", "chars": 14406, "labels": ["roadmap", "Reuters", "FIA funding", "engineering gaps"], "summary": "DOE's Fusion Science and Technology Roadmap (June) targets pilot plants by the mid-2030s; industry says it needs >$1B a year. FIA counts $4.48B raised to July 2026 and $14.24B cumulative since 2021.", "added_at": "2026-11-07T16:36:51+00:00", "refreshed_at": "2026-11-07T17:00:41+00:00" }, { "n": 3, "id": "ans-iter-assembly-progress", "title": "ITER reports \u201Csubstantial progress\u201D in assembly and installation work - ANS Nuclear Newswire", "kind": "url", "origin": "https://www.ans.org/news/2026-09-09/article-8375/iter-reports-substantial-progress-in-assembly-and-installation-work/", "chars": 11601, "labels": ["ITER", "assembly", "schedule"], "summary": "ANS Nuclear Newswire on ITER's assembly campaign: sector-module installation running ahead of plan under the accelerated assembly approach.", "added_at": "2026-11-07T16:36:51+00:00", "refreshed_at": "2026-11-07T17:00:41+00:00" }, { "n": 4, "id": "iter-two-thirds-tokamak-core", "title": "Two-thirds of ITER tokamak core now in place - ITER Organization", "kind": "url", "origin": "https://www.iter.org/two-thirds-iter-tokamak-core-now-place", "chars": 6116, "labels": ["ITER", "tokamak", "sector module", "milestone"], "summary": "ITER's own release: sixth of nine sector modules installed on 28 July 2026, ~30 hours of lifting, a 1,100-tonne module, two-thirds of the torus in place, final module due 2027.", "added_at": "2026-11-07T16:36:51+00:00", "refreshed_at": "2026-11-07T17:00:41+00:00" }, { "n": 5, "id": "iaea-world-fusion-outlook-2025", "title": "IAEA World Fusion Outlook 2025 (IAEA/PAT/012)", "kind": "url", "origin": "https://www.iaea.org/publications/15935/iaea-world-fusion-outlook-2025", "chars": 6329, "labels": ["IAEA", "outlook", "global fleet"], "summary": "IAEA's World Fusion Outlook 2025: the international reference on device counts, timelines and the regulatory picture across member states.", "added_at": "2026-11-07T16:36:51+00:00", "refreshed_at": "2026-11-07T17:00:41+00:00" }, { "n": 6, "id": "wikipedia-fusion-power", "title": "Fusion power - Wikipedia", "kind": "url", "origin": "https://en.wikipedia.org/wiki/Fusion_power", "chars": 59171, "labels": ["reference", "confinement", "tritium", "history"], "summary": "Reference article: confinement approaches, tritium breeding, the neutron-damage problem and the historical funding curve.", "added_at": "2026-11-07T16:36:51+00:00", "refreshed_at": "2026-11-07T17:00:41+00:00" }], "artifacts": [{ "key": "20261107-audio_overview", "kind": "audio_overview", "label": "Audio Overview", "group": "media", "primary": "20261107-171108-audio_overview.mp3", "ext": "mp3", "media": true, "bytes": 1118613, "files": [{ "name": "20261107-171108-audio_overview.json", "ext": "json", "size": 4454 }, { "name": "20261107-171108-audio_overview.mp3", "ext": "mp3", "size": 1110764 }, { "name": "20261107-171108-audio_overview.txt", "ext": "txt", "size": 3395 }], "modified": "2026-11-07T17:53:13+00:00" }, { "key": "20261107-video_overview", "kind": "video_overview", "label": "Video Overview", "group": "media", "primary": "20261107-170743-video_overview.mp4", "ext": "mp4", "media": true, "bytes": 1829333, "files": [{ "name": "20261107-170743-video_overview.json", "ext": "json", "size": 2042 }, { "name": "20261107-170743-video_overview.txt", "ext": "txt", "size": 1459 }, { "name": "20261107-170743-video_overview.mp4", "ext": "mp4", "size": 1825832 }], "modified": "2026-11-07T17:53:13+00:00" }, { "key": "20261107-faq", "kind": "faq", "label": "FAQ", "group": "docs", "primary": "20261107-170050-faq.md", "ext": "md", "media": false, "bytes": 1647, "files": [{ "name": "20261107-170050-faq.md", "ext": "md", "size": 1647 }], "modified": "2026-11-07T17:53:13+00:00" }, { "key": "20261107-study_guide", "kind": "study_guide", "label": "Study Guide", "group": "study", "primary": "20261107-170050-study_guide.md", "ext": "md", "media": false, "bytes": 2041, "files": [{ "name": "20261107-170050-study_guide.md", "ext": "md", "size": 2041 }], "modified": "2026-11-07T17:53:13+00:00" }, { "key": "20261107-briefing_doc", "kind": "briefing_doc", "label": "Briefing Doc", "group": "docs", "primary": "20261107-170050-briefing_doc.md", "ext": "md", "media": false, "bytes": 2293, "files": [{ "name": "20261107-170050-briefing_doc.md", "ext": "md", "size": 2293 }], "modified": "2026-11-07T17:53:13+00:00" }, { "key": "20261107-timeline", "kind": "timeline", "label": "Timeline", "group": "docs", "primary": "20261107-170042-timeline.md", "ext": "md", "media": false, "bytes": 1309, "files": [{ "name": "20261107-170042-timeline.md", "ext": "md", "size": 1309 }], "modified": "2026-11-07T17:53:13+00:00" }, { "key": "20261107-infographic", "kind": "infographic", "label": "Infographic", "group": "visual", "primary": "20261107-170042-infographic.png", "ext": "png", "media": true, "bytes": 87390, "files": [{ "name": "20261107-170042-infographic.png", "ext": "png", "size": 86310 }, { "name": "20261107-170041-infographic.json", "ext": "json", "size": 1080 }], "modified": "2026-11-07T17:53:13+00:00" }, { "key": "20261107-slides", "kind": "slides", "label": "Slides", "group": "visual", "primary": "20261107-170041-slides.html", "ext": "html", "media": true, "bytes": 5267, "files": [{ "name": "20261107-170041-slides.html", "ext": "html", "size": 3631 }, { "name": "20261107-170041-slides.json", "ext": "json", "size": 1636 }], "modified": "2026-11-07T17:53:13+00:00" }, { "key": "20261107-quiz", "kind": "quiz", "label": "Quiz", "group": "study", "primary": "20261107-170041-quiz.md", "ext": "md", "media": false, "bytes": 3469, "files": [{ "name": "20261107-170041-quiz.md", "ext": "md", "size": 1498 }, { "name": "20261107-170041-quiz.json", "ext": "json", "size": 1971 }], "modified": "2026-11-07T17:53:13+00:00" }, { "key": "20261107-flashcards", "kind": "flashcards", "label": "Flashcards", "group": "study", "primary": "20261107-170041-flashcards.md", "ext": "md", "media": false, "bytes": 3696, "files": [{ "name": "20261107-170041-flashcards.md", "ext": "md", "size": 1760 }, { "name": "20261107-170041-flashcards.json", "ext": "json", "size": 1936 }], "modified": "2026-11-07T17:53:13+00:00" }, { "key": "20261107-mind_map", "kind": "mind_map", "label": "Mind Map", "group": "visual", "primary": "20261107-170041-mind_map.md", "ext": "md", "media": false, "bytes": 3417, "files": [{ "name": "20261107-170041-mind_map.md", "ext": "md", "size": 1577 }, { "name": "20261107-170041-mind_map.json", "ext": "json", "size": 1840 }], "modified": "2026-11-07T17:53:13+00:00" }, { "key": "20261107-summary", "kind": "summary", "label": "Summary", "group": "docs", "primary": "20261107-170041-summary.md", "ext": "md", "media": false, "bytes": 1955, "files": [{ "name": "20261107-170041-summary.md", "ext": "md", "size": 1955 }], "modified": "2026-11-07T17:53:13+00:00" }], "labels": [{ "label": "ITER", "count": 2 }, { "label": "CRS", "count": 1 }, { "label": "FIA funding", "count": 1 }, { "label": "FY2025 budget", "count": 1 }, { "label": "IAEA", "count": 1 }, { "label": "Reuters", "count": 1 }, { "label": "assembly", "count": 1 }, { "label": "confinement", "count": 1 }, { "label": "engineering gaps", "count": 1 }, { "label": "federal funding", "count": 1 }, { "label": "global fleet", "count": 1 }, { "label": "history", "count": 1 }, { "label": "milestone", "count": 1 }, { "label": "outlook", "count": 1 }, { "label": "policy", "count": 1 }, { "label": "reference", "count": 1 }, { "label": "roadmap", "count": 1 }, { "label": "schedule", "count": 1 }, { "label": "sector module", "count": 1 }, { "label": "tokamak", "count": 1 }, { "label": "tritium", "count": 1 }], "thread": [{ "role": "user", "content": "Where does ITER's machine assembly actually stand?", "ts": "2026-11-07T16:36:51+00:00" }, { "role": "assistant", "content": "As of 29 July 2026 the ITER Organization had installed the sixth of nine tokamak sector modules in the tokamak pit, putting roughly two-thirds of the torus-shaped core in place. The organisation says the milestone landed almost six months ahead of schedule, and the module involved weighed about 1,100 tonnes and was transferred from the Assembly Hall in a coordinated lifting operation. Sources: 'Two-thirds of ITER tokamak core now in place' (ITER, 29 Jul 2026) and ANS Nuclear Newswire's 9 Sep 2026 assembly report.", "ts": "2026-11-07T16:36:51+00:00" }, { "role": "user", "content": "Is the US roadmap to fusion deployment by the mid-2030s credible?", "ts": "2026-11-07T16:36:51+00:00" }, { "role": "assistant", "content": `Reuters (25 Aug 2026) reports the US government launched a strategy to catalyse early-stage fusion plants by the mid-2030s, and that success hinges on more federal funding. Developers point to unsolved engineering: neutron-resistant structural materials, tritium separation and reprocessing, and components that survive constant high-energy neutron flux. Robb Hughes of Realta Fusion framed it as "The plan isn't the problem. We all agree on the plan. The X factor is the funding." The roadmap leans on existing DOE programmes such as Milestone-Based Fusion Development and INFUSE. Treat the timeline as policy intent, not a committed delivery date.`, "ts": "2026-11-07T16:36:51+00:00" }], "stats": { "sources": 6, "chars": 157369, "labels": 21, "unlabeled": 0, "artifacts": 12, "kinds": ["audio_overview", "briefing_doc", "faq", "flashcards", "infographic", "mind_map", "quiz", "slides", "study_guide", "summary", "timeline", "video_overview"] }, "options": {}, "threads": [{ "name": "default", "title": "What do the sources say about funding?", "count": 4, "updated": "2025-11-02T10:00:00Z" }, { "name": "chat-abc123", "title": "Compare the two architectures", "count": 6, "updated": "2025-11-03T09:30:00Z" }] }, "kinds": [{ "id": "video_overview", "label": "Video Overview", "group": "media", "ext": "mp4", "blurb": "Narrated slideshow, cinematic or explainer", "secs": 60, "options": [{ "id": "style", "label": "Style", "choices": ["cinematic", "explainer"] }, { "id": "length", "label": "Length", "choices": ["short", "medium", "long"] }] }, { "id": "audio_overview", "label": "Audio Overview", "group": "media", "ext": "mp3", "blurb": "Hosts talking through the sources", "secs": 90, "options": [{ "id": "format", "label": "Format", "choices": ["deep_dive", "brief", "critique", "debate"] }, { "id": "length", "label": "Length", "choices": ["short", "medium", "long"] }, { "id": "language", "label": "Language", "kind": "text", "placeholder": "Auto (English)" }] }, { "id": "summary", "label": "Summary", "group": "docs", "ext": "md", "blurb": "The notebook in a page", "secs": 12 }, { "id": "briefing_doc", "label": "Briefing Doc", "group": "docs", "ext": "md", "blurb": "Decisions, risks, what to do next", "secs": 18 }, { "id": "study_guide", "label": "Study Guide", "group": "study", "ext": "md", "blurb": "Concepts, questions, answers", "secs": 18 }, { "id": "faq", "label": "FAQ", "group": "docs", "ext": "md", "blurb": "The questions the sources answer", "secs": 14 }, { "id": "timeline", "label": "Timeline", "group": "docs", "ext": "md", "blurb": "Dated events in order", "secs": 14 }, { "id": "mind_map", "label": "Mind Map", "group": "visual", "ext": "md", "blurb": "Radial structure you can pan", "secs": 16 }, { "id": "flashcards", "label": "Flashcards", "group": "study", "ext": "md", "blurb": "Flip deck, Anki-ready export", "secs": 16 }, { "id": "quiz", "label": "Quiz", "group": "study", "ext": "md", "blurb": "Multiple choice with explanations", "secs": 16 }, { "id": "slides", "label": "Slides", "group": "visual", "ext": "html", "blurb": "Self-contained deck, arrow keys", "secs": 22 }, { "id": "infographic", "label": "Infographic", "group": "visual", "ext": "png", "blurb": "One dense poster of the thesis", "secs": 20, "options": [{ "id": "style", "label": "Style", "choices": ["sections", "poster", "editorial"] }] }, { "id": "data_table", "label": "Data Table", "group": "docs", "ext": "csv", "blurb": "Structured rows, exports to Sheets", "secs": 14 }] };
 var FLEET = {
   "ok": true,
   "measured_at": "2026-11-07 10:43:11 -0600",
@@ -22581,6 +22743,24 @@ var rest = async (path, opts) => {
       if (body.description !== void 0) STATE.notebook.description = body.description;
     }
     return { ok: true, notebook: STATE.notebook };
+  }
+  if (route === "thread") {
+    const name = params.get("name") || "default";
+    const messages = name === "chat-abc123" ? [
+      { role: "user", content: "Compare the two architectures described in the sources.", ts: "2025-11-03T09:00:00Z" },
+      { role: "assistant", content: "The sources describe two approaches [S1]. The first favors simplicity; the second trades it for throughput [S2].", ts: "2025-11-03T09:00:30Z" }
+    ] : STATE.notebook && STATE.notebook.thread || [];
+    return { ok: true, thread: name, messages };
+  }
+  if (route === "thread/clear") return { ok: true, thread: { cleared: "default" } };
+  if (route === "export") {
+    return {
+      ok: true,
+      name: "preview-notebook.zip",
+      bytes: 22,
+      files: 1,
+      b64: Buffer.from("PK preview export stub").toString("base64")
+    };
   }
   if (route === "notebook/delete") return { ok: true, deleted: opts && opts.body && opts.body.notebook || "" };
   if (route === "options") {

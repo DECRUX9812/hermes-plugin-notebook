@@ -113,9 +113,19 @@ const SUGGEST = [
 /* overview + suggestions are fetched once per notebook-content version and
    cached for the session — tab switches must not re-bill the model. */
 const ovCache = new Map()
+/* conversations survive Chat unmounts (peek/viewer tabs swap it out) — the
+   module-level cache is the source of truth once a thread has been opened. */
+const threadCache = new Map()
 
 function Chat({ notebook, askOpen, onSay, modelReady, onCite, onOpenSource, onFindSources, reload, askScope, setAskScope }) {
-  const [msgs, setMsgs] = useState(() => (notebook.thread || []).map((m, i) => ({ ...m, k: `t${i}` })))
+  const nbKey = `${notebook.id}:default`
+  const [thread, setThread] = useState('default')
+  const [threads, setThreads] = useState(() => notebook.threads || [])
+  const [thrOpen, setThrOpen] = useState(false)
+  const curThread = useRef('default')
+  curThread.current = thread
+  const [msgs, setMsgs] = useState(() =>
+    threadCache.get(nbKey) || (notebook.thread || []).map((m, i) => ({ ...m, k: `t${i}` })))
   const [text, setText] = useState('')
   const [pending, setPending] = useState(null)
   const [ov, setOv] = useState('')
@@ -129,13 +139,48 @@ function Chat({ notebook, askOpen, onSay, modelReady, onCite, onOpenSource, onFi
   const activeCount = stats.active !== undefined ? stats.active : (notebook.sources || []).length
   const cacheKey = `${notebook.id}:${stats.sources || 0}:${activeCount}`
 
-  useEffect(() => {
-    const stored = (notebook.thread || []).map((m, i) => ({ ...m, k: `t${i}` }))
-    setMsgs(stored)
-  }, [notebook.id, notebook.thread && notebook.thread.length])
+  const cacheMsgs = (key, list) => { threadCache.set(key, list); return list }
 
-  // a source scope belongs to the notebook it was picked in
-  useEffect(() => { if (setAskScope) setAskScope(null) }, [notebook.id])
+  // a different notebook → back to its default conversation
+  useEffect(() => {
+    setThread('default')
+    if (setAskScope) setAskScope(null)
+    setThreads(notebook.threads || [])
+    const key = `${notebook.id}:default`
+    const cached = threadCache.get(key)
+    const mapped = cached || (notebook.thread || []).map((m, i) => ({ ...m, k: `t${i}` }))
+    cacheMsgs(key, mapped)
+    setMsgs(mapped)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [notebook.id])
+
+  // /state refreshes the thread list (a first message creates the file)
+  useEffect(() => { setThreads(notebook.threads || []) }, [notebook.threads])
+
+  // switching conversations: cache hit is instant, otherwise fetch the thread
+  useEffect(() => {
+    const key = `${notebook.id}:${thread}`
+    const cached = threadCache.get(key)
+    if (cached) { setMsgs(cached); return undefined }
+    if (thread === 'default') {
+      const mapped = (notebook.thread || []).map((m, i) => ({ ...m, k: `t${i}` }))
+      cacheMsgs(key, mapped)
+      setMsgs(mapped)
+      return undefined
+    }
+    let live = true
+    setMsgs([])
+    api(`/thread?${qs({ notebook: notebook.id, name: thread })}`, { timeoutMs: 30000 })
+      .then((out) => {
+        if (!live) return
+        const mapped = (out.messages || []).map((m, i) => ({ ...m, k: `t${i}` }))
+        cacheMsgs(key, mapped)
+        setMsgs(mapped)
+      })
+      .catch(() => {})
+    return () => { live = false }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [notebook.id, thread])
 
   useEffect(() => {
     const cached = ovCache.get(notebook.id)
@@ -195,8 +240,10 @@ function Chat({ notebook, askOpen, onSay, modelReady, onCite, onOpenSource, onFi
   const send = async (question) => {
     const q = (question || text).trim()
     if (!q || pending) return
+    const t = thread
+    const key = `${notebook.id}:${t}`
     setText('')
-    setMsgs((m) => [...m, { role: 'user', content: q, k: `u${Date.now()}` }])
+    setMsgs((m) => cacheMsgs(key, [...m, { role: 'user', content: q, k: `u${Date.now()}` }]))
     const started = Date.now()
     setPending({ since: started, q })
     const tick = setInterval(() => setPending((p) => (p ? { ...p, now: Date.now() } : p)), 500)
@@ -204,21 +251,29 @@ function Chat({ notebook, askOpen, onSay, modelReady, onCite, onOpenSource, onFi
       const out = await api('/ask', {
         method: 'POST',
         body: {
-          notebook: notebook.id, question: q, thread: 'default',
+          notebook: notebook.id, question: q, thread: t,
           ...(askScope ? { source_ids: [askScope.id] } : {})
         },
         timeoutMs: 180000
       })
-      setMsgs((m) => [...m, {
+      const answer = {
         role: 'assistant', content: out.answer, k: `a${Date.now()}`,
         citations: out.citations || [], seconds: out.seconds,
         meta: `${out.chunks_used || 0} of ${out.total_chunks || 0} passages`
-      }])
+      }
+      const prev = threadCache.get(key) || []
+      const next = cacheMsgs(key, [...prev, answer])
+      if (curThread.current === t) setMsgs(next)
+      // refresh /state so the thread list + default thread stay truthful
+      if (reload) reload(true)
     } catch (e) {
-      setMsgs((m) => [...m, {
+      const errMsg = {
         role: 'assistant', content: `**That question did not get an answer.**\n\n${e.message || e}`,
         k: `e${Date.now()}`, error: true
-      }])
+      }
+      const prev = threadCache.get(key) || []
+      const next = cacheMsgs(key, [...prev, errMsg])
+      if (curThread.current === t) setMsgs(next)
       if (onSay) onSay(e.message || 'ask failed')
     } finally {
       clearInterval(tick)
@@ -231,6 +286,8 @@ function Chat({ notebook, askOpen, onSay, modelReady, onCite, onOpenSource, onFi
   }
 
   const elapsed = pending ? Math.round(((pending.now || Date.now()) - pending.since) / 1000) : 0
+  const thrMeta = (threads || []).find((x) => x.name === thread)
+  const thrLabel = (thrMeta && thrMeta.title) || (thread === 'default' ? 'Chat' : 'New chat')
 
   return el('div', { className: 'nb-chat' },
     el('div', { className: 'nb-thread', ref: threadRef, role: 'log', 'aria-live': 'polite', 'aria-label': 'Conversation' },
@@ -308,6 +365,11 @@ function Chat({ notebook, askOpen, onSay, modelReady, onCite, onOpenSource, onFi
           rows: 2
         }),
         el('div', { className: 'nb-askfoot' },
+          jsx(Chip, {
+            title: 'Conversations — switch or start a new chat',
+            onClick: () => setThrOpen(true),
+            children: `💬 ${thrLabel}`
+          }),
           jsx(Chip, {
             title: `${activeCount} of ${stats.sources || 0} sources are in context`,
             children: `${activeCount} source${activeCount === 1 ? '' : 's'}`
@@ -413,9 +475,58 @@ function Chat({ notebook, askOpen, onSay, modelReady, onCite, onOpenSource, onFi
                   children: 'Save'
                 })))
             })
+        : null,
+      thrOpen
+        ? jsx(ThreadDialog, {
+            notebook, threads, current: thread,
+            onClose: () => setThrOpen(false),
+            onPick: (name) => { setThread(name); setThrOpen(false) },
+            onNew: () => {
+              const name = `chat-${Date.now().toString(36)}`
+              threadCache.set(`${notebook.id}:${name}`, [])
+              setThread(name); setThrOpen(false)
+            },
+            onClear: async () => {
+              try {
+                await api('/thread/clear', {
+                  method: 'POST',
+                  body: { notebook: notebook.id, thread },
+                  timeoutMs: 30000
+                })
+                const key = `${notebook.id}:${thread}`
+                cacheMsgs(key, [])
+                setMsgs([])
+                setThreads((ts) => ts.filter((t) => t.name !== thread))
+                if (reload) reload(true)
+                setThrOpen(false)
+              } catch (e) { onSay && onSay(`could not clear chat: ${e.message || e}`) }
+            }
+          })
         : null
     )
   )
+}
+
+function ThreadDialog({ notebook, threads, current, onClose, onPick, onNew, onClear }) {
+  const list = threads && threads.length ? threads : [{ name: 'default', title: 'Chat', count: 0 }]
+  return jsx(Dialog, {
+    open: true, onClose, title: 'Conversations', width: 460,
+    children: el('div', { style: { display: 'grid', gap: '8px' } },
+      list.map((t) => el('button', {
+        key: t.name, type: 'button',
+        className: 'nb-thrrow' + (t.name === current ? ' is-current' : ''),
+        onClick: () => onPick(t.name),
+        'aria-current': t.name === current ? 'true' : undefined
+      },
+        el('div', { style: { flex: 1, minWidth: 0 } },
+          el('div', { style: { fontSize: '14px', fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' },
+            children: t.title || t.name }),
+          el('div', { className: 'nb-meta', children: `${t.count || 0} messages` })),
+        t.name === current ? jsx(Glyph, { name: 'check', size: 15 }) : null)),
+      el('div', { style: { display: 'flex', gap: '8px', justifyContent: 'space-between', marginTop: '10px' } },
+        jsx(Btn, { size: 'sm', icon: 'trash', onClick: onClear, children: 'Clear this chat' }),
+        jsx(Btn, { size: 'sm', variant: 'primary', icon: 'plus', onClick: onNew, children: 'New chat' })))
+  })
 }
 
 const CITE_TEXT_CACHE = new Map()
@@ -728,7 +839,7 @@ function GenPill({ kind, art, started, nbId, onOpen, onGenerate }) {
                     try {
                       const out = await api('/video_notes', {
                         method: 'POST',
-                        body: { notebook: nbId, style: opts.style || 'cinematic', length: opts.length || 'short' },
+                        body: { notebook: nbId, style: opts.style || 'cinematic', length: opts.length || 'short', language: opts.language || '' },
                         timeoutMs: 180000
                       })
                       setNotes(out)

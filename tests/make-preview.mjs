@@ -61,6 +61,13 @@ writeFileSync(join(tmp, 'preview.mjs'), code)
 
 /* --------------------------------------------------------------- payloads */
 const state = JSON.parse(readFileSync(join(tmp, 'state.json'), 'utf8'))
+// chat threads postdate the dump — give the preview a realistic list
+if (state.notebook) {
+  state.notebook.threads = [
+    { name: 'default', title: 'What do the sources say about funding?', count: 4, updated: '2025-11-02T10:00:00Z' },
+    { name: 'chat-abc123', title: 'Compare the two architectures', count: 6, updated: '2025-11-03T09:30:00Z' }
+  ]
+}
 const fleet = existsSync(join(tmp, 'ops-fleet.json')) ? readFileSync(join(tmp, 'ops-fleet.json'), 'utf8') : '{"hosts":[]}'
 const services = existsSync(join(tmp, 'ops-services.json')) ? readFileSync(join(tmp, 'ops-services.json'), 'utf8') : '{"units":[]}'
 const audit = existsSync(join(tmp, 'ops-audit.json')) ? readFileSync(join(tmp, 'ops-audit.json'), 'utf8') : '{"entries":[]}'
@@ -211,6 +218,22 @@ const rest = async (path, opts) => {
       if (body.description !== undefined) STATE.notebook.description = body.description
     }
     return { ok: true, notebook: STATE.notebook }
+  }
+  if (route === 'thread') {
+    const name = params.get('name') || 'default'
+    const messages = name === 'chat-abc123'
+      ? [
+          { role: 'user', content: 'Compare the two architectures described in the sources.', ts: '2025-11-03T09:00:00Z' },
+          { role: 'assistant', content: 'The sources describe two approaches [S1]. The first favors simplicity; the second trades it for throughput [S2].', ts: '2025-11-03T09:00:30Z' }
+        ]
+      : ((STATE.notebook && STATE.notebook.thread) || [])
+    return { ok: true, thread: name, messages }
+  }
+  if (route === 'thread/clear') return { ok: true, thread: { cleared: 'default' } }
+  if (route === 'export') {
+    // stub payload — the page only base64-decodes + blob-downloads it
+    return { ok: true, name: 'preview-notebook.zip', bytes: 22, files: 1,
+             b64: Buffer.from('PK\x03\x04 preview export stub').toString('base64') }
   }
   if (route === 'notebook/delete') return { ok: true, deleted: (opts && opts.body && opts.body.notebook) || '' }
   if (route === 'options') {

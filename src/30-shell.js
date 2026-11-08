@@ -130,6 +130,22 @@ function App() {
     } catch (e) { say(`delete failed: ${e.message || e}`) }
   }, [nb, studio, say])
 
+  const exportNotebook = useCallback(async () => {
+    if (!notebook) return
+    try {
+      const out = await api(`/export?${qs({ notebook: notebook.id, b64: 1 })}`, { timeoutMs: 120000 })
+      const raw = atob(out.b64 || '')
+      const bytes = new Uint8Array(raw.length)
+      for (let i = 0; i < raw.length; i += 1) bytes[i] = raw.charCodeAt(i)
+      const url = URL.createObjectURL(new Blob([bytes], { type: 'application/zip' }))
+      const a = document.createElement('a')
+      a.href = url; a.download = out.name || 'notebook.zip'
+      document.body.appendChild(a); a.click(); a.remove()
+      setTimeout(() => URL.revokeObjectURL(url), 5000)
+      say('notebook exported')
+    } catch (e) { say(`export failed: ${e.message || e}`) }
+  }, [notebook, say])
+
   const renameNotebook = useCallback(async (id, title, desc) => {
     try {
       await api('/notebook/update', {
@@ -175,6 +191,9 @@ function App() {
         mode === 'studio' ? jsx(Btn, {
           icon: 'plus', variant: 'primary', onClick: () => openAddSource(),
           disabled: !notebook, children: 'Add source'
+        }) : null,
+        mode === 'studio' && notebook ? jsx(IconBtn, {
+          icon: 'download', label: 'Export notebook (.zip)', onClick: exportNotebook
         }) : null)
     ),
 

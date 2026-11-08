@@ -401,6 +401,23 @@ def clear_thread(notebook_id: str, name: str = "default") -> dict:
     return {"cleared": name}
 
 
+def list_threads(notebook_id: str) -> list[dict]:
+    """Every saved conversation, newest first — title is the first question."""
+    d = _nb_dir(notebook_id) / "threads"
+    out = []
+    if d.is_dir():
+        for p in sorted(d.glob("*.json"), key=lambda x: x.stat().st_mtime, reverse=True):
+            msgs = _read_json(p, [])
+            title = ""
+            for m in msgs:
+                if m.get("role") == "user" and str(m.get("content") or "").strip():
+                    title = re.sub(r"\s+", " ", str(m["content"])).strip()[:48]
+                    break
+            out.append({"name": p.stem, "title": title or p.stem,
+                        "count": len(msgs), "updated": _iso(p.stat().st_mtime)})
+    return out
+
+
 # -------------------------------------------------------------------- export
 
 def export_notebook(notebook_id: str, out_dir: Optional[Path] = None) -> dict:

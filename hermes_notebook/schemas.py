@@ -134,6 +134,8 @@ NOTEBOOK_VIDEO = {
         "focus": {"type": "string", "description": "Optional video focus"},
         "style": {"type": "string", "enum": ["cinematic", "explainer"],
                   "description": "cinematic = documentary narration (default); explainer = punchy tech-explainer pacing + brighter cards"},
+        "language": {"type": "string",
+                     "description": "Optional language for the script AND narration voice (e.g. 'Spanish')"},
     }},
 }
 

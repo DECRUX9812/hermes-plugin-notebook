@@ -70,7 +70,9 @@ KINDS: List[Dict[str, Any]] = [
      "options": [{"id": "style", "label": "Style",
                   "choices": ["cinematic", "explainer"]},
                  {"id": "length", "label": "Length",
-                  "choices": ["short", "medium", "long"]}]},
+                  "choices": ["short", "medium", "long"]},
+                 {"id": "language", "label": "Language", "kind": "text",
+                  "placeholder": "Auto (English)"}]},
     {"id": "audio_overview", "label": "Audio Overview", "group": "media", "ext": "mp3",
      "blurb": "Hosts talking through the sources", "secs": 90,
      "options": [{"id": "format", "label": "Format",
@@ -217,6 +219,7 @@ def _notebook_payload(notebook_id: str) -> Dict[str, Any]:
               for k, v in sorted(label_counts.items(), key=lambda kv: (-kv[1], kv[0]))]
     arts = _collect_artifacts(notebook_id)
     thread = store.get_thread(notebook_id, "default")[-24:]
+    threads = store.list_threads(notebook_id)
     return {
         "id": meta.get("id", notebook_id),
         "title": meta.get("title") or notebook_id,
@@ -227,6 +230,7 @@ def _notebook_payload(notebook_id: str) -> Dict[str, Any]:
         "artifacts": arts,
         "labels": labels,
         "thread": thread,
+        "threads": threads,
         "stats": {
             "sources": len(sources),
             "chars": sum(s["chars"] for s in sources),
@@ -566,7 +570,8 @@ async def ask(payload: Dict[str, Any] = Body(...)) -> Any:
 
     def _run() -> Dict[str, Any]:
         from hermes_notebook import tools as tools_mod
-        args = {"notebook": nb_id, "question": question, "thread": "default"}
+        args = {"notebook": nb_id, "question": question,
+                "thread": runtime.slugify(str(payload.get("thread") or "default"), 60) or "default"}
         ids = payload.get("source_ids")
         if isinstance(ids, list) and ids:
             args["source_ids"] = [str(x) for x in ids][:12]
@@ -664,6 +669,7 @@ async def generate(payload: Dict[str, Any] = Body(...)) -> Any:
             out = await video.make_video_overview(
                 nb_id, style=str(payload.get("style") or "cinematic"),
                 length=str(payload.get("length") or "short"),
+                language=str(payload.get("language") or ""),
                 notes=payload.get("notes") if isinstance(payload.get("notes"), dict) else None)
         else:
             out = await run_in_threadpool(
@@ -698,6 +704,7 @@ async def video_notes(payload: Dict[str, Any] = Body(...)) -> Any:
             nb_id,
             length=str(payload.get("length") or "") or None,
             style=str(payload.get("style") or "") or None,
+            language=str(payload.get("language") or ""),
             focus=str(payload.get("focus") or ""))
     except Exception as exc:
         return _fail(f"{type(exc).__name__}: {exc}", 500)
@@ -737,6 +744,19 @@ async def label(payload: Dict[str, Any] = Body(...)) -> Any:
     except Exception as exc:
         return _fail(f"{type(exc).__name__}: {exc}", 500)
     return {"ok": True, **out, "state": _notebook_payload(nb_id)}
+
+
+@router.get("/thread")
+def get_thread(notebook: str = Query(...), name: str = Query("default")) -> Any:
+    """One conversation's messages — the page fetches non-default threads on
+    demand instead of shipping every thread in /state."""
+    try:
+        nb_id = store.resolve_notebook(notebook)
+    except Exception as exc:
+        return _fail(str(exc), 404)
+    safe = runtime.slugify(name or "default", 60) or "default"
+    return {"ok": True, "thread": safe,
+            "messages": store.get_thread(nb_id, safe)[-48:]}
 
 
 @router.post("/thread/clear")
@@ -783,6 +803,26 @@ def artifact(notebook: str = Query(...), name: str = Query(...),
                                  media_type="text/plain; charset=utf-8")
     guessed = mimetypes.guess_type(path.name)[0] or "application/octet-stream"
     return FileResponse(str(path), media_type=guessed, filename=path.name)
+
+
+@router.get("/export")
+def export_nb(notebook: str = Query(...),
+              b64: int = Query(0, description="1 = base64 JSON (the page's blob path)")) -> Any:
+    """Whole-notebook zip: sources + artifacts + threads + meta. ``b64=1``
+    matches /artifact — the page fetches through ctx.rest and downloads a blob."""
+    try:
+        nb_id = store.resolve_notebook(notebook)
+        meta = store.get_meta(nb_id)
+        out = store.export_notebook(nb_id)
+    except Exception as exc:
+        return _fail(str(exc), 404)
+    zp = Path(out["zip"])
+    name = f"{nb_id}-notebook.zip"
+    if b64:
+        import base64 as _b64
+        return {"ok": True, "name": name, "bytes": out["size_bytes"], "files": out["files"],
+                "b64": _b64.b64encode(zp.read_bytes()).decode("ascii")}
+    return FileResponse(str(zp), media_type="application/zip", filename=name)
 
 
 # -------------------------------------------------------------- ops (folded)

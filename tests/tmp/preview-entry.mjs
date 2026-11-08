@@ -137,6 +137,22 @@ const rest = async (path, opts) => {
     }
     return { ok: true, notebook: STATE.notebook }
   }
+  if (route === 'thread') {
+    const name = params.get('name') || 'default'
+    const messages = name === 'chat-abc123'
+      ? [
+          { role: 'user', content: 'Compare the two architectures described in the sources.', ts: '2025-11-03T09:00:00Z' },
+          { role: 'assistant', content: 'The sources describe two approaches [S1]. The first favors simplicity; the second trades it for throughput [S2].', ts: '2025-11-03T09:00:30Z' }
+        ]
+      : ((STATE.notebook && STATE.notebook.thread) || [])
+    return { ok: true, thread: name, messages }
+  }
+  if (route === 'thread/clear') return { ok: true, thread: { cleared: 'default' } }
+  if (route === 'export') {
+    // stub payload — the page only base64-decodes + blob-downloads it
+    return { ok: true, name: 'preview-notebook.zip', bytes: 22, files: 1,
+             b64: Buffer.from('PK preview export stub').toString('base64') }
+  }
   if (route === 'notebook/delete') return { ok: true, deleted: (opts && opts.body && opts.body.notebook) || '' }
   if (route === 'options') {
     const body = (opts && opts.body) || {}

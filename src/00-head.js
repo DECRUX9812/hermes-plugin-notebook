@@ -390,6 +390,12 @@ const CSS = `
 .nb-suggest-go{color:${T.text4};display:flex;justify-content:flex-end}
 .nb-gaprow{display:flex;gap:6px;flex-wrap:wrap;align-items:center}
 .nb-gaprow .nb-chip[data-click=true]{border-style:dashed}
+.nb-thrrow{display:flex;align-items:center;gap:10px;width:100%;text-align:left;
+  padding:10px 12px;border-radius:12px;cursor:pointer;font-family:inherit;
+  border:1px solid transparent;background:transparent;color:${T.text}}
+.nb-thrrow:hover{background:var(--nb-wash)}
+.nb-thrrow.is-current{border-color:color-mix(in srgb,${T.accent} 40%, transparent);
+  background:color-mix(in srgb,${T.accent} 8%, transparent)}
 
 /* --------------------------------------------------------- studio (index) */
 .nb-grid{display:flex;flex-direction:column;gap:10px;padding:12px 14px 26px}

@@ -284,6 +284,7 @@ async def notebook_video(args: dict, **kw) -> str:
         length=args.get("length") or None,
         focus=args.get("focus") or "",
         style=args.get("style") or None,
+        language=args.get("language") or "",
     )
     return runtime.ok(**{k: v for k, v in out.items() if k != "ok"})
 
