@@ -162,7 +162,11 @@ def _artifact_kind_of(name: str) -> str:
 
 
 def _artifact_stamp(name: str) -> str:
-    return name.split("-", 2)[0] if name.count("-") >= 2 else ""
+    # filenames are <yyyymmdd>-<hhmmss>-<kind>.<ext> — the run key needs the
+    # full stamp, not just the date, or same-day regenerations of one kind
+    # collapse into a single row (and delete would eat both runs)
+    parts = name.split("-", 2)
+    return "-".join(parts[:2]) if len(parts) >= 3 else ""
 
 
 def _collect_artifacts(notebook_id: str) -> List[Dict[str, Any]]:
@@ -182,6 +186,7 @@ def _collect_artifacts(notebook_id: str) -> List[Dict[str, Any]]:
         if item.get("modified", "") > run["modified"]:
             run["modified"] = item["modified"]
     out = []
+    legacy_used = set()
     for run in runs.values():
         exts = {f["ext"] for f in run["files"]}
         meta = KIND_INDEX.get(run["kind"], {})
@@ -192,10 +197,18 @@ def _collect_artifacts(notebook_id: str) -> List[Dict[str, Any]]:
                 break
         else:
             primary = run["files"][0]
+        # titles renamed before the stamp fix live under the date-only key —
+        # the newest run of that day+kind inherits it (files arrive newest-first)
+        legacy_key = f"{run['key'].split('-', 1)[0]}-{run['kind']}"
+        title = titles.get(run["key"], "")
+        if not title and legacy_key not in legacy_used:
+            title = titles.get(legacy_key, "")
+            if title:
+                legacy_used.add(legacy_key)
         out.append({
             "key": run["key"],
             "kind": run["kind"],
-            "title": titles.get(run["key"], ""),
+            "title": title,
             "label": meta.get("label") or run["kind"].replace("_", " ").title(),
             "group": meta.get("group", "docs"),
             "primary": primary["name"],
