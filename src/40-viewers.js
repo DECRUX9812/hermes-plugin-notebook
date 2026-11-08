@@ -76,7 +76,7 @@ function Viewer({ artifact, notebook, onCite, onRegenerate, regenerating, onChan
   } else if (artifact.kind === 'flashcards') {
     body = jsx(FlashcardsView, { data: asJson.json, text: primary.text, key: artifact.key, deckId: artifact.key })
   } else if (artifact.kind === 'quiz') {
-    body = jsx(QuizView, { data: asJson.json, text: primary.text })
+    body = jsx(QuizView, { data: asJson.json, text: primary.text, deckId: artifact.key })
   } else if (artifact.kind === 'slides') {
     body = jsx(SlidesView, { data: asJson.json, text: primary.text, htmlUrl: primary.url && artifact.ext === 'html' ? primary.url : '' })
   } else if (artifact.kind === 'infographic') {
@@ -630,9 +630,17 @@ function FlashcardsView({ data, text, deckId }) {
 
 /* ------------------------------------------------------------------ quiz */
 
-function QuizView({ data, text }) {
+function QuizView({ data, text, deckId }) {
   const questions = (data && (data.questions || data.items)) || []
-  const [picked, setPicked] = useState({})
+  // answers persist per artifact — revisiting the deck keeps your score
+  const storeKey = `quiz:picked:${deckId || 'default'}`
+  const [picked, setPicked] = useState(() => persist.get(storeKey, {}) || {})
+  const setAns = (qi, c) => setPicked((p) => {
+    const next = { ...p, [qi]: c }
+    persist.set(storeKey, next)
+    return next
+  })
+  const reset = () => { setPicked({}); persist.set(storeKey, {}) }
   if (!questions.length) {
     return el('div', { className: 'nb-view-body' }, el('div', { className: 'nb-doc' }, jsx(Markdown, { text })))
   }
@@ -641,7 +649,7 @@ function QuizView({ data, text }) {
     if (chosen === undefined) return acc
     return acc + (normAnswer(chosen) === normAnswer(q.answer) ? 1 : 0)
   }, 0)
-  const answered = Object.keys(picked).length
+  const answered = questions.reduce((n, _q, qi) => n + (picked[qi] !== undefined ? 1 : 0), 0)
   return el('div', { className: 'nb-view-body' },
     el('div', { style: { maxWidth: '76ch' } },
       el('div', { style: { display: 'flex', gap: '10px', alignItems: 'center', marginBottom: '14px' } },
@@ -649,7 +657,7 @@ function QuizView({ data, text }) {
           children: `${answered}/${questions.length} answered` }),
         answered ? el('span', { className: 'nb-chip', children: `${score} correct` }) : null,
         el('span', { style: { flex: 1 } }),
-        answered ? jsx(Btn, { size: 'sm', icon: 'refresh', onClick: () => setPicked({}), children: 'Reset' }) : null),
+        answered ? jsx(Btn, { size: 'sm', icon: 'refresh', onClick: reset, children: 'Reset' }) : null),
       questions.map((q, qi) => {
         const chosen = picked[qi]
         const done = chosen !== undefined
@@ -667,7 +675,7 @@ function QuizView({ data, text }) {
             const isRight = normAnswer(c) === normAnswer(q.answer)
             const tone = !done ? T.card : isRight ? `color-mix(in srgb, ${T.ok} 16%, transparent)` : isChosen ? `color-mix(in srgb, ${T.danger} 14%, transparent)` : T.card
             return el('button', {
-              type: 'button', disabled: done, onClick: () => setPicked((p) => ({ ...p, [qi]: c })),
+              type: 'button', disabled: done, onClick: () => setAns(qi, c),
               'aria-pressed': isChosen,
               style: {
                 minHeight: '38px', textAlign: 'left', padding: '8px 12px', borderRadius: '9px',
