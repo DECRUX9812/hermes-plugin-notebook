@@ -54,7 +54,8 @@ const P = {
   more: 'M5 12h.01M12 12h.01M19 12h.01',
   pin: 'M9 4h6l-1 6 3 3v2H7v-2l3-3-1-6Z',
   sliders: 'M4 7h9m4 0h3M4 17h3m4 0h9M13 4v6m-6 4v6',
-  pencil: 'M4 20h4L19.5 8.5a2.12 2.12 0 0 0-3-3L5 17v3Zm9.5-11.5 2 2'
+  pencil: 'M4 20h4L19.5 8.5a2.12 2.12 0 0 0-3-3L5 17v3Zm9.5-11.5 2 2',
+  shuffle: 'M16 3h5v5M4 20l17-17M21 16v5h-5M15 15l6 6M4 4l5 5'
 }
 
 function Glyph({ name, size = 16, stroke = 1.7 }) {

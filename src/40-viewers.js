@@ -74,7 +74,7 @@ function Viewer({ artifact, notebook, onCite, onRegenerate, regenerating, onChan
   } else if (artifact.kind === 'mind_map') {
     body = jsx(MindMapView, { data: asJson.json, text: primary.text })
   } else if (artifact.kind === 'flashcards') {
-    body = jsx(FlashcardsView, { data: asJson.json, text: primary.text, key: artifact.key })
+    body = jsx(FlashcardsView, { data: asJson.json, text: primary.text, key: artifact.key, deckId: artifact.key })
   } else if (artifact.kind === 'quiz') {
     body = jsx(QuizView, { data: asJson.json, text: primary.text })
   } else if (artifact.kind === 'slides') {
@@ -543,24 +543,38 @@ function parseMindMapMd(text) {
 
 /* ------------------------------------------------------------ flashcards */
 
-function FlashcardsView({ data, text }) {
+function FlashcardsView({ data, text, deckId }) {
   const cards = (data && data.cards) || []
   const [i, setI] = useState(0)
   const [flipped, setFlipped] = useState(false)
-  const [known, setKnown] = useState(() => persist.get('known:cards', {}) || {})
+  // keyed per artifact — a second deck must not inherit the first's marks
+  const storeKey = `known:cards:${deckId || 'default'}`
+  const [known, setKnown] = useState(() => persist.get(storeKey, {}) || {})
+  // order holds original card indices when shuffled — `known` keys stay stable
+  const [order, setOrder] = useState(null)
+  const seq = order || cards.map((_, ci) => ci)
 
-  useEffect(() => { setI(0); setFlipped(false) }, [cards.length])
+  useEffect(() => { setI(0); setFlipped(false); setOrder(null) }, [cards.length])
   if (!cards.length) {
     return el('div', { className: 'nb-view-body' }, el('div', { className: 'nb-doc' }, jsx(Markdown, { text })))
   }
-  const card = cards[Math.min(i, cards.length - 1)]
+  const cardKey = seq[Math.min(i, seq.length - 1)]
+  const card = cards[cardKey]
   const mark = (val) => {
-    const next = { ...known, [i]: val }
-    setKnown(next); persist.set('known:cards', next)
+    const next = { ...known, [cardKey]: val }
+    setKnown(next); persist.set(storeKey, next)
     setFlipped(false)
-    setI((n) => Math.min(cards.length - 1, n + 1))
+    setI((n) => Math.min(seq.length - 1, n + 1))
   }
   const knownCount = Object.values(known).filter(Boolean).length
+  const reshuffle = () => {
+    const idx = cards.map((_, ci) => ci)
+    for (let k = idx.length - 1; k > 0; k -= 1) {
+      const j = Math.floor(Math.random() * (k + 1))
+      ;[idx[k], idx[j]] = [idx[j], idx[k]]
+    }
+    setOrder(idx); setI(0); setFlipped(false)
+  }
 
   return el('div', { className: 'nb-view-body' },
     el('div', { className: 'nb-deck' },
@@ -570,8 +584,12 @@ function FlashcardsView({ data, text }) {
         jsx('span', { className: 'nb-hint', children: `card ${i + 1} of ${cards.length}` }),
         el('span', { style: { flex: 1 } }),
         jsx(Btn, {
+          size: 'sm', icon: 'shuffle', children: 'Shuffle',
+          onClick: reshuffle, disabled: cards.length < 2
+        }),
+        jsx(Btn, {
           size: 'sm', icon: 'refresh', children: 'Restart',
-          onClick: () => { setI(0); setFlipped(false); setKnown({}); persist.set('known:cards', {}) }
+          onClick: () => { setI(0); setFlipped(false); setOrder(null); setKnown({}); persist.set(storeKey, {}) }
         })),
       jsx('button', {
         type: 'button', className: 'nb-flip', 'data-flipped': flipped ? 'true' : 'false',
@@ -602,11 +620,11 @@ function FlashcardsView({ data, text }) {
           ? jsx(Btn, { variant: 'primary', icon: 'check', onClick: () => mark(true), children: 'Got it' })
           : null,
         jsx(Btn, {
-          icon: 'arrowRight', disabled: i === cards.length - 1, children: 'Next',
-          onClick: () => { setFlipped(false); setI((n) => Math.min(cards.length - 1, n + 1)) }
+          icon: 'arrowRight', disabled: i === seq.length - 1, children: 'Next',
+          onClick: () => { setFlipped(false); setI((n) => Math.min(seq.length - 1, n + 1)) }
         })),
       el('div', { className: 'nb-bar-track', style: { maxWidth: '100%' } },
-        el('div', { className: 'nb-bar-fill', style: { width: `${((i + 1) / cards.length) * 100}%` } })))
+        el('div', { className: 'nb-bar-fill', style: { width: `${((i + 1) / seq.length) * 100}%` } })))
   )
 }
 
