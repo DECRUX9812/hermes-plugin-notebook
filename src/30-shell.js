@@ -456,7 +456,7 @@ function HomeDashboard({ data, onOpen, onNew, onDelete, onRename, onDuplicate })
                   children: emojiFor(n.id, n.emoji) }),
                 el('span', { className: 'nb-feature-title', children: n.title }),
                 el('span', { className: 'nb-feature-meta',
-                  children: `${dshort(n.updated_at)} · ${n.sources} source${n.sources === 1 ? '' : 's'} · ${n.artifacts} artifact${n.artifacts === 1 ? '' : 's'}` })
+                  children: `${dshort(n.updated_at)} · ${n.sources} source${n.sources === 1 ? '' : 's'} · ${n.artifacts} artifact${n.artifacts === 1 ? '' : 's'}${n.threads ? ` · ${n.threads} chat${n.threads === 1 ? '' : 's'}` : ''}` })
               ]
             }, n.id)))
         : null,
@@ -489,7 +489,7 @@ function HomeDashboard({ data, onOpen, onNew, onDelete, onRename, onDuplicate })
                     children: emojiFor(n.id, n.emoji) }),
                   el('span', { className: 'nb-nbcard-title', children: n.title }),
                   el('span', { className: 'nb-nbcard-meta',
-                    children: `${dshort(n.updated_at)} · ${n.sources} source${n.sources === 1 ? '' : 's'}` })
+                    children: `${dshort(n.updated_at)} · ${n.sources} source${n.sources === 1 ? '' : 's'}${n.threads ? ` · ${n.threads} chat${n.threads === 1 ? '' : 's'}` : ''}` })
                 ]
               }, n.id),
               jsx(IconBtn, {

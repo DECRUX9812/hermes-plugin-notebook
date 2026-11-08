@@ -67,6 +67,7 @@ def list_notebooks() -> list[dict]:
         nb_id = nb_json.parent.name
         sources = list_sources(nb_id)
         artifacts = list_artifacts(nb_id)
+        threads_dir = nb_json.parent / "threads"
         out.append({
             "id": nb_id,
             "title": meta.get("title") or nb_id,
@@ -75,6 +76,8 @@ def list_notebooks() -> list[dict]:
             "updated_at": meta.get("updated_at", ""),
             "sources": len(sources),
             "artifacts": len(artifacts),
+            "threads": (len(list(threads_dir.glob("*.json")))
+                        if threads_dir.is_dir() else 0),
             "total_chars": sum(s.get("chars", 0) for s in sources),
             "dir": str(nb_json.parent),
         })
