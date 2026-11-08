@@ -650,6 +650,20 @@ const CSS = `
 .nb-citepop-body{font-size:13px;line-height:1.55;color:${T.text2};
   display:-webkit-box;-webkit-line-clamp:5;-webkit-box-orient:vertical;overflow:hidden}
 
+.nb-search-hit{display:block;width:100%;text-align:left;background:transparent;
+  border:1px solid ${T.line};border-radius:12px;padding:10px 12px;cursor:pointer;
+  color:${T.text};font:inherit;transition:border-color .12s,background .12s}
+.nb-search-hit:hover{border-color:color-mix(in srgb,${T.accent} 45%,transparent);
+  background:color-mix(in srgb,${T.accent} 6%,transparent)}
+.nb-search-hit-head{display:flex;align-items:center;gap:8px;font-size:13.5px;
+  margin-bottom:4px}
+.nb-search-hit-head b{font-weight:600;overflow:hidden;text-overflow:ellipsis;
+  white-space:nowrap}
+.nb-search-hit-snip{font-size:13px;line-height:1.5;color:${T.text3};
+  display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden}
+.nb-search-hit mark{background:color-mix(in srgb,${T.accent} 30%,transparent);
+  color:${T.text};border-radius:3px;padding:0 1px}
+
 .nb-dt-wrap{overflow:auto;border:1px solid ${T.line};border-radius:14px;
   background:${T.card}}
 .nb-dt{border-collapse:collapse;width:100%;font-size:13px;min-width:520px}

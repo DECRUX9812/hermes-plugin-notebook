@@ -17,6 +17,7 @@ function App() {
   const [railOpen, setRailOpen] = useState(() => persist.get('rail', '1') !== '0')
   const [studioOpen, setStudioOpen] = useState(() => persist.get('studio', '1') !== '0')
   const [opsStats, setOpsStats] = useState(null)
+  const [searchOpen, setSearchOpen] = useState(false)
 
   const say = useCallback((msg) => {
     setNote(msg)
@@ -32,6 +33,17 @@ function App() {
   const data = studio.data
   const notebook = data && data.notebook
   const kinds = (data && data.kinds) || []
+
+  // Ctrl/Cmd+K → notebook search (NotebookLM's global find)
+  useEffect(() => {
+    const onKey = (e) => {
+      if ((e.metaKey || e.ctrlKey) && String(e.key).toLowerCase() === 'k') {
+        if (mode === 'studio' && notebook) { e.preventDefault(); setSearchOpen(true) }
+      }
+    }
+    document.addEventListener('keydown', onKey)
+    return () => document.removeEventListener('keydown', onKey)
+  }, [mode, notebook])
 
   // the first notebook in the list is the default when nothing is stored
   useEffect(() => {
@@ -270,6 +282,9 @@ function App() {
           disabled: !notebook, children: 'Add source'
         }) : null,
         mode === 'studio' && notebook ? jsx(IconBtn, {
+          icon: 'search', label: 'Search notebook (Ctrl+K)', onClick: () => setSearchOpen(true)
+        }) : null,
+        mode === 'studio' && notebook ? jsx(IconBtn, {
           icon: 'download', label: 'Export notebook (.zip)', onClick: exportNotebook
         }) : null)
     ),
@@ -322,6 +337,14 @@ function App() {
       seedQuery: srcDialog && srcDialog.seed,
       noteOnly: !!(srcDialog && srcDialog.mode === 'note'),
       onDone: async (msg) => { setSrcDialog(null); await studio.reload(true); if (msg) say(msg) }
+    }),
+    jsx(SearchDialog, {
+      open: searchOpen, onClose: () => setSearchOpen(false), notebook,
+      onPick: (hit) => {
+        const src = ((notebook && notebook.sources) || []).find((s) => s.id === hit.source_id)
+        if (src) openSource(src)
+        else say('that source is no longer in the notebook')
+      }
     }),
     jsx(NewNotebookDialog, {
       open: newNb, onClose: () => setNewNb(false),

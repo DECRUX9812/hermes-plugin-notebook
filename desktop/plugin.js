@@ -650,6 +650,20 @@ const CSS = `
 .nb-citepop-body{font-size:13px;line-height:1.55;color:${T.text2};
   display:-webkit-box;-webkit-line-clamp:5;-webkit-box-orient:vertical;overflow:hidden}
 
+.nb-search-hit{display:block;width:100%;text-align:left;background:transparent;
+  border:1px solid ${T.line};border-radius:12px;padding:10px 12px;cursor:pointer;
+  color:${T.text};font:inherit;transition:border-color .12s,background .12s}
+.nb-search-hit:hover{border-color:color-mix(in srgb,${T.accent} 45%,transparent);
+  background:color-mix(in srgb,${T.accent} 6%,transparent)}
+.nb-search-hit-head{display:flex;align-items:center;gap:8px;font-size:13.5px;
+  margin-bottom:4px}
+.nb-search-hit-head b{font-weight:600;overflow:hidden;text-overflow:ellipsis;
+  white-space:nowrap}
+.nb-search-hit-snip{font-size:13px;line-height:1.5;color:${T.text3};
+  display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden}
+.nb-search-hit mark{background:color-mix(in srgb,${T.accent} 30%,transparent);
+  color:${T.text};border-radius:3px;padding:0 1px}
+
 .nb-dt-wrap{overflow:auto;border:1px solid ${T.line};border-radius:14px;
   background:${T.card}}
 .nb-dt{border-collapse:collapse;width:100%;font-size:13px;min-width:520px}
@@ -1206,6 +1220,7 @@ function App() {
   const [railOpen, setRailOpen] = useState(() => persist.get('rail', '1') !== '0')
   const [studioOpen, setStudioOpen] = useState(() => persist.get('studio', '1') !== '0')
   const [opsStats, setOpsStats] = useState(null)
+  const [searchOpen, setSearchOpen] = useState(false)
 
   const say = useCallback((msg) => {
     setNote(msg)
@@ -1221,6 +1236,17 @@ function App() {
   const data = studio.data
   const notebook = data && data.notebook
   const kinds = (data && data.kinds) || []
+
+  // Ctrl/Cmd+K → notebook search (NotebookLM's global find)
+  useEffect(() => {
+    const onKey = (e) => {
+      if ((e.metaKey || e.ctrlKey) && String(e.key).toLowerCase() === 'k') {
+        if (mode === 'studio' && notebook) { e.preventDefault(); setSearchOpen(true) }
+      }
+    }
+    document.addEventListener('keydown', onKey)
+    return () => document.removeEventListener('keydown', onKey)
+  }, [mode, notebook])
 
   // the first notebook in the list is the default when nothing is stored
   useEffect(() => {
@@ -1459,6 +1485,9 @@ function App() {
           disabled: !notebook, children: 'Add source'
         }) : null,
         mode === 'studio' && notebook ? jsx(IconBtn, {
+          icon: 'search', label: 'Search notebook (Ctrl+K)', onClick: () => setSearchOpen(true)
+        }) : null,
+        mode === 'studio' && notebook ? jsx(IconBtn, {
           icon: 'download', label: 'Export notebook (.zip)', onClick: exportNotebook
         }) : null)
     ),
@@ -1511,6 +1540,14 @@ function App() {
       seedQuery: srcDialog && srcDialog.seed,
       noteOnly: !!(srcDialog && srcDialog.mode === 'note'),
       onDone: async (msg) => { setSrcDialog(null); await studio.reload(true); if (msg) say(msg) }
+    }),
+    jsx(SearchDialog, {
+      open: searchOpen, onClose: () => setSearchOpen(false), notebook,
+      onPick: (hit) => {
+        const src = ((notebook && notebook.sources) || []).find((s) => s.id === hit.source_id)
+        if (src) openSource(src)
+        else say('that source is no longer in the notebook')
+      }
     }),
     jsx(NewNotebookDialog, {
       open: newNb, onClose: () => setNewNb(false),
@@ -2999,6 +3036,72 @@ const SOURCE_MODES = [
 
 const hostOf = (url) => {
   try { return new URL(url).hostname.replace(/^www\./, '') } catch { return '' }
+}
+
+/* notebook-wide passage search — deterministic BM25 over every source,
+   results open the owning source in the peek pane. */
+function SearchDialog({ open, onClose, notebook, onPick }) {
+  const [q, setQ] = useState('')
+  const [hits, setHits] = useState(null)
+  const [busy, setBusy] = useState(false)
+  const [err, setErr] = useState('')
+  const nbId = notebook && notebook.id
+
+  useEffect(() => {
+    if (!open) { setQ(''); setHits(null); setErr(''); setBusy(false); return undefined }
+    const query = q.trim()
+    if (query.length < 2 || !nbId) { setHits(null); setBusy(false); return undefined }
+    let live = true
+    setBusy(true)
+    const t = setTimeout(() => {
+      api('/search', { method: 'POST', body: { notebook: nbId, query, limit: 12 }, timeoutMs: 30000 })
+        .then((out) => {
+          if (!live) return
+          setHits((((out || {}).result || {}).hits) || [])
+          setErr('')
+        })
+        .catch((e) => { if (live) { setHits([]); setErr(e.message || String(e)) } })
+        .finally(() => { if (live) setBusy(false) })
+    }, 260)
+    return () => { live = false; clearTimeout(t) }
+  }, [q, open, nbId])
+
+  const query = q.trim()
+  const mark = (text) => {
+    if (!query) return text
+    const parts = String(text || '').split(
+      new RegExp(`(${query.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')})`, 'ig'))
+    return parts.map((p, i) => (i % 2 ? el('mark', { key: i, children: p }) : p))
+  }
+
+  return jsx(Dialog, {
+    open, onClose, title: 'Search this notebook', width: 640,
+    children: [
+      jsx(SearchField, {
+        value: q, onChange: setQ,
+        placeholder: 'Search across every source…', label: 'Search this notebook'
+      }),
+      el('div', { style: { marginTop: '14px', display: 'grid', gap: '8px' } },
+        err ? el('div', { style: { color: T.danger, fontSize: '13px' }, children: err }) : null,
+        query.length < 2
+          ? el('div', { className: 'nb-hint', children: 'Type at least two characters — results are ranked passages from your sources.' })
+          : null,
+        query.length >= 2 && !busy && hits && hits.length === 0
+          ? el('div', { className: 'nb-hint', children: `No passages match “${query}”.` })
+          : null,
+        busy ? el('div', { className: 'nb-hint', children: 'searching…' }) : null,
+        (hits || []).map((h) => el('button', {
+          key: `${h.source_id}-${h.chunk_index}`, type: 'button', className: 'nb-search-hit',
+          onClick: () => { if (onPick) onPick(h); onClose() },
+          children: [
+            el('div', { className: 'nb-search-hit-head' },
+              el('b', { children: h.title || h.source_id }),
+              h.kind ? el('span', { className: 'nb-meta', children: kindLabel(h.kind) }) : null),
+            el('div', { className: 'nb-search-hit-snip', children: mark(h.snippet) })
+          ]
+        })))
+    ]
+  })
 }
 
 function AddSourceDialog({ open, onClose, notebook, onDone, initialMode, seedQuery, noteOnly }) {

@@ -1011,6 +1011,72 @@ const hostOf = (url) => {
   try { return new URL(url).hostname.replace(/^www\./, '') } catch { return '' }
 }
 
+/* notebook-wide passage search — deterministic BM25 over every source,
+   results open the owning source in the peek pane. */
+function SearchDialog({ open, onClose, notebook, onPick }) {
+  const [q, setQ] = useState('')
+  const [hits, setHits] = useState(null)
+  const [busy, setBusy] = useState(false)
+  const [err, setErr] = useState('')
+  const nbId = notebook && notebook.id
+
+  useEffect(() => {
+    if (!open) { setQ(''); setHits(null); setErr(''); setBusy(false); return undefined }
+    const query = q.trim()
+    if (query.length < 2 || !nbId) { setHits(null); setBusy(false); return undefined }
+    let live = true
+    setBusy(true)
+    const t = setTimeout(() => {
+      api('/search', { method: 'POST', body: { notebook: nbId, query, limit: 12 }, timeoutMs: 30000 })
+        .then((out) => {
+          if (!live) return
+          setHits((((out || {}).result || {}).hits) || [])
+          setErr('')
+        })
+        .catch((e) => { if (live) { setHits([]); setErr(e.message || String(e)) } })
+        .finally(() => { if (live) setBusy(false) })
+    }, 260)
+    return () => { live = false; clearTimeout(t) }
+  }, [q, open, nbId])
+
+  const query = q.trim()
+  const mark = (text) => {
+    if (!query) return text
+    const parts = String(text || '').split(
+      new RegExp(`(${query.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')})`, 'ig'))
+    return parts.map((p, i) => (i % 2 ? el('mark', { key: i, children: p }) : p))
+  }
+
+  return jsx(Dialog, {
+    open, onClose, title: 'Search this notebook', width: 640,
+    children: [
+      jsx(SearchField, {
+        value: q, onChange: setQ,
+        placeholder: 'Search across every source…', label: 'Search this notebook'
+      }),
+      el('div', { style: { marginTop: '14px', display: 'grid', gap: '8px' } },
+        err ? el('div', { style: { color: T.danger, fontSize: '13px' }, children: err }) : null,
+        query.length < 2
+          ? el('div', { className: 'nb-hint', children: 'Type at least two characters — results are ranked passages from your sources.' })
+          : null,
+        query.length >= 2 && !busy && hits && hits.length === 0
+          ? el('div', { className: 'nb-hint', children: `No passages match “${query}”.` })
+          : null,
+        busy ? el('div', { className: 'nb-hint', children: 'searching…' }) : null,
+        (hits || []).map((h) => el('button', {
+          key: `${h.source_id}-${h.chunk_index}`, type: 'button', className: 'nb-search-hit',
+          onClick: () => { if (onPick) onPick(h); onClose() },
+          children: [
+            el('div', { className: 'nb-search-hit-head' },
+              el('b', { children: h.title || h.source_id }),
+              h.kind ? el('span', { className: 'nb-meta', children: kindLabel(h.kind) }) : null),
+            el('div', { className: 'nb-search-hit-snip', children: mark(h.snippet) })
+          ]
+        })))
+    ]
+  })
+}
+
 function AddSourceDialog({ open, onClose, notebook, onDone, initialMode, seedQuery, noteOnly }) {
   const [mode, setMode] = useState(noteOnly ? 'note' : (initialMode || 'find'))
   const [value, setValue] = useState('')
