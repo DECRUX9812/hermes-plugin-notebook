@@ -110,3 +110,10 @@ function latestByKind(artifacts) {
   }
   return map
 }
+
+const OPT_LABEL = { focus: 'focus', count_hint: 'amount', format: 'format', length: 'length', language: 'language', style: 'style' }
+/** "focus: fusion economics · format: brief" — what a tailored run asked for. */
+const optsSummary = (opts) => Object.keys(opts || {})
+  .filter((k) => opts[k])
+  .map((k) => `${OPT_LABEL[k] || k}: ${String(opts[k]).slice(0, 48)}`)
+  .join(' · ')

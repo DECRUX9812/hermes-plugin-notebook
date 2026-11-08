@@ -1210,6 +1210,13 @@ function latestByKind(artifacts) {
   return map
 }
 
+const OPT_LABEL = { focus: 'focus', count_hint: 'amount', format: 'format', length: 'length', language: 'language', style: 'style' }
+/** "focus: fusion economics · format: brief" — what a tailored run asked for. */
+const optsSummary = (opts) => Object.keys(opts || {})
+  .filter((k) => opts[k])
+  .map((k) => `${OPT_LABEL[k] || k}: ${String(opts[k]).slice(0, 48)}`)
+  .join(' · ')
+
 /* ------------------------------------------------------------------ shell */
 
 function App() {
@@ -2149,7 +2156,7 @@ function Main({ notebook, kinds, tab, setTab, picked, setPicked, busy, generate,
         ? jsx(Viewer, {
             artifact: picked, notebook, onSearch: () => {},
             regenerating: !!(busy && busy[picked.kind]),
-            onRegenerate: () => generate(picked.kind),
+            onRegenerate: () => generate(picked.kind, picked.opts || {}),
             onChanged: () => reload && reload(true),
             onCite: (n) => {
               const src = sources.find((s) => s.n === n)
@@ -3015,7 +3022,7 @@ function StudioPanel({ kinds, notebook, busy, generate, filter, setFilter, onOpe
                 'data-kind': a.kind,
                 onClick: () => onOpen(a),
                 'aria-label': `Open ${a.title || a.label || a.kind}`,
-                title: a.title || a.primary || a.label,
+                title: `${a.title || a.primary || a.label}${optsSummary(a.opts) ? ` — ${optsSummary(a.opts)}` : ''}`,
                 children: [
                   el('span', { className: 'nb-art-ico', 'aria-hidden': 'true' },
                     i < 12 ? jsx(ArtThumb, { run: a, nbId: notebook && notebook.id })
@@ -3023,7 +3030,7 @@ function StudioPanel({ kinds, notebook, busy, generate, filter, setFilter, onOpe
                   el('span', { className: 'nb-art-main' },
                     el('span', { className: 'nb-art-title', children: a.title || a.label || a.kind }),
                     el('span', { className: 'nb-art-sub',
-                      children: `${nfmt(a.bytes)} · ${ago(a.modified)}` }))
+                      children: `${nfmt(a.bytes)} · ${ago(a.modified)}${a.opts && Object.keys(a.opts).length ? ' · tailored' : ''}` }))
                 ]
               }, a.key || a.primary || i),
               onDelete ? jsx(IconBtn, {

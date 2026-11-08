@@ -174,6 +174,7 @@ def _collect_artifacts(notebook_id: str) -> List[Dict[str, Any]]:
     .txt + .json, and a panel that lists all three reads as a mess."""
     raw = store.list_artifacts(notebook_id)
     titles = (store.get_meta(notebook_id).get("artifact_titles") or {})
+    gen_opts = (store.get_meta(notebook_id).get("artifact_opts") or {})
     runs: Dict[str, Dict[str, Any]] = {}
     for item in raw:
         name = item["name"]
@@ -209,6 +210,7 @@ def _collect_artifacts(notebook_id: str) -> List[Dict[str, Any]]:
             "key": run["key"],
             "kind": run["kind"],
             "title": title,
+            "opts": gen_opts.get(run["key"], {}),
             "label": meta.get("label") or run["kind"].replace("_", " ").title(),
             "group": meta.get("group", "docs"),
             "primary": primary["name"],
@@ -815,6 +817,22 @@ async def generate(payload: Dict[str, Any] = Body(...)) -> Any:
                     style=str(payload.get("style") or "")))
     except Exception as exc:
         return _fail(f"{type(exc).__name__}: {exc}", 500)
+    # remember the knobs this run used — regenerate reuses them and the row
+    # can show the artifact was tailored
+    opts_used = {k: str(payload.get(k) or "").strip()
+                 for k in ("focus", "count_hint", "format", "length", "language", "style")}
+    opts_used = {k: v for k, v in opts_used.items() if v}
+    if opts_used:
+        try:
+            src = out.get("path") or out.get("audio") or out.get("video") or ""
+            fname = str(src).replace("\\", "/").rsplit("/", 1)[-1]
+            key = f"{_artifact_stamp(fname)}-{kind}" if fname else ""
+            if key:
+                aopts = dict(store.get_meta(nb_id).get("artifact_opts") or {})
+                aopts[key] = opts_used
+                store.update_meta(nb_id, artifact_opts=aopts)
+        except Exception:
+            pass
     payload_state = _notebook_payload(nb_id)
     return {"ok": True, "kind": kind, "result": out,
             "seconds": round(time.time() - started, 1),

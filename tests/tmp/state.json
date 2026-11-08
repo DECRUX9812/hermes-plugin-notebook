@@ -166,7 +166,11 @@
             "size": 3395
           }
         ],
-        "modified": "2026-11-07T17:53:13+00:00"
+        "modified": "2026-11-07T17:53:13+00:00",
+        "opts": {
+          "format": "deep_dive",
+          "length": "short"
+        }
       },
       {
         "key": "20261107-170743-video_overview",
@@ -289,7 +293,10 @@
             "size": 1080
           }
         ],
-        "modified": "2026-11-07T17:53:13+00:00"
+        "modified": "2026-11-07T17:53:13+00:00",
+        "opts": {
+          "style": "sections"
+        }
       },
       {
         "key": "20261107-170041-slides",
