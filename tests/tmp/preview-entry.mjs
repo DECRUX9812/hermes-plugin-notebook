@@ -95,6 +95,21 @@ const rest = async (path, opts) => {
       state: STATE
     }
   }
+  if (route === 'search') {
+    await new Promise((r) => setTimeout(r, 250))
+    const q = String((opts && opts.body && opts.body.query) || '').toLowerCase()
+    const srcs = (STATE.notebook && STATE.notebook.sources) || []
+    const first = q.split(/s+/)[0] || ''
+    const hits = srcs
+      .filter((s) => !first || (String(s.title || '') + ' ' + String(s.summary || '') + ' ' + String(s.kind || '')).toLowerCase().indexOf(first) >= 0)
+      .slice(0, 6)
+      .map((s, i) => ({
+        source_id: s.id, title: s.title, kind: s.kind, score: 3.5 - i * 0.3,
+        chunk_index: 0,
+        snippet: String(s.summary || s.title || '') + ' — matching "' + q + '" across the stored passages of this source.'
+      }))
+    return { ok: true, result: { ok: true, query: q, hits, total_chunks: 42 } }
+  }
   if (route === 'suggest') {
     await new Promise((r) => setTimeout(r, 800))
     return {
@@ -125,6 +140,13 @@ const rest = async (path, opts) => {
     }
     return { ok: true, source_id: sid, active: enabled, state: STATE.notebook }
   }
+  if (route === 'source/refresh') {
+    const sid = (opts && opts.body && opts.body.source_id) || ''
+    for (const s of (STATE.notebook && STATE.notebook.sources) || []) {
+      if (s.id === sid) { s.chars = (s.chars || 0) + 1; s.refreshed_at = new Date().toISOString() }
+    }
+    return { ok: true, source: { id: sid }, state: STATE.notebook }
+  }
   if (route === 'source/delete') {
     const sid = (opts && opts.body && opts.body.source_id) || ''
     if (STATE.notebook && STATE.notebook.sources) {
@@ -151,6 +173,11 @@ const rest = async (path, opts) => {
       if (body.emoji !== undefined) STATE.notebook.emoji = body.emoji
     }
     return { ok: true, notebook: STATE.notebook }
+  }
+  if (route === 'notebook/duplicate') {
+    const copy = { id: 'copy-of-demo', title: 'Copy of ' + ((STATE.notebook && STATE.notebook.title) || 'notebook') }
+    STATE.notebooks = (STATE.notebooks || []).concat([{ id: copy.id, title: copy.title, sources: 0, artifacts: 0 }])
+    return { ok: true, notebook: copy }
   }
   if (route === 'thread') {
     const name = params.get('name') || 'default'

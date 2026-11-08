@@ -558,6 +558,12 @@
       "medium",
       "long"
      ]
+    },
+    {
+     "id": "focus",
+     "label": "Focus",
+     "kind": "text",
+     "placeholder": "e.g. only the cost and timeline sections"
     }
    ]
   },
@@ -593,6 +599,12 @@
      "label": "Language",
      "kind": "text",
      "placeholder": "Auto (English)"
+    },
+    {
+     "id": "focus",
+     "label": "Focus",
+     "kind": "text",
+     "placeholder": "e.g. only the cost and timeline sections"
     }
    ]
   },
@@ -602,7 +614,15 @@
    "group": "docs",
    "ext": "md",
    "blurb": "The notebook in a page",
-   "secs": 12
+   "secs": 12,
+   "options": [
+    {
+     "id": "focus",
+     "label": "Focus",
+     "kind": "text",
+     "placeholder": "e.g. only the cost and timeline sections"
+    }
+   ]
   },
   {
    "id": "briefing_doc",
@@ -610,7 +630,15 @@
    "group": "docs",
    "ext": "md",
    "blurb": "Decisions, risks, what to do next",
-   "secs": 18
+   "secs": 18,
+   "options": [
+    {
+     "id": "focus",
+     "label": "Focus",
+     "kind": "text",
+     "placeholder": "e.g. only the cost and timeline sections"
+    }
+   ]
   },
   {
    "id": "study_guide",
@@ -618,7 +646,15 @@
    "group": "study",
    "ext": "md",
    "blurb": "Concepts, questions, answers",
-   "secs": 18
+   "secs": 18,
+   "options": [
+    {
+     "id": "focus",
+     "label": "Focus",
+     "kind": "text",
+     "placeholder": "e.g. only the cost and timeline sections"
+    }
+   ]
   },
   {
    "id": "faq",
@@ -626,7 +662,15 @@
    "group": "docs",
    "ext": "md",
    "blurb": "The questions the sources answer",
-   "secs": 14
+   "secs": 14,
+   "options": [
+    {
+     "id": "focus",
+     "label": "Focus",
+     "kind": "text",
+     "placeholder": "e.g. only the cost and timeline sections"
+    }
+   ]
   },
   {
    "id": "timeline",
@@ -634,7 +678,15 @@
    "group": "docs",
    "ext": "md",
    "blurb": "Dated events in order",
-   "secs": 14
+   "secs": 14,
+   "options": [
+    {
+     "id": "focus",
+     "label": "Focus",
+     "kind": "text",
+     "placeholder": "e.g. only the cost and timeline sections"
+    }
+   ]
   },
   {
    "id": "mind_map",
@@ -642,7 +694,15 @@
    "group": "visual",
    "ext": "md",
    "blurb": "Radial structure you can pan",
-   "secs": 16
+   "secs": 16,
+   "options": [
+    {
+     "id": "focus",
+     "label": "Focus",
+     "kind": "text",
+     "placeholder": "e.g. only the cost and timeline sections"
+    }
+   ]
   },
   {
    "id": "flashcards",
@@ -650,7 +710,15 @@
    "group": "study",
    "ext": "md",
    "blurb": "Flip deck, Anki-ready export",
-   "secs": 16
+   "secs": 16,
+   "options": [
+    {
+     "id": "focus",
+     "label": "Focus",
+     "kind": "text",
+     "placeholder": "e.g. only the cost and timeline sections"
+    }
+   ]
   },
   {
    "id": "quiz",
@@ -658,7 +726,15 @@
    "group": "study",
    "ext": "md",
    "blurb": "Multiple choice with explanations",
-   "secs": 16
+   "secs": 16,
+   "options": [
+    {
+     "id": "focus",
+     "label": "Focus",
+     "kind": "text",
+     "placeholder": "e.g. only the cost and timeline sections"
+    }
+   ]
   },
   {
    "id": "slides",
@@ -666,7 +742,15 @@
    "group": "visual",
    "ext": "html",
    "blurb": "Self-contained deck, arrow keys",
-   "secs": 22
+   "secs": 22,
+   "options": [
+    {
+     "id": "focus",
+     "label": "Focus",
+     "kind": "text",
+     "placeholder": "e.g. only the cost and timeline sections"
+    }
+   ]
   },
   {
    "id": "infographic",
@@ -684,6 +768,12 @@
       "poster",
       "editorial"
      ]
+    },
+    {
+     "id": "focus",
+     "label": "Focus",
+     "kind": "text",
+     "placeholder": "e.g. only the cost and timeline sections"
     }
    ]
   },
@@ -693,7 +783,15 @@
    "group": "docs",
    "ext": "csv",
    "blurb": "Structured rows, exports to Sheets",
-   "secs": 14
+   "secs": 14,
+   "options": [
+    {
+     "id": "focus",
+     "label": "Focus",
+     "kind": "text",
+     "placeholder": "e.g. only the cost and timeline sections"
+    }
+   ]
   }
  ]
 }

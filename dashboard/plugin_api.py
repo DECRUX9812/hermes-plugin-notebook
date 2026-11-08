@@ -107,6 +107,23 @@ KINDS: List[Dict[str, Any]] = [
      "blurb": "Structured rows, exports to Sheets", "secs": 14},
 ]
 KIND_INDEX = {k["id"]: k for k in KINDS}
+
+# Every generator accepts a free-text focus — surfaced as a universal option
+# so each studio card's customize popover can narrow the run ("only costs").
+_FOCUS_OPTION = {"id": "focus", "label": "Focus", "kind": "text",
+                 "placeholder": "e.g. only the cost and timeline sections"}
+
+
+def _kinds_payload() -> list:
+    out = []
+    for k in KINDS:
+        kk = dict(k)
+        opts = list(kk.get("options") or [])
+        if not any(o.get("id") == "focus" for o in opts):
+            opts.append(dict(_FOCUS_OPTION))
+        kk["options"] = opts
+        out.append(kk)
+    return out
 MEDIA_EXT = {"mp4": "video/mp4", "mp3": "audio/mpeg", "png": "image/png",
              "html": "text/html", "webm": "video/webm", "wav": "audio/wav"}
 TEXT_EXT = {"md", "txt", "json", "csv", "srt", "vtt"}
@@ -298,7 +315,7 @@ def state(notebook: str = Query("", description="notebook id, title or slug")) -
         "model_ready": _model_ready(),
         "notebooks": cards,
         "notebook": active,
-        "kinds": KINDS,
+        "kinds": _kinds_payload(),
     }
 
 

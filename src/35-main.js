@@ -975,7 +975,7 @@ function GenPill({ kind, art, started, nbId, onOpen, onGenerate }) {
                     try {
                       const out = await api('/video_notes', {
                         method: 'POST',
-                        body: { notebook: nbId, style: opts.style || 'cinematic', length: opts.length || 'short', language: opts.language || '' },
+                        body: { notebook: nbId, style: opts.style || 'cinematic', length: opts.length || 'short', language: opts.language || '', focus: opts.focus || '' },
                         timeoutMs: 180000
                       })
                       setNotes(out)
