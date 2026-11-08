@@ -98,6 +98,26 @@ function App() {
   const openSource = useCallback((s) => { setPeek(s); setTab('peek') }, [])
   const openAddSource = useCallback((opts) => setSrcDialog(opts || { mode: 'find' }), [])
 
+  // drag files onto the sources rail → same ingest path as the upload picker
+  const dropSources = useCallback(async (files) => {
+    if (!nb || !files || !files.length) return
+    let added = 0, skipped = 0
+    for (const f of files) {
+      try {
+        let body = null
+        if (f.path) body = { notebook: nb, path: f.path, title: f.name }
+        else if (f.size && f.size <= 1500000) body = { notebook: nb, text: await f.text(), title: f.name }
+        if (!body) { skipped += 1; continue }
+        await api('/source', { method: 'POST', body, timeoutMs: 120000 })
+        added += 1
+      } catch { skipped += 1 }
+    }
+    if (added) await studio.reload(true)
+    if (added && !skipped) say(`added ${added} source${added === 1 ? '' : 's'} from dropped files`)
+    else if (added) say(`added ${added} source${added === 1 ? '' : 's'} — ${skipped} file${skipped === 1 ? '' : 's'} skipped (too large or unreadable)`)
+    else say('dropped files could not be read — use Add source for paths or large files')
+  }, [nb, studio, say])
+
   // NotebookLM's per-source checkbox: the /source_state reply carries the fresh
   // notebook payload — merge it over the current state instead of a full reload.
   const toggleSource = useCallback(async (s) => {
@@ -317,7 +337,7 @@ function App() {
                   onToggleSource: toggleSource, onToggleAll: toggleAllSources,
                   onDeleteSource: deleteSource,
                   onLabel: labelSources, onCollapse: () => setRailOpen(false),
-                  onGoHome: () => setMode('home'), onSay: say,
+                  onGoHome: () => setMode('home'), onSay: say, onDropFiles: dropSources,
                   loading: studio.loading, error: studio.error, reload: studio.reload
                 })
               : jsx(PanelToggles, { side: 'left', onShow: () => setRailOpen(true) }),
@@ -549,11 +569,12 @@ function PanelToggles({ side, onShow }) {
 /* -------------------------------------------------------------------- rail */
 
 function Rail({ data, notebook, onAddSource, onOpenSource, onToggleSource,
-               onToggleAll, onDeleteSource, onLabel, onCollapse, onGoHome, onSay, loading, error, reload }) {
+               onToggleAll, onDeleteSource, onLabel, onCollapse, onGoHome, onSay, onDropFiles, loading, error, reload }) {
   const sources = (notebook && notebook.sources) || []
   const labels = (notebook && notebook.labels) || []
   const [q, setQ] = useState('')
   const [srcFilter, setSrcFilter] = useState('all')
+  const [dragOver, setDragOver] = useState(false)
   const [closed, setClosed] = useState({})
 
   const shown = useMemo(() => {
@@ -626,7 +647,22 @@ function Rail({ data, notebook, onAddSource, onOpenSource, onToggleSource,
     )
   }
 
-  return el('aside', { className: 'nb-col nb-rail', 'aria-label': 'Sources' },
+  return el('aside', {
+    className: 'nb-col nb-rail', 'aria-label': 'Sources',
+    'data-drop': dragOver ? 'true' : 'false',
+    onDragOver: (e) => {
+      const types = e.dataTransfer && e.dataTransfer.types
+      if (types && Array.prototype.indexOf.call(types, 'Files') >= 0) {
+        e.preventDefault(); setDragOver(true)
+      }
+    },
+    onDragLeave: () => setDragOver(false),
+    onDrop: (e) => {
+      e.preventDefault(); setDragOver(false)
+      const files = e.dataTransfer && e.dataTransfer.files
+      if (files && files.length && onDropFiles) onDropFiles(Array.from(files))
+    }
+  },
     el('div', { className: 'nb-pane-head' },
       el('span', { className: 'nb-pane-title', children: 'Sources' }),
       el('span', { className: 'nb-meta', children: `${activeCount}/${sources.length}` }),
@@ -732,7 +768,21 @@ function Rail({ data, notebook, onAddSource, onOpenSource, onToggleSource,
                     )
                   }))
       )
-    )
+    ),
+    dragOver
+      ? el('div', {
+          style: {
+            position: 'absolute', inset: '12px', zIndex: 5, borderRadius: '18px',
+            border: `2px dashed ${T.accent}`, background: 'color-mix(in srgb, #0a0b10 78%, transparent)',
+            display: 'flex', flexDirection: 'column', gap: '8px', alignItems: 'center', justifyContent: 'center',
+            color: T.text, fontSize: '14.5px', fontWeight: 600, pointerEvents: 'none'
+          },
+          children: [
+            jsx(Glyph, { name: 'plus', size: 22 }),
+            'Drop files to add them as sources'
+          ]
+        })
+      : null
   )
 }
 

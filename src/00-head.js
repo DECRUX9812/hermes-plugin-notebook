@@ -164,6 +164,7 @@ const CSS = `
 .nb-body > .nb-col{background:var(--nb-card);border:1px solid var(--nb-hair-soft);
   border-radius:24px;overflow:hidden}
 .nb-rail{flex:0 0 var(--nb-rail)}
+.nb-rail[data-drop="true"]{outline:2px dashed ${T.accent};outline-offset:-6px;border-radius:24px}
 .nb-main-col{flex:1 1 auto}
 .nb-studio{flex:0 0 var(--nb-studio)}
 .nb-fade{position:absolute;left:0;right:0;bottom:0;height:44px;pointer-events:none;
