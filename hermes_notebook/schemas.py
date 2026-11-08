@@ -95,7 +95,7 @@ NOTEBOOK_GENERATE = {
                   "enum": ["sections", "editorial", "poster", "swiss", "magazine",
                            "bento", "blueprint", "terminal", "neon", "brutalist",
                            "retro", "risograph", "kraft", "chalkboard", "dashboard",
-                           "mission"],
+                           "mission", "cartoon", "realistic"],
                   "description": ("infographic only: which bundled look to draw. "
                                   "sections (default, warm cards), editorial (huge "
                                   "numerals), poster (dark cover), swiss (strict red "

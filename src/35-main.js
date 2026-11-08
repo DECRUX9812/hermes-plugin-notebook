@@ -735,6 +735,7 @@ function GenPill({ kind, art, started, nbId, onOpen, onGenerate }) {
                         (spec.items || (spec.choices || []).map((c) => ({ id: c, label: c }))).map((it) => {
                           const cur = (opts[spec.id] || spec.default || (spec.choices || [])[0]) === it.id
                           const src = thumbs && thumbs[it.id]
+                        const loaded = !!thumbs
                           return el('button', {
                             key: it.id, type: 'button', role: 'radio',
                             'aria-checked': cur ? 'true' : 'false',

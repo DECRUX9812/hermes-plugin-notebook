@@ -169,16 +169,26 @@ def test_thumbnail_is_a_quarter_scale():
 
 # --------------------------------------------------------------- integration
 
-def test_artifacts_renderer_delegates_to_the_pack():
+def test_artifacts_renderer_returns_vector_source():
     pytest.importorskip("PIL")
-    img = artifacts._render_infographic(SAMPLE, "T", style="blueprint")
-    assert img.size == (1200, 900)
+    svg = artifacts._render_infographic(SAMPLE, "T", style="blueprint")
+    assert isinstance(svg, str) and svg.lstrip().startswith("<?xml")
+    assert 'viewBox="0 0 1200 900"' in svg
+    assert 'data-preset="blueprint"' in svg
 
 
 def test_legacy_style_names_still_work():
     pytest.importorskip("PIL")
     for name in ("sections", "poster", "editorial", ""):
-        assert artifacts._render_infographic(SAMPLE, "T", style=name).size == (1200, 900)
+        svg = artifacts._render_infographic(SAMPLE, "T", style=name)
+        assert 'viewBox="0 0 1200 900"' in svg
+
+
+def test_raster_fallback_still_available():
+    """A box with no browser still gets a PNG from the same catalog."""
+    pytest.importorskip("PIL")
+    img = artifacts._raster_infographic(SAMPLE, "T", style="sections")
+    assert img.size == (1200, 900)
 
 
 def test_page_option_lists_every_style():
@@ -188,12 +198,13 @@ def test_page_option_lists_every_style():
     kinds = {k["id"]: k for k in plugin_api.KINDS}
     spec = kinds["infographic"]["options"][0]
     assert spec["kind"] == "select"
-    assert spec["choices"] == igstyles.ids()
-    assert [i["id"] for i in spec["items"]] == igstyles.ids()
+    from hermes_notebook import gfx
+    assert spec["choices"] == [p.id for p in gfx.PRESETS]
+    assert [i["id"] for i in spec["items"]] == [p.id for p in gfx.PRESETS]
     assert all(i["swatch"] for i in spec["items"])
 
 
 def test_tool_schema_offers_every_style():
-    from hermes_notebook import schemas
+    from hermes_notebook import gfx, schemas
     enum = schemas.NOTEBOOK_GENERATE["parameters"]["properties"]["style"]["enum"]
-    assert enum == igstyles.ids()
+    assert enum == [p.id for p in gfx.PRESETS]

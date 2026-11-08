@@ -1,6 +1,6 @@
 {
  "ok": true,
- "generated_at": "2026-11-08T05:00:11Z",
+ "generated_at": "2026-11-08T05:34:01Z",
  "model_ready": false,
  "notebooks": [
   {
@@ -679,13 +679,13 @@
    "id": "infographic",
    "label": "Infographic",
    "group": "visual",
-   "ext": "png",
-   "blurb": "One dense poster of the thesis",
+   "ext": "svg",
+   "blurb": "Vector poster \u2014 18 looks, 9 layouts",
    "secs": 20,
    "options": [
     {
      "id": "style",
-     "label": "Style",
+     "label": "Look",
      "kind": "select",
      "default": "sections",
      "choices": [
@@ -704,7 +704,9 @@
       "kraft",
       "chalkboard",
       "dashboard",
-      "mission"
+      "mission",
+      "cartoon",
+      "realistic"
      ],
      "items": [
       {
@@ -919,7 +921,110 @@
         "#34d399",
         "#f8fafc"
        ]
+      },
+      {
+       "id": "cartoon",
+       "label": "Cartoon",
+       "blurb": "Thick outlines, flat fills, friendly shapes and a picture-book sky.",
+       "family": "feature",
+       "swatch": [
+        "#fdf4e3",
+        "#fffdf6",
+        "#ff6b35",
+        "#2e86e0",
+        "#39b57a",
+        "#1b1b2a"
+       ]
+      },
+      {
+       "id": "realistic",
+       "label": "Realistic",
+       "blurb": "Deep neutrals, layered light, soft shadow and film grain.",
+       "family": "feature",
+       "swatch": [
+        "#14171c",
+        "#1e232b",
+        "#6ee7ff",
+        "#ffb45c",
+        "#9cf5c0",
+        "#f4f6f8"
+       ]
       }
+     ]
+    },
+    {
+     "id": "template",
+     "label": "Layout",
+     "kind": "select",
+     "default": "infographic",
+     "choices": [
+      "infographic",
+      "key_figure",
+      "stat_grid",
+      "timeline",
+      "comparison",
+      "process",
+      "quote_card",
+      "cover",
+      "illustration"
+     ],
+     "items": [
+      {
+       "id": "infographic",
+       "label": "Infographic"
+      },
+      {
+       "id": "key_figure",
+       "label": "Key Figure"
+      },
+      {
+       "id": "stat_grid",
+       "label": "Stat Grid"
+      },
+      {
+       "id": "timeline",
+       "label": "Timeline"
+      },
+      {
+       "id": "comparison",
+       "label": "Comparison"
+      },
+      {
+       "id": "process",
+       "label": "Process"
+      },
+      {
+       "id": "quote_card",
+       "label": "Quote Card"
+      },
+      {
+       "id": "cover",
+       "label": "Cover"
+      },
+      {
+       "id": "illustration",
+       "label": "Illustration"
+      }
+     ]
+    },
+    {
+     "id": "orientation",
+     "label": "Shape",
+     "kind": "seg",
+     "choices": [
+      "landscape",
+      "square",
+      "portrait"
+     ]
+    },
+    {
+     "id": "detail",
+     "label": "Detail",
+     "kind": "seg",
+     "choices": [
+      "concise",
+      "standard",
+      "detailed"
      ]
     }
    ]

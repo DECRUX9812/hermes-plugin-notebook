@@ -61,7 +61,8 @@ for _p in (_PLUGIN_ROOT, _HERE):
         sys.path.insert(0, _p)
 
 from hermes_notebook import runtime, store, artifacts as artifacts_mod  # noqa: E402
-from hermes_notebook import igstyles  # noqa: E402
+from hermes_notebook import gfx  # noqa: E402
+from hermes_notebook.gfx import themes as gfx_themes  # noqa: E402
 
 router = APIRouter(tags=["hermes-notebook"])
 
@@ -100,20 +101,33 @@ KINDS: List[Dict[str, Any]] = [
      "blurb": "Multiple choice with explanations", "secs": 16},
     {"id": "slides", "label": "Slides", "group": "visual", "ext": "html",
      "blurb": "Self-contained deck, arrow keys", "secs": 22},
-    {"id": "infographic", "label": "Infographic", "group": "visual", "ext": "png",
-     "blurb": "One dense poster of the thesis", "secs": 20,
-     "options": [{"id": "style", "label": "Style", "kind": "select",
-                  "default": "sections",
-                  "choices": [s["id"] for s in igstyles.catalog()],
-                  "items": [{"id": s["id"], "label": s["label"], "blurb": s["blurb"],
-                             "family": s["family"], "swatch": s["swatch"]}
-                            for s in igstyles.catalog()]}]},
+    {"id": "infographic", "label": "Infographic", "group": "visual", "ext": "svg",
+     "blurb": "Vector poster — 18 looks, 9 layouts", "secs": 20,
+     "options": [
+         {"id": "style", "label": "Look", "kind": "select",
+          "default": gfx_themes.DEFAULT_PRESET,
+          "choices": [s["id"] for s in gfx_themes.catalog()],
+          "items": [{"id": s["id"], "label": s["label"], "blurb": s["blurb"],
+                     "family": s["family"], "swatch": s["swatch"]}
+                    for s in gfx_themes.catalog()]},
+         {"id": "template", "label": "Layout", "kind": "select", "default": "infographic",
+          "choices": ["infographic", "key_figure", "stat_grid", "timeline",
+                      "comparison", "process", "quote_card", "cover", "illustration"],
+          "items": [{"id": t, "label": t.replace("_", " ").title()}
+                    for t in ["infographic", "key_figure", "stat_grid", "timeline",
+                              "comparison", "process", "quote_card", "cover",
+                              "illustration"]]},
+         {"id": "orientation", "label": "Shape", "kind": "seg",
+          "choices": ["landscape", "square", "portrait"]},
+         {"id": "detail", "label": "Detail", "kind": "seg",
+          "choices": ["concise", "standard", "detailed"]}]},
     {"id": "data_table", "label": "Data Table", "group": "docs", "ext": "csv",
      "blurb": "Structured rows, exports to Sheets", "secs": 14},
 ]
 KIND_INDEX = {k["id"]: k for k in KINDS}
 MEDIA_EXT = {"mp4": "video/mp4", "mp3": "audio/mpeg", "png": "image/png",
-             "html": "text/html", "webm": "video/webm", "wav": "audio/wav"}
+             "html": "text/html", "webm": "video/webm", "wav": "audio/wav",
+             "svg": "image/svg+xml"}
 TEXT_EXT = {"md", "txt", "json", "csv", "srt", "vtt"}
 
 
@@ -261,17 +275,24 @@ def health() -> Dict[str, Any]:
 
 
 @router.get("/infographic_styles")
-def infographic_styles(previews: int = Query(0, description="1 = include base64 thumbnails"),
+def infographic_styles(previews: int = Query(0, description="1 = include SVG thumbnails"),
                        notebook: str = Query("", description="preview with this notebook's own last infographic")) -> Dict[str, Any]:
-    """The bundled infographic look pack: one row per style with its palette
-    swatch, layout family and the kind of content it suits.
+    """The graphics library as the picker needs it: every look, every layout, the
+    shapes and detail levels, and optional previews.
 
-    `previews=1` adds a 240x180 PNG per style, drawn by the same renderer that will
-    draw the real artifact. The picker uses the notebook's own last infographic as
-    the sample when there is one, so the choice is judged on real content.
+    Previews are SVG data URLs drawn by the same renderer that draws the artifact —
+    a few KB each instead of a 40 KB raster, and sharp at any size.
     """
-    out: Dict[str, Any] = {"ok": True, "default": igstyles.DEFAULT_STYLE,
-                           "count": len(igstyles.STYLES), "styles": igstyles.catalog()}
+    manifest = gfx.library_manifest()
+    out: Dict[str, Any] = {
+        "ok": True,
+        "default": gfx_themes.DEFAULT_PRESET,
+        "count": len(gfx_themes.PRESETS),
+        "styles": gfx_themes.catalog(),
+        "templates": manifest["templates"],
+        "orientations": list(gfx.ORIENTATIONS),
+        "detail": list(gfx.DETAIL_LEVELS),
+    }
     if previews:
         data, title = _preview_source(notebook)
         out["previews"] = {s["id"]: _style_thumb(data, title, s["id"])
@@ -279,29 +300,40 @@ def infographic_styles(previews: int = Query(0, description="1 = include base64 
     return out
 
 
-# Thumbnails are deterministic for a given (sample, style), so one render per style
-# is enough per process — and a notebook's own sample is cached under its digest.
+@router.get("/graphics_library")
+def graphics_library() -> Dict[str, Any]:
+    """Machine-readable inventory of the graphics library (templates × presets ×
+    orientations × detail levels) for host apps and agents."""
+    return {"ok": True, **gfx.library_manifest()}
+
+
+#: Style previews are deterministic for a (payload, preset) pair, so one render per
+#: pair is enough per process.
 _THUMB_CACHE: Dict[Tuple[str, str], str] = {}
 
 
 def _preview_source(notebook: str) -> Tuple[Dict[str, Any], str]:
     """The payload previews are drawn from: the notebook's latest infographic JSON
-    when it has one, otherwise the built-in sample."""
+    when it has one, otherwise the library's built-in sample."""
+    sample = _SAMPLE_GRAPHIC
     try:
         nb_id = store.resolve_notebook(notebook) if (notebook or "").strip() else ""
-        if not nb_id:
-            return igstyles.SAMPLE_DATA, "Tidal power"
-        arts = store._nb_dir(nb_id) / "artifacts"
-        if arts.is_dir():
-            jsons = sorted(arts.glob("*-infographic.json"), reverse=True)
-            if jsons:
-                data = json.loads(jsons[0].read_text(encoding="utf-8"))
-                if isinstance(data, dict) and data.get("stats"):
-                    data.pop("_style", None)
-                    return data, str(data.get("title") or "Infographic")
+        if nb_id:
+            arts = store._nb_dir(nb_id) / "artifacts"
+            if arts.is_dir():
+                jsons = sorted(list(arts.glob("*-infographic.json")), reverse=True)
+                if jsons:
+                    data = json.loads(jsons[0].read_text(encoding="utf-8"))
+                    if isinstance(data, dict) and data.get("stats"):
+                        data.pop("_style", None)
+                        data.pop("_graphic", None)
+                        return data, str(data.get("title") or "Infographic")
     except Exception:
         pass
-    return igstyles.SAMPLE_DATA, "Tidal power"
+    return sample, "Tidal power"
+
+
+_SAMPLE_GRAPHIC: Dict[str, Any] = gfx.samples.SAMPLE_GRAPHIC
 
 
 def _style_thumb(data: Dict[str, Any], title: str, style_id: str) -> str:
@@ -309,17 +341,11 @@ def _style_thumb(data: Dict[str, Any], title: str, style_id: str) -> str:
     hit = _THUMB_CACHE.get(key)
     if hit:
         return hit
-    from hermes_notebook import igrender
-    img = igrender.render(data, title, style_id)
-    resample = getattr(igrender.Image, "Resampling", igrender.Image).LANCZOS
-    small = img.resize((240, 180), resample)
-    # 128 colours keeps a thumbnail under ~10 KB while the gradients stay smooth
-    small = small.quantize(colors=128, method=igrender.Image.MEDIANCUT,
-                           dither=igrender.Image.FLOYDSTEINBERG)
-    buf = io.BytesIO()
-    small.save(buf, "PNG", optimize=True)
-    out = "data:image/png;base64," + base64.b64encode(buf.getvalue()).decode("ascii")
-    if len(_THUMB_CACHE) > 64:
+    payload = dict(data)
+    payload.setdefault("title", title)
+    out = gfx.data_url(payload, template="infographic", preset=style_id,
+                       orientation="landscape")
+    if len(_THUMB_CACHE) > 96:
         _THUMB_CACHE.clear()
     _THUMB_CACHE[key] = out
     return out
@@ -743,7 +769,10 @@ async def generate(payload: Dict[str, Any] = Body(...)) -> Any:
                     nb_id, kind,
                     focus=str(payload.get("focus") or ""),
                     count_hint=str(payload.get("count_hint") or ""),
-                    style=str(payload.get("style") or "")))
+                    style=str(payload.get("style") or ""),
+                    fmt=str(payload.get("template") or ""),
+                    options={"orientation": payload.get("orientation") or "landscape",
+                             "detail": payload.get("detail") or "standard"}))
     except Exception as exc:
         return _fail(f"{type(exc).__name__}: {exc}", 500)
     payload_state = _notebook_payload(nb_id)

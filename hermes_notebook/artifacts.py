@@ -235,11 +235,12 @@ def _write_artifact(notebook_id: str, kind: str, ext: str, content: str) -> Path
 
 
 def generate(notebook: str, kind: str, *, focus: str = "", count_hint: str = "",
-             fmt: str = "md", style: str = "") -> dict:
+             fmt: str = "md", style: str = "", options: Optional[dict] = None) -> dict:
     """Generate one artifact; returns {path, kind, preview} or raises.
     fmt='csv' switches flashcards to an Anki-importable CSV.
     style picks the look of the visual kinds — see `hermes_notebook.igstyles`
     for the bundled infographic pack (16 styles, four layout families)."""
+    options = options if isinstance(options, dict) else {}
     kind = (kind or "").strip().lower().replace("-", "_").replace(" ", "_")
     style = (style or "").strip().lower()
     if kind not in ALL_KINDS:
@@ -288,8 +289,8 @@ def generate(notebook: str, kind: str, *, focus: str = "", count_hint: str = "",
     instructions = _STRUCT_INSTRUCTIONS[kind]
     style_spec = None
     if kind == "infographic":
-        from . import igstyles
-        style_spec = igstyles.resolve(style)
+        from .gfx import themes as _themes
+        style_spec = _themes.resolve(style)
         # The content shape follows the look: a dashboard wants measurable metrics,
         # an editorial page wants headline numbers. Same sources, different picks.
         instructions += ("\n\nVisual treatment: " + style_spec.blurb + " "
@@ -322,19 +323,26 @@ def generate(notebook: str, kind: str, *, focus: str = "", count_hint: str = "",
 
     if kind == "infographic":
         assert style_spec is not None
-        # stamp the look into the JSON twin so the page can caption the run
+        from . import gfx
+        # The graphic is vector now: text stays text, so a numeral from the sources
+        # can never be re-typeset by accident, and the file is a few KB.
+        template = (fmt or "").strip().lower()
+        if template not in gfx.TEMPLATES:
+            template = "infographic"
+        orientation = str(options.get("orientation") or "landscape").lower()
+        detail = str(options.get("detail") or "standard").lower()
         parsed["_style"] = {"id": style_spec.id, "label": style_spec.label,
                             "family": style_spec.family}
+        parsed["_graphic"] = {"template": template, "orientation": orientation,
+                              "detail": detail}
         json_path = _write_artifact(nb_id, kind, "json",
                                     json.dumps(parsed, indent=2, ensure_ascii=False))
-        png = _render_infographic(parsed, meta.get("title") or nb_id, style=style_spec.id)
-        d = store._nb_dir(nb_id) / "artifacts"
-        d.mkdir(parents=True, exist_ok=True)
-        path = d / f"{runtime.utc_stamp()}-{kind}.png"
-        png.save(path, "PNG")
-        store.touch(nb_id)
+        svg = gfx.render(parsed, template=template, preset=style_spec.id,
+                         orientation=orientation, detail=detail)
+        path = _write_artifact(nb_id, kind, "svg", svg)
         return {"path": str(path), "json": str(json_path), "kind": kind,
                 "style": style_spec.id, "style_label": style_spec.label,
+                "template": template, "orientation": orientation, "detail": detail,
                 "preview": json.dumps(parsed, ensure_ascii=False)[:1200]}
 
     if kind == "data_table":
@@ -503,13 +511,24 @@ show(0);
 </script></body></html>"""
 
 
-def _render_infographic(data: dict, title: str, *, style: str = ""):
-    """PIL-rendered infographic PNG (1200x900).
+def _render_infographic(data: dict, title: str, *, style: str = "",
+                        template: str = "infographic", orientation: str = "landscape",
+                        detail: str = "standard") -> str:
+    """SVG source for an infographic, drawn by `hermes_notebook.gfx`.
 
-    The looks live in `hermes_notebook/igstyles.py` (16 bundled styles across four
-    layout families) and are drawn by `hermes_notebook/igrender.py`. An unknown
-    style name falls back to the default instead of failing a generation run.
+    The vector library replaced the Pillow renderer here: same payload, same style
+    catalog, but text stays text and the artifact weighs kilobytes. `igrender` is
+    kept as the raster fallback for callers that need a PNG with no browser around.
     """
+    from . import gfx
+    payload = dict(data) if isinstance(data, dict) else {}
+    payload.setdefault("title", title)
+    return gfx.render(payload, template=template, preset=style, orientation=orientation,
+                      detail=detail)
+
+
+def _raster_infographic(data: dict, title: str, *, style: str = ""):
+    """Pillow fallback: a PIL image of the same payload (no browser required)."""
     from . import igrender
     return igrender.render(data, title, style)
 

@@ -1,5 +1,8 @@
 # Infographic styles
 
+> The renderer is now the `gfx` vector library: same catalog, SVG output, plus two
+> illustrated treatments and nine layouts. See [`GRAPHICS-LIBRARY.md`](GRAPHICS-LIBRARY.md).
+
 One artifact, sixteen looks. The Infographic card in the studio and
 `notebook_generate(kind="infographic")` share a single style pack, so an agent and a person
 get the same choices and the same output.

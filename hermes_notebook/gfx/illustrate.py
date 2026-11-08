@@ -1,0 +1,243 @@
+"""Illustration treatments — the cartoon and realistic artwork the pack adds.
+
+Both are built from primitives so they stay editable, themeable and tiny:
+
+* `cartoon` — flat fills, 4px ink outlines, offset shadows, a picture-book sky with
+  sun, hills and clouds, plus reusable figures and blobs;
+* `plate` — a photographic *lighting* treatment, not a photograph: a key light in
+  the upper left, a rim light opposite, a horizon, a soft vignette and film grain.
+
+The distinction matters for honesty: a `plate` background looks photographed, but
+it is still drawn, and nothing in it is a stock image of a real thing.
+"""
+
+from __future__ import annotations
+
+import math
+from typing import List, Tuple
+
+from . import core
+from .themes import Preset
+
+RGB = Tuple[int, int, int]
+
+
+# ------------------------------------------------------------------ cartoon
+
+
+def cartoon_sky(w: int, h: int, p: Preset, horizon: float = 0.62) -> List[str]:
+    """Picture-book backdrop: sky wash, sun with rays, two hill bands, clouds."""
+    sky_top = core.shade(p.paper, 0.16)
+    sky_bottom = core.mix(p.paper, p.accents[3 % len(p.accents)], 0.10)
+    hill_far = core.mix(p.paper, p.accents[2 % len(p.accents)], 0.30)
+    hill_near = core.mix(p.paper, p.accents[2 % len(p.accents)], 0.52)
+    out: List[str] = [core.gradient("sky", sky_top, sky_bottom, "vertical"),
+                      f'<rect width="{w}" height="{h}" fill="url(#sky)"/>']
+
+    sun_x, sun_y, sun_r = w * 0.84, h * 0.15, h * 0.065
+    out.append(core.circle(sun_x, sun_y, sun_r, fill=core.hexed(p.accents[3 % len(p.accents)])))
+    out.append(core.circle(sun_x, sun_y, sun_r, fill="none", stroke=p.ink, sw=3))
+    for i in range(8):
+        a = i * math.pi / 4
+        out.append(core.line(sun_x + math.cos(a) * (sun_r + 10),
+                             sun_y + math.sin(a) * (sun_r + 10),
+                             sun_x + math.cos(a) * (sun_r + 26),
+                             sun_y + math.sin(a) * (sun_r + 26), p.ink, 3, 0.75, cap="round"))
+
+    for cx, cy, s in ((w * 0.16, h * 0.14, 1.0), (w * 0.40, h * 0.09, 0.7)):
+        out += _cloud(cx, cy, s * h * 0.045, p)
+
+    hy = h * horizon
+    out.append(core.path(
+        f"M0 {hy + 40} Q {w * 0.22} {hy - 46} {w * 0.46} {hy + 12} "
+        f"T {w} {hy - 10} L {w} {h} L 0 {h}", fill=core.hexed(hill_far)))
+    out.append(core.path(
+        f"M0 {hy + 96} Q {w * 0.30} {hy + 16} {w * 0.62} {hy + 78} "
+        f"T {w} {hy + 60} L {w} {h} L 0 {h}", fill=core.hexed(hill_near)))
+    return out
+
+
+def _cloud(cx: float, cy: float, r: float, p: Preset) -> List[str]:
+    body = " ".join(f"{'M' if i == 0 else 'L'}{x:.1f} {y:.1f}"
+                    for i, (x, y) in enumerate(_cloud_pts(cx, cy, r)))
+    return [core.path(body, fill=core.hexed(p.card), stroke=p.ink, sw=3, close=True)]
+
+
+def _cloud_pts(cx: float, cy: float, r: float) -> List[Tuple[float, float]]:
+    pts: List[Tuple[float, float]] = []
+    for i in range(18):
+        a = 2 * math.pi * i / 18
+        bumps = 0.82 + 0.18 * math.sin(a * 3)
+        pts.append((cx + math.cos(a) * r * 2.2 * bumps, cy + math.sin(a) * r * bumps))
+    return pts
+
+
+def figure(cx: float, base_y: float, height: float, p: Preset, accent_index: int = 0,
+           arms: str = "up") -> List[str]:
+    """A standing figure: head, torso, two arms. Flat fill, ink outline."""
+    head_r = height * 0.11
+    body_top = base_y - height + head_r * 2
+    fill = p.accents[accent_index % len(p.accents)]
+    out = [core.circle(cx, base_y - height + head_r, head_r, fill=core.hexed(p.card),
+                       stroke=p.ink, sw=3)]
+    out.append(core.path(
+        f"M{cx - head_r * 1.15:.1f} {body_top + height * 0.62:.1f} "
+        f"Q {cx:.1f} {body_top - height * 0.04:.1f} {cx + head_r * 1.15:.1f} "
+        f"{body_top + height * 0.62:.1f} Z",
+        fill=core.hexed(fill), stroke=p.ink, sw=3, close=True))
+    shoulder_y = body_top + height * 0.14
+    for side in (-1, 1):
+        if arms == "up":
+            elbow_x = cx + side * height * 0.17
+            hand_y = shoulder_y - height * 0.16
+        else:
+            elbow_x = cx + side * height * 0.22
+            hand_y = shoulder_y + height * 0.12
+        out.append(core.path(
+            f"M{cx + side * head_r * 1.05:.1f} {shoulder_y:.1f} "
+            f"Q {elbow_x:.1f} {shoulder_y - height * 0.02:.1f} "
+            f"{elbow_x + side * height * 0.04:.1f} {hand_y:.1f}",
+            stroke=p.ink, sw=4, fill="none", cap="round"))
+    return out
+
+
+def blob(cx: float, cy: float, r: float, p: Preset, accent_index: int = 1,
+         seed: int = 3, outline: bool = True) -> List[str]:
+    pts = []
+    for i in range(24):
+        a = 2 * math.pi * i / 24
+        wobble = 1 + 0.12 * math.sin(a * 3 + seed) + 0.06 * math.cos(a * 5 - seed)
+        pts.append((cx + math.cos(a) * r * wobble, cy + math.sin(a) * r * wobble))
+    d = " ".join(f"{'M' if i == 0 else 'L'}{x:.1f} {y:.1f}" for i, (x, y) in enumerate(pts))
+    return [core.path(d, close=True,
+                      fill=core.hexed(p.accents[accent_index % len(p.accents)]),
+                      stroke=p.ink if outline else None, sw=3)]
+
+
+def arrow(x1: float, y1: float, x2: float, y2: float, p: Preset,
+          accent_index: int = 0) -> List[str]:
+    """A chunky cartoon connector with an outlined head."""
+    ang = math.atan2(y2 - y1, x2 - x1)
+    head = 14
+    left = (x2 - head * math.cos(ang - 0.5), y2 - head * math.sin(ang - 0.5))
+    right = (x2 - head * math.cos(ang + 0.5), y2 - head * math.sin(ang + 0.5))
+    col = core.hexed(p.accents[accent_index % len(p.accents)])
+    return [core.line(x1, y1, x2, y2, col, 6, cap="round"),
+            core.path(f"M{left[0]:.1f} {left[1]:.1f} L {x2:.1f} {y2:.1f} "
+                      f"L {right[0]:.1f} {right[1]:.1f}", fill=col, close=True)]
+
+
+def cartoon_props(w: int, h: int, p: Preset, ground: float = 0.70) -> List[str]:
+    """Scene props that sit ON the hills rather than on top of the layout: a small
+    figure on the near hill and two marker flags. Anything bigger collides with
+    whatever plate the template draws."""
+    ground = h * ground
+    out: List[str] = []
+    out += figure(w * 0.80, ground + h * 0.03, h * 0.11, p, 1, arms="up")
+    for fx in (0.10, 0.20):
+        x = w * fx
+        out.append(core.line(x, ground + h * 0.05, x, ground - h * 0.03, p.ink, 3))
+        out.append(core.path(f"M{x:.0f} {ground - h * 0.03:.0f} L {x + 26:.0f} "
+                             f"{ground - h * 0.01:.0f} L {x:.0f} {ground + h * 0.01:.0f}",
+                             fill=core.hexed(p.accents[0]), close=True))
+    return out
+
+
+# ------------------------------------------------------------------- plate
+
+
+def plate_background(w: int, h: int, p: Preset) -> List[str]:
+    """A studio-lit cyc wall, drawn: base falloff, a key light, a rim light, a floor
+    with its own reflection, a vignette and film grain.
+
+    The point is the *lighting* reading as photographic — soft falloff, a horizon
+    that the light wraps around, and grain that keeps large areas from banding. No
+    element is a picture of a thing.
+    """
+    lift = core.shade(p.paper, 0.26)
+    deep = core.shade(p.paper, -0.42)
+    floor = core.shade(p.paper, -0.16)
+    key = core.mix(core.shade(p.paper, 0.55), p.accents[0], 0.22)
+    rim = core.mix(p.accents[0], p.paper, 0.35)
+    horizon = 0.66
+
+    out: List[str] = [
+        core.gradient("plateBase", lift, deep),
+        f'<rect width="{w}" height="{h}" fill="url(#plateBase)"/>',
+    ]
+    # key light: broad, soft, upper-left
+    out += [
+        core.radial("keyLight", key, deep),
+        f'<ellipse cx="{w * 0.26:.0f}" cy="{h * 0.06:.0f}" rx="{w * 0.62:.0f}" '
+        f'ry="{h * 0.52:.0f}" fill="url(#keyLight)" opacity="0.55" '
+        f'filter="url(#soften)"/>',
+    ]
+    # rim light: opposite corner, tighter and brighter
+    out += [
+        core.radial("rimLight", rim, deep),
+        f'<ellipse cx="{w * 0.94:.0f}" cy="{h * 0.30:.0f}" rx="{w * 0.30:.0f}" '
+        f'ry="{h * 0.30:.0f}" fill="url(#rimLight)" opacity="0.42" '
+        f'filter="url(#soften)"/>',
+    ]
+    # floor: a slightly lighter band with the key light reflected in it
+    out += [
+        core.gradient("floor", floor, deep),
+        f'<rect y="{h * horizon:.0f}" width="{w}" height="{h * (1 - horizon):.0f}" '
+        f'fill="url(#floor)"/>',
+        core.line(0, h * horizon, w, h * horizon, core.mix(p.accents[0], p.paper, 0.4), 1, 0.35),
+        f'<ellipse cx="{w * 0.30:.0f}" cy="{h * 0.80:.0f}" rx="{w * 0.30:.0f}" '
+        f'ry="{h * 0.10:.0f}" fill="{core.hexed(core.shade(key, -0.25))}" opacity="0.20" '
+        f'filter="url(#soften)"/>',
+    ]
+    # vignette
+    out += [
+        core.radial("vig", core.shade(p.paper, 0.05), (0, 0, 0)),
+        f'<rect width="{w}" height="{h}" fill="url(#vig)" opacity="0.50"/>',
+        f'<rect width="{w}" height="{h}" filter="url(#grain)" opacity="0.9"/>',
+    ]
+    return out
+
+
+def specular_streak(w: int, h: int, p: Preset) -> List[str]:
+    """A single thin highlight crossing the sheet — the thing that reads as glass."""
+    x = w * 0.18
+    return [core.path(f"M{x:.0f} 0 L {x + w * 0.10:.0f} 0 L {x - w * 0.02:.0f} {h} "
+                      f"L {x - w * 0.12:.0f} {h}", fill=core.hexed(
+                          core.mix(p.accents[0], (255, 255, 255), 0.7)), opacity=0.05)]
+
+
+# ------------------------------------------------------------------- shared
+
+
+def backdrop(w: int, h: int, p: Preset, horizon: float = 0.62) -> List[str]:
+    """Whatever art the preset asks for, or nothing at all.
+
+    `horizon` is where the land meets the sky as a fraction of the height: a cover
+    puts its type plate over the bottom half, so its horizon has to sit higher or
+    the hills disappear behind the plate.
+    """
+    if p.art == "cartoon":
+        return cartoon_sky(w, h, p, horizon) + cartoon_props(w, h, p, horizon + 0.08)
+    if p.art == "plate":
+        return plate_background(w, h, p) + specular_streak(w, h, p)
+    return []
+
+
+def defs_for(p: Preset) -> List[str]:
+    out: List[str] = []
+    if p.art == "plate":
+        out += [core.filter_grain("grain", frequency=0.9, strength=0.11),
+                core.filter_blur("soften", 60),
+                core.filter_soft_shadow("soft", dy=10, blur=18, strength=0.28)]
+    if p.art == "cartoon" or "outline" in p.decor:
+        out += [core.filter_soft_shadow("stick", dy=6, blur=0, strength=0.16)]
+    return out
+
+
+def card_shadow_attr(p: Preset) -> str:
+    """Attributes a card should carry so it sits on the artwork rather than on it."""
+    if p.art == "plate":
+        return 'filter="url(#soft)"'
+    if p.art == "cartoon":
+        return 'filter="url(#stick)"'
+    return ""

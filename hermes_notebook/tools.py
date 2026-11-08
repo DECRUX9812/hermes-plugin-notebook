@@ -272,8 +272,11 @@ def notebook_generate(args: dict, **kw) -> str:
         args.get("kind") or "",
         focus=args.get("focus") or "",
         count_hint=args.get("count_hint") or "",
-        fmt=args.get("format") or "md",
+        # `format` is the flashcards csv switch; `template` is the graphic layout
+        fmt=args.get("format") or (args.get("template") if args.get("kind") == "infographic" else "") or "md",
         style=args.get("style") or "",
+        options={"orientation": args.get("orientation") or "landscape",
+                 "detail": args.get("detail") or "standard"},
     )
     return runtime.ok(**out)
 
