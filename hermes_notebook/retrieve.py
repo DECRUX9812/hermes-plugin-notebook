@@ -55,6 +55,13 @@ def chunk_text(text: str, size: int = _CHUNK_SIZE, overlap: int = _CHUNK_OVERLAP
     return chunks
 
 
+def _xml_attr(value) -> str:
+    """Escape a value for a double-quoted XML attribute."""
+    return (str(value or "")
+            .replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
+            .replace('"', "&quot;"))
+
+
 def _bm25_scores(query_terms: list[str], docs: list[list[str]]) -> list[float]:
     """Tiny BM25: one score per doc (each doc a token list)."""
     if not query_terms or not docs:
@@ -132,11 +139,42 @@ def retrieve(notebook_id: str, query: str, *, max_chars: int = 28000,
     if not chunk_docs:
         return empty
 
+    # zero-loss path: when every active source fits the caller's context
+    # budget, inject them whole inside <source> tags — BM25 top-k is for
+    # corpora too big to fit, not for ones that fit
+    total_chars = sum(len(t) for _, t in pairs)
+    overhead = sum(len(str(r.get("title") or "")) + 140 for r, _ in pairs)
+    if total_chars + overhead <= max_chars:
+        parts = []
+        for i, (rec, text) in enumerate(pairs):
+            title = _xml_attr(rec.get("title"))
+            kind = _xml_attr(rec.get("kind"))
+            parts.append(
+                f"[S{i + 1} · {rec.get('title')} · {rec.get('kind')}]\n"
+                f'<source id="S{i + 1}" title="{title}" kind="{kind}">\n'
+                f"{text}\n</source>")
+        sources_used = [{
+            "n": i + 1, "id": rec["id"], "title": rec.get("title"),
+            "kind": rec.get("kind"), "origin": rec.get("origin"),
+            "labels": rec.get("labels", []),
+            # whole-source citations highlight the head, same as the
+            # chunked fallback
+            "snippet": text[:400].strip(),
+        } for i, (rec, text) in enumerate(pairs)]
+        return {
+            "context": "\n\n".join(parts),
+            "sources_used": sources_used,
+            "chunks_used": len(parts),
+            "total_chunks": len(chunk_docs),
+            "full_context": True,
+        }
+
     scores = _bm25_scores(tokenize(query), [d[2] for d in chunk_docs])
     order = sorted(range(len(chunk_docs)), key=lambda i: scores[i], reverse=True)
 
     context_parts: list[str] = []
     final_num: dict[str, int] = {}
+    best_chunk: dict[str, str] = {}
     used = 0
 
     if order and scores[order[0]] > 0:
@@ -147,6 +185,8 @@ def retrieve(notebook_id: str, query: str, *, max_chars: int = 28000,
             sid = rec["id"]
             if sid not in final_num:
                 final_num[sid] = len(final_num) + 1
+            if sid not in best_chunk:
+                best_chunk[sid] = ch
             block = f"[S{final_num[sid]} · {rec.get('title')} · {rec.get('kind')}]\n{ch}"
             if used + len(block) > max_chars and context_parts:
                 continue
@@ -160,6 +200,7 @@ def retrieve(notebook_id: str, query: str, *, max_chars: int = 28000,
 
     by_id = {s["id"]: s for s in sources}
     inv = {v: k for k, v in final_num.items()}
+    pair_text = {rec["id"]: text for rec, text in pairs}
     sources_used = []
     for n in sorted(final_num.values()):
         sid = inv[n]
@@ -167,6 +208,9 @@ def retrieve(notebook_id: str, query: str, *, max_chars: int = 28000,
         sources_used.append({
             "n": n, "id": sid, "title": s.get("title"), "kind": s.get("kind"),
             "origin": s.get("origin"), "labels": s.get("labels", []),
+            # the passage this citation was built from — the page highlights
+            # it when the source opens; fallback path cites the head
+            "snippet": (best_chunk.get(sid) or pair_text.get(sid, ""))[:400].strip(),
         })
 
     return {
@@ -175,6 +219,18 @@ def retrieve(notebook_id: str, query: str, *, max_chars: int = 28000,
         "chunks_used": len(context_parts),
         "total_chunks": len(chunk_docs),
     }
+
+
+def cited_sources(sources_used: list[dict], answer: str) -> list[dict]:
+    """The citation rows an answer should show: only sources it actually marks
+    as [S<n>]. Full-context retrieval puts EVERY active source in context, so
+    without this filter every answer would chip every source. When the model
+    emits no markers at all, keep the full set — unmarked answers keep the
+    old behaviour rather than silently dropping provenance."""
+    nums = {int(m) for m in re.findall(r"\[S(\d+)\]", answer or "")}
+    if not nums:
+        return list(sources_used)
+    return [s for s in sources_used if s.get("n") in nums]
 
 
 def search(notebook_id: str, query: str, *, top_k: int = 8,
@@ -207,23 +263,35 @@ def search(notebook_id: str, query: str, *, top_k: int = 8,
     return {"query": query, "hits": hits, "total_chunks": len(chunk_docs)}
 
 
-def notebook_digest(notebook_id: str, *, max_chars: int = 42000) -> str:
+def notebook_digest(notebook_id: str, *, max_chars: int = 42000,
+                    cited: bool = False) -> str:
     """Broad-coverage digest for artifact/podcast prompts: head + tail slices of
-    every source so generation sees the whole notebook, not just one query."""
+    every source so generation sees the whole notebook, not just one query.
+
+    ``cited=True`` tags each excerpt ``[S<n> · …]`` where n is the source's
+    position in ``store.list_sources`` — the same numbering the page assigns —
+    so a model can cite claims inline and the UI can resolve them."""
     pairs = store.all_source_texts(notebook_id)
     off = store.disabled_sources(notebook_id)
     if off:
         pairs = [(r, t) for r, t in pairs if r.get("id") not in off]
     if not pairs:
         return ""
+    order = {s.get("id"): i for i, s in enumerate(store.list_sources(notebook_id))} if cited else {}
     per_source = max(1500, max_chars // max(1, len(pairs)))
     parts = []
     for i, (rec, text) in enumerate(pairs, 1):
         labels = ", ".join(rec.get("labels") or [])
-        header = f"[Source {i}: {rec.get('title')} — {rec.get('kind')}"
-        if rec.get("origin") and rec["kind"] in {"url", "youtube"}:
-            header += f" — {rec['origin']}"
-        header += f" — labels: {labels}]" if labels else "]"
+        if cited:
+            header = f"[S{order.get(rec.get('id'), i - 1) + 1} · {rec.get('title')} · {rec.get('kind')}"
+            if rec.get("origin") and rec["kind"] in {"url", "youtube"}:
+                header += f" — {rec['origin']}"
+            header += "]"
+        else:
+            header = f"[Source {i}: {rec.get('title')} — {rec.get('kind')}"
+            if rec.get("origin") and rec["kind"] in {"url", "youtube"}:
+                header += f" — {rec['origin']}"
+            header += f" — labels: {labels}]" if labels else "]"
         body = text[: per_source * 2 // 3]
         if len(text) > per_source:
             body += "\n\n[... middle omitted ...]\n\n" + text[-(per_source // 3):]

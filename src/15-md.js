@@ -4,7 +4,7 @@
  * shipping them as raw text in a "polished" viewer is the difference between a
  * product and a debug pane — but a full markdown library is not importable here.
  */
-const INLINE = /(\*\*[^*]+\*\*|__[^_\n]+__|`[^`]+`|\*[^*\n]+\*|_[^_\n]+_|\[S\d+\]|\[[^\]]+\]\([^)]+\))/g
+const INLINE = /(\*\*[^*]+\*\*|__[^_\n]+__|~~[^~\n]+~~|`[^`]+`|\*[^*\n]+\*|_[^_\n]+_|\[S\d+\]|\[[^\]]+\]\([^)]+\))/g
 
 function inlineNodes(text, keyBase, onCite) {
   const out = []
@@ -20,6 +20,8 @@ function inlineNodes(text, keyBase, onCite) {
       out.push(el('strong', { children: tok.slice(2, -2) }, k))
     } else if (tok.startsWith('`')) {
       out.push(el('code', { children: tok.slice(1, -1) }, k))
+    } else if (tok.startsWith('~~')) {
+      out.push(el('del', { children: tok.slice(2, -2) }, k))
     } else if (tok.startsWith('*') || tok.startsWith('_')) {
       out.push(el('em', { children: tok.slice(1, -1) }, k))
     } else if (/^\[S\d+\]$/.test(tok)) {

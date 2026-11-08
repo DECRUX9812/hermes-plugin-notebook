@@ -198,6 +198,12 @@ artifacts/             generated .md / .html / .png / .csv / .json / .mp3 / .mp4
 ../exports/            notebook_export zips
 ```
 
+## Design
+
+[`docs/DESIGN-LORE.md`](docs/DESIGN-LORE.md) is the design story behind the UI —
+the reading-room metaphor, the palette, and the five laws any interface change
+must obey. Feed it to any model asked to design or generate surfaces here.
+
 ## Development
 
 ```bash

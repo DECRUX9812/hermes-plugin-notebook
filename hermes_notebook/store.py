@@ -67,6 +67,7 @@ def list_notebooks() -> list[dict]:
         nb_id = nb_json.parent.name
         sources = list_sources(nb_id)
         artifacts = list_artifacts(nb_id)
+        threads_dir = nb_json.parent / "threads"
         out.append({
             "id": nb_id,
             "title": meta.get("title") or nb_id,
@@ -75,6 +76,8 @@ def list_notebooks() -> list[dict]:
             "updated_at": meta.get("updated_at", ""),
             "sources": len(sources),
             "artifacts": len(artifacts),
+            "threads": (len(list(threads_dir.glob("*.json")))
+                        if threads_dir.is_dir() else 0),
             "total_chars": sum(s.get("chars", 0) for s in sources),
             "dir": str(nb_json.parent),
         })
@@ -202,6 +205,31 @@ def update_meta(notebook_id: str, *, title: Optional[str] = None,
     meta["updated_at"] = _iso(_now())
     _write_json(d / "notebook.json", meta)
     return meta
+
+
+def duplicate_notebook(notebook_id: str) -> dict:
+    """Copy a notebook — sources, artifacts, labels, options — under a fresh
+    id and 'Copy of …' title. Chat threads do NOT carry over."""
+    import shutil
+    nb_id = resolve_notebook(notebook_id)
+    src_dir = _nb_dir(nb_id)
+    meta = get_meta(nb_id)
+    new_meta = create_notebook(f"Copy of {meta.get('title') or nb_id}",
+                               meta.get("description") or "")
+    new_id = new_meta["id"]
+    new_dir = _nb_dir(new_id)
+    for sub in ("sources", "artifacts"):
+        sdir = src_dir / sub
+        if sdir.is_dir():
+            shutil.copytree(sdir, new_dir / sub, dirs_exist_ok=True)
+    # sources/index.json travels with the copy; notebook.json keeps the new id
+    merged = get_meta(new_id)
+    for k in ("options", "emoji"):
+        if meta.get(k):
+            merged[k] = meta[k]
+    merged["updated_at"] = _iso(_now())
+    _write_json(new_dir / "notebook.json", merged)
+    return {"id": new_id, "title": merged["title"], "copied_from": nb_id}
 
 
 def delete_notebook(notebook_id: str) -> dict:
@@ -383,12 +411,30 @@ def get_thread(notebook_id: str, name: str = "default") -> list[dict]:
     return _read_json(_thread_path(notebook_id, name), [])
 
 
-def append_thread(notebook_id: str, name: str, role: str, content: str) -> list[dict]:
-    """Append one message; returns the trimmed thread."""
+def append_thread(notebook_id: str, name: str, role: str, content: str,
+                  extra: dict | None = None) -> list[dict]:
+    """Append one message; returns the trimmed thread. ``extra`` carries
+    per-message payload like an assistant answer's citations."""
     nb_id = resolve_notebook(notebook_id)
     msgs = get_thread(nb_id, name)
-    msgs.append({"role": role, "content": content[:8000], "ts": _iso(_now())})
+    msg = {"role": role, "content": content[:8000], "ts": _iso(_now())}
+    if extra:
+        msg.update(extra)
+    msgs.append(msg)
     msgs = msgs[-_THREAD_CAP:]
+    _write_json(_thread_path(nb_id, name), msgs)
+    return msgs
+
+
+def pop_thread_exchange(notebook_id: str, name: str = "default") -> list[dict]:
+    """Drop the trailing assistant message and its user question — a retry
+    regenerates the exchange instead of duplicating it."""
+    nb_id = resolve_notebook(notebook_id)
+    msgs = get_thread(nb_id, name)
+    if msgs and msgs[-1].get("role") == "assistant":
+        msgs.pop()
+    if msgs and msgs[-1].get("role") == "user":
+        msgs.pop()
     _write_json(_thread_path(nb_id, name), msgs)
     return msgs
 
@@ -399,6 +445,23 @@ def clear_thread(notebook_id: str, name: str = "default") -> dict:
     if p.exists():
         p.unlink()
     return {"cleared": name}
+
+
+def list_threads(notebook_id: str) -> list[dict]:
+    """Every saved conversation, newest first — title is the first question."""
+    d = _nb_dir(notebook_id) / "threads"
+    out = []
+    if d.is_dir():
+        for p in sorted(d.glob("*.json"), key=lambda x: x.stat().st_mtime, reverse=True):
+            msgs = _read_json(p, [])
+            title = ""
+            for m in msgs:
+                if m.get("role") == "user" and str(m.get("content") or "").strip():
+                    title = re.sub(r"\s+", " ", str(m["content"])).strip()[:48]
+                    break
+            out.append({"name": p.stem, "title": title or p.stem,
+                        "count": len(msgs), "updated": _iso(p.stat().st_mtime)})
+    return out
 
 
 # -------------------------------------------------------------------- export
