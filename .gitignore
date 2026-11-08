@@ -5,3 +5,4 @@ __pycache__/
 dist/
 build/
 tests/tmp/load-*/
+tests/shots/
