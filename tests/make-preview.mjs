@@ -230,6 +230,7 @@ const rest = async (path, opts) => {
     if (STATE.notebook) {
       if (body.title) STATE.notebook.title = body.title
       if (body.description !== undefined) STATE.notebook.description = body.description
+      if (body.emoji !== undefined) STATE.notebook.emoji = body.emoji
     }
     return { ok: true, notebook: STATE.notebook }
   }

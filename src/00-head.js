@@ -105,6 +105,11 @@ const CSS = `
 .nb-brandname{font-size:14.5px;font-weight:700;letter-spacing:-.01em;color:${T.text}}
 .nb-crumb{font-size:12.5px;color:${T.text3};white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:42ch}
 .nb-crumb b{color:${T.text2};font-weight:600}
+.nb-crumbedit{background:transparent;border:0;padding:0 8px;margin:0 -8px;font:inherit;
+  color:${T.text2};font-weight:600;cursor:pointer;border-radius:8px;
+  display:inline-flex;align-items:center;min-height:32px;max-width:42ch;
+  overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.nb-crumbedit:hover{color:${T.text};background:var(--nb-wash-2)}
 .nb-spacer{flex:1 1 auto}
 .nb-actions{display:flex;align-items:center;gap:8px}
 
@@ -399,6 +404,12 @@ const CSS = `
 .nb-thrrow:hover{background:var(--nb-wash)}
 .nb-thrrow.is-current{border-color:color-mix(in srgb,${T.accent} 40%, transparent);
   background:color-mix(in srgb,${T.accent} 8%, transparent)}
+.nb-emgrid{display:grid;grid-template-columns:repeat(8,1fr);gap:6px}
+.nb-em{aspect-ratio:1;border-radius:10px;border:1px solid var(--nb-hair-soft);
+  background:var(--nb-card);font-size:17px;cursor:pointer;display:grid;place-items:center;
+  transition:border-color .12s ease,background .12s ease}
+.nb-em:hover{border-color:color-mix(in srgb,${T.accent} 45%, transparent)}
+.nb-em.is-on{border-color:${T.accent};background:color-mix(in srgb,${T.accent} 12%, transparent)}
 
 /* --------------------------------------------------------- studio (index) */
 .nb-grid{display:flex;flex-direction:column;gap:10px;padding:12px 14px 26px}

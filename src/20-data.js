@@ -88,7 +88,7 @@ const kindLabel = (k) => KIND_LABEL[k] || k || 'file'
 const NB_EMOJI = ['📓', '🧠', '🔬', '📚', '🛰️', '⚛️', '🌱', '🏛️', '🎧', '🧪',
   '📈', '🗺️', '🧭', '💡', '🏥', '⚖️']
 const hashStr = (s) => { let h = 0; for (const c of String(s)) h = (h * 31 + c.charCodeAt(0)) >>> 0; return h }
-const emojiFor = (id) => NB_EMOJI[hashStr(id || 'nb') % NB_EMOJI.length]
+const emojiFor = (id, custom) => (custom && String(custom).trim()) || NB_EMOJI[hashStr(id || 'nb') % NB_EMOJI.length]
 const dshort = (stamp) => {
   const d = stamp ? new Date(stamp) : null
   return d && !isNaN(d) ? d.toLocaleDateString(undefined, { day: 'numeric', month: 'short', year: 'numeric' }) : ''

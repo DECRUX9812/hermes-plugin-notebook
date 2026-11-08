@@ -224,6 +224,7 @@ def _notebook_payload(notebook_id: str) -> Dict[str, Any]:
         "id": meta.get("id", notebook_id),
         "title": meta.get("title") or notebook_id,
         "description": meta.get("description") or "",
+        "emoji": meta.get("emoji") or "",
         "created_at": meta.get("created_at", ""),
         "updated_at": meta.get("updated_at", ""),
         "sources": sources,
@@ -569,17 +570,19 @@ def set_options(payload: Dict[str, Any] = Body(...)) -> Any:
 
 @router.post("/notebook/update")
 def update_notebook(payload: Dict[str, Any] = Body(...)) -> Any:
-    """Rename / re-describe a notebook (NotebookLM's notebook settings)."""
+    """Rename / re-describe / re-icon a notebook (NotebookLM's notebook settings)."""
     nb = str(payload.get("notebook") or "")
     title = payload.get("title")
     desc = payload.get("description")
-    if title is None and desc is None:
-        return _fail("give a title and/or description")
+    emoji = payload.get("emoji")
+    if title is None and desc is None and emoji is None:
+        return _fail("give a title, description and/or emoji")
     try:
         meta = store.update_meta(
             nb,
             title=str(title) if title is not None else None,
-            description=str(desc) if desc is not None else None)
+            description=str(desc) if desc is not None else None,
+            **({"emoji": str(emoji)[:16]} if emoji is not None else {}))
     except Exception as exc:
         return _fail(f"{type(exc).__name__}: {exc}", 500)
     return {"ok": True, "notebook": _notebook_payload(meta["id"])}

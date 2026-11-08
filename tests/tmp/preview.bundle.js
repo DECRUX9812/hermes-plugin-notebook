@@ -14694,6 +14694,11 @@ var CSS2 = `
 .nb-brandname{font-size:14.5px;font-weight:700;letter-spacing:-.01em;color:${T.text}}
 .nb-crumb{font-size:12.5px;color:${T.text3};white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:42ch}
 .nb-crumb b{color:${T.text2};font-weight:600}
+.nb-crumbedit{background:transparent;border:0;padding:0 8px;margin:0 -8px;font:inherit;
+  color:${T.text2};font-weight:600;cursor:pointer;border-radius:8px;
+  display:inline-flex;align-items:center;min-height:32px;max-width:42ch;
+  overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.nb-crumbedit:hover{color:${T.text};background:var(--nb-wash-2)}
 .nb-spacer{flex:1 1 auto}
 .nb-actions{display:flex;align-items:center;gap:8px}
 
@@ -14988,6 +14993,12 @@ var CSS2 = `
 .nb-thrrow:hover{background:var(--nb-wash)}
 .nb-thrrow.is-current{border-color:color-mix(in srgb,${T.accent} 40%, transparent);
   background:color-mix(in srgb,${T.accent} 8%, transparent)}
+.nb-emgrid{display:grid;grid-template-columns:repeat(8,1fr);gap:6px}
+.nb-em{aspect-ratio:1;border-radius:10px;border:1px solid var(--nb-hair-soft);
+  background:var(--nb-card);font-size:17px;cursor:pointer;display:grid;place-items:center;
+  transition:border-color .12s ease,background .12s ease}
+.nb-em:hover{border-color:color-mix(in srgb,${T.accent} 45%, transparent)}
+.nb-em.is-on{border-color:${T.accent};background:color-mix(in srgb,${T.accent} 12%, transparent)}
 
 /* --------------------------------------------------------- studio (index) */
 .nb-grid{display:flex;flex-direction:column;gap:10px;padding:12px 14px 26px}
@@ -15833,7 +15844,7 @@ var hashStr = (s) => {
   for (const c of String(s)) h = h * 31 + c.charCodeAt(0) >>> 0;
   return h;
 };
-var emojiFor = (id) => NB_EMOJI[hashStr(id || "nb") % NB_EMOJI.length];
+var emojiFor = (id, custom) => custom && String(custom).trim() || NB_EMOJI[hashStr(id || "nb") % NB_EMOJI.length];
 var dshort = (stamp) => {
   const d = stamp ? new Date(stamp) : null;
   return d && !isNaN(d) ? d.toLocaleDateString(void 0, { day: "numeric", month: "short", year: "numeric" }) : "";
@@ -15863,6 +15874,7 @@ function App() {
   const [askOpen, setAskOpen] = (0, import_react.useState)(0);
   const [srcDialog, setSrcDialog] = (0, import_react.useState)(null);
   const [newNb, setNewNb] = (0, import_react.useState)(false);
+  const [renNb, setRenNb] = (0, import_react.useState)(null);
   const [filter, setFilter] = (0, import_react.useState)("all");
   const [peek, setPeek] = (0, import_react.useState)(null);
   const [railOpen, setRailOpen] = (0, import_react.useState)(() => persist.get("rail", "1") !== "0");
@@ -16049,11 +16061,11 @@ function App() {
       say(`export failed: ${e.message || e}`);
     }
   }, [notebook, say]);
-  const renameNotebook = (0, import_react.useCallback)(async (id, title, desc) => {
+  const renameNotebook = (0, import_react.useCallback)(async (id, title, desc, emoji) => {
     try {
       await api("/notebook/update", {
         method: "POST",
-        body: { notebook: id, title, description: desc },
+        body: { notebook: id, title, description: desc, emoji },
         timeoutMs: 3e4
       });
       await studio.reload(true);
@@ -16086,7 +16098,13 @@ function App() {
         el(
           "span",
           { className: "nb-crumb" },
-          ops ? el("b", { children: "Lab Ops" }) : home ? el("b", { children: "All notebooks" }) : el("span", null, "/ ", el("b", { children: notebook ? notebook.title : "no notebook" }))
+          ops ? el("b", { children: "Lab Ops" }) : home ? el("b", { children: "All notebooks" }) : el("span", null, "/ ", notebook ? el("button", {
+            type: "button",
+            className: "nb-crumbedit",
+            onClick: () => setRenNb(notebook),
+            title: "Notebook settings \u2014 rename, describe, pick an icon",
+            children: notebook.title
+          }) : el("b", { children: "no notebook" }))
         )
       ),
       el("div", { className: "nb-spacer" }),
@@ -16205,7 +16223,15 @@ function App() {
           setPicked(null);
         }
       }
-    })
+    }),
+    renNb ? (0, import_jsx_runtime.jsx)(RenameDialog, {
+      notebook: renNb,
+      onClose: () => setRenNb(null),
+      onDone: async (title, desc, emoji) => {
+        setRenNb(null);
+        await renameNotebook(renNb.id, title, desc, emoji);
+      }
+    }) : null
   );
 }
 function HomeDashboard({ data, onOpen, onNew, onDelete, onRename }) {
@@ -16261,7 +16287,7 @@ function HomeDashboard({ data, onOpen, onNew, onDelete, onRename }) {
             el("span", {
               className: "nb-feature-emoji",
               "aria-hidden": "true",
-              children: emojiFor(n.id)
+              children: emojiFor(n.id, n.emoji)
             }),
             el("span", { className: "nb-feature-title", children: n.title }),
             el("span", {
@@ -16307,7 +16333,7 @@ function HomeDashboard({ data, onOpen, onNew, onDelete, onRename }) {
               el("span", {
                 className: "nb-nbcard-emoji",
                 "aria-hidden": "true",
-                children: emojiFor(n.id)
+                children: emojiFor(n.id, n.emoji)
               }),
               el("span", { className: "nb-nbcard-title", children: n.title }),
               el("span", {
@@ -16371,9 +16397,9 @@ function HomeDashboard({ data, onOpen, onNew, onDelete, onRename }) {
     ren ? (0, import_jsx_runtime.jsx)(RenameDialog, {
       notebook: ren,
       onClose: () => setRen(null),
-      onDone: async (title, desc) => {
+      onDone: async (title, desc, emoji) => {
         setRen(null);
-        await onRename(ren.id, title, desc);
+        await onRename(ren.id, title, desc, emoji);
       }
     }) : null
   );
@@ -16381,19 +16407,41 @@ function HomeDashboard({ data, onOpen, onNew, onDelete, onRename }) {
 function RenameDialog({ notebook, onClose, onDone }) {
   const [title, setTitle] = (0, import_react.useState)(notebook.title || "");
   const [desc, setDesc] = (0, import_react.useState)(notebook.description || "");
+  const [emoji, setEmoji] = (0, import_react.useState)(notebook.emoji || "");
   const [busy, setBusy] = (0, import_react.useState)(false);
   const [err, setErr] = (0, import_react.useState)("");
   return (0, import_jsx_runtime.jsx)(Dialog, {
     open: true,
     onClose,
     title: "Notebook settings",
-    width: 460,
+    width: 480,
     children: el(
       "div",
       null,
       el(
         "div",
-        { className: "nb-field", style: { height: "40px", marginBottom: "10px" } },
+        { className: "nb-emgrid", role: "radiogroup", "aria-label": "Notebook icon" },
+        el("button", {
+          type: "button",
+          className: "nb-em" + (emoji ? "" : " is-on"),
+          onClick: () => setEmoji(""),
+          title: "Auto icon",
+          "aria-pressed": !emoji,
+          children: emojiFor(notebook.id)
+        }),
+        NB_EMOJI.map((e) => el("button", {
+          key: e,
+          type: "button",
+          className: "nb-em" + (emoji === e ? " is-on" : ""),
+          onClick: () => setEmoji(e),
+          title: `Icon ${e}`,
+          "aria-pressed": emoji === e,
+          children: e
+        }))
+      ),
+      el(
+        "div",
+        { className: "nb-field", style: { height: "40px", marginTop: "12px", marginBottom: "10px" } },
         (0, import_jsx_runtime.jsx)(Glyph, { name: "notebook", size: 14 }),
         el("input", {
           value: title,
@@ -16426,7 +16474,7 @@ function RenameDialog({ notebook, onClose, onDone }) {
             setBusy(true);
             setErr("");
             try {
-              await onDone(title.trim(), desc.trim());
+              await onDone(title.trim(), desc.trim(), emoji);
             } catch (e) {
               setErr(e.message || String(e));
               setBusy(false);
@@ -16923,7 +16971,7 @@ function Main({
       el(
         "div",
         { className: "nb-hero" },
-        el("span", { className: "nb-hero-emoji", "aria-hidden": "true", children: emojiFor(notebook.id) }),
+        el("span", { className: "nb-hero-emoji", "aria-hidden": "true", children: emojiFor(notebook.id, notebook.emoji) }),
         el(
           "div",
           { className: "nb-hero-main" },
@@ -22821,6 +22869,7 @@ var rest = async (path, opts) => {
     if (STATE.notebook) {
       if (body.title) STATE.notebook.title = body.title;
       if (body.description !== void 0) STATE.notebook.description = body.description;
+      if (body.emoji !== void 0) STATE.notebook.emoji = body.emoji;
     }
     return { ok: true, notebook: STATE.notebook };
   }

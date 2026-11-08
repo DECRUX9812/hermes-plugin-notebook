@@ -105,6 +105,11 @@ const CSS = `
 .nb-brandname{font-size:14.5px;font-weight:700;letter-spacing:-.01em;color:${T.text}}
 .nb-crumb{font-size:12.5px;color:${T.text3};white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:42ch}
 .nb-crumb b{color:${T.text2};font-weight:600}
+.nb-crumbedit{background:transparent;border:0;padding:0 8px;margin:0 -8px;font:inherit;
+  color:${T.text2};font-weight:600;cursor:pointer;border-radius:8px;
+  display:inline-flex;align-items:center;min-height:32px;max-width:42ch;
+  overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.nb-crumbedit:hover{color:${T.text};background:var(--nb-wash-2)}
 .nb-spacer{flex:1 1 auto}
 .nb-actions{display:flex;align-items:center;gap:8px}
 
@@ -399,6 +404,12 @@ const CSS = `
 .nb-thrrow:hover{background:var(--nb-wash)}
 .nb-thrrow.is-current{border-color:color-mix(in srgb,${T.accent} 40%, transparent);
   background:color-mix(in srgb,${T.accent} 8%, transparent)}
+.nb-emgrid{display:grid;grid-template-columns:repeat(8,1fr);gap:6px}
+.nb-em{aspect-ratio:1;border-radius:10px;border:1px solid var(--nb-hair-soft);
+  background:var(--nb-card);font-size:17px;cursor:pointer;display:grid;place-items:center;
+  transition:border-color .12s ease,background .12s ease}
+.nb-em:hover{border-color:color-mix(in srgb,${T.accent} 45%, transparent)}
+.nb-em.is-on{border-color:${T.accent};background:color-mix(in srgb,${T.accent} 12%, transparent)}
 
 /* --------------------------------------------------------- studio (index) */
 .nb-grid{display:flex;flex-direction:column;gap:10px;padding:12px 14px 26px}
@@ -1153,7 +1164,7 @@ const kindLabel = (k) => KIND_LABEL[k] || k || 'file'
 const NB_EMOJI = ['📓', '🧠', '🔬', '📚', '🛰️', '⚛️', '🌱', '🏛️', '🎧', '🧪',
   '📈', '🗺️', '🧭', '💡', '🏥', '⚖️']
 const hashStr = (s) => { let h = 0; for (const c of String(s)) h = (h * 31 + c.charCodeAt(0)) >>> 0; return h }
-const emojiFor = (id) => NB_EMOJI[hashStr(id || 'nb') % NB_EMOJI.length]
+const emojiFor = (id, custom) => (custom && String(custom).trim()) || NB_EMOJI[hashStr(id || 'nb') % NB_EMOJI.length]
 const dshort = (stamp) => {
   const d = stamp ? new Date(stamp) : null
   return d && !isNaN(d) ? d.toLocaleDateString(undefined, { day: 'numeric', month: 'short', year: 'numeric' }) : ''
@@ -1189,6 +1200,7 @@ function App() {
   const [askOpen, setAskOpen] = useState(0)        // bump to focus the composer
   const [srcDialog, setSrcDialog] = useState(null) // {mode?, seed?} | null
   const [newNb, setNewNb] = useState(false)
+  const [renNb, setRenNb] = useState(null)          // notebook open in the settings dialog
   const [filter, setFilter] = useState('all')
   const [peek, setPeek] = useState(null)           // source lifted so the rail can open it
   const [railOpen, setRailOpen] = useState(() => persist.get('rail', '1') !== '0')
@@ -1360,11 +1372,11 @@ function App() {
     } catch (e) { say(`export failed: ${e.message || e}`) }
   }, [notebook, say])
 
-  const renameNotebook = useCallback(async (id, title, desc) => {
+  const renameNotebook = useCallback(async (id, title, desc, emoji) => {
     try {
       await api('/notebook/update', {
         method: 'POST',
-        body: { notebook: id, title, description: desc },
+        body: { notebook: id, title, description: desc, emoji },
         timeoutMs: 30000
       })
       await studio.reload(true)
@@ -1390,7 +1402,14 @@ function App() {
             ? el('b', { children: 'Lab Ops' })
             : home
               ? el('b', { children: 'All notebooks' })
-              : el('span', null, '/ ', el('b', { children: notebook ? notebook.title : 'no notebook' })))
+              : el('span', null, '/ ', notebook
+                  ? el('button', {
+                      type: 'button', className: 'nb-crumbedit',
+                      onClick: () => setRenNb(notebook),
+                      title: 'Notebook settings — rename, describe, pick an icon',
+                      children: notebook.title
+                    })
+                  : el('b', { children: 'no notebook' })))
       ),
       el('div', { className: 'nb-spacer' }),
       jsx(Seg, {
@@ -1462,7 +1481,11 @@ function App() {
     jsx(NewNotebookDialog, {
       open: newNb, onClose: () => setNewNb(false),
       onDone: async (id) => { setNewNb(false); if (id) { setNb(id); setPicked(null) } }
-    })
+    }),
+    renNb ? jsx(RenameDialog, {
+      notebook: renNb, onClose: () => setRenNb(null),
+      onDone: async (title, desc, emoji) => { setRenNb(null); await renameNotebook(renNb.id, title, desc, emoji) }
+    }) : null
   )
 }
 
@@ -1502,7 +1525,7 @@ function HomeDashboard({ data, onOpen, onNew, onDelete, onRename }) {
               'aria-label': `Open notebook ${n.title}`,
               children: [
                 el('span', { className: 'nb-feature-emoji', 'aria-hidden': 'true',
-                  children: emojiFor(n.id) }),
+                  children: emojiFor(n.id, n.emoji) }),
                 el('span', { className: 'nb-feature-title', children: n.title }),
                 el('span', { className: 'nb-feature-meta',
                   children: `${dshort(n.updated_at)} · ${n.sources} source${n.sources === 1 ? '' : 's'} · ${n.artifacts} artifact${n.artifacts === 1 ? '' : 's'}` })
@@ -1535,7 +1558,7 @@ function HomeDashboard({ data, onOpen, onNew, onDelete, onRename }) {
                 'aria-label': `Open notebook ${n.title}`,
                 children: [
                   el('span', { className: 'nb-nbcard-emoji', 'aria-hidden': 'true',
-                    children: emojiFor(n.id) }),
+                    children: emojiFor(n.id, n.emoji) }),
                   el('span', { className: 'nb-nbcard-title', children: n.title }),
                   el('span', { className: 'nb-nbcard-meta',
                     children: `${dshort(n.updated_at)} · ${n.sources} source${n.sources === 1 ? '' : 's'}` })
@@ -1570,7 +1593,7 @@ function HomeDashboard({ data, onOpen, onNew, onDelete, onRename }) {
 
     ren ? jsx(RenameDialog, {
       notebook: ren, onClose: () => setRen(null),
-      onDone: async (title, desc) => { setRen(null); await onRename(ren.id, title, desc) }
+      onDone: async (title, desc, emoji) => { setRen(null); await onRename(ren.id, title, desc, emoji) }
     }) : null
   )
 }
@@ -1578,12 +1601,25 @@ function HomeDashboard({ data, onOpen, onNew, onDelete, onRename }) {
 function RenameDialog({ notebook, onClose, onDone }) {
   const [title, setTitle] = useState(notebook.title || '')
   const [desc, setDesc] = useState(notebook.description || '')
+  const [emoji, setEmoji] = useState(notebook.emoji || '')
   const [busy, setBusy] = useState(false)
   const [err, setErr] = useState('')
   return jsx(Dialog, {
-    open: true, onClose, title: 'Notebook settings', width: 460,
+    open: true, onClose, title: 'Notebook settings', width: 480,
     children: el('div', null,
-      el('div', { className: 'nb-field', style: { height: '40px', marginBottom: '10px' } },
+      el('div', { className: 'nb-emgrid', role: 'radiogroup', 'aria-label': 'Notebook icon' },
+        el('button', {
+          type: 'button', className: 'nb-em' + (emoji ? '' : ' is-on'),
+          onClick: () => setEmoji(''), title: 'Auto icon', 'aria-pressed': !emoji,
+          children: emojiFor(notebook.id)
+        }),
+        NB_EMOJI.map((e) => el('button', {
+          key: e, type: 'button',
+          className: 'nb-em' + (emoji === e ? ' is-on' : ''),
+          onClick: () => setEmoji(e), title: `Icon ${e}`, 'aria-pressed': emoji === e,
+          children: e
+        }))),
+      el('div', { className: 'nb-field', style: { height: '40px', marginTop: '12px', marginBottom: '10px' } },
         jsx(Glyph, { name: 'notebook', size: 14 }),
         el('input', {
           value: title, onChange: (e) => setTitle(e.target.value), autoFocus: true,
@@ -1602,7 +1638,7 @@ function RenameDialog({ notebook, onClose, onDone }) {
           variant: 'primary', disabled: busy || !title.trim(),
           onClick: async () => {
             setBusy(true); setErr('')
-            try { await onDone(title.trim(), desc.trim()) }
+            try { await onDone(title.trim(), desc.trim(), emoji) }
             catch (e) { setErr(e.message || String(e)); setBusy(false) }
           },
           children: busy ? 'Saving…' : 'Save'
@@ -1963,7 +1999,7 @@ function Main({ notebook, kinds, tab, setTab, picked, setPicked, busy, generate,
   return el('main', { className: 'nb-col nb-main-col' },
     el('div', { className: 'nb-main-head' },
       el('div', { className: 'nb-hero' },
-        el('span', { className: 'nb-hero-emoji', 'aria-hidden': 'true', children: emojiFor(notebook.id) }),
+        el('span', { className: 'nb-hero-emoji', 'aria-hidden': 'true', children: emojiFor(notebook.id, notebook.emoji) }),
         el('div', { className: 'nb-hero-main' },
           el('h1', { className: 'nb-h1', children: notebook.title }),
           el('p', { className: 'nb-sub', children:
