@@ -1579,7 +1579,8 @@ function App() {
       open: searchOpen, onClose: () => setSearchOpen(false), notebook,
       onPick: (hit) => {
         const src = ((notebook && notebook.sources) || []).find((s) => s.id === hit.source_id)
-        if (src) openSource(src)
+        // carry the matched passage so the peek highlights it, like a citation
+        if (src) { setPeek({ ...src, citeSnippet: hit.snippet || '' }); setTab('peek') }
         else say('that source is no longer in the notebook')
       }
     }),
