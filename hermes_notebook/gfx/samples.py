@@ -11,7 +11,7 @@ from typing import Any, Dict
 
 #: The worked example every sheet and snapshot uses.
 SAMPLE_GRAPHIC: Dict[str, Any] = {
-    "title": "Tidal power — the three facts that decide a project",
+    "title": "Tidal power — six numbers that decide a project",
     "takeaway": "Output is set by the site, the cost by the cable, and the schedule "
                 "by the consent — in that order.",
     "subtitle": "A worked example of the pack",

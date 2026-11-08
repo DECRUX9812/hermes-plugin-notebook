@@ -108,9 +108,9 @@ _HOUSE: List[Preset] = [
         "realistic", "Realistic", "Deep neutrals, layered light, soft shadow and film grain.",
         "Reports, product paint, anything that should look photographed rather than drawn.",
         "feature", "house-plate", paper=(0x14, 0x17, 0x1C), ink=(0xF4, 0xF6, 0xF8),
-        muted=(0xB6, 0xBD, 0xC6), card=(0x1E, 0x23, 0x2B),
+        muted=(0xC2, 0xC9, 0xD3), card=(0x24, 0x2B, 0x35),
         accents=[(0x6E, 0xE7, 0xFF), (0xFF, 0xB4, 0x5C), (0x9C, 0xF5, 0xC0)],
-        border=(0x33, 0x3B, 0x46), radius=14, typeface="sans",
+        border=(0x3E, 0x4A, 0x5C), radius=14, typeface="sans",
         decor=("plate", "art"), kicker="OBSERVED", tone="dark", art="plate",
     ),
 ]

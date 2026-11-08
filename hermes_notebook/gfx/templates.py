@@ -97,8 +97,8 @@ def header(f: Frame, p: Preset, title: str, meta: str = "",
                               face, anchor="end"))
 
     y = 92
-    for line in core.wrap(title or "Untitled", face, title_size, f.inner, bold=True,
-                          limit=2):
+    for line in core.wrap_balanced(title or "Untitled", face, title_size, f.inner,
+                                   bold=True, limit=2):
         out.append(core.text(f.m, y + title_size * 0.8, line, title_size, p.ink,
                              face, bold=True))
         y += int(title_size * 1.08)
@@ -200,6 +200,12 @@ def tile(f: Frame, p: Preset, box: Tuple[float, float, float, float],
     if "offset-shadow" in p.decor:
         out.append(core.rect(x0 + 7, y0 + 7, w, h, fill=p.ink))
     out.append(core.rect(x0, y0, w, h, fill=card, r=p.radius, extra=shadow))
+    if p.art == "plate":
+        # a gloss band and a 1px top light read as a lit surface; without them the
+        # card is a rectangle of a slightly different dark
+        out.append(core.rect(x0, y0, w, h, fill="url(#cardgloss)", r=p.radius))
+        out.append(core.rect(x0 + 1, y0 + 1, w - 2, 1.2, fill="#ffffff",
+                             opacity=0.16, r=1))
     if p.border:
         out.append(core.rect(x0, y0, w, h, fill=None, stroke=p.border,
                              sw=3 if ("outline" in p.decor or "hard-border" in p.decor) else 1,
@@ -224,7 +230,7 @@ def tile(f: Frame, p: Preset, box: Tuple[float, float, float, float],
             break
         vsize, lab_lines = cand, lab
     out.append(core.text(x0 + pad, y0 + top + vsize * 0.82, value, vsize,
-                         core.readable(accent, card), face, bold=True))
+                         core.readable(accent, card), face, bold=True, tabular=True))
 
     ly = y0 + top + vsize + 10 + lsize * 0.8
     for line in lab_lines:
@@ -714,10 +720,10 @@ def tpl_cover(f: Frame, p: Preset, g: Dict[str, Any], detail: str = "standard",
     pad = 34
     width = f.inner - pad * 2
     size = 84
-    lines = core.wrap(title, face, size, width, bold=True, limit=4)
+    lines = core.wrap_balanced(title, face, size, width, bold=True, limit=3)
     while (len(lines) > 3 or len(lines) * size * 1.15 > plate_h - 150) and size > 34:
         size -= 4
-        lines = core.wrap(title, face, size, width, bold=True, limit=4)
+        lines = core.wrap_balanced(title, face, size, width, bold=True, limit=3)
     sub = str(g.get("subtitle") or g.get("takeaway") or "").strip()
     sub_lines = core.wrap(sub, face, 22, width, limit=2) if sub else []
     need = 34 + 30 + len(lines) * int(size * 1.14) + (len(sub_lines) * 29 + 26 if sub_lines else 0) + 46

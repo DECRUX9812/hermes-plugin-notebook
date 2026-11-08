@@ -147,8 +147,25 @@ Sixteen type-led looks (`sections`, `editorial`, `poster`, `swiss`, `magazine`,
 
 | preset | what it is | built from |
 |---|---|---|
-| `cartoon` | picture-book cover/infographic: sky wash, sun with rays, clouds, two hill bands, outlined figure and flags, thick ink outlines, offset shadows | flat fills + 3px strokes |
-| `realistic` | studio-lit surface: key light upper-left, rim light opposite, cyc-wall horizon with reflection, vignette, film grain, drop shadows on cards | layered radial/linear gradients + `feGaussianBlur` + `feTurbulence` |
+| `cartoon` | picture-book scene: sky wash, sun with glow and rays, three puffy outlined clouds, three overlapping hill bands, flags and a figure; type sits on a plate below, so words never land on the art | flat fills + 3px ink outlines + offset shadows |
+| `realistic` | studio-lit surface: key light upper-left, rim light opposite, a soft light pool instead of a floor seam, vignette and film grain; cards carry a gloss band, a 1px top light and a real cast shadow | layered radial/linear gradients + `feGaussianBlur` + `feTurbulence` |
+
+Quality rules learned by looking at the output (not by taste):
+
+- **Illustrate with five shapes, not fifteen.** A scene (sky, sun, clouds, hills, figure)
+  reads as illustration; the same scene with scattered dots or filler props reads as
+  clip art. Extras were removed after review, not added.
+- **No hard edges in a "photographic" background.** A floor band with a straight top
+  reads as a seam; a soft light pool plus a 10%-opacity horizon line reads as a surface.
+- **A dark card needs its own light.** Cards on `realistic` carry a gloss gradient, a
+  1px top highlight and a stronger shadow — without them a card is a slightly lighter
+  rectangle, and the sheet reads as a dashboard, not a lit sheet.
+- **Titles wrap balanced, not greedy.** `core.wrap_balanced` narrows the measure until
+  the lines are close to equal, so a headline never leaves one word alone.
+- **Figures use tabular numerals** (`tnum`), so columns of numbers line up.
+- **The cartoon treatment is a scene, not a diagram.** It does not know the topic; if a
+  brief needs the subject drawn (water, turbines, a city), that is the image-model path,
+  and the docs say so.
 
 Both are honest constructions: no photographs, no stock imagery — lighting and
 shape, drawn. Say so before someone assumes otherwise.

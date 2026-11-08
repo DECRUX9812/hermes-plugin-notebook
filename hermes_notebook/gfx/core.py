@@ -181,6 +181,27 @@ def wrap(body: str, face: str, size: int, max_w: float, bold: bool = False,
     return lines[:limit] if limit else lines
 
 
+def wrap_balanced(body: str, face: str, size: int, max_w: float, bold: bool = False,
+                  limit: Optional[int] = 3) -> List[str]:
+    """Wrap to `limit` lines or fewer, then narrow the measure so the lines come out
+    close to equal. Greedy wrapping is left-ragged by nature; a headline that leaves
+    one short word on its own line looks like a mistake, not a choice."""
+    greedy = wrap(body, face, size, max_w, bold, limit)
+    if len(greedy) <= 1:
+        return greedy
+    best = greedy
+    lo, hi = max_w / max(2, len(greedy)), max_w
+    for _ in range(12):
+        mid = (lo + hi) / 2
+        trial = wrap(body, face, size, mid, bold)
+        if len(trial) <= limit:
+            best, hi = trial, mid
+        else:
+            lo = mid
+    # prefer the balanced version only when it does not add a line
+    return best if len(best) <= len(greedy) else greedy
+
+
 def clip(body: str, face: str, size: int, max_w: float, bold: bool = False,
          ellipsis: str = "…") -> str:
     body = str(body or "")
@@ -219,7 +240,7 @@ def paint(c: Any) -> str:
 def text(x: float, y: float, body: str, size: int, fill: Any, face: str = "sans",
          bold: bool = False, anchor: str = "start", opacity: float = 1.0,
          tracking: float = 0.0, weight: Optional[int] = None,
-         baseline: str = "") -> str:
+         baseline: str = "", tabular: bool = False) -> str:
     """One text run. `y` is the baseline unless `baseline` is given."""
     if body is None or str(body) == "":
         return ""
@@ -238,6 +259,9 @@ def text(x: float, y: float, body: str, size: int, fill: Any, face: str = "sans"
         attrs.append(f'letter-spacing="{tracking}"')
     if baseline:
         attrs.append(f'dominant-baseline="{baseline}"')
+    if tabular:
+        # figures that line up in columns — a poster of numbers must not shift
+        attrs.append("font-feature-settings=\"'tnum' 1\"")
     return f'<text {" ".join(attrs)}>{escape(str(body))}</text>'
 
 

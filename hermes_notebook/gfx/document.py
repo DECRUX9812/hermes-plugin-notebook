@@ -162,16 +162,17 @@ _GRID_TEMPLATES = ("infographic", "stat_grid", "timeline", "comparison", "proces
 
 #: Covers put a type plate over the lower half, so the artwork has to compose in
 #: the space above it.
-_HORIZON = {"cover": 0.46, "illustration": 0.66}
+_HORIZON = {"cover": 0.30, "illustration": 0.58}
 
 
 def _background(f: templates.Frame, p: Preset, tpl: str = "") -> List[str]:
-    art = illustrate.backdrop(f.w, f.h, p, _HORIZON.get(tpl, 0.60))
+    art = illustrate.backdrop(f.w, f.h, p, _HORIZON.get(tpl, 0.52))
     if art:
         if tpl in _GRID_TEMPLATES:
-            # a scrim keeps the art as texture instead of competing with the type
+            # a scrim keeps the art as texture instead of competing with the type;
+            # a photographed surface keeps more of its light than a cartoon sky does
             art.append(core.rect(0, 0, f.w, f.h, fill=core.shade(p.paper, -0.02),
-                                 opacity=0.58))
+                                 opacity=0.30 if p.art == "plate" else 0.58))
         return art
     if p.family == "poster":
         return [core.gradient("poster", p.paper, core.shade(p.paper, -0.55)),
