@@ -15,7 +15,8 @@ const body = files.map((f) => readFileSync(join(srcDir, f), 'utf8').trimEnd()).j
 const footer = `
 // Named exports are for the preview harness and the gates; the app only reads
 // the default export.
-export { App, StudioPanel, Viewer, OpsDeck, Rail, Markdown, KIND_ICON, CSS }
+export { App, StudioPanel, Viewer, OpsDeck, Rail, Markdown, KIND_ICON, CSS,
+         Machine, MACHINES, machineFleet, MACHINE_DOCS }
 `
 
 const out = `${body}\n${footer}`

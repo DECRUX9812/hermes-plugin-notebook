@@ -207,19 +207,80 @@ function VideoView({ src, json, text }) {
   )
 }
 
+/* One media element plays at a time in this page, so playback is one machine:
+ * idle → loading → playing → paused | ended, plus error. The element's own events
+ * drive it, and `playing` is read from the state instead of mirrored in a boolean
+ * that can disagree with what the audio is actually doing. */
+const PLAYER = Machine('player', {
+  initial: 'idle',
+  context: { duration: 0, error: '' },
+  states: {
+    idle: { on: { LOAD: 'loading', RESET: 'idle' } },
+    loading: {
+      tags: ['busy'],
+      on: {
+        META: { target: 'paused', action: (c, p) => ({ duration: (p && p.duration) || 0 }) },
+        PLAY: 'playing',
+        ERROR: { target: 'error', action: (c, p) => ({ error: (p && p.message) || 'this file could not be played' }) },
+        RESET: { target: 'idle', action: () => ({ duration: 0, error: '' }) }
+      }
+    },
+    playing: {
+      on: {
+        PAUSE: 'paused',
+        END: 'ended',
+        PLAY: 'playing',
+        ERROR: { target: 'error', action: (c, p) => ({ error: (p && p.message) || 'playback stopped' }) },
+        RESET: { target: 'idle', action: () => ({ duration: 0, error: '' }) }
+      }
+    },
+    paused: {
+      on: {
+        PLAY: 'playing',
+        END: 'ended',
+        ERROR: { target: 'error', action: (c, p) => ({ error: (p && p.message) || 'playback stopped' }) },
+        RESET: { target: 'idle', action: () => ({ duration: 0, error: '' }) }
+      }
+    },
+    ended: { on: { PLAY: 'playing', RESET: { target: 'idle', action: () => ({ duration: 0, error: '' }) } } },
+    error: { on: { LOAD: 'loading', RESET: { target: 'idle', action: () => ({ error: '' }) } } }
+  }
+})
+
+/* Re-voicing a script is its own machine: idle → rendering → done | failed, with
+ * the script text kept so a failure does not lose the edit. */
+const REVOICE = Machine('revoice', {
+  initial: 'idle',
+  context: { error: '' },
+  states: {
+    idle: { on: { RENDER: 'rendering', DISCARD: 'idle' } },
+    rendering: {
+      tags: ['busy'],
+      on: {
+        DONE: { target: 'idle', action: () => ({ error: '' }) },
+        FAIL: { target: 'failed', action: (c, p) => ({ error: (p && p.message) || 'the voice render failed' }) },
+        DISCARD: 'idle'
+      }
+    },
+    failed: { on: { RENDER: 'rendering', DISCARD: { target: 'idle', action: () => ({ error: '' }) } } }
+  }
+})
+
 /* --------------------------------------------------------------- audio */
 
 function AudioView({ src, json, text, notebook, onChanged }) {
   const audioRef = useRef(null)
-  const [playing, setPlaying] = useState(false)
+  const player = useMachine(PLAYER)
+  const revoice = useMachine(REVOICE)
+  const playing = player.matches('playing')
   const [t, setT] = useState(0)
-  const [dur, setDur] = useState(0)
+  const dur = player.ctx.duration
   const [rate, setRate] = useState(1)
   // script stage: edit the generated dialogue, then re-voice it — a new run
   const [editing, setEditing] = useState(false)
   const [draft, setDraft] = useState(null)
-  const [rendering, setRendering] = useState(false)
-  const [renderErr, setRenderErr] = useState('')
+  const rendering = revoice.matches('rendering')
+  const renderErr = revoice.ctx.error
   const speakers = new Set(((json && json.segments) || []).map((s) => s && s.speaker).filter(Boolean))
   const hostLabel = speakers.size > 1 ? 'TWO HOSTS' : speakers.size === 1 ? 'ONE NARRATOR' : 'AUDIO'
   // segments carry start/end once audio.py stamps them — old artifacts don't
@@ -269,7 +330,7 @@ function AudioView({ src, json, text, notebook, onChanged }) {
     if (!a || !seg) return
     a.currentTime = seg.start
     setT(seg.start)
-    if (a.paused) { a.play(); setPlaying(true) }
+    if (a.paused) { a.play(); PLAYER.send('PLAY') }
   }
 
   const bars = useMemo(() => {
@@ -298,7 +359,7 @@ function AudioView({ src, json, text, notebook, onChanged }) {
     if (!segs.length) return
     setDraft({ title: (json && json.title) || 'Audio Overview', segments: segs })
     setEditing(true)
-    setRenderErr('')
+    REVOICE.send('DISCARD')
   }
   const patchSeg = (i, patch) =>
     setDraft(d => ({ ...d, segments: d.segments.map((s, j) => (j === i ? { ...s, ...patch } : s)) }))
@@ -312,19 +373,18 @@ function AudioView({ src, json, text, notebook, onChanged }) {
     })
   const renderScript = async () => {
     if (!notebook || !draft) return
-    setRendering(true)
-    setRenderErr('')
+    if (!REVOICE.can('RENDER')) return
+    REVOICE.send('RENDER')
     try {
       await api('/audio_render', {
         method: 'POST', timeoutMs: 600000,
         body: { notebook: notebook.id, script: { ...draft, voices: (json && json.voices) || {} } }
       })
       setEditing(false)
+      REVOICE.send('DONE')
       if (onChanged) onChanged()
     } catch (e) {
-      setRenderErr(String((e && e.message) || e))
-    } finally {
-      setRendering(false)
+      REVOICE.send('FAIL', { message: String((e && e.message) || e) })
     }
   }
 
@@ -445,7 +505,7 @@ function AudioView({ src, json, text, notebook, onChanged }) {
             onClick: () => {
               const a = audioRef.current
               if (!a) return
-              if (a.paused) { a.play(); setPlaying(true) } else { a.pause(); setPlaying(false) }
+              if (a.paused) { a.play(); PLAYER.send('PLAY') } else { a.pause(); PLAYER.send('PAUSE') }
             },
             style: { background: 'rgba(255,255,255,.1)', width: '40px', height: '40px' },
             children: jsx(Glyph, { name: playing ? 'pause' : 'play', size: 16 })
@@ -483,8 +543,11 @@ function AudioView({ src, json, text, notebook, onChanged }) {
         el('audio', {
           ref: audioRef, src: src || undefined, preload: 'metadata',
           onTimeUpdate: (e) => setT(e.currentTarget.currentTime),
-          onLoadedMetadata: (e) => setDur(e.currentTarget.duration || 0),
-          onEnded: () => setPlaying(false),
+          onLoadedMetadata: (e) => PLAYER.send('META', { duration: e.currentTarget.duration || 0 }),
+          onEnded: () => PLAYER.send('END'),
+          onPause: () => PLAYER.send('PAUSE'),
+          onPlay: () => PLAYER.send('PLAY'),
+          onError: () => PLAYER.send('ERROR'),
           style: { display: 'none' }
         })),
       scriptEditor

@@ -103,6 +103,15 @@ answer. Every thread still cites the same sources.
 | Storage | `threads/<name>.json` per notebook — title, created, updated, messages; older message-list files still load |
 | Limits | 40 threads per notebook, 40 messages per thread (the oldest roll off) |
 
+## State machines
+
+Eleven explicit state machines (studio, jobs, turn, overview, suggest, search,
+discover, ingest, player, revoice, dialogs) replace the booleans that used to describe
+the same concerns. The fleet is readable by people (`history()`), by developers
+(`can()` is the disabled predicate) and by agents
+(`window.__nbMachines()`, `document.body.dataset.machines`).
+See [docs/STATE-MACHINES.md](docs/STATE-MACHINES.md).
+
 ## Graphics library
 
 Every visual artifact is drawn by a reusable library, not one-off code:

@@ -13628,6 +13628,205 @@ var clock = (stamp) => {
   return d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
 };
 var esc = (s) => String(s == null ? "" : s);
+var MACHINES = /* @__PURE__ */ new Map();
+var MACHINE_LOG_MAX = 24;
+var machineWarn = (msg, extra) => {
+  try {
+    console.warn(`[machine] ${msg}`, extra === void 0 ? "" : extra);
+  } catch (e) {
+  }
+};
+var publishMachines = () => {
+  try {
+    const out = {};
+    MACHINES.forEach((m, name) => {
+      const cut = name.indexOf(":");
+      if (cut > 0) {
+        const group = name.slice(0, cut);
+        const leaf = name.slice(cut + 1);
+        if (!out[group] || typeof out[group] !== "object") out[group] = {};
+        out[group][leaf] = m.state;
+      } else {
+        out[name] = m.state;
+      }
+    });
+    if (typeof document !== "undefined" && document.body) {
+      document.body.setAttribute("data-machines", JSON.stringify(out));
+    }
+  } catch (e) {
+  }
+};
+function Machine(name, spec) {
+  const states = spec.states || {};
+  const initial = spec.initial || Object.keys(states)[0];
+  if (!states[initial]) throw new Error(`machine ${name}: initial state "${initial}" is not declared`);
+  let state = initial;
+  let ctx = Object.assign({}, spec.context || {});
+  let cleanup = null;
+  const subs = /* @__PURE__ */ new Set();
+  const log = [];
+  const record = (entry) => {
+    log.push(entry);
+    if (log.length > MACHINE_LOG_MAX) log.shift();
+  };
+  const transitionFor = (from, event) => {
+    const node2 = states[from] || {};
+    const raw = (node2.on || {})[event];
+    if (!raw) return null;
+    return typeof raw === "string" ? { target: raw } : raw;
+  };
+  const machine = {
+    name,
+    get state() {
+      return state;
+    },
+    get ctx() {
+      return ctx;
+    },
+    /** Derived booleans for the current state — what the UI is allowed to ask. */
+    get tags() {
+      return (states[state] || {}).tags || [];
+    },
+    tag(t) {
+      return ((states[state] || {}).tags || []).indexOf(t) >= 0;
+    },
+    matches() {
+      return Array.prototype.slice.call(arguments).indexOf(state) >= 0;
+    },
+    can(event) {
+      return !!transitionFor(state, event);
+    },
+    /** Every event that would move the machine right now — the AX/DX surface. */
+    available() {
+      const node2 = states[state] || {};
+      return Object.keys(node2.on || {}).filter((ev) => {
+        const t = transitionFor(state, ev);
+        return !!t && (!t.guard || !!t.guard(ctx));
+      });
+    },
+    send(event, payload) {
+      const t = transitionFor(state, event);
+      if (!t) {
+        record({ at: Date.now(), event, from: state, to: null, payload: void 0 });
+        machineWarn(`${name}: "${event}" not allowed in "${state}"`);
+        return false;
+      }
+      if (t.guard && !t.guard(ctx, payload)) {
+        record({ at: Date.now(), event, from: state, to: null, refused: "guard" });
+        return false;
+      }
+      const from = state;
+      if (cleanup) {
+        try {
+          cleanup();
+        } catch (e) {
+          machineWarn(`${name}: exit cleanup threw`, e);
+        }
+        cleanup = null;
+      }
+      state = t.target;
+      if (typeof t.action === "function") {
+        try {
+          const patch = t.action(ctx, payload, machine);
+          if (patch && typeof patch === "object") Object.assign(ctx, patch);
+        } catch (e) {
+          machineWarn(`${name}: action for ${event} threw`, e);
+        }
+      }
+      record({ at: Date.now(), event, from, to: state });
+      const node2 = states[state] || {};
+      if (typeof node2.enter === "function") {
+        try {
+          cleanup = node2.enter(ctx, machine) || null;
+        } catch (e) {
+          machineWarn(`${name}: enter ${state} threw`, e);
+        }
+      }
+      publishMachines();
+      subs.forEach((fn) => {
+        try {
+          fn(machine);
+        } catch (e) {
+          machineWarn(`${name}: subscriber threw`, e);
+        }
+      });
+      return true;
+    },
+    /** Replace context without a transition (a clock tick, a payload refresh). */
+    set(patch) {
+      if (!patch) return;
+      Object.assign(ctx, patch);
+      subs.forEach((fn) => {
+        try {
+          fn(machine);
+        } catch (e) {
+        }
+      });
+    },
+    subscribe(fn) {
+      subs.add(fn);
+      return () => subs.delete(fn);
+    },
+    /** Drop a per-instance machine from the fleet (component unmount). */
+    dispose() {
+      if (cleanup) {
+        try {
+          cleanup();
+        } catch (e) {
+        }
+        cleanup = null;
+      }
+      subs.clear();
+      MACHINES.delete(name);
+      publishMachines();
+    },
+    /** For people and agents: what happened, in order, without a debugger. */
+    history() {
+      return log.slice();
+    },
+    snapshot() {
+      return {
+        state,
+        tags: machine.tags,
+        available: machine.available(),
+        ctx: JSON.parse(JSON.stringify(ctx, (k, v) => typeof v === "function" ? "[fn]" : v)),
+        recent: log.slice(-6)
+      };
+    }
+  };
+  const node = states[initial] || {};
+  if (typeof node.enter === "function") {
+    try {
+      cleanup = node.enter(ctx, machine) || null;
+    } catch (e) {
+      machineWarn(`${name}: enter ${initial} threw`, e);
+    }
+  }
+  MACHINES.set(name, machine);
+  publishMachines();
+  return machine;
+}
+var machineFleet = () => {
+  const out = {};
+  MACHINES.forEach((m, name) => {
+    out[name] = m.snapshot();
+  });
+  return out;
+};
+function useMachine(m) {
+  const [, bump] = (0, import_react.useState)(0);
+  (0, import_react.useEffect)(() => {
+    const off = m.subscribe(() => bump((n) => n + 1));
+    return () => {
+      off();
+    };
+  }, [m]);
+  return m;
+}
+if (typeof window !== "undefined") {
+  window.__nbMachines = machineFleet;
+  window.__nbMachine = (name) => MACHINES.get(name) || null;
+}
 var P = {
   notebook: "M5 4h11a2 2 0 0 1 2 2v14H7a2 2 0 0 1-2-2V4Zm0 0v16M9 8h6M9 12h6",
   book: "M4 5.5A2.5 2.5 0 0 1 6.5 3H19v15H6.5A2.5 2.5 0 0 0 4 20.5V5.5ZM8 7h7M8 10h5",
@@ -13836,7 +14035,7 @@ function Chip({ children, tone, onClick, title, pressed }) {
   }
   return el("span", props);
 }
-function SearchField({ value, onChange, placeholder, label }) {
+function SearchField({ value, onChange, placeholder, label, autoFocus }) {
   return el(
     "div",
     { className: "nb-field" },
@@ -13845,6 +14044,10 @@ function SearchField({ value, onChange, placeholder, label }) {
       value,
       placeholder,
       "aria-label": label || placeholder,
+      // Preact sets .autoFocus as a property; a data attribute is what the dialog
+      // can reliably find, and it is also what an agent can look for
+      "data-autofocus": autoFocus ? "true" : void 0,
+      autoFocus: !!autoFocus,
       onChange: (e) => onChange(e.target.value),
       spellCheck: false
     }),
@@ -13882,7 +14085,7 @@ function useDialogFocus(open, onClose) {
     document.addEventListener("keydown", onKey, true);
     const t = setTimeout(() => {
       const root = document.querySelector('[data-nb-dialog="true"]');
-      const target = root && (root.querySelector("[autofocus]") || root.querySelector("input,textarea,button"));
+      const target = root && (root.querySelector('[data-autofocus="true"],[autofocus]') || root.querySelector("input,textarea,button"));
       if (target) target.focus();
     }, 30);
     return () => {
@@ -14127,34 +14330,97 @@ var persist = {
     }
   }
 };
+var STUDIO = Machine("studio", {
+  initial: "loading",
+  context: { data: null, error: "", gen: 0 },
+  states: {
+    loading: {
+      tags: ["busy"],
+      on: {
+        LOADED: {
+          target: "ready",
+          guard: (c, p) => !!p && p.gen === c.gen,
+          action: (c, p) => ({ data: p.data, error: "" })
+        },
+        FAILED: {
+          target: "error",
+          guard: (c, p) => !!p && p.gen === c.gen,
+          action: (c, p) => ({ error: p.message })
+        }
+      }
+    },
+    ready: {
+      on: {
+        // a silent refresh keeps the current data on screen; a full one shows the
+        // skeleton, because the caller asked for that
+        REFRESH_SOFT: "refreshing",
+        REFRESH_FULL: "loading",
+        LOADED: {
+          target: "ready",
+          guard: (c, p) => !!p && p.gen === c.gen,
+          action: (c, p) => ({ data: p.data, error: "" })
+        }
+      }
+    },
+    refreshing: {
+      tags: ["busy", "stale"],
+      on: {
+        LOADED: {
+          target: "ready",
+          guard: (c, p) => !!p && p.gen === c.gen,
+          action: (c, p) => ({ data: p.data, error: "" })
+        },
+        FAILED: {
+          target: "ready",
+          guard: (c, p) => !!p && p.gen === c.gen,
+          action: (c, p) => ({ error: p.message })
+        },
+        REFRESH_FULL: "loading"
+      }
+    },
+    error: {
+      on: {
+        REFRESH_FULL: "loading",
+        REFRESH_SOFT: "loading",
+        LOADED: {
+          target: "ready",
+          guard: (c, p) => !!p && p.gen === c.gen,
+          action: (c, p) => ({ data: p.data, error: "" })
+        }
+      }
+    }
+  }
+});
 function useStudio(nb, thread) {
-  const [data, setData] = (0, import_react.useState)(null);
-  const [error, setError] = (0, import_react.useState)("");
-  const [loading, setLoading] = (0, import_react.useState)(true);
-  const alive = (0, import_react.useRef)(true);
+  const m = useMachine(STUDIO);
+  const scope = (0, import_react.useRef)({ nb, thread });
+  scope.current = { nb, thread };
   const load = (0, import_react.useCallback)(async (silent) => {
-    if (!silent) setLoading(true);
+    const { nb: n, thread: t } = scope.current;
+    const gen = STUDIO.ctx.gen + 1;
+    STUDIO.set({ gen });
+    if (silent && STUDIO.can("REFRESH_SOFT")) STUDIO.send("REFRESH_SOFT");
+    else if (STUDIO.can("REFRESH_FULL")) STUDIO.send("REFRESH_FULL");
     try {
-      const next = await api(`/state${nb ? `?${qs({ notebook: nb, thread: thread || "" })}` : ""}`);
-      if (!alive.current) return next;
-      setData(next);
-      setError("");
+      const next = await api(`/state${n ? `?${qs({ notebook: n, thread: t || "" })}` : ""}`);
+      STUDIO.send("LOADED", { data: next, gen });
       return next;
     } catch (e) {
-      if (alive.current) setError(e.message || String(e));
+      STUDIO.send("FAILED", { message: e.message || String(e), gen });
       return null;
-    } finally {
-      if (alive.current) setLoading(false);
     }
   }, [nb, thread]);
   (0, import_react.useEffect)(() => {
-    alive.current = true;
     load(false);
-    return () => {
-      alive.current = false;
-    };
   }, [load]);
-  return { data, error, loading, reload: load, setData };
+  return {
+    data: m.ctx.data,
+    error: m.ctx.error,
+    loading: m.matches("loading"),
+    refreshing: m.matches("refreshing"),
+    reload: load,
+    setData: (d) => STUDIO.set({ data: d })
+  };
 }
 var KIND_ICON = {
   video_overview: "video",
@@ -14249,6 +14515,62 @@ function latestByKind(artifacts) {
 }
 var OPT_LABEL = { focus: "focus", count_hint: "amount", format: "format", length: "length", language: "language", style: "style" };
 var optsSummary = (opts) => Object.keys(opts || {}).filter((k) => opts[k]).map((k) => `${OPT_LABEL[k] || k}: ${String(opts[k]).slice(0, 48)}`).join(" \xB7 ");
+var JOBS = Machine("jobs", {
+  initial: "idle",
+  context: { lanes: {} },
+  states: {
+    idle: {
+      on: { RUN: { target: "active", action: (c, p) => {
+        c.lanes[p.kind] = p.at || Date.now();
+      } } }
+    },
+    active: {
+      tags: ["busy"],
+      on: {
+        RUN: {
+          target: "active",
+          guard: (c, p) => !c.lanes[p.kind],
+          action: (c, p) => {
+            c.lanes[p.kind] = p.at || Date.now();
+          }
+        },
+        FINISH: { target: "active", action: (c, p) => {
+          delete c.lanes[p.kind];
+          if (!Object.keys(c.lanes).length) return void 0;
+        } },
+        SETTLE: { target: "idle", guard: (c) => !Object.keys(c.lanes).length }
+      }
+    }
+  }
+});
+var DIALOGS = Machine("dialogs", {
+  initial: "closed",
+  context: { payload: null },
+  states: {
+    closed: {
+      on: { OPEN: {
+        target: "open",
+        guard: (c, p) => !!(p && p.surface),
+        action: (c, p) => ({ payload: { surface: p.surface, data: p.data || null } })
+      } }
+    },
+    open: {
+      on: {
+        OPEN: {
+          target: "open",
+          guard: (c, p) => !!(p && p.surface),
+          action: (c, p) => ({ payload: { surface: p.surface, data: p.data || null } })
+        },
+        // a stale close must not dismiss the surface somebody just opened
+        CLOSE: {
+          target: "closed",
+          guard: (c, p) => !p || !p.surface || c.payload && c.payload.surface === p.surface,
+          action: () => ({ payload: null })
+        }
+      }
+    }
+  }
+});
 function App() {
   const [mode2, setMode] = (0, import_react.useState)(() => persist.get("mode", "home"));
   const [nb, setNb] = (0, import_react.useState)(() => persist.get("notebook", ""));
@@ -14261,18 +14583,27 @@ function App() {
   }, [nb]);
   const [picked, setPicked] = (0, import_react.useState)(null);
   const [tab, setTab] = (0, import_react.useState)("chat");
-  const [busy, setBusy] = (0, import_react.useState)({});
+  const jobs = useMachine(JOBS);
+  const busy = jobs.ctx.lanes;
   const [note, setNote] = (0, import_react.useState)("");
   const [askOpen, setAskOpen] = (0, import_react.useState)(0);
-  const [srcDialog, setSrcDialog] = (0, import_react.useState)(null);
-  const [newNb, setNewNb] = (0, import_react.useState)(false);
-  const [renNb, setRenNb] = (0, import_react.useState)(null);
+  const dialogs = useMachine(DIALOGS);
+  const surface = dialogs.matches("open") && dialogs.ctx.payload ? dialogs.ctx.payload.surface : "";
+  const openSurface = (0, import_react.useCallback)((name, data2) => DIALOGS.send("OPEN", { surface: name, data: data2 }), []);
+  const closeSurface = (0, import_react.useCallback)((name) => DIALOGS.send("CLOSE", { surface: name }), []);
+  const setSrcDialog = (0, import_react.useCallback)((v) => v ? openSurface("addSource", v) : closeSurface("addSource"), [openSurface, closeSurface]);
+  const setNewNb = (0, import_react.useCallback)((v) => v ? openSurface("newNotebook") : closeSurface("newNotebook"), [openSurface, closeSurface]);
+  const setRenNb = (0, import_react.useCallback)((v) => v ? openSurface("settings", v) : closeSurface("settings"), [openSurface, closeSurface]);
+  const srcDialog = surface === "addSource" ? dialogs.ctx.payload.data || {} : null;
+  const newNb = surface === "newNotebook";
+  const renNb = surface === "settings" ? dialogs.ctx.payload.data || null : null;
   const [filter, setFilter] = (0, import_react.useState)("all");
   const [peek, setPeek] = (0, import_react.useState)(null);
   const [railOpen, setRailOpen] = (0, import_react.useState)(() => persist.get("rail", "1") !== "0");
   const [studioOpen, setStudioOpen] = (0, import_react.useState)(() => persist.get("studio", "1") !== "0");
   const [opsStats, setOpsStats] = (0, import_react.useState)(null);
-  const [searchOpen, setSearchOpen] = (0, import_react.useState)(false);
+  const setSearchOpen = (0, import_react.useCallback)((v) => v ? openSurface("search") : closeSurface("search"), [openSurface, closeSurface]);
+  const searchOpen = surface === "search";
   (0, import_react.useEffect)(() => {
     try {
       const want = new URLSearchParams(window.location.search).get("surface");
@@ -14328,7 +14659,14 @@ function App() {
   }, [notebook]);
   const generate = (0, import_react.useCallback)(async (kind, opts) => {
     if (!notebook) return;
-    setBusy((b) => ({ ...b, [kind]: Date.now() }));
+    if (!JOBS.can("RUN")) {
+      say(`${kind.replace(/_/g, " ")} is already running`);
+      return;
+    }
+    if (!JOBS.send("RUN", { kind })) {
+      say(`${kind.replace(/_/g, " ")} is already running`);
+      return;
+    }
     try {
       await api("/generate", {
         method: "POST",
@@ -14345,11 +14683,8 @@ function App() {
     } catch (e) {
       say(`${kind.replace(/_/g, " ")} failed: ${e.message || e}`);
     } finally {
-      setBusy((b) => {
-        const n = { ...b };
-        delete n[kind];
-        return n;
-      });
+      JOBS.send("FINISH", { kind });
+      JOBS.send("SETTLE");
     }
   }, [notebook, studio, say]);
   const labelSources = (0, import_react.useCallback)(async () => {
@@ -15546,6 +15881,105 @@ function WebFinder({ notebook, onAdded, onSay }) {
   );
 }
 var pickedCite = 0;
+var TURN = Machine("turn", {
+  initial: "idle",
+  context: { q: "", since: 0, now: 0 },
+  states: {
+    idle: {
+      on: { ASK: {
+        target: "asking",
+        guard: (c, p) => !!(p && p.q),
+        action: (c, p) => ({ q: p.q, since: p.since || Date.now(), now: p.since || Date.now() })
+      } }
+    },
+    asking: {
+      tags: ["busy"],
+      enter: () => {
+        const t = setInterval(() => TURN.set({ now: Date.now() }), 500);
+        return () => clearInterval(t);
+      },
+      on: {
+        ANSWER: "idle",
+        FAIL: "failed",
+        CANCEL: { target: "idle", action: (c) => ({ q: "" }) }
+      }
+    },
+    failed: {
+      on: {
+        ASK: { target: "asking", action: (c, p) => ({ q: p.q, since: p.since || Date.now(), now: Date.now() }) },
+        DISMISS: { target: "idle", action: () => ({ q: "" }) }
+      }
+    }
+  }
+});
+var OVERVIEW = Machine("overview", {
+  initial: "idle",
+  context: { text: "", gen: 0 },
+  states: {
+    idle: { on: {
+      LOAD: "loading",
+      HYDRATE: {
+        target: "ready",
+        guard: (c, p) => !!(p && p.text),
+        action: (c, p) => ({ text: p.text })
+      }
+    } },
+    loading: {
+      tags: ["busy"],
+      on: {
+        READY: {
+          target: "ready",
+          guard: (c, p) => !!p && p.gen === c.gen,
+          action: (c, p) => ({ text: p.text })
+        },
+        EMPTY: { target: "empty", guard: (c, p) => !!p && p.gen === c.gen },
+        FAIL: { target: "failed", guard: (c, p) => !!p && p.gen === c.gen },
+        HYDRATE: {
+          target: "ready",
+          guard: (c, p) => !!(p && p.text),
+          action: (c, p) => ({ text: p.text })
+        }
+      }
+    },
+    ready: { on: {
+      LOAD: "loading",
+      HYDRATE: { target: "ready", action: (c, p) => ({ text: p && p.text || c.text }) }
+    } },
+    empty: { on: { LOAD: "loading", HYDRATE: { target: "ready", action: (c, p) => ({ text: p && p.text || "" }) } } },
+    failed: { on: {
+      LOAD: "loading",
+      HYDRATE: {
+        target: "ready",
+        guard: (c, p) => !!(p && p.text),
+        action: (c, p) => ({ text: p.text })
+      }
+    } }
+  }
+});
+var SUGGEST_M = Machine("suggest", {
+  initial: "idle",
+  context: { list: null, gen: 0, hydrated: false },
+  states: {
+    idle: { on: {
+      LOAD: "loading",
+      HYDRATE: { target: "ready", action: (c, p) => ({ list: p && p.list || null, hydrated: true }) }
+    } },
+    loading: {
+      tags: ["busy"],
+      on: {
+        READY: {
+          target: "ready",
+          guard: (c, p) => !!p && p.gen === c.gen,
+          action: (c, p) => ({ list: p.list })
+        },
+        FAIL: { target: "failed", guard: (c, p) => !!p && p.gen === c.gen },
+        HYDRATE: { target: "ready", action: (c, p) => ({ list: p && p.list || null, hydrated: true }) }
+      }
+    },
+    ready: { on: { LOAD: "loading", HYDRATE: { target: "ready", action: (c, p) => ({ list: p && p.list || c.list }) } } },
+    failed: { on: { LOAD: "loading", HYDRATE: { target: "ready", action: (c, p) => ({ list: p && p.list || null }) } } }
+  }
+});
 function Main({
   notebook,
   kinds,
@@ -15804,12 +16238,15 @@ function Chat({ notebook, kinds, askOpen, onSay, modelReady, onCite, onOpenSourc
   curThread.current = thread;
   const [msgs, setMsgs] = (0, import_react.useState)(() => threadCache.get(nbKey) || (notebook.thread || []).map((m, i) => ({ ...m, k: `t${i}` })));
   const [text, setText] = (0, import_react.useState)("");
-  const [pending, setPending] = (0, import_react.useState)(null);
-  const [ov, setOv] = (0, import_react.useState)("");
-  const [ovErr, setOvErr] = (0, import_react.useState)(false);
+  const turn = useMachine(TURN);
+  const overview = useMachine(OVERVIEW);
+  const suggest = useMachine(SUGGEST_M);
+  const pending = turn.matches("asking") ? { since: turn.ctx.since, now: turn.ctx.now, q: turn.ctx.q, cancel: () => TURN.send("CANCEL") } : null;
+  const ov = overview.ctx.text;
+  const ovErr = overview.matches("failed");
+  const sugg = suggest.ctx.list;
+  const suggErr = suggest.matches("failed");
   const [ovRetry, setOvRetry] = (0, import_react.useState)(0);
-  const [sugg, setSugg] = (0, import_react.useState)(null);
-  const [suggErr, setSuggErr] = (0, import_react.useState)(false);
   const [cfgOpen, setCfgOpen] = (0, import_react.useState)(false);
   const [scopeOpen, setScopeOpen] = (0, import_react.useState)(false);
   const [cfg, setCfg] = (0, import_react.useState)({});
@@ -15870,36 +16307,34 @@ function Chat({ notebook, kinds, askOpen, onSay, modelReady, onCite, onOpenSourc
   (0, import_react.useEffect)(() => {
     const cached = ovCache.get(notebook.id);
     if (cached && cached.key === cacheKey) {
-      setOv(cached.ov || "");
-      setSugg(cached.sugg || null);
-      setOvErr(false);
-      setSuggErr(false);
+      OVERVIEW.send("HYDRATE", { text: cached.ov || "" });
+      SUGGEST_M.send("HYDRATE", { list: cached.sugg || null });
       return void 0;
     }
     let live = true;
-    setOv("");
-    setSugg(null);
-    setOvErr(false);
-    setSuggErr(false);
+    const ovGen = OVERVIEW.ctx.gen + 1;
+    const sgGen = SUGGEST_M.ctx.gen + 1;
+    OVERVIEW.set({ gen: ovGen, text: "" });
+    SUGGEST_M.set({ gen: sgGen });
+    OVERVIEW.send("LOAD");
+    SUGGEST_M.send("LOAD");
     api("/overview", { method: "POST", body: { notebook: notebook.id }, timeoutMs: 12e4 }).then((o) => {
       if (!live) return;
       const text2 = o.overview || "";
-      setOv(text2);
-      setOvErr(!text2);
-      const c = ovCache.get(notebook.id) || { key: cacheKey };
+      OVERVIEW.send(text2 ? "READY" : "EMPTY", { text: text2, gen: ovGen });
+      const c = ovCache.get(notebook.id) || {};
       ovCache.set(notebook.id, { key: cacheKey, ov: text2, sugg: c.sugg || null });
     }).catch(() => {
-      if (live) setOvErr(true);
+      if (live) OVERVIEW.send("FAIL", { gen: ovGen });
     });
     api("/suggest", { method: "POST", body: { notebook: notebook.id }, timeoutMs: 12e4 }).then((o) => {
       if (!live) return;
-      const s = o.suggestions || null;
-      setSugg(s);
-      setSuggErr(!s);
-      const c = ovCache.get(notebook.id) || { key: cacheKey };
-      ovCache.set(notebook.id, { key: cacheKey, ov: c.ov || "", sugg: s });
+      const list = o.suggestions || null;
+      SUGGEST_M.send(list ? "READY" : "FAIL", { list, gen: sgGen });
+      const c = ovCache.get(notebook.id) || {};
+      ovCache.set(notebook.id, { key: cacheKey, ov: c.ov || "", sugg: list });
     }).catch(() => {
-      if (live) setSuggErr(true);
+      if (live) SUGGEST_M.send("FAIL", { gen: sgGen });
     });
     return () => {
       live = false;
@@ -15946,7 +16381,7 @@ function Chat({ notebook, kinds, askOpen, onSay, modelReady, onCite, onOpenSourc
     if (node && stickRef.current) node.scrollTop = node.scrollHeight;
   }, [msgs.length, pending && pending.since]);
   const send = async (question, opts) => {
-    if (pending) return;
+    if (!TURN.can("ASK")) return;
     stickRef.current = true;
     setShowLatest(false);
     const retry = !!(opts && opts.retry);
@@ -15975,8 +16410,7 @@ function Chat({ notebook, kinds, askOpen, onSay, modelReady, onCite, onOpenSourc
       setMsgs((m) => cacheMsgs(key, [...m, { role: "user", content: q2, k: `u${Date.now()}` }]));
     }
     const started = Date.now();
-    setPending({ since: started, q: q2 });
-    const tick = setInterval(() => setPending((p) => p ? { ...p, now: Date.now() } : p), 500);
+    TURN.send("ASK", { q: q2, since: started });
     try {
       const out = await api("/ask", {
         method: "POST",
@@ -16014,9 +16448,9 @@ ${e.message || e}`,
       const next = cacheMsgs(key, [...prev, errMsg]);
       if (curThread.current === t) setMsgs(next);
       if (onSay) onSay(e.message || "ask failed");
+      TURN.send("FAIL");
     } finally {
-      clearInterval(tick);
-      setPending(null);
+      TURN.send("ANSWER");
     }
   };
   const onKey = (e) => {
@@ -16164,7 +16598,6 @@ ${e.message || e}`,
             children: "Retry",
             onClick: () => {
               ovCache.delete(notebook.id);
-              setSuggErr(false);
               setOvRetry((n) => n + 1);
             }
           })
@@ -16189,7 +16622,28 @@ ${e.message || e}`,
               "div",
               { style: { display: "flex", alignItems: "center", gap: "10px", color: T.text3, fontSize: "14.5px" } },
               el("span", { className: "nb-dot", style: { background: T.accent, boxShadow: `0 0 8px ${T.accent}` } }),
-              `retrieving passages \xB7 ${elapsed}s`
+              `retrieving passages \xB7 ${elapsed}s`,
+              // a spinner that cannot be dismissed is a lie about control; the
+              // server keeps working, the page stops waiting
+              el("button", {
+                type: "button",
+                className: "nb-linkbtn",
+                "aria-label": "Stop waiting for the answer",
+                onClick: () => {
+                  TURN.send("CANCEL");
+                  if (onSay) onSay("stopped waiting \u2014 the answer may still arrive on the server");
+                },
+                style: {
+                  marginLeft: "4px",
+                  fontSize: "13px",
+                  color: T.text3,
+                  background: "none",
+                  border: "none",
+                  cursor: "pointer",
+                  textDecoration: "underline"
+                },
+                children: "stop waiting"
+              })
             )
           )
         ) : null
@@ -17359,47 +17813,93 @@ var hostOf = (url) => {
     return "";
   }
 };
+var SEARCH = Machine("search", {
+  initial: "closed",
+  context: { query: "", hits: null, error: "", nb: "" },
+  states: {
+    closed: { on: { OPEN: { target: "idle", action: (c, p) => ({ query: "", hits: null, error: "", nb: p && p.nb || c.nb }) } } },
+    idle: {
+      on: {
+        QUERY: {
+          target: "typing",
+          guard: (c, p) => !!(p && p.query && p.query.trim().length >= 2),
+          action: (c, p) => ({ query: p.query, hits: null, error: "", nb: p && p.nb || c.nb })
+        },
+        SHORT: { target: "idle", action: (c, p) => ({ query: p && p.query || "", hits: null, error: "" }) },
+        CLOSE: { target: "closed", action: () => ({ query: "", hits: null, error: "" }) }
+      }
+    },
+    typing: {
+      enter: (c, m) => {
+        const t = setTimeout(() => m.send("FIRE"), 260);
+        return () => clearTimeout(t);
+      },
+      on: {
+        FIRE: "searching",
+        QUERY: { target: "typing", action: (c, p) => ({ query: p.query, nb: p && p.nb || c.nb }) },
+        SHORT: { target: "idle", action: () => ({ query: "", hits: null }) },
+        CLOSE: { target: "closed", action: () => ({ query: "", hits: null, error: "" }) }
+      }
+    },
+    searching: {
+      tags: ["busy"],
+      enter: (c, m) => {
+        let live = true;
+        api("/search", { method: "POST", body: { notebook: c.nb, query: c.query, limit: 12 }, timeoutMs: 3e4 }).then((out) => {
+          if (live) m.send("RESULTS", { hits: ((out || {}).result || {}).hits || [] });
+        }).catch((e) => {
+          if (live) m.send("FAIL", { message: e.message || String(e) });
+        });
+        return () => {
+          live = false;
+        };
+      },
+      on: {
+        RESULTS: { target: "results", action: (c, p) => ({ hits: p && p.hits || [], error: "" }) },
+        FAIL: { target: "error", action: (c, p) => ({ hits: [], error: p && p.message || "search failed" }) },
+        QUERY: { target: "typing", action: (c, p) => ({ query: p.query, nb: p && p.nb || c.nb }) },
+        CLOSE: { target: "closed", action: () => ({ query: "", hits: null, error: "" }) }
+      }
+    },
+    results: {
+      on: {
+        QUERY: {
+          target: "typing",
+          guard: (c, p) => !!(p && p.query && p.query.trim().length >= 2),
+          action: (c, p) => ({ query: p.query, nb: p && p.nb || c.nb })
+        },
+        SHORT: { target: "idle", action: () => ({ query: "", hits: null, error: "" }) },
+        CLOSE: { target: "closed", action: () => ({ query: "", hits: null, error: "" }) }
+      }
+    },
+    error: {
+      on: {
+        QUERY: {
+          target: "typing",
+          guard: (c, p) => !!(p && p.query && p.query.trim().length >= 2),
+          action: (c, p) => ({ query: p.query, nb: p && p.nb || c.nb })
+        },
+        SHORT: { target: "idle", action: () => ({ query: "", hits: null, error: "" }) },
+        CLOSE: { target: "closed", action: () => ({ query: "", hits: null, error: "" }) }
+      }
+    }
+  }
+});
 function SearchDialog({ open, onClose, notebook, onPick }) {
-  const [q2, setQ] = (0, import_react.useState)("");
-  const [hits, setHits] = (0, import_react.useState)(null);
-  const [busy, setBusy] = (0, import_react.useState)(false);
-  const [err, setErr] = (0, import_react.useState)("");
+  const search = useMachine(SEARCH);
   const nbId = notebook && notebook.id;
+  const q2 = search.ctx.query;
+  const hits = search.ctx.hits;
+  const err = search.ctx.error;
+  const busy = search.matches("searching");
   (0, import_react.useEffect)(() => {
-    if (!open) {
-      setQ("");
-      setHits(null);
-      setErr("");
-      setBusy(false);
-      return void 0;
-    }
-    const query2 = q2.trim();
-    if (query2.length < 2 || !nbId) {
-      setHits(null);
-      setBusy(false);
-      return void 0;
-    }
-    let live = true;
-    setBusy(true);
-    const t = setTimeout(() => {
-      api("/search", { method: "POST", body: { notebook: nbId, query: query2, limit: 12 }, timeoutMs: 3e4 }).then((out) => {
-        if (!live) return;
-        setHits(((out || {}).result || {}).hits || []);
-        setErr("");
-      }).catch((e) => {
-        if (live) {
-          setHits([]);
-          setErr(e.message || String(e));
-        }
-      }).finally(() => {
-        if (live) setBusy(false);
-      });
-    }, 260);
-    return () => {
-      live = false;
-      clearTimeout(t);
-    };
-  }, [q2, open, nbId]);
+    if (open) SEARCH.send("OPEN", { nb: nbId });
+    else if (SEARCH.can("CLOSE")) SEARCH.send("CLOSE");
+  }, [open, nbId]);
+  const onQuery = (value) => {
+    const short = value.trim().length < 2;
+    SEARCH.send(short ? "SHORT" : "QUERY", { query: value, nb: nbId });
+  };
   const query = q2.trim();
   const mark = (text) => {
     if (!query) return text;
@@ -17416,7 +17916,8 @@ function SearchDialog({ open, onClose, notebook, onPick }) {
     children: [
       (0, import_jsx_runtime.jsx)(SearchField, {
         value: q2,
-        onChange: setQ,
+        onChange: onQuery,
+        autoFocus: open,
         placeholder: "Search across every source\u2026",
         label: "Search this notebook"
       }),
@@ -18014,13 +18515,47 @@ function DiscoverCard({ c, on, onToggle }) {
     )
   );
 }
+var SCOUT = Machine("discover", {
+  initial: "idle",
+  context: { result: null, error: "", queries: 0 },
+  states: {
+    idle: { on: { RUN: "searching", RESET: { target: "idle", action: () => ({ result: null, error: "" }) } } },
+    searching: {
+      tags: ["busy"],
+      on: {
+        RESULTS: { target: "results", action: (c, p) => ({ result: p && p.result || null, error: "" }) },
+        FAIL: { target: "error", action: (c, p) => ({ error: p && p.message || "discovery failed" }) },
+        CANCEL: "idle"
+      }
+    },
+    results: { on: { RUN: "searching", RESET: { target: "idle", action: () => ({ result: null, error: "" }) } } },
+    error: { on: { RUN: "searching", RESET: { target: "idle", action: () => ({ result: null, error: "" }) } } }
+  }
+});
+var INGEST = Machine("ingest", {
+  initial: "idle",
+  context: { error: "", added: 0, asked: 0 },
+  states: {
+    idle: { on: { ADD: "adding" } },
+    adding: {
+      tags: ["busy"],
+      on: {
+        DONE: { target: "idle", action: (c, p) => ({ added: p && p.landed || 0, asked: p && p.asked || 0, error: "" }) },
+        FAIL: { target: "failed", action: (c, p) => ({ error: p && p.message || "adding failed" }) }
+      }
+    },
+    failed: { on: { ADD: "adding", DISMISS: { target: "idle", action: () => ({ error: "" }) } } }
+  }
+});
 function DiscoverPanel({ notebook, onSay, reload }) {
+  const scout = useMachine(SCOUT);
+  const ingest = useMachine(INGEST);
   const [q2, setQ] = (0, import_react.useState)("");
-  const [busy, setBusy] = (0, import_react.useState)(false);
-  const [res, setRes] = (0, import_react.useState)(null);
   const [picked, setPicked] = (0, import_react.useState)({});
-  const [adding, setAdding] = (0, import_react.useState)(false);
-  const [err, setErr] = (0, import_react.useState)("");
+  const res = scout.ctx.result;
+  const busy = scout.matches("searching");
+  const adding = ingest.matches("adding");
+  const err = scout.ctx.error;
   const nbId = notebook && notebook.id;
   const candidates = res && res.candidates || [];
   const chosen = candidates.filter((c) => picked[c.canonical || c.url]);
@@ -18029,9 +18564,8 @@ function DiscoverPanel({ notebook, onSay, reload }) {
     setPicked((p) => ({ ...p, [key]: !p[key] }));
   };
   const run = async (query) => {
-    if (!nbId || busy) return;
-    setBusy(true);
-    setErr("");
+    if (!nbId || !SCOUT.can("RUN")) return;
+    SCOUT.send("RUN");
     setPicked({});
     try {
       const out = await api("/discover", {
@@ -18039,17 +18573,15 @@ function DiscoverPanel({ notebook, onSay, reload }) {
         body: { notebook: nbId, query: (query != null ? query : q2) || "", max_results: 12 },
         timeoutMs: 18e4
       });
-      setRes(out);
+      SCOUT.send("RESULTS", { result: out });
     } catch (e) {
-      setErr(String(e.message || e));
+      SCOUT.send("FAIL", { message: String(e.message || e) });
       if (onSay) onSay(`discover failed: ${e.message || e}`);
-    } finally {
-      setBusy(false);
     }
   };
   const addChosen = async () => {
-    if (!chosen.length || adding) return;
-    setAdding(true);
+    if (!chosen.length || !INGEST.can("ADD")) return;
+    INGEST.send("ADD");
     try {
       const out = await api("/sources", {
         method: "POST",
@@ -18059,12 +18591,12 @@ function DiscoverPanel({ notebook, onSay, reload }) {
       const landed = (out && out.results || []).filter((r) => r.ok).length;
       if (onSay) onSay(`${landed} of ${chosen.length} sources added`);
       setPicked({});
+      INGEST.send("DONE", { landed, asked: chosen.length });
       if (reload) await reload();
       await run(res && res.query);
     } catch (e) {
+      INGEST.send("FAIL", { message: String(e.message || e) });
       if (onSay) onSay(`adding failed: ${e.message || e}`);
-    } finally {
-      setAdding(false);
     }
   };
   const emptyState = () => {
@@ -18449,16 +18981,69 @@ function VideoView({ src, json, text }) {
     )
   );
 }
+var PLAYER = Machine("player", {
+  initial: "idle",
+  context: { duration: 0, error: "" },
+  states: {
+    idle: { on: { LOAD: "loading", RESET: "idle" } },
+    loading: {
+      tags: ["busy"],
+      on: {
+        META: { target: "paused", action: (c, p) => ({ duration: p && p.duration || 0 }) },
+        PLAY: "playing",
+        ERROR: { target: "error", action: (c, p) => ({ error: p && p.message || "this file could not be played" }) },
+        RESET: { target: "idle", action: () => ({ duration: 0, error: "" }) }
+      }
+    },
+    playing: {
+      on: {
+        PAUSE: "paused",
+        END: "ended",
+        PLAY: "playing",
+        ERROR: { target: "error", action: (c, p) => ({ error: p && p.message || "playback stopped" }) },
+        RESET: { target: "idle", action: () => ({ duration: 0, error: "" }) }
+      }
+    },
+    paused: {
+      on: {
+        PLAY: "playing",
+        END: "ended",
+        ERROR: { target: "error", action: (c, p) => ({ error: p && p.message || "playback stopped" }) },
+        RESET: { target: "idle", action: () => ({ duration: 0, error: "" }) }
+      }
+    },
+    ended: { on: { PLAY: "playing", RESET: { target: "idle", action: () => ({ duration: 0, error: "" }) } } },
+    error: { on: { LOAD: "loading", RESET: { target: "idle", action: () => ({ error: "" }) } } }
+  }
+});
+var REVOICE = Machine("revoice", {
+  initial: "idle",
+  context: { error: "" },
+  states: {
+    idle: { on: { RENDER: "rendering", DISCARD: "idle" } },
+    rendering: {
+      tags: ["busy"],
+      on: {
+        DONE: { target: "idle", action: () => ({ error: "" }) },
+        FAIL: { target: "failed", action: (c, p) => ({ error: p && p.message || "the voice render failed" }) },
+        DISCARD: "idle"
+      }
+    },
+    failed: { on: { RENDER: "rendering", DISCARD: { target: "idle", action: () => ({ error: "" }) } } }
+  }
+});
 function AudioView({ src, json, text, notebook, onChanged }) {
   const audioRef = (0, import_react.useRef)(null);
-  const [playing, setPlaying] = (0, import_react.useState)(false);
+  const player = useMachine(PLAYER);
+  const revoice = useMachine(REVOICE);
+  const playing = player.matches("playing");
   const [t, setT] = (0, import_react.useState)(0);
-  const [dur, setDur] = (0, import_react.useState)(0);
+  const dur = player.ctx.duration;
   const [rate, setRate] = (0, import_react.useState)(1);
   const [editing, setEditing] = (0, import_react.useState)(false);
   const [draft, setDraft] = (0, import_react.useState)(null);
-  const [rendering, setRendering] = (0, import_react.useState)(false);
-  const [renderErr, setRenderErr] = (0, import_react.useState)("");
+  const rendering = revoice.matches("rendering");
+  const renderErr = revoice.ctx.error;
   const speakers = new Set((json && json.segments || []).map((s) => s && s.speaker).filter(Boolean));
   const hostLabel = speakers.size > 1 ? "TWO HOSTS" : speakers.size === 1 ? "ONE NARRATOR" : "AUDIO";
   const segsTimed = (0, import_react.useMemo)(() => {
@@ -18508,7 +19093,7 @@ function AudioView({ src, json, text, notebook, onChanged }) {
     setT(seg.start);
     if (a.paused) {
       a.play();
-      setPlaying(true);
+      PLAYER.send("PLAY");
     }
   };
   const bars = (0, import_react.useMemo)(() => {
@@ -18532,7 +19117,7 @@ function AudioView({ src, json, text, notebook, onChanged }) {
     if (!segs.length) return;
     setDraft({ title: json && json.title || "Audio Overview", segments: segs });
     setEditing(true);
-    setRenderErr("");
+    REVOICE.send("DISCARD");
   };
   const patchSeg = (i, patch) => setDraft((d) => ({ ...d, segments: d.segments.map((s, j) => j === i ? { ...s, ...patch } : s) }));
   const delSeg = (i) => setDraft((d) => ({ ...d, segments: d.segments.filter((_, j) => j !== i) }));
@@ -18543,8 +19128,8 @@ function AudioView({ src, json, text, notebook, onChanged }) {
   });
   const renderScript = async () => {
     if (!notebook || !draft) return;
-    setRendering(true);
-    setRenderErr("");
+    if (!REVOICE.can("RENDER")) return;
+    REVOICE.send("RENDER");
     try {
       await api("/audio_render", {
         method: "POST",
@@ -18552,11 +19137,10 @@ function AudioView({ src, json, text, notebook, onChanged }) {
         body: { notebook: notebook.id, script: { ...draft, voices: json && json.voices || {} } }
       });
       setEditing(false);
+      REVOICE.send("DONE");
       if (onChanged) onChanged();
     } catch (e) {
-      setRenderErr(String(e && e.message || e));
-    } finally {
-      setRendering(false);
+      REVOICE.send("FAIL", { message: String(e && e.message || e) });
     }
   };
   const scriptEditor = editing && draft ? el(
@@ -18737,10 +19321,10 @@ function AudioView({ src, json, text, notebook, onChanged }) {
               if (!a) return;
               if (a.paused) {
                 a.play();
-                setPlaying(true);
+                PLAYER.send("PLAY");
               } else {
                 a.pause();
-                setPlaying(false);
+                PLAYER.send("PAUSE");
               }
             },
             style: { background: "rgba(255,255,255,.1)", width: "40px", height: "40px" },
@@ -18792,8 +19376,11 @@ function AudioView({ src, json, text, notebook, onChanged }) {
           src: src || void 0,
           preload: "metadata",
           onTimeUpdate: (e) => setT(e.currentTarget.currentTime),
-          onLoadedMetadata: (e) => setDur(e.currentTarget.duration || 0),
-          onEnded: () => setPlaying(false),
+          onLoadedMetadata: (e) => PLAYER.send("META", { duration: e.currentTarget.duration || 0 }),
+          onEnded: () => PLAYER.send("END"),
+          onPause: () => PLAYER.send("PAUSE"),
+          onPlay: () => PLAYER.send("PLAY"),
+          onError: () => PLAYER.send("ERROR"),
           style: { display: "none" }
         })
       ),

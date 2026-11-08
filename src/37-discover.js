@@ -31,13 +31,53 @@ function DiscoverCard({ c, on, onToggle }) {
         el('span', { children: c.why || 'new material' }))))
 }
 
+/* Discovery was five variables describing two operations at once (`busy` covered
+ * both scouting and adding, so the button said "searching" while it was ingesting).
+ * Two machines: `scout` (idle → searching → results | error) and `ingest`
+ * (idle → adding → done | failed). One cannot be mistaken for the other. */
+const SCOUT = Machine('discover', {
+  initial: 'idle',
+  context: { result: null, error: '', queries: 0 },
+  states: {
+    idle: { on: { RUN: 'searching', RESET: { target: 'idle', action: () => ({ result: null, error: '' }) } } },
+    searching: {
+      tags: ['busy'],
+      on: {
+        RESULTS: { target: 'results', action: (c, p) => ({ result: (p && p.result) || null, error: '' }) },
+        FAIL: { target: 'error', action: (c, p) => ({ error: (p && p.message) || 'discovery failed' }) },
+        CANCEL: 'idle'
+      }
+    },
+    results: { on: { RUN: 'searching', RESET: { target: 'idle', action: () => ({ result: null, error: '' }) } } },
+    error: { on: { RUN: 'searching', RESET: { target: 'idle', action: () => ({ result: null, error: '' }) } } }
+  }
+})
+
+const INGEST = Machine('ingest', {
+  initial: 'idle',
+  context: { error: '', added: 0, asked: 0 },
+  states: {
+    idle: { on: { ADD: 'adding' } },
+    adding: {
+      tags: ['busy'],
+      on: {
+        DONE: { target: 'idle', action: (c, p) => ({ added: (p && p.landed) || 0, asked: (p && p.asked) || 0, error: '' }) },
+        FAIL: { target: 'failed', action: (c, p) => ({ error: (p && p.message) || 'adding failed' }) }
+      }
+    },
+    failed: { on: { ADD: 'adding', DISMISS: { target: 'idle', action: () => ({ error: '' }) } } }
+  }
+})
+
 function DiscoverPanel({ notebook, onSay, reload }) {
+  const scout = useMachine(SCOUT)
+  const ingest = useMachine(INGEST)
   const [q, setQ] = useState('')
-  const [busy, setBusy] = useState(false)
-  const [res, setRes] = useState(null)
   const [picked, setPicked] = useState({})
-  const [adding, setAdding] = useState(false)
-  const [err, setErr] = useState('')
+  const res = scout.ctx.result
+  const busy = scout.matches('searching')
+  const adding = ingest.matches('adding')
+  const err = scout.ctx.error
 
   const nbId = notebook && notebook.id
   const candidates = (res && res.candidates) || []
@@ -49,9 +89,8 @@ function DiscoverPanel({ notebook, onSay, reload }) {
   }
 
   const run = async (query) => {
-    if (!nbId || busy) return
-    setBusy(true)
-    setErr('')
+    if (!nbId || !SCOUT.can('RUN')) return
+    SCOUT.send('RUN')
     setPicked({})
     try {
       const out = await api('/discover', {
@@ -59,18 +98,16 @@ function DiscoverPanel({ notebook, onSay, reload }) {
         body: { notebook: nbId, query: (query != null ? query : q) || '', max_results: 12 },
         timeoutMs: 180000
       })
-      setRes(out)
+      SCOUT.send('RESULTS', { result: out })
     } catch (e) {
-      setErr(String(e.message || e))
+      SCOUT.send('FAIL', { message: String(e.message || e) })
       if (onSay) onSay(`discover failed: ${e.message || e}`)
-    } finally {
-      setBusy(false)
     }
   }
 
   const addChosen = async () => {
-    if (!chosen.length || adding) return
-    setAdding(true)
+    if (!chosen.length || !INGEST.can('ADD')) return
+    INGEST.send('ADD')
     try {
       const out = await api('/sources', {
         method: 'POST',
@@ -80,12 +117,12 @@ function DiscoverPanel({ notebook, onSay, reload }) {
       const landed = ((out && out.results) || []).filter((r) => r.ok).length
       if (onSay) onSay(`${landed} of ${chosen.length} sources added`)
       setPicked({})
+      INGEST.send('DONE', { landed, asked: chosen.length })
       if (reload) await reload()
       await run(res && res.query)
     } catch (e) {
+      INGEST.send('FAIL', { message: String(e.message || e) })
       if (onSay) onSay(`adding failed: ${e.message || e}`)
-    } finally {
-      setAdding(false)
     }
   }
 

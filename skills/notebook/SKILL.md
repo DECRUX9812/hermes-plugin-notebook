@@ -80,3 +80,17 @@ Slash shortcut: `/notebook list|new|add|sources|ask|note|search|suggest`. CLI: `
 - `notebook_list` shows the notebook with expected source/artifact counts.
 - `notebook_ask` responses carry `[S<n>]` citations whose titles match `notebook_list` sources.
 - Generated artifacts exist at the returned `path`; audio returns `audio` + `transcript` paths and `media` for delivery.
+
+## Knowing what the page is doing
+
+The desktop page publishes its state machines, so you can ask instead of guessing:
+
+```js
+window.__nbMachines()        // every machine: state, tags, available events, recent transitions
+window.__nbMachine('turn')   // one: can('ASK'), available(), history()
+document.body.dataset.machines
+```
+
+`available` lists the events that would work right now; a disabled control is disabled
+because `can()` says so. A refused event is recorded in `history()` with the state it
+arrived in, which is how you tell "the click did nothing" from "the click was wrong".

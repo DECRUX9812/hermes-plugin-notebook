@@ -1,5 +1,85 @@
 /* -------------------------------------------------------------------- main */
 
+/* A chat question is a turn: idle → asking → (answered) idle | failed. It carries
+ * its own clock, so the "13s" the page shows is the machine's, not a second timer
+ * racing a boolean. It can be cancelled — the request continues on the server, but
+ * the page stops waiting instead of pretending a spinner is progress. */
+const TURN = Machine('turn', {
+  initial: 'idle',
+  context: { q: '', since: 0, now: 0 },
+  states: {
+    idle: {
+      on: { ASK: { target: 'asking', guard: (c, p) => !!(p && p.q),
+                   action: (c, p) => ({ q: p.q, since: p.since || Date.now(), now: p.since || Date.now() }) } }
+    },
+    asking: {
+      tags: ['busy'],
+      enter: () => {
+        const t = setInterval(() => TURN.set({ now: Date.now() }), 500)
+        return () => clearInterval(t)
+      },
+      on: {
+        ANSWER: 'idle',
+        FAIL: 'failed',
+        CANCEL: { target: 'idle', action: (c) => ({ q: '' }) }
+      }
+    },
+    failed: {
+      on: { ASK: { target: 'asking', action: (c, p) => ({ q: p.q, since: p.since || Date.now(), now: Date.now() }) },
+            DISMISS: { target: 'idle', action: () => ({ q: '' }) } }
+    }
+  }
+})
+
+/* The notebook opener: two parallel loads that were expressed as four variables
+ * (ov/ovErr, sugg/suggErr) and a retry counter. Two machines, one per load. */
+const OVERVIEW = Machine('overview', {
+  initial: 'idle',
+  context: { text: '', gen: 0 },
+  states: {
+    idle: { on: { LOAD: 'loading',
+                  HYDRATE: { target: 'ready', guard: (c, p) => !!(p && p.text),
+                             action: (c, p) => ({ text: p.text }) } } },
+    loading: {
+      tags: ['busy'],
+      on: {
+        READY: { target: 'ready', guard: (c, p) => !!p && p.gen === c.gen,
+                 action: (c, p) => ({ text: p.text }) },
+        EMPTY: { target: 'empty', guard: (c, p) => !!p && p.gen === c.gen },
+        FAIL: { target: 'failed', guard: (c, p) => !!p && p.gen === c.gen },
+        HYDRATE: { target: 'ready', guard: (c, p) => !!(p && p.text),
+                   action: (c, p) => ({ text: p.text }) }
+      }
+    },
+    ready: { on: { LOAD: 'loading',
+                   HYDRATE: { target: 'ready', action: (c, p) => ({ text: (p && p.text) || c.text }) } } },
+    empty: { on: { LOAD: 'loading', HYDRATE: { target: 'ready', action: (c, p) => ({ text: (p && p.text) || '' }) } } },
+    failed: { on: { LOAD: 'loading',
+                    HYDRATE: { target: 'ready', guard: (c, p) => !!(p && p.text),
+                               action: (c, p) => ({ text: p.text }) } } }
+  }
+})
+
+const SUGGEST_M = Machine('suggest', {
+  initial: 'idle',
+  context: { list: null, gen: 0, hydrated: false },
+  states: {
+    idle: { on: { LOAD: 'loading',
+                  HYDRATE: { target: 'ready', action: (c, p) => ({ list: (p && p.list) || null, hydrated: true }) } } },
+    loading: {
+      tags: ['busy'],
+      on: {
+        READY: { target: 'ready', guard: (c, p) => !!p && p.gen === c.gen,
+                 action: (c, p) => ({ list: p.list }) },
+        FAIL: { target: 'failed', guard: (c, p) => !!p && p.gen === c.gen },
+        HYDRATE: { target: 'ready', action: (c, p) => ({ list: (p && p.list) || null, hydrated: true }) }
+      }
+    },
+    ready: { on: { LOAD: 'loading', HYDRATE: { target: 'ready', action: (c, p) => ({ list: (p && p.list) || c.list }) } } },
+    failed: { on: { LOAD: 'loading', HYDRATE: { target: 'ready', action: (c, p) => ({ list: (p && p.list) || null }) } } }
+  }
+})
+
 function Main({ notebook, kinds, tab, setTab, picked, setPicked, busy, generate, onAsk,
                 askOpen, onSay, reload, modelReady, error, loading,
                 peek, setPeek, onOpenSource, onRefreshSource, onAddSource, onNewNotebook, onFindSources,
@@ -172,12 +252,17 @@ function Chat({ notebook, kinds, askOpen, onSay, modelReady, onCite, onOpenSourc
   const [msgs, setMsgs] = useState(() =>
     threadCache.get(nbKey) || (notebook.thread || []).map((m, i) => ({ ...m, k: `t${i}` })))
   const [text, setText] = useState('')
-  const [pending, setPending] = useState(null)
-  const [ov, setOv] = useState('')
-  const [ovErr, setOvErr] = useState(false)
+  const turn = useMachine(TURN)
+  const overview = useMachine(OVERVIEW)
+  const suggest = useMachine(SUGGEST_M)
+  const pending = turn.matches('asking')
+    ? { since: turn.ctx.since, now: turn.ctx.now, q: turn.ctx.q, cancel: () => TURN.send('CANCEL') }
+    : null
+  const ov = overview.ctx.text
+  const ovErr = overview.matches('failed')
+  const sugg = suggest.ctx.list
+  const suggErr = suggest.matches('failed')
   const [ovRetry, setOvRetry] = useState(0)
-  const [sugg, setSugg] = useState(null)
-  const [suggErr, setSuggErr] = useState(false)
   const [cfgOpen, setCfgOpen] = useState(false)
   const [scopeOpen, setScopeOpen] = useState(false)
   const [cfg, setCfg] = useState({})
@@ -237,29 +322,36 @@ function Chat({ notebook, kinds, askOpen, onSay, modelReady, onCite, onOpenSourc
 
   useEffect(() => {
     const cached = ovCache.get(notebook.id)
-    if (cached && cached.key === cacheKey) { setOv(cached.ov || ''); setSugg(cached.sugg || null); setOvErr(false); setSuggErr(false); return undefined }
+    if (cached && cached.key === cacheKey) {
+      OVERVIEW.send('HYDRATE', { text: cached.ov || '' })
+      SUGGEST_M.send('HYDRATE', { list: cached.sugg || null })
+      return undefined
+    }
     let live = true
-    setOv(''); setSugg(null); setOvErr(false); setSuggErr(false)
+    const ovGen = OVERVIEW.ctx.gen + 1
+    const sgGen = SUGGEST_M.ctx.gen + 1
+    OVERVIEW.set({ gen: ovGen, text: '' })
+    SUGGEST_M.set({ gen: sgGen })
+    OVERVIEW.send('LOAD')
+    SUGGEST_M.send('LOAD')
     api('/overview', { method: 'POST', body: { notebook: notebook.id }, timeoutMs: 120000 })
       .then((o) => {
         if (!live) return
         const text = o.overview || ''
-        setOv(text)
-        setOvErr(!text)
-        const c = ovCache.get(notebook.id) || { key: cacheKey }
+        OVERVIEW.send(text ? 'READY' : 'EMPTY', { text, gen: ovGen })
+        const c = ovCache.get(notebook.id) || {}
         ovCache.set(notebook.id, { key: cacheKey, ov: text, sugg: c.sugg || null })
       })
-      .catch(() => { if (live) setOvErr(true) })
+      .catch(() => { if (live) OVERVIEW.send('FAIL', { gen: ovGen }) })
     api('/suggest', { method: 'POST', body: { notebook: notebook.id }, timeoutMs: 120000 })
       .then((o) => {
         if (!live) return
-        const s = o.suggestions || null
-        setSugg(s)
-        setSuggErr(!s)
-        const c = ovCache.get(notebook.id) || { key: cacheKey }
-        ovCache.set(notebook.id, { key: cacheKey, ov: c.ov || '', sugg: s })
+        const list = o.suggestions || null
+        SUGGEST_M.send(list ? 'READY' : 'FAIL', { list, gen: sgGen })
+        const c = ovCache.get(notebook.id) || {}
+        ovCache.set(notebook.id, { key: cacheKey, ov: c.ov || '', sugg: list })
       })
-      .catch(() => { if (live) setSuggErr(true) })
+      .catch(() => { if (live) SUGGEST_M.send('FAIL', { gen: sgGen }) })
     return () => { live = false }
   }, [notebook.id, cacheKey, ovRetry])
 
@@ -303,7 +395,7 @@ function Chat({ notebook, kinds, askOpen, onSay, modelReady, onCite, onOpenSourc
   }, [msgs.length, pending && pending.since])
 
   const send = async (question, opts) => {
-    if (pending) return
+    if (!TURN.can('ASK')) return
     stickRef.current = true
     setShowLatest(false)
     const retry = !!(opts && opts.retry)
@@ -329,8 +421,7 @@ function Chat({ notebook, kinds, askOpen, onSay, modelReady, onCite, onOpenSourc
       setMsgs((m) => cacheMsgs(key, [...m, { role: 'user', content: q, k: `u${Date.now()}` }]))
     }
     const started = Date.now()
-    setPending({ since: started, q })
-    const tick = setInterval(() => setPending((p) => (p ? { ...p, now: Date.now() } : p)), 500)
+    TURN.send('ASK', { q, since: started })
     try {
       const out = await api('/ask', {
         method: 'POST',
@@ -362,9 +453,9 @@ function Chat({ notebook, kinds, askOpen, onSay, modelReady, onCite, onOpenSourc
       const next = cacheMsgs(key, [...prev, errMsg])
       if (curThread.current === t) setMsgs(next)
       if (onSay) onSay(e.message || 'ask failed')
+      TURN.send('FAIL')
     } finally {
-      clearInterval(tick)
-      setPending(null)
+      TURN.send('ANSWER')
     }
   }
 
@@ -461,7 +552,7 @@ function Chat({ notebook, kinds, askOpen, onSay, modelReady, onCite, onOpenSourc
             el('span', { className: 'nb-hint', children: 'suggestions could not be generated — the model may be busy.' }),
             jsx(Btn, {
               size: 'sm', icon: 'refresh', children: 'Retry',
-              onClick: () => { ovCache.delete(notebook.id); setSuggErr(false); setOvRetry((n) => n + 1) }
+              onClick: () => { ovCache.delete(notebook.id); setOvRetry((n) => n + 1) }
             }))
         : null,
       msgs.map((m, i) => jsx(Msg, {
@@ -477,7 +568,16 @@ function Chat({ notebook, kinds, askOpen, onSay, modelReady, onCite, onOpenSourc
               el('div', { className: 'nb-who', children: 'Reading sources' }),
               el('div', { style: { display: 'flex', alignItems: 'center', gap: '10px', color: T.text3, fontSize: '14.5px' } },
                 el('span', { className: 'nb-dot', style: { background: T.accent, boxShadow: `0 0 8px ${T.accent}` } }),
-                `retrieving passages · ${elapsed}s`)))
+                `retrieving passages · ${elapsed}s`,
+                // a spinner that cannot be dismissed is a lie about control; the
+                // server keeps working, the page stops waiting
+                el('button', {
+                  type: 'button', className: 'nb-linkbtn', 'aria-label': 'Stop waiting for the answer',
+                  onClick: () => { TURN.send('CANCEL'); if (onSay) onSay('stopped waiting — the answer may still arrive on the server') },
+                  style: { marginLeft: '4px', fontSize: '13px', color: T.text3, background: 'none',
+                           border: 'none', cursor: 'pointer', textDecoration: 'underline' },
+                  children: 'stop waiting'
+                }))))
         : null
     ),
     showLatest
@@ -1402,32 +1502,88 @@ const hostOf = (url) => {
 }
 
 /* notebook-wide passage search — deterministic BM25 over every source,
-   results open the owning source in the peek pane. */
+   results open the owning source in the peek pane.
+
+   Debounce and request live in the machine's states, not in a component effect:
+   `typing` owns the 260ms timer, `searching` owns the in-flight request and its
+   cancellation. Closing the dialog mid-search cancels it by leaving the state. */
+const SEARCH = Machine('search', {
+  initial: 'closed',
+  context: { query: '', hits: null, error: '', nb: '' },
+  states: {
+    closed: { on: { OPEN: { target: 'idle', action: (c, p) => ({ query: '', hits: null, error: '', nb: (p && p.nb) || c.nb }) } } },
+    idle: {
+      on: {
+        QUERY: { target: 'typing', guard: (c, p) => !!(p && p.query && p.query.trim().length >= 2),
+                 action: (c, p) => ({ query: p.query, hits: null, error: '', nb: (p && p.nb) || c.nb }) },
+        SHORT: { target: 'idle', action: (c, p) => ({ query: (p && p.query) || '', hits: null, error: '' }) },
+        CLOSE: { target: 'closed', action: () => ({ query: '', hits: null, error: '' }) }
+      }
+    },
+    typing: {
+      enter: (c, m) => {
+        const t = setTimeout(() => m.send('FIRE'), 260)
+        return () => clearTimeout(t)
+      },
+      on: {
+        FIRE: 'searching',
+        QUERY: { target: 'typing', action: (c, p) => ({ query: p.query, nb: (p && p.nb) || c.nb }) },
+        SHORT: { target: 'idle', action: () => ({ query: '', hits: null }) },
+        CLOSE: { target: 'closed', action: () => ({ query: '', hits: null, error: '' }) }
+      }
+    },
+    searching: {
+      tags: ['busy'],
+      enter: (c, m) => {
+        let live = true
+        api('/search', { method: 'POST', body: { notebook: c.nb, query: c.query, limit: 12 }, timeoutMs: 30000 })
+          .then((out) => { if (live) m.send('RESULTS', { hits: (((out || {}).result || {}).hits) || [] }) })
+          .catch((e) => { if (live) m.send('FAIL', { message: e.message || String(e) }) })
+        return () => { live = false }
+      },
+      on: {
+        RESULTS: { target: 'results', action: (c, p) => ({ hits: (p && p.hits) || [], error: '' }) },
+        FAIL: { target: 'error', action: (c, p) => ({ hits: [], error: (p && p.message) || 'search failed' }) },
+        QUERY: { target: 'typing', action: (c, p) => ({ query: p.query, nb: (p && p.nb) || c.nb }) },
+        CLOSE: { target: 'closed', action: () => ({ query: '', hits: null, error: '' }) }
+      }
+    },
+    results: {
+      on: {
+        QUERY: { target: 'typing', guard: (c, p) => !!(p && p.query && p.query.trim().length >= 2),
+                 action: (c, p) => ({ query: p.query, nb: (p && p.nb) || c.nb }) },
+        SHORT: { target: 'idle', action: () => ({ query: '', hits: null, error: '' }) },
+        CLOSE: { target: 'closed', action: () => ({ query: '', hits: null, error: '' }) }
+      }
+    },
+    error: {
+      on: {
+        QUERY: { target: 'typing', guard: (c, p) => !!(p && p.query && p.query.trim().length >= 2),
+                 action: (c, p) => ({ query: p.query, nb: (p && p.nb) || c.nb }) },
+        SHORT: { target: 'idle', action: () => ({ query: '', hits: null, error: '' }) },
+        CLOSE: { target: 'closed', action: () => ({ query: '', hits: null, error: '' }) }
+      }
+    }
+  }
+})
+
 function SearchDialog({ open, onClose, notebook, onPick }) {
-  const [q, setQ] = useState('')
-  const [hits, setHits] = useState(null)
-  const [busy, setBusy] = useState(false)
-  const [err, setErr] = useState('')
+  const search = useMachine(SEARCH)
   const nbId = notebook && notebook.id
+  const q = search.ctx.query
+  const hits = search.ctx.hits
+  const err = search.ctx.error
+  const busy = search.matches('searching')
 
   useEffect(() => {
-    if (!open) { setQ(''); setHits(null); setErr(''); setBusy(false); return undefined }
-    const query = q.trim()
-    if (query.length < 2 || !nbId) { setHits(null); setBusy(false); return undefined }
-    let live = true
-    setBusy(true)
-    const t = setTimeout(() => {
-      api('/search', { method: 'POST', body: { notebook: nbId, query, limit: 12 }, timeoutMs: 30000 })
-        .then((out) => {
-          if (!live) return
-          setHits((((out || {}).result || {}).hits) || [])
-          setErr('')
-        })
-        .catch((e) => { if (live) { setHits([]); setErr(e.message || String(e)) } })
-        .finally(() => { if (live) setBusy(false) })
-    }, 260)
-    return () => { live = false; clearTimeout(t) }
-  }, [q, open, nbId])
+    if (open) SEARCH.send('OPEN', { nb: nbId })
+    else if (SEARCH.can('CLOSE')) SEARCH.send('CLOSE')
+  }, [open, nbId])
+
+  const onQuery = (value) => {
+    const short = value.trim().length < 2
+    SEARCH.send(short ? 'SHORT' : 'QUERY', { query: value, nb: nbId })
+  }
 
   const query = q.trim()
   const mark = (text) => {
@@ -1441,7 +1597,7 @@ function SearchDialog({ open, onClose, notebook, onPick }) {
     open, onClose, title: 'Search this notebook', width: 640,
     children: [
       jsx(SearchField, {
-        value: q, onChange: setQ,
+        value: q, onChange: onQuery, autoFocus: open,
         placeholder: 'Search across every source…', label: 'Search this notebook'
       }),
       el('div', { style: { marginTop: '14px', display: 'grid', gap: '8px' } },

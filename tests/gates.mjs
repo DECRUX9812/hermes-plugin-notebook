@@ -29,6 +29,88 @@ const ok = (name, pass, detail) => {
   console.log(`${pass ? 'PASS' : 'FAIL'}  ${name}${detail ? ` — ${detail}` : ''}`)
 }
 
+/* -------------------------------------------------------------- 5 machines
+ * The state machines are a product surface, not an implementation detail: the
+ * page publishes them for agents, refuses events that do not belong to the
+ * current state, and keeps one modal at a time. These checks exercise the runtime
+ * through the same window API an agent would use.
+ */
+async function machines(port, shared) {
+  const b = shared || await browser()
+  const page = await b.newPage({ viewport: { width: 1440, height: 900 } })
+  const errors = []
+  page.on('pageerror', (e) => errors.push(e.message))
+  await page.goto(`http://127.0.0.1:${port}/preview.html`, { waitUntil: 'load' })
+  await settle(page, 900)
+
+  const fleet = await page.evaluate(() => (window.__nbMachines ? window.__nbMachines() : null))
+  ok('the fleet is readable from the page', !!fleet && !!fleet.studio && !!fleet.jobs && !!fleet.dialogs,
+     fleet ? Object.keys(fleet).join(',') : 'no __nbMachines')
+
+  const dom = await page.evaluate(() => {
+    const raw = document.body.getAttribute('data-machines')
+    try { return raw ? JSON.parse(raw) : null } catch (e) { return 'unparsable' }
+  })
+  ok('the fleet is readable from the DOM for agents', !!dom && typeof dom === 'object' && !!dom.studio,
+     typeof dom === 'string' ? dom : 'data-machines present')
+
+  const docs = await page.evaluate(() => (window.__nbMachines ? null : null))
+  const refusal = await page.evaluate(() => {
+    const m = window.__nbMachine('dialogs')
+    if (!m) return { missing: true }
+    const before = m.state
+    const accepted = m.send('NOT_AN_EVENT')
+    return { before, after: m.state, accepted, logged: m.history().slice(-1)[0] || null }
+  })
+  ok('an event outside the current state is refused, not thrown',
+     refusal.accepted === false && refusal.after === refusal.before && !!refusal.logged,
+     JSON.stringify(refusal).slice(0, 120))
+
+  const exclusive = await page.evaluate(() => {
+    const m = window.__nbMachine('dialogs')
+    m.send('OPEN', { surface: 'search' })
+    m.send('OPEN', { surface: 'settings', data: { id: 'x' } })
+    const open = m.matches('open') && m.ctx.payload && m.ctx.payload.surface
+    m.send('CLOSE', { surface: 'search' })   // stale close from the dismissed one
+    const stillOpen = m.matches('open') ? (m.ctx.payload || {}).surface : null
+    m.send('CLOSE', { surface: 'settings' })
+    return { open, stillOpen, closed: m.matches('closed') }
+  })
+  ok('one modal at a time, and a stale close cannot dismiss the new one',
+     exclusive.open === 'settings' && exclusive.stillOpen === 'settings' && exclusive.closed === true,
+     JSON.stringify(exclusive))
+
+  const lanes = await page.evaluate(() => {
+    const m = window.__nbMachine('jobs')
+    const first = m.send('RUN', { kind: 'mind_map', at: 1 })
+    const second = m.send('RUN', { kind: 'mind_map', at: 2 })
+    const other = m.send('RUN', { kind: 'quiz', at: 3 })
+    m.send('FINISH', { kind: 'mind_map' })
+    m.send('FINISH', { kind: 'quiz' })
+    m.send('SETTLE')
+    return { first, second, other, state: m.state, lanes: Object.keys(m.ctx.lanes).length }
+  })
+  ok('a second run of the same kind is refused; lanes drain to idle',
+     lanes.first === true && lanes.second === false && lanes.other === true &&
+     lanes.state === 'idle' && lanes.lanes === 0, JSON.stringify(lanes))
+
+  const cancel = await page.evaluate(() => {
+    const m = window.__nbMachine('turn')
+    m.send('ASK', { q: 'what changed?', since: 1 })
+    const busy = m.tag('busy')
+    m.send('CANCEL')
+    const afterCancel = m.state
+    const late = m.send('ANSWER')            // the reply that arrives anyway
+    return { busy, afterCancel, late, state: m.state }
+  })
+  ok('a cancelled turn stops waiting and refuses the late answer',
+     cancel.busy === true && cancel.afterCancel === 'idle' && cancel.late === false, JSON.stringify(cancel))
+
+  ok('the machines raised no page errors', errors.length === 0, errors.slice(0, 2).join(' | '))
+  await page.close()
+  if (!shared) await b.close()
+}
+
 /* ---------------------------------------------------------- 1 bundle-load */
 async function bundleLoad() {
   // Build the COMMITTED bundle once more with the SDK swapped for a stub, so the
@@ -400,6 +482,7 @@ const { port, close } = await serve(join(here, 'tmp'))
 try {
   if (which === 'all' || which === 'bundle') await bundleLoad()
   if (which === 'all' || which === 'functional') await functional(port)
+  if (which === 'all' || which === 'machines') await machines(port)
   if (which === 'all' || which === 'a11y') await a11y(port)
   if (which === 'all' || which === 'layout') { layout.port = port; await layout() }
 } finally {

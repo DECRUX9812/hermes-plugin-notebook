@@ -1,5 +1,54 @@
 /* ------------------------------------------------------------------ shell */
 
+/* Artifact generation used to be one `busy` object mutated in four places. Now a
+ * lane per kind: starting a run while it is already running is refused (it used to
+ * fire a second request), and the map the UI reads is derived, not stored. */
+const JOBS = Machine('jobs', {
+  initial: 'idle',
+  context: { lanes: {} },
+  states: {
+    idle: {
+      on: { RUN: { target: 'active', action: (c, p) => { c.lanes[p.kind] = p.at || Date.now() } } }
+    },
+    active: {
+      tags: ['busy'],
+      on: {
+        RUN: { target: 'active',
+               guard: (c, p) => !c.lanes[p.kind],
+               action: (c, p) => { c.lanes[p.kind] = p.at || Date.now() } },
+        FINISH: { target: 'active', action: (c, p) => {
+          delete c.lanes[p.kind]
+          if (!Object.keys(c.lanes).length) return undefined
+        } },
+        SETTLE: { target: 'idle', guard: (c) => !Object.keys(c.lanes).length }
+      }
+    }
+  }
+})
+
+/* Modal surfaces used to be four independent booleans, so a search could open on
+ * top of the settings dialog and Escape closed whichever effect ran last. One
+ * machine owns "at most one modal", and the booleans are derived from it. */
+const DIALOGS = Machine('dialogs', {
+  initial: 'closed',
+  context: { payload: null },
+  states: {
+    closed: {
+      on: { OPEN: { target: 'open', guard: (c, p) => !!(p && p.surface),
+                    action: (c, p) => ({ payload: { surface: p.surface, data: p.data || null } }) } }
+    },
+    open: {
+      on: {
+        OPEN: { target: 'open', guard: (c, p) => !!(p && p.surface),
+                action: (c, p) => ({ payload: { surface: p.surface, data: p.data || null } }) },
+        // a stale close must not dismiss the surface somebody just opened
+        CLOSE: { target: 'closed', guard: (c, p) => !p || !p.surface || (c.payload && c.payload.surface === p.surface),
+                 action: () => ({ payload: null }) }
+      }
+    }
+  }
+})
+
 function App() {
   const [mode, setMode] = useState(() => persist.get('mode', 'home'))
   const [nb, setNb] = useState(() => persist.get('notebook', ''))
@@ -14,18 +63,27 @@ function App() {
   }, [nb])
   const [picked, setPicked] = useState(null)       // artifact run selected in the viewer
   const [tab, setTab] = useState('chat')
-  const [busy, setBusy] = useState({})             // kind -> startedAt (ms)
+  const jobs = useMachine(JOBS)
+  const busy = jobs.ctx.lanes                      // kind -> startedAt (ms)
   const [note, setNote] = useState('')
   const [askOpen, setAskOpen] = useState(0)        // bump to focus the composer
-  const [srcDialog, setSrcDialog] = useState(null) // {mode?, seed?} | null
-  const [newNb, setNewNb] = useState(false)
-  const [renNb, setRenNb] = useState(null)          // notebook open in the settings dialog
+  const dialogs = useMachine(DIALOGS)
+  const surface = dialogs.matches('open') && dialogs.ctx.payload ? dialogs.ctx.payload.surface : ''
+  const openSurface = useCallback((name, data) => DIALOGS.send('OPEN', { surface: name, data }), [])
+  const closeSurface = useCallback((name) => DIALOGS.send('CLOSE', { surface: name }), [])
+  const setSrcDialog = useCallback((v) => (v ? openSurface('addSource', v) : closeSurface('addSource')), [openSurface, closeSurface])
+  const setNewNb = useCallback((v) => (v ? openSurface('newNotebook') : closeSurface('newNotebook')), [openSurface, closeSurface])
+  const setRenNb = useCallback((v) => (v ? openSurface('settings', v) : closeSurface('settings')), [openSurface, closeSurface])
+  const srcDialog = surface === 'addSource' ? (dialogs.ctx.payload.data || {}) : null
+  const newNb = surface === 'newNotebook'
+  const renNb = surface === 'settings' ? (dialogs.ctx.payload.data || null) : null
   const [filter, setFilter] = useState('all')
   const [peek, setPeek] = useState(null)           // source lifted so the rail can open it
   const [railOpen, setRailOpen] = useState(() => persist.get('rail', '1') !== '0')
   const [studioOpen, setStudioOpen] = useState(() => persist.get('studio', '1') !== '0')
   const [opsStats, setOpsStats] = useState(null)
-  const [searchOpen, setSearchOpen] = useState(false)
+  const setSearchOpen = useCallback((v) => (v ? openSurface('search') : closeSurface('search')), [openSurface, closeSurface])
+  const searchOpen = surface === 'search' 
 
   // palette/deep links can ask for a surface: ?surface=ops opens the lab deck
   useEffect(() => {
@@ -79,7 +137,8 @@ function App() {
 
   const generate = useCallback(async (kind, opts) => {
     if (!notebook) return
-    setBusy((b) => ({ ...b, [kind]: Date.now() }))
+    if (!JOBS.can('RUN')) { say(`${kind.replace(/_/g, ' ')} is already running`); return }
+    if (!JOBS.send('RUN', { kind })) { say(`${kind.replace(/_/g, ' ')} is already running`); return }
     try {
       await api('/generate', {
         method: 'POST',
@@ -94,7 +153,8 @@ function App() {
     } catch (e) {
       say(`${kind.replace(/_/g, ' ')} failed: ${e.message || e}`)
     } finally {
-      setBusy((b) => { const n = { ...b }; delete n[kind]; return n })
+      JOBS.send('FINISH', { kind })
+      JOBS.send('SETTLE')
     }
   }, [notebook, studio, say])
 

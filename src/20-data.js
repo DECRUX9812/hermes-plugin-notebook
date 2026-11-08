@@ -31,33 +31,88 @@ const persist = {
   }
 }
 
-/** One poll of `/state`; `nb` scopes it to a notebook, `thread` to a conversation. */
+/* One `/state` fetch is a machine, not three booleans: `loading`, `error` and
+ * `data` could previously disagree (error set, loading true, data stale) and a
+ * slow reply from a previous notebook could land on the current one. The machine
+ * refuses both: refreshes carry a generation, and only the newest generation may
+ * settle a load. */
+const STUDIO = Machine('studio', {
+  initial: 'loading',
+  context: { data: null, error: '', gen: 0 },
+  states: {
+    loading: {
+      tags: ['busy'],
+      on: {
+        LOADED: { target: 'ready', guard: (c, p) => !!p && p.gen === c.gen,
+                  action: (c, p) => ({ data: p.data, error: '' }) },
+        FAILED: { target: 'error', guard: (c, p) => !!p && p.gen === c.gen,
+                  action: (c, p) => ({ error: p.message }) }
+      }
+    },
+    ready: {
+      on: {
+        // a silent refresh keeps the current data on screen; a full one shows the
+        // skeleton, because the caller asked for that
+        REFRESH_SOFT: 'refreshing',
+        REFRESH_FULL: 'loading',
+        LOADED: { target: 'ready', guard: (c, p) => !!p && p.gen === c.gen,
+                  action: (c, p) => ({ data: p.data, error: '' }) }
+      }
+    },
+    refreshing: {
+      tags: ['busy', 'stale'],
+      on: {
+        LOADED: { target: 'ready', guard: (c, p) => !!p && p.gen === c.gen,
+                  action: (c, p) => ({ data: p.data, error: '' }) },
+        FAILED: { target: 'ready', guard: (c, p) => !!p && p.gen === c.gen,
+                  action: (c, p) => ({ error: p.message }) },
+        REFRESH_FULL: 'loading'
+      }
+    },
+    error: {
+      on: {
+        REFRESH_FULL: 'loading',
+        REFRESH_SOFT: 'loading',
+        LOADED: { target: 'ready', guard: (c, p) => !!p && p.gen === c.gen,
+                  action: (c, p) => ({ data: p.data, error: '' }) }
+      }
+    }
+  }
+})
+
+/** `nb` scopes it to a notebook, `thread` to a conversation. */
 function useStudio(nb, thread) {
-  const [data, setData] = useState(null)
-  const [error, setError] = useState('')
-  const [loading, setLoading] = useState(true)
-  const alive = useRef(true)
+  const m = useMachine(STUDIO)
+  const scope = useRef({ nb, thread })
+  scope.current = { nb, thread }
   const load = useCallback(async (silent) => {
-    if (!silent) setLoading(true)
+    const { nb: n, thread: t } = scope.current
+    const gen = STUDIO.ctx.gen + 1
+    STUDIO.set({ gen })
+    // the first load starts in `loading`; only later loads need a refresh event
+    if (silent && STUDIO.can('REFRESH_SOFT')) STUDIO.send('REFRESH_SOFT')
+    else if (STUDIO.can('REFRESH_FULL')) STUDIO.send('REFRESH_FULL')
     try {
-      const next = await api(`/state${nb ? `?${qs({ notebook: nb, thread: thread || "" })}` : ''}`)
-      if (!alive.current) return next
-      setData(next)
-      setError('')
+      const next = await api(`/state${n ? `?${qs({ notebook: n, thread: t || '' })}` : ''}`)
+      STUDIO.send('LOADED', { data: next, gen })
       return next
     } catch (e) {
-      if (alive.current) setError(e.message || String(e))
+      STUDIO.send('FAILED', { message: e.message || String(e), gen })
       return null
-    } finally {
-      if (alive.current) setLoading(false)
     }
   }, [nb, thread])
   useEffect(() => {
-    alive.current = true
+    // a scope change is a new load; the machine's generation guard drops the old one
     load(false)
-    return () => { alive.current = false }
   }, [load])
-  return { data, error, loading, reload: load, setData }
+  return {
+    data: m.ctx.data,
+    error: m.ctx.error,
+    loading: m.matches('loading'),
+    refreshing: m.matches('refreshing'),
+    reload: load,
+    setData: (d) => STUDIO.set({ data: d })
+  }
 }
 
 /* ------------------------------------------------------------------- kinds */

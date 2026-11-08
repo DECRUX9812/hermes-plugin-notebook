@@ -184,11 +184,14 @@ function Chip({ children, tone, onClick, title, pressed }) {
   return el('span', props)
 }
 
-function SearchField({ value, onChange, placeholder, label }) {
+function SearchField({ value, onChange, placeholder, label, autoFocus }) {
   return el('div', { className: 'nb-field' },
     jsx(Glyph, { name: 'search', size: 14 }),
     el('input', {
       value, placeholder, 'aria-label': label || placeholder,
+      // Preact sets .autoFocus as a property; a data attribute is what the dialog
+      // can reliably find, and it is also what an agent can look for
+      'data-autofocus': autoFocus ? 'true' : undefined, autoFocus: !!autoFocus,
       onChange: (e) => onChange(e.target.value), spellCheck: false
     }),
     value ? jsx(IconBtn, { icon: 'close', label: 'Clear search', size: 13, onClick: () => onChange('') }) : null
@@ -220,7 +223,8 @@ function useDialogFocus(open, onClose) {
     document.addEventListener('keydown', onKey, true)
     const t = setTimeout(() => {
       const root = document.querySelector('[data-nb-dialog="true"]')
-      const target = root && (root.querySelector('[autofocus]') || root.querySelector('input,textarea,button'))
+      const target = root && (root.querySelector('[data-autofocus="true"],[autofocus]')
+        || root.querySelector('input,textarea,button'))
       if (target) target.focus()
     }, 30)
     return () => {
