@@ -214,23 +214,35 @@ def search(notebook_id: str, query: str, *, top_k: int = 8,
     return {"query": query, "hits": hits, "total_chunks": len(chunk_docs)}
 
 
-def notebook_digest(notebook_id: str, *, max_chars: int = 42000) -> str:
+def notebook_digest(notebook_id: str, *, max_chars: int = 42000,
+                    cited: bool = False) -> str:
     """Broad-coverage digest for artifact/podcast prompts: head + tail slices of
-    every source so generation sees the whole notebook, not just one query."""
+    every source so generation sees the whole notebook, not just one query.
+
+    ``cited=True`` tags each excerpt ``[S<n> · …]`` where n is the source's
+    position in ``store.list_sources`` — the same numbering the page assigns —
+    so a model can cite claims inline and the UI can resolve them."""
     pairs = store.all_source_texts(notebook_id)
     off = store.disabled_sources(notebook_id)
     if off:
         pairs = [(r, t) for r, t in pairs if r.get("id") not in off]
     if not pairs:
         return ""
+    order = {s.get("id"): i for i, s in enumerate(store.list_sources(notebook_id))} if cited else {}
     per_source = max(1500, max_chars // max(1, len(pairs)))
     parts = []
     for i, (rec, text) in enumerate(pairs, 1):
         labels = ", ".join(rec.get("labels") or [])
-        header = f"[Source {i}: {rec.get('title')} — {rec.get('kind')}"
-        if rec.get("origin") and rec["kind"] in {"url", "youtube"}:
-            header += f" — {rec['origin']}"
-        header += f" — labels: {labels}]" if labels else "]"
+        if cited:
+            header = f"[S{order.get(rec.get('id'), i - 1) + 1} · {rec.get('title')} · {rec.get('kind')}"
+            if rec.get("origin") and rec["kind"] in {"url", "youtube"}:
+                header += f" — {rec['origin']}"
+            header += "]"
+        else:
+            header = f"[Source {i}: {rec.get('title')} — {rec.get('kind')}"
+            if rec.get("origin") and rec["kind"] in {"url", "youtube"}:
+                header += f" — {rec['origin']}"
+            header += f" — labels: {labels}]" if labels else "]"
         body = text[: per_source * 2 // 3]
         if len(text) > per_source:
             body += "\n\n[... middle omitted ...]\n\n" + text[-(per_source // 3):]

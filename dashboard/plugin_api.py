@@ -594,7 +594,7 @@ async def overview(payload: Dict[str, Any] = Body(...)) -> Any:
         nb_id = store.resolve_notebook(nb)
     except Exception as exc:
         return _fail(str(exc), 404)
-    digest = retrieve.notebook_digest(nb_id, max_chars=16000)
+    digest = retrieve.notebook_digest(nb_id, max_chars=16000, cited=True)
     if not digest.strip():
         return _fail("no active sources to summarize — check some sources first", 422)
     started = time.time()
@@ -606,8 +606,10 @@ async def overview(payload: Dict[str, Any] = Body(...)) -> Any:
                     "You write the opening overview of a research notebook. One tight "
                     "paragraph of 3-5 sentences synthesizing what the sources actually "
                     "say — the thesis, the strongest findings, and what is contested. "
-                    "Mark load-bearing terms with **bold** so they scan. No preamble, "
-                    "no sign-off, no invented facts.")},
+                    "Mark load-bearing terms with **bold** so they scan, and cite the "
+                    "source behind each load-bearing claim inline as [S<n>] using the "
+                    "numbers in the excerpt headers. No preamble, no sign-off, no "
+                    "invented facts.")},
                 {"role": "user", "content": f"Notebook source excerpts:\n\n{digest}"},
             ],
             purpose="hermes-notebook.overview",
