@@ -88,7 +88,7 @@ const kindLabel = (k) => KIND_LABEL[k] || k || 'file'
 const NB_EMOJI = ['📓', '🧠', '🔬', '📚', '🛰️', '⚛️', '🌱', '🏛️', '🎧', '🧪',
   '📈', '🗺️', '🧭', '💡', '🏥', '⚖️']
 const hashStr = (s) => { let h = 0; for (const c of String(s)) h = (h * 31 + c.charCodeAt(0)) >>> 0; return h }
-const emojiFor = (id) => NB_EMOJI[hashStr(id || 'nb') % NB_EMOJI.length]
+const emojiFor = (id, custom) => (custom && String(custom).trim()) || NB_EMOJI[hashStr(id || 'nb') % NB_EMOJI.length]
 const dshort = (stamp) => {
   const d = stamp ? new Date(stamp) : null
   return d && !isNaN(d) ? d.toLocaleDateString(undefined, { day: 'numeric', month: 'short', year: 'numeric' }) : ''
@@ -110,3 +110,10 @@ function latestByKind(artifacts) {
   }
   return map
 }
+
+const OPT_LABEL = { focus: 'focus', count_hint: 'amount', format: 'format', length: 'length', language: 'language', style: 'style' }
+/** "focus: fusion economics · format: brief" — what a tailored run asked for. */
+const optsSummary = (opts) => Object.keys(opts || {})
+  .filter((k) => opts[k])
+  .map((k) => `${OPT_LABEL[k] || k}: ${String(opts[k]).slice(0, 48)}`)
+  .join(' · ')

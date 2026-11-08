@@ -105,6 +105,11 @@ const CSS = `
 .nb-brandname{font-size:14.5px;font-weight:700;letter-spacing:-.01em;color:${T.text}}
 .nb-crumb{font-size:12.5px;color:${T.text3};white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:42ch}
 .nb-crumb b{color:${T.text2};font-weight:600}
+.nb-crumbedit{background:transparent;border:0;padding:0 8px;margin:0 -8px;font:inherit;
+  color:${T.text2};font-weight:600;cursor:pointer;border-radius:8px;
+  display:inline-flex;align-items:center;min-height:32px;max-width:42ch;
+  overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.nb-crumbedit:hover{color:${T.text};background:var(--nb-wash-2)}
 .nb-spacer{flex:1 1 auto}
 .nb-actions{display:flex;align-items:center;gap:8px}
 
@@ -159,6 +164,7 @@ const CSS = `
 .nb-body > .nb-col{background:var(--nb-card);border:1px solid var(--nb-hair-soft);
   border-radius:24px;overflow:hidden}
 .nb-rail{flex:0 0 var(--nb-rail)}
+.nb-rail[data-drop="true"]{outline:2px dashed ${T.accent};outline-offset:-6px;border-radius:24px}
 .nb-main-col{flex:1 1 auto}
 .nb-studio{flex:0 0 var(--nb-studio)}
 .nb-fade{position:absolute;left:0;right:0;bottom:0;height:44px;pointer-events:none;
@@ -210,6 +216,9 @@ const CSS = `
 .nb-srccheck[aria-checked=true]{background:${T.accent};border-color:${T.accent}}
 .nb-selall{display:flex;align-items:center;gap:9px;padding:2px 6px}
 .nb-selall .nb-srccheck{width:32px;height:32px;border-radius:10px}
+.nb-src-del{position:absolute;right:44px;top:50%;transform:translateY(-50%);
+  opacity:0;transition:opacity .12s ease}
+.nb-src:hover .nb-src-del,.nb-src-del:focus-visible{opacity:1}
 .nb-srcgroup{display:flex;align-items:center;gap:8px;width:100%;text-align:left;
   padding:9px 10px;border:0;border-radius:11px;background:transparent;color:${T.text3};
   font-size:12px;font-weight:650;letter-spacing:.01em;cursor:pointer;font-family:inherit}
@@ -324,6 +333,10 @@ const CSS = `
    off, so citations under it stay clickable (a mask would eat the clicks). */
 .nb-chat::before{content:'';position:absolute;top:0;left:0;right:0;height:18px;z-index:2;
   pointer-events:none;background:linear-gradient(to bottom,var(--nb-card),transparent)}
+.nb-chatscroll{flex:1;min-height:0;display:flex;flex-direction:column;position:relative}
+.nb-hl{background:color-mix(in srgb, ${T.accent} 30%, transparent);color:inherit;border-radius:4px;padding:0 2px}
+.nb-latest{position:absolute;left:50%;bottom:14px;transform:translateX(-50%);z-index:20;display:inline-flex;align-items:center;gap:4px;padding:7px 14px;border-radius:999px;border:1px solid var(--nb-line,#2a2d3d);background:var(--nb-card,#14161f);color:var(--nb-text2,#c6c9d8);font-size:12.5px;font-weight:600;cursor:pointer;box-shadow:0 6px 20px rgba(0,0,0,.35);transition:transform .15s ease,box-shadow .15s ease}
+.nb-latest:hover{transform:translateX(-50%) translateY(-1px);box-shadow:0 8px 24px rgba(0,0,0,.45)}
 .nb-thread{flex:1;min-height:0;overflow:auto;padding:28px 28px 12px;display:flex;flex-direction:column;gap:24px}
 .nb-chiprow{display:flex;align-items:center;gap:6px;flex-wrap:wrap;padding:8px 0 6px}
 .nb-msg{max-width:72ch}
@@ -396,6 +409,22 @@ const CSS = `
 .nb-suggest-go{color:${T.text4};display:flex;justify-content:flex-end}
 .nb-gaprow{display:flex;gap:6px;flex-wrap:wrap;align-items:center}
 .nb-gaprow .nb-chip[data-click=true]{border-style:dashed}
+.nb-thrrow{display:flex;align-items:center;gap:10px;width:100%;text-align:left;
+  padding:10px 12px;border-radius:12px;cursor:pointer;font-family:inherit;
+  border:1px solid transparent;background:transparent;color:${T.text}}
+.nb-thrrow:hover{background:var(--nb-wash)}
+.nb-thrrow.is-current{border-color:color-mix(in srgb,${T.accent} 40%, transparent);
+  background:color-mix(in srgb,${T.accent} 8%, transparent)}
+.nb-thrwrap{display:flex;align-items:center;gap:4px}
+.nb-thrwrap .nb-thrrow{flex:1;min-width:0}
+.nb-thrwrap .nb-icon{opacity:0;transition:opacity .12s ease}
+.nb-thrwrap:hover .nb-icon,.nb-thrwrap:focus-within .nb-icon{opacity:1}
+.nb-emgrid{display:grid;grid-template-columns:repeat(8,1fr);gap:6px}
+.nb-em{aspect-ratio:1;border-radius:10px;border:1px solid var(--nb-hair-soft);
+  background:var(--nb-card);font-size:17px;cursor:pointer;display:grid;place-items:center;
+  transition:border-color .12s ease,background .12s ease}
+.nb-em:hover{border-color:color-mix(in srgb,${T.accent} 45%, transparent)}
+.nb-em.is-on{border-color:${T.accent};background:color-mix(in srgb,${T.accent} 12%, transparent)}
 
 /* --------------------------------------------------------- studio (index) */
 .nb-grid{display:flex;flex-direction:column;gap:10px;padding:12px 14px 26px}
@@ -464,6 +493,11 @@ const CSS = `
   overflow:hidden;white-space:nowrap;text-overflow:ellipsis}
 .nb-art-sub{display:block;font-size:11px;color:${T.text3};margin-top:2px;
   overflow:hidden;white-space:nowrap;text-overflow:ellipsis}
+.nb-artrow{position:relative}
+.nb-art-del{position:absolute;right:8px;top:50%;transform:translateY(-50%);
+  opacity:0;transition:opacity .12s ease}
+.nb-artrow:hover .nb-art-del,.nb-art-del:focus-visible{opacity:1}
+.nb-artrow:hover .nb-art{padding-right:36px}
 
 /* thumb content inside the artifact icon tile */
 .nb-art-ico .nb-thumb-img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;display:block}
@@ -632,6 +666,25 @@ const CSS = `
 .nb-citepop-head b{color:${T.accent};font-weight:700}
 .nb-citepop-body{font-size:13px;line-height:1.55;color:${T.text2};
   display:-webkit-box;-webkit-line-clamp:5;-webkit-box-orient:vertical;overflow:hidden}
+
+.nb-scope-check{flex:none;width:18px;height:18px;border-radius:6px;
+  border:1.5px solid ${T.line};display:grid;place-items:center;font-size:11px;
+  color:#fff;transition:all .12s}
+.nb-scope-check.on{background:${T.accent};border-color:${T.accent}}
+
+.nb-search-hit{display:block;width:100%;text-align:left;background:transparent;
+  border:1px solid ${T.line};border-radius:12px;padding:10px 12px;cursor:pointer;
+  color:${T.text};font:inherit;transition:border-color .12s,background .12s}
+.nb-search-hit:hover{border-color:color-mix(in srgb,${T.accent} 45%,transparent);
+  background:color-mix(in srgb,${T.accent} 6%,transparent)}
+.nb-search-hit-head{display:flex;align-items:center;gap:8px;font-size:13.5px;
+  margin-bottom:4px}
+.nb-search-hit-head b{font-weight:600;overflow:hidden;text-overflow:ellipsis;
+  white-space:nowrap}
+.nb-search-hit-snip{font-size:13px;line-height:1.5;color:${T.text3};
+  display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden}
+.nb-search-hit mark{background:color-mix(in srgb,${T.accent} 30%,transparent);
+  color:${T.text};border-radius:3px;padding:0 1px}
 
 .nb-dt-wrap{overflow:auto;border:1px solid ${T.line};border-radius:14px;
   background:${T.card}}

@@ -53,7 +53,9 @@ const P = {
   tag: 'M4 4h6.6L20 13.4a2 2 0 0 1 0 2.8l-3.8 3.8a2 2 0 0 1-2.8 0L4 10.6V4Zm4.6 3.4a1.3 1.3 0 1 0 0 2.6 1.3 1.3 0 0 0 0-2.6Z',
   more: 'M5 12h.01M12 12h.01M19 12h.01',
   pin: 'M9 4h6l-1 6 3 3v2H7v-2l3-3-1-6Z',
-  sliders: 'M4 7h9m4 0h3M4 17h3m4 0h9M13 4v6m-6 4v6'
+  sliders: 'M4 7h9m4 0h3M4 17h3m4 0h9M13 4v6m-6 4v6',
+  pencil: 'M4 20h4L19.5 8.5a2.12 2.12 0 0 0-3-3L5 17v3Zm9.5-11.5 2 2',
+  shuffle: 'M16 3h5v5M4 20l17-17M21 16v5h-5M15 15l6 6M4 4l5 5'
 }
 
 function Glyph({ name, size = 16, stroke = 1.7 }) {
@@ -64,6 +66,59 @@ function Glyph({ name, size = 16, stroke = 1.7 }) {
     strokeLinejoin: 'round', 'aria-hidden': 'true', focusable: 'false',
     children: el('path', { d })
   })
+}
+
+/* Generative notebook sigil — abstract SVG seeded by the notebook id, so every
+ * notebook gets a stable, unique piece of generative art instead of a literal
+ * icon. Deterministic: same id, same sigil, forever. */
+function _sigHash(str) {
+  let h = 2166136261
+  const s = String(str || 'notebook')
+  for (let i = 0; i < s.length; i += 1) { h ^= s.charCodeAt(i); h = Math.imul(h, 16777619) }
+  return h >>> 0
+}
+function _sigRnd(seed) {
+  let a = seed >>> 0
+  return () => {
+    a = (a + 0x6D2B79F5) | 0
+    let t = Math.imul(a ^ (a >>> 15), 1 | a)
+    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296
+  }
+}
+function Sigil({ seed, size = 44 }) {
+  const rnd = _sigRnd(_sigHash(seed))
+  const hue = Math.floor(rnd() * 360)
+  const out = []
+  for (let i = 0; i < 3; i += 1) {
+      const y1 = 10 + rnd() * 30
+      const y2 = 10 + rnd() * 30
+      const cx = 10 + rnd() * 28
+      const h2 = (hue + i * 47 + Math.floor(rnd() * 36)) % 360
+      out.push(el('path', {
+        key: `r${i}`,
+        d: `M -6 ${y1.toFixed(1)} C ${cx.toFixed(1)} ${(y1 - 16 - rnd() * 12).toFixed(1)}, ` +
+           `${(54 - cx).toFixed(1)} ${(y2 + 16 + rnd() * 12).toFixed(1)}, 54 ${y2.toFixed(1)}`,
+        fill: 'none',
+        stroke: `hsl(${h2} 72% 66% / ${(0.45 + rnd() * 0.35).toFixed(2)})`,
+        strokeWidth: (1.4 + rnd() * 2.4).toFixed(2),
+        strokeLinecap: 'round'
+      }))
+    }
+    for (let i = 0; i < 2; i += 1) {
+      out.push(el('circle', {
+        key: `n${i}`,
+        cx: (8 + rnd() * 32).toFixed(1), cy: (8 + rnd() * 32).toFixed(1),
+        r: (1.5 + rnd() * 2.6).toFixed(2),
+        fill: `hsl(${(hue + 150 + i * 70) % 360} 70% 72% / 0.85)`
+      }))
+    }
+    return el('svg', {
+      width: size, height: size, viewBox: '-6 -6 60 60',
+      'aria-hidden': 'true', focusable: 'false',
+      style: { display: 'block' },
+      children: out
+    })
 }
 
 /* -------------------------------------------------------------- primitives */

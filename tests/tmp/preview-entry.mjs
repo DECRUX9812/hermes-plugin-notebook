@@ -64,7 +64,7 @@ const rest = async (path, opts) => {
         { n: 2, title: 'US roadmap targets fusion deployment by mid 2030s - Reuters', kind: 'url', origin: 'https://www.reuters.com/business/energy/us-roadmap-targets-fusion-deployment-by-mid-2030s--reeii-2026-08-25/', id: 'reuters-us-fusion-roadmap-mid-2030s' },
         { n: 3, title: 'ITER reports “substantial progress” in assembly and installation work', kind: 'url', origin: 'https://www.ans.org/news/2026-09-09/article-8375/', id: 'ans-iter-assembly-progress' },
         { n: 4, title: 'Two-thirds of ITER tokamak core now in place - ITER Organization', kind: 'url', origin: 'https://www.iter.org/two-thirds-iter-tokamak-core-now-place', id: 'iter-two-thirds-tokamak-core' }
-      ],
+      ].map((c) => ({ ...c, snippet: ((((STATE.notebook && STATE.notebook.sources) || []).find((s) => s.id === c.id) || {}).summary || '').slice(0, 160) })),
       chunks_used: 12, total_chunks: 96, seconds: 4.2
     }
   }
@@ -95,6 +95,21 @@ const rest = async (path, opts) => {
       state: STATE
     }
   }
+  if (route === 'search') {
+    await new Promise((r) => setTimeout(r, 250))
+    const q = String((opts && opts.body && opts.body.query) || '').toLowerCase()
+    const srcs = (STATE.notebook && STATE.notebook.sources) || []
+    const first = q.split(/s+/)[0] || ''
+    const hits = srcs
+      .filter((s) => !first || (String(s.title || '') + ' ' + String(s.summary || '') + ' ' + String(s.kind || '')).toLowerCase().indexOf(first) >= 0)
+      .slice(0, 6)
+      .map((s, i) => ({
+        source_id: s.id, title: s.title, kind: s.kind, score: 3.5 - i * 0.3,
+        chunk_index: 0,
+        snippet: String(s.summary || s.title || '') + ' — matching "' + q + '" across the stored passages of this source.'
+      }))
+    return { ok: true, result: { ok: true, query: q, hits, total_chunks: 42 } }
+  }
   if (route === 'suggest') {
     await new Promise((r) => setTimeout(r, 800))
     return {
@@ -119,11 +134,42 @@ const rest = async (path, opts) => {
   }
   if (route === 'source_state') {
     const sid = (opts && opts.body && opts.body.source_id) || ''
+    const sids = (opts && opts.body && Array.isArray(opts.body.source_ids)) ? opts.body.source_ids : null
     const enabled = !!(opts && opts.body && opts.body.enabled)
+    const wanted = sids && sids.length ? new Set(sids.map(String)) : new Set([sid])
     for (const s of (STATE.notebook && STATE.notebook.sources) || []) {
-      if (s.id === sid) s.active = enabled
+      if (wanted.has(s.id)) s.active = enabled
     }
     return { ok: true, source_id: sid, active: enabled, state: STATE.notebook }
+  }
+  if (route === 'source/refresh') {
+    const sid = (opts && opts.body && opts.body.source_id) || ''
+    for (const s of (STATE.notebook && STATE.notebook.sources) || []) {
+      if (s.id === sid) { s.chars = (s.chars || 0) + 1; s.refreshed_at = new Date().toISOString() }
+    }
+    return { ok: true, source: { id: sid }, state: STATE.notebook }
+  }
+  if (route === 'source/delete') {
+    const sid = (opts && opts.body && opts.body.source_id) || ''
+    if (STATE.notebook && STATE.notebook.sources) {
+      STATE.notebook.sources = STATE.notebook.sources.filter((s) => s.id !== sid)
+    }
+    return { ok: true, source_id: sid, state: STATE.notebook }
+  }
+  if (route === 'artifact/rename') {
+    const key = (opts && opts.body && opts.body.key) || ''
+    const title = String((opts && opts.body && opts.body.title) || '')
+    for (const a of (STATE.notebook && STATE.notebook.artifacts) || []) {
+      if (a.key === key) a.title = title
+    }
+    return { ok: true, title, state: STATE.notebook }
+  }
+  if (route === 'artifact/delete') {
+    const key = (opts && opts.body && opts.body.key) || ''
+    if (STATE.notebook && STATE.notebook.artifacts) {
+      STATE.notebook.artifacts = STATE.notebook.artifacts.filter((a) => a.key !== key)
+    }
+    return { ok: true, removed: [key], state: STATE.notebook }
   }
   if (route === 'note') {
     await new Promise((r) => setTimeout(r, 500))
@@ -134,8 +180,37 @@ const rest = async (path, opts) => {
     if (STATE.notebook) {
       if (body.title) STATE.notebook.title = body.title
       if (body.description !== undefined) STATE.notebook.description = body.description
+      if (body.emoji !== undefined) STATE.notebook.emoji = body.emoji
     }
     return { ok: true, notebook: STATE.notebook }
+  }
+  if (route === 'notebook/duplicate') {
+    const copy = { id: 'copy-of-demo', title: 'Copy of ' + ((STATE.notebook && STATE.notebook.title) || 'notebook') }
+    STATE.notebooks = (STATE.notebooks || []).concat([{ id: copy.id, title: copy.title, sources: 0, artifacts: 0 }])
+    return { ok: true, notebook: copy }
+  }
+  if (route === 'thread') {
+    const name = params.get('name') || 'default'
+    const messages = name === 'chat-abc123'
+      ? [
+          { role: 'user', content: 'Compare the two architectures described in the sources.', ts: '2025-11-03T09:00:00Z' },
+          { role: 'assistant', content: 'The sources describe two approaches [S1]. The first favors simplicity; the second trades it for throughput [S2].', ts: '2025-11-03T09:00:30Z' }
+        ]
+      : ((STATE.notebook && STATE.notebook.thread) || [])
+    return { ok: true, thread: name, messages }
+  }
+  if (route === 'thread/clear') {
+    const name = (opts && opts.body && opts.body.thread) || 'default'
+    if (STATE.notebook && STATE.notebook.threads) {
+      STATE.notebook.threads = STATE.notebook.threads.filter((t) => t.name !== name)
+    }
+    if (STATE.notebook && STATE.notebook.thread && name === 'default') STATE.notebook.thread = []
+    return { ok: true, thread: { cleared: name } }
+  }
+  if (route === 'export') {
+    // stub payload — the page only base64-decodes + blob-downloads it
+    return { ok: true, name: 'preview-notebook.zip', bytes: 22, files: 1,
+             b64: Buffer.from('PK preview export stub').toString('base64') }
   }
   if (route === 'notebook/delete') return { ok: true, deleted: (opts && opts.body && opts.body.notebook) || '' }
   if (route === 'options') {

@@ -11,11 +11,21 @@ function App() {
   const [askOpen, setAskOpen] = useState(0)        // bump to focus the composer
   const [srcDialog, setSrcDialog] = useState(null) // {mode?, seed?} | null
   const [newNb, setNewNb] = useState(false)
+  const [renNb, setRenNb] = useState(null)          // notebook open in the settings dialog
   const [filter, setFilter] = useState('all')
   const [peek, setPeek] = useState(null)           // source lifted so the rail can open it
   const [railOpen, setRailOpen] = useState(() => persist.get('rail', '1') !== '0')
   const [studioOpen, setStudioOpen] = useState(() => persist.get('studio', '1') !== '0')
   const [opsStats, setOpsStats] = useState(null)
+  const [searchOpen, setSearchOpen] = useState(false)
+
+  // palette/deep links can ask for a surface: ?surface=ops opens the lab deck
+  useEffect(() => {
+    try {
+      const want = new URLSearchParams(window.location.search).get('surface')
+      if (want === 'ops' || want === 'studio' || want === 'home') setMode(want)
+    } catch { /* no location in this host */ }
+  }, [])
 
   const say = useCallback((msg) => {
     setNote(msg)
@@ -31,6 +41,17 @@ function App() {
   const data = studio.data
   const notebook = data && data.notebook
   const kinds = (data && data.kinds) || []
+
+  // Ctrl/Cmd+K → notebook search (NotebookLM's global find)
+  useEffect(() => {
+    const onKey = (e) => {
+      if ((e.metaKey || e.ctrlKey) && String(e.key).toLowerCase() === 'k') {
+        if (mode === 'studio' && notebook) { e.preventDefault(); setSearchOpen(true) }
+      }
+    }
+    document.addEventListener('keydown', onKey)
+    return () => document.removeEventListener('keydown', onKey)
+  }, [mode, notebook])
 
   // the first notebook in the list is the default when nothing is stored
   useEffect(() => {
@@ -85,6 +106,26 @@ function App() {
   const openSource = useCallback((s) => { setPeek(s); setTab('peek') }, [])
   const openAddSource = useCallback((opts) => setSrcDialog(opts || { mode: 'find' }), [])
 
+  // drag files onto the sources rail → same ingest path as the upload picker
+  const dropSources = useCallback(async (files) => {
+    if (!nb || !files || !files.length) return
+    let added = 0, skipped = 0
+    for (const f of files) {
+      try {
+        let body = null
+        if (f.path) body = { notebook: nb, path: f.path, title: f.name }
+        else if (f.size && f.size <= 1500000) body = { notebook: nb, text: await f.text(), title: f.name }
+        if (!body) { skipped += 1; continue }
+        await api('/source', { method: 'POST', body, timeoutMs: 120000 })
+        added += 1
+      } catch { skipped += 1 }
+    }
+    if (added) await studio.reload(true)
+    if (added && !skipped) say(`added ${added} source${added === 1 ? '' : 's'} from dropped files`)
+    else if (added) say(`added ${added} source${added === 1 ? '' : 's'} — ${skipped} file${skipped === 1 ? '' : 's'} skipped (too large or unreadable)`)
+    else say('dropped files could not be read — use Add source for paths or large files')
+  }, [nb, studio, say])
+
   // NotebookLM's per-source checkbox: the /source_state reply carries the fresh
   // notebook payload — merge it over the current state instead of a full reload.
   const toggleSource = useCallback(async (s) => {
@@ -103,21 +144,104 @@ function App() {
     } catch (e) { say(`could not update source: ${e.message || e}`) }
   }, [nb, studio, say])
 
+  // one /source_state call for a whole set — folder checkboxes and select-all
+  // share it (the reply carries the fresh notebook payload like toggleSource)
+  const applySourceStates = useCallback(async (list, enabled) => {
+    if (!nb || !list || !list.length) return
+    try {
+      const out = await api('/source_state', {
+        method: 'POST',
+        body: { notebook: nb, source_ids: list.map((s) => s.id), enabled },
+        timeoutMs: 30000
+      })
+      if (out && out.state && studio.data) {
+        studio.setData({ ...studio.data, notebook: out.state })
+      } else {
+        await studio.reload(true)
+      }
+    } catch (e) { say(`could not update sources: ${e.message || e}`) }
+  }, [nb, studio, say])
+
   const toggleAllSources = useCallback(async () => {
     const sources = (notebook && notebook.sources) || []
-    if (!nb || !sources.length) return
+    if (!sources.length) return
     const allOn = sources.every((s) => s.active !== false)
+    await applySourceStates(sources, !allOn)
+  }, [notebook, applySourceStates])
+
+  // folder checkbox: all-on turns the folder off; anything else turns it on
+  const toggleGroupSources = useCallback(async (list) => {
+    if (!list || !list.length) return
+    const allOn = list.every((s) => s.active !== false)
+    await applySourceStates(list, !allOn)
+  }, [applySourceStates])
+
+  // removing a source/artifact returns the fresh notebook payload — merge it
+  // like toggleSource does, and close any viewer pointed at the deleted thing.
+  const deleteSource = useCallback(async (s) => {
+    if (!nb || !s || !s.id) return
     try {
-      for (const s of sources) {
-        await api('/source_state', {
-          method: 'POST',
-          body: { notebook: nb, source_id: s.id, enabled: !allOn },
-          timeoutMs: 30000
-        })
+      const out = await api('/source/delete', {
+        method: 'POST',
+        body: { notebook: nb, source_id: s.id }, timeoutMs: 30000
+      })
+      if (out && out.state && studio.data) {
+        studio.setData({ ...studio.data, notebook: out.state })
+      } else {
+        await studio.reload(true)
       }
-      await studio.reload(true)
-    } catch (e) { say(`could not update sources: ${e.message || e}`) }
-  }, [nb, notebook, studio, say])
+      if (peek && peek.id === s.id) setPeek(null)
+      say(`removed “${s.title || s.id}”`)
+    } catch (e) { say(`could not remove source: ${e.message || e}`) }
+  }, [nb, studio, say, peek])
+
+  const deleteArtifact = useCallback(async (a) => {
+    if (!nb || !a || !a.key) return
+    try {
+      const out = await api('/artifact/delete', {
+        method: 'POST',
+        body: { notebook: nb, key: a.key }, timeoutMs: 30000
+      })
+      if (out && out.state && studio.data) {
+        studio.setData({ ...studio.data, notebook: out.state })
+      } else {
+        await studio.reload(true)
+      }
+      if (picked && picked.key === a.key) setPicked(null)
+      say('artifact deleted')
+    } catch (e) { say(`could not delete artifact: ${e.message || e}`) }
+  }, [nb, studio, say, picked])
+
+  // viewer-side edits (rename) change the run row — re-resolve `picked` from
+  // fresh state so the open artifact doesn't keep showing stale metadata
+  const refreshArtifact = useCallback(async () => {
+    const fresh = await studio.reload(true)
+    const arts = fresh && fresh.notebook && fresh.notebook.artifacts
+    if (!arts) return
+    if (picked) {
+      const hit = arts.find((a) => a.key === picked.key)
+      setPicked(hit || null)
+    }
+  }, [studio, picked])
+
+  const refreshSource = useCallback(async (s) => {
+    if (!nb || !s || !s.id) return
+    try {
+      const out = await api('/source/refresh', {
+        method: 'POST',
+        body: { notebook: nb, source_id: s.id }, timeoutMs: 180000
+      })
+      if (out && out.state && studio.data) {
+        studio.setData({ ...studio.data, notebook: out.state })
+      } else {
+        await studio.reload(true)
+      }
+      if (out && out.source && peek && peek.id === s.id) {
+        setPeek({ ...peek, ...out.source })
+      }
+      say(`“${s.title || s.id}” refreshed`)
+    } catch (e) { say(`refresh failed: ${e.message || e}`) }
+  }, [nb, studio, say, peek])
 
   const deleteNotebook = useCallback(async (id) => {
     try {
@@ -130,16 +254,46 @@ function App() {
     } catch (e) { say(`delete failed: ${e.message || e}`) }
   }, [nb, studio, say])
 
-  const renameNotebook = useCallback(async (id, title, desc) => {
+  const exportNotebook = useCallback(async () => {
+    if (!notebook) return
+    try {
+      const out = await api(`/export?${qs({ notebook: notebook.id, b64: 1 })}`, { timeoutMs: 120000 })
+      const raw = atob(out.b64 || '')
+      const bytes = new Uint8Array(raw.length)
+      for (let i = 0; i < raw.length; i += 1) bytes[i] = raw.charCodeAt(i)
+      const url = URL.createObjectURL(new Blob([bytes], { type: 'application/zip' }))
+      const a = document.createElement('a')
+      a.href = url; a.download = out.name || 'notebook.zip'
+      document.body.appendChild(a); a.click(); a.remove()
+      setTimeout(() => URL.revokeObjectURL(url), 5000)
+      say('notebook exported')
+    } catch (e) { say(`export failed: ${e.message || e}`) }
+  }, [notebook, say])
+
+  const renameNotebook = useCallback(async (id, title, desc, emoji) => {
     try {
       await api('/notebook/update', {
         method: 'POST',
-        body: { notebook: id, title, description: desc },
+        body: { notebook: id, title, description: desc, emoji },
         timeoutMs: 30000
       })
       await studio.reload(true)
       say('notebook updated')
     } catch (e) { say(`rename failed: ${e.message || e}`) }
+  }, [studio, say])
+
+  const duplicateNotebook = useCallback(async (id, openIt = true) => {
+    try {
+      const out = await api('/notebook/duplicate', {
+        method: 'POST', body: { notebook: id }, timeoutMs: 120000
+      })
+      await studio.reload(true)
+      say(`copied as “${(out.notebook && out.notebook.title) || 'new notebook'}”`)
+      if (openIt && out.notebook && out.notebook.id) {
+        setNb(out.notebook.id); setPicked(null); setPeek(null); setTab('chat'); setMode('studio')
+      }
+      return out.notebook
+    } catch (e) { say(`copy failed: ${e.message || e}`); return null }
   }, [studio, say])
 
   const openNotebook = useCallback((id) => {
@@ -163,7 +317,14 @@ function App() {
               ? el('b', { children: 'All notebooks' })
               : discoverMode
                 ? el('b', { children: 'Discover' })
-                : el('span', null, '/ ', el('b', { children: notebook ? notebook.title : 'no notebook' })))
+                : el('span', null, '/ ', notebook
+                    ? el('button', {
+                        type: 'button', className: 'nb-crumbedit',
+                        onClick: () => setRenNb(notebook),
+                        title: 'Notebook settings — rename, describe, pick an icon',
+                        children: notebook.title
+                      })
+                    : el('b', { children: 'no notebook' })))
       ),
       el('div', { className: 'nb-spacer' }),
       jsx(Seg, {
@@ -179,6 +340,12 @@ function App() {
         mode === 'studio' ? jsx(Btn, {
           icon: 'plus', variant: 'primary', onClick: () => openAddSource(),
           disabled: !notebook, children: 'Add source'
+        }) : null,
+        mode === 'studio' && notebook ? jsx(IconBtn, {
+          icon: 'search', label: 'Search notebook (Ctrl+K)', onClick: () => setSearchOpen(true)
+        }) : null,
+        mode === 'studio' && notebook ? jsx(IconBtn, {
+          icon: 'download', label: 'Export notebook (.zip)', onClick: exportNotebook
         }) : null)
     ),
 
@@ -187,7 +354,8 @@ function App() {
       : home
         ? jsx(HomeDashboard, {
             data, onOpen: openNotebook, onNew: () => setNewNb(true),
-            onDelete: deleteNotebook, onRename: renameNotebook
+            onDelete: deleteNotebook, onRename: renameNotebook,
+            onDuplicate: (id) => duplicateNotebook(id, false)
           })
         : discoverMode
           ? jsx(DiscoverPanel, {
@@ -200,8 +368,10 @@ function App() {
                   data, notebook,
                   onAddSource: () => openAddSource(), onOpenSource: openSource,
                   onToggleSource: toggleSource, onToggleAll: toggleAllSources,
+                  onToggleGroup: toggleGroupSources,
+                  onDeleteSource: deleteSource,
                   onLabel: labelSources, onCollapse: () => setRailOpen(false),
-                  onGoHome: () => setMode('home'), onSay: say,
+                  onGoHome: () => setMode('home'), onSay: say, onDropFiles: dropSources,
                   loading: studio.loading, error: studio.error, reload: studio.reload
                 })
               : jsx(PanelToggles, { side: 'left', onShow: () => setRailOpen(true) }),
@@ -210,7 +380,8 @@ function App() {
               onAsk: () => setAskOpen((n) => n + 1), askOpen, onSay: say,
               reload: studio.reload, modelReady: data && data.model_ready,
               error: studio.error, loading: studio.loading,
-              peek, setPeek, onOpenSource: openSource,
+              peek, setPeek, onOpenSource: openSource, onRefreshSource: refreshSource,
+              refreshArtifact,
               onAddSource: openAddSource, onNewNotebook: () => setNewNb(true),
               onFindSources: (seed) => openAddSource({ mode: 'find', seed: seed || '' })
             }),
@@ -218,6 +389,7 @@ function App() {
               ? jsx(StudioPanel, {
                   kinds, notebook, busy, generate, filter, setFilter,
                   onOpen: (art) => { setPicked(art); setTab('view') },
+                  onDelete: deleteArtifact,
                   onCollapse: () => setStudioOpen(false),
                   onAddNote: () => openAddSource({ mode: 'note' })
                 })
@@ -233,16 +405,30 @@ function App() {
       noteOnly: !!(srcDialog && srcDialog.mode === 'note'),
       onDone: async (msg) => { setSrcDialog(null); await studio.reload(true); if (msg) say(msg) }
     }),
+    jsx(SearchDialog, {
+      open: searchOpen, onClose: () => setSearchOpen(false), notebook,
+      onPick: (hit) => {
+        const src = ((notebook && notebook.sources) || []).find((s) => s.id === hit.source_id)
+        // carry the matched passage so the peek highlights it, like a citation
+        if (src) { setPeek({ ...src, citeSnippet: hit.snippet || '' }); setTab('peek') }
+        else say('that source is no longer in the notebook')
+      }
+    }),
     jsx(NewNotebookDialog, {
       open: newNb, onClose: () => setNewNb(false),
       onDone: async (id) => { setNewNb(false); if (id) { setNb(id); setPicked(null) } }
-    })
+    }),
+    renNb ? jsx(RenameDialog, {
+      notebook: renNb, onClose: () => setRenNb(null),
+      onDone: async (title, desc, emoji) => { setRenNb(null); await renameNotebook(renNb.id, title, desc, emoji) },
+      onDuplicate: async () => { const id = renNb.id; setRenNb(null); await duplicateNotebook(id, true) }
+    }) : null
   )
 }
 
 /* --------------------------------------------------------- home dashboard */
 
-function HomeDashboard({ data, onOpen, onNew, onDelete, onRename }) {
+function HomeDashboard({ data, onOpen, onNew, onDelete, onRename, onDuplicate }) {
   const [query, setQuery] = useState('')
   const [del, setDel] = useState(null)
   const [ren, setRen] = useState(null)
@@ -276,10 +462,12 @@ function HomeDashboard({ data, onOpen, onNew, onDelete, onRename }) {
               'aria-label': `Open notebook ${n.title}`,
               children: [
                 el('span', { className: 'nb-feature-emoji', 'aria-hidden': 'true',
-                  children: emojiFor(n.id) }),
+                  children: (n.emoji && String(n.emoji).trim())
+                    ? emojiFor(n.id, n.emoji)
+                    : jsx(Sigil, { seed: n.id, size: 40 }) }),
                 el('span', { className: 'nb-feature-title', children: n.title }),
                 el('span', { className: 'nb-feature-meta',
-                  children: `${dshort(n.updated_at)} · ${n.sources} source${n.sources === 1 ? '' : 's'} · ${n.artifacts} artifact${n.artifacts === 1 ? '' : 's'}` })
+                  children: `${dshort(n.updated_at)} · ${n.sources} source${n.sources === 1 ? '' : 's'} · ${n.artifacts} artifact${n.artifacts === 1 ? '' : 's'}${n.threads ? ` · ${n.threads} chat${n.threads === 1 ? '' : 's'}` : ''}` })
               ]
             }, n.id)))
         : null,
@@ -309,10 +497,12 @@ function HomeDashboard({ data, onOpen, onNew, onDelete, onRename }) {
                 'aria-label': `Open notebook ${n.title}`,
                 children: [
                   el('span', { className: 'nb-nbcard-emoji', 'aria-hidden': 'true',
-                    children: emojiFor(n.id) }),
+                    children: (n.emoji && String(n.emoji).trim())
+                      ? emojiFor(n.id, n.emoji)
+                      : jsx(Sigil, { seed: n.id, size: 46 }) }),
                   el('span', { className: 'nb-nbcard-title', children: n.title }),
                   el('span', { className: 'nb-nbcard-meta',
-                    children: `${dshort(n.updated_at)} · ${n.sources} source${n.sources === 1 ? '' : 's'}` })
+                    children: `${dshort(n.updated_at)} · ${n.sources} source${n.sources === 1 ? '' : 's'}${n.threads ? ` · ${n.threads} chat${n.threads === 1 ? '' : 's'}` : ''}` })
                 ]
               }, n.id),
               jsx(IconBtn, {
@@ -344,20 +534,34 @@ function HomeDashboard({ data, onOpen, onNew, onDelete, onRename }) {
 
     ren ? jsx(RenameDialog, {
       notebook: ren, onClose: () => setRen(null),
-      onDone: async (title, desc) => { setRen(null); await onRename(ren.id, title, desc) }
+      onDone: async (title, desc, emoji) => { setRen(null); await onRename(ren.id, title, desc, emoji) },
+      onDuplicate: onDuplicate ? async () => { const n = ren; setRen(null); await onDuplicate(n.id) } : null
     }) : null
   )
 }
 
-function RenameDialog({ notebook, onClose, onDone }) {
+function RenameDialog({ notebook, onClose, onDone, onDuplicate }) {
   const [title, setTitle] = useState(notebook.title || '')
   const [desc, setDesc] = useState(notebook.description || '')
+  const [emoji, setEmoji] = useState(notebook.emoji || '')
   const [busy, setBusy] = useState(false)
   const [err, setErr] = useState('')
   return jsx(Dialog, {
-    open: true, onClose, title: 'Notebook settings', width: 460,
+    open: true, onClose, title: 'Notebook settings', width: 480,
     children: el('div', null,
-      el('div', { className: 'nb-field', style: { height: '40px', marginBottom: '10px' } },
+      el('div', { className: 'nb-emgrid', role: 'radiogroup', 'aria-label': 'Notebook icon' },
+        el('button', {
+          type: 'button', className: 'nb-em' + (emoji ? '' : ' is-on'),
+          onClick: () => setEmoji(''), title: 'Auto icon', 'aria-pressed': !emoji,
+          children: jsx(Sigil, { seed: notebook.id, size: 30 })
+        }),
+        NB_EMOJI.map((e) => el('button', {
+          key: e, type: 'button',
+          className: 'nb-em' + (emoji === e ? ' is-on' : ''),
+          onClick: () => setEmoji(e), title: `Icon ${e}`, 'aria-pressed': emoji === e,
+          children: e
+        }))),
+      el('div', { className: 'nb-field', style: { height: '40px', marginTop: '12px', marginBottom: '10px' } },
         jsx(Glyph, { name: 'notebook', size: 14 }),
         el('input', {
           value: title, onChange: (e) => setTitle(e.target.value), autoFocus: true,
@@ -370,17 +574,21 @@ function RenameDialog({ notebook, onClose, onDone }) {
           placeholder: 'Description (optional)', 'aria-label': 'Notebook description'
         })),
       err ? el('div', { style: { marginTop: '10px', color: T.danger, fontSize: '13.5px' }, children: err }) : null,
-      el('div', { style: { display: 'flex', gap: '8px', justifyContent: 'flex-end', marginTop: '16px' } },
-        jsx(Btn, { onClick: onClose, children: 'Cancel' }),
+      el('div', { style: { display: 'flex', gap: '8px', justifyContent: 'space-between', marginTop: '16px' } },
+        onDuplicate
+          ? jsx(Btn, { icon: 'copy', onClick: onDuplicate, children: 'Make a copy' })
+          : el('span'),
+        el('span', { style: { display: 'flex', gap: '8px' } },
+          jsx(Btn, { onClick: onClose, children: 'Cancel' }),
         jsx(Btn, {
           variant: 'primary', disabled: busy || !title.trim(),
           onClick: async () => {
             setBusy(true); setErr('')
-            try { await onDone(title.trim(), desc.trim()) }
+            try { await onDone(title.trim(), desc.trim(), emoji) }
             catch (e) { setErr(e.message || String(e)); setBusy(false) }
           },
           children: busy ? 'Saving…' : 'Save'
-        })))
+        }))))
   })
 }
 
@@ -399,11 +607,12 @@ function PanelToggles({ side, onShow }) {
 /* -------------------------------------------------------------------- rail */
 
 function Rail({ data, notebook, onAddSource, onOpenSource, onToggleSource,
-               onToggleAll, onLabel, onCollapse, onGoHome, onSay, loading, error, reload }) {
+               onToggleAll, onToggleGroup, onDeleteSource, onLabel, onCollapse, onGoHome, onSay, onDropFiles, loading, error, reload }) {
   const sources = (notebook && notebook.sources) || []
   const labels = (notebook && notebook.labels) || []
   const [q, setQ] = useState('')
   const [srcFilter, setSrcFilter] = useState('all')
+  const [dragOver, setDragOver] = useState(false)
   const [closed, setClosed] = useState({})
 
   const shown = useMemo(() => {
@@ -467,11 +676,31 @@ function Rail({ data, notebook, onAddSource, onOpenSource, onToggleSource,
         title: on ? 'Included in answers — click to exclude' : 'Excluded from answers — click to include',
         onClick: () => onToggleSource(s),
         children: on ? jsx(Glyph, { name: 'check', size: 14 }) : null
-      })
+      }),
+      onDeleteSource ? jsx(IconBtn, {
+        icon: 'trash', size: 13, className: 'nb-src-del',
+        label: `Remove source “${s.title}”`,
+        onClick: () => onDeleteSource(s)
+      }) : null
     )
   }
 
-  return el('aside', { className: 'nb-col nb-rail', 'aria-label': 'Sources' },
+  return el('aside', {
+    className: 'nb-col nb-rail', 'aria-label': 'Sources',
+    'data-drop': dragOver ? 'true' : 'false',
+    onDragOver: (e) => {
+      const types = e.dataTransfer && e.dataTransfer.types
+      if (types && Array.prototype.indexOf.call(types, 'Files') >= 0) {
+        e.preventDefault(); setDragOver(true)
+      }
+    },
+    onDragLeave: () => setDragOver(false),
+    onDrop: (e) => {
+      e.preventDefault(); setDragOver(false)
+      const files = e.dataTransfer && e.dataTransfer.files
+      if (files && files.length && onDropFiles) onDropFiles(Array.from(files))
+    }
+  },
     el('div', { className: 'nb-pane-head' },
       el('span', { className: 'nb-pane-title', children: 'Sources' }),
       el('span', { className: 'nb-meta', children: `${activeCount}/${sources.length}` }),
@@ -561,23 +790,65 @@ function Rail({ data, notebook, onAddSource, onOpenSource, onToggleSource,
               : el('div', { style: { display: 'flex', flexDirection: 'column', gap: '2px' } },
                   groups.map(([g, list]) => {
                     const isClosed = !!closed[g]
+                    const gAllOn = list.every((s) => s.active !== false)
+                    const gSomeOn = list.some((s) => s.active !== false)
                     return el('div', { key: g },
-                      el('button', {
-                        type: 'button', className: 'nb-srcgroup',
-                        'data-closed': isClosed ? 'true' : 'false',
-                        'aria-expanded': !isClosed,
-                        onClick: () => setClosed((c) => ({ ...c, [g]: !c[g] })),
-                        children: [
-                          jsx(Glyph, { name: 'chevron', size: 13 }),
-                          el('span', { style: { textTransform: 'capitalize' }, children: g }),
-                          el('em', { children: `${list.filter((s) => s.active !== false).length}/${list.length}` })
-                        ]
-                      }),
+                      el('div', {
+                        style: { display: 'flex', alignItems: 'center', gap: '2px' }
+                      },
+                        el('button', {
+                          type: 'button', className: 'nb-srccheck', role: 'checkbox',
+                          'aria-checked': gAllOn ? 'true' : (gSomeOn ? 'mixed' : 'false'),
+                          'data-mixed': gSomeOn && !gAllOn ? 'true' : 'false',
+                          'aria-label': `${gAllOn ? 'Exclude' : 'Include'} all sources in “${g}”`,
+                          title: gAllOn
+                            ? `Exclude all ${list.length} sources in “${g}”`
+                            : `Include all ${list.length} sources in “${g}”`,
+                          onClick: () => onToggleGroup && onToggleGroup(list),
+                          children: gAllOn
+                            ? jsx(Glyph, { name: 'check', size: 12 })
+                            : (gSomeOn ? el('span', { 'aria-hidden': 'true',
+                                style: { fontSize: '11px', fontWeight: 700, lineHeight: 1 },
+                                children: '–' }) : null)
+                        }),
+                        el('button', {
+                          type: 'button', className: 'nb-srcgroup',
+                          'data-closed': isClosed ? 'true' : 'false',
+                          'aria-expanded': !isClosed,
+                          onClick: () => setClosed((c) => ({ ...c, [g]: !c[g] })),
+                          style: { flex: 1 },
+                          children: [
+                            jsx(Glyph, { name: 'chevron', size: 13 }),
+                            el('span', { style: { textTransform: 'capitalize' }, children: g }),
+                            el('em', { children: `${list.filter((s) => s.active !== false).length}/${list.length}` })
+                          ]
+                        })),
                       isClosed ? null : el('div', { className: 'nb-srcgroup-list' }, list.map(srcRow))
                     )
                   }))
-      )
-    )
+      ),
+    el('div', { className: 'nb-pad', style: { paddingTop: 0, paddingBottom: '12px' } },
+      el('span', {
+        className: 'nb-chip',
+        title: 'Sources live on this machine with no per-notebook cap — grounding scales from full-context injection to hybrid retrieval as the corpus grows.',
+        style: { fontSize: '11.5px', opacity: 0.85 },
+        children: '♾️ Unlimited sources · 🛡️ Local-first ready'
+      }))
+    ),
+    dragOver
+      ? el('div', {
+          style: {
+            position: 'absolute', inset: '12px', zIndex: 5, borderRadius: '18px',
+            border: `2px dashed ${T.accent}`, background: 'color-mix(in srgb, #0a0b10 78%, transparent)',
+            display: 'flex', flexDirection: 'column', gap: '8px', alignItems: 'center', justifyContent: 'center',
+            color: T.text, fontSize: '14.5px', fontWeight: 600, pointerEvents: 'none'
+          },
+          children: [
+            jsx(Glyph, { name: 'plus', size: 22 }),
+            'Drop files to add them as sources'
+          ]
+        })
+      : null
   )
 }
 
