@@ -327,6 +327,9 @@ const CSS = `
 
 /* ------------------------------------------------------------------- chat */
 .nb-chat{flex:1;min-height:0;display:flex;flex-direction:column}
+.nb-chatscroll{flex:1;min-height:0;display:flex;flex-direction:column;position:relative}
+.nb-latest{position:absolute;left:50%;bottom:14px;transform:translateX(-50%);z-index:20;display:inline-flex;align-items:center;gap:4px;padding:7px 14px;border-radius:999px;border:1px solid var(--nb-line,#2a2d3d);background:var(--nb-card,#14161f);color:var(--nb-text2,#c6c9d8);font-size:12.5px;font-weight:600;cursor:pointer;box-shadow:0 6px 20px rgba(0,0,0,.35);transition:transform .15s ease,box-shadow .15s ease}
+.nb-latest:hover{transform:translateX(-50%) translateY(-1px);box-shadow:0 8px 24px rgba(0,0,0,.45)}
 .nb-thread{flex:1;min-height:0;overflow:auto;padding:28px 28px 12px;display:flex;flex-direction:column;gap:24px}
 .nb-msg{max-width:72ch}
 .nb-msg[data-role=assistant]{display:grid;grid-template-columns:30px minmax(0,1fr);gap:14px;align-self:flex-start}
@@ -804,7 +807,8 @@ const P = {
   tag: 'M4 4h6.6L20 13.4a2 2 0 0 1 0 2.8l-3.8 3.8a2 2 0 0 1-2.8 0L4 10.6V4Zm4.6 3.4a1.3 1.3 0 1 0 0 2.6 1.3 1.3 0 0 0 0-2.6Z',
   more: 'M5 12h.01M12 12h.01M19 12h.01',
   pin: 'M9 4h6l-1 6 3 3v2H7v-2l3-3-1-6Z',
-  sliders: 'M4 7h9m4 0h3M4 17h3m4 0h9M13 4v6m-6 4v6'
+  sliders: 'M4 7h9m4 0h3M4 17h3m4 0h9M13 4v6m-6 4v6',
+  pencil: 'M4 20h4L19.5 8.5a2.12 2.12 0 0 0-3-3L5 17v3Zm9.5-11.5 2 2'
 }
 
 function Glyph({ name, size = 16, stroke = 1.7 }) {
@@ -2077,6 +2081,24 @@ function Main({ notebook, kinds, tab, setTab, picked, setPicked, busy, generate,
   const viewName = picked ? picked.label : ''
   const stats = notebook.stats || {}
   const activeCount = stats.active !== undefined ? stats.active : sources.length
+  const hasArts = (notebook.artifacts || []).length > 0
+
+  // a notebook with nothing in it gets a guided empty state, not dead panels
+  if (!sources.length && !hasArts) {
+    return el('main', { className: 'nb-col nb-main-col' },
+      el('div', { className: 'nb-void' },
+        el('div', null,
+          el('h3', { children: `“${notebook.title}” has no sources yet` }),
+          el('p', { children: 'Everything here is grounded in your sources — answers cite them, and every studio output is built from them. Add the material first.' }),
+          el('div', { style: { marginTop: '16px', display: 'flex', gap: '8px', justifyContent: 'center', flexWrap: 'wrap' } },
+            jsx(Btn, { variant: 'primary', icon: 'sparkle', onClick: () => onAddSource && onAddSource({ mode: 'find' }), children: 'Find sources' }),
+            jsx(Btn, { icon: 'link', onClick: () => onAddSource && onAddSource({ mode: 'url' }), children: 'Add a link' }),
+            jsx(Btn, { icon: 'note', onClick: () => onAddSource && onAddSource({ mode: 'note' }), children: 'Paste notes' })
+          )
+        )
+      )
+    )
+  }
 
   return el('main', { className: 'nb-col nb-main-col' },
     el('div', { className: 'nb-main-head' },
@@ -2123,6 +2145,7 @@ function Main({ notebook, kinds, tab, setTab, picked, setPicked, busy, generate,
             artifact: picked, notebook, onSearch: () => {},
             regenerating: !!(busy && busy[picked.kind]),
             onRegenerate: () => generate(picked.kind),
+            onChanged: () => reload && reload(true),
             onCite: (n) => {
               const src = sources.find((s) => s.n === n)
               if (src) { setPeek(src); setTab('peek') }
@@ -2168,6 +2191,8 @@ function Chat({ notebook, kinds, askOpen, onSay, modelReady, onCite, onOpenSourc
   const [text, setText] = useState('')
   const [pending, setPending] = useState(null)
   const [ov, setOv] = useState('')
+  const [ovErr, setOvErr] = useState(false)
+  const [ovRetry, setOvRetry] = useState(0)
   const [sugg, setSugg] = useState(null)
   const [cfgOpen, setCfgOpen] = useState(false)
   const [scopeOpen, setScopeOpen] = useState(false)
@@ -2175,6 +2200,8 @@ function Chat({ notebook, kinds, askOpen, onSay, modelReady, onCite, onOpenSourc
   const [cfgBusy, setCfgBusy] = useState(false)
   const threadRef = useRef(null)
   const boxRef = useRef(null)
+  const stickRef = useRef(true)
+  const [showLatest, setShowLatest] = useState(false)
   const stats = notebook.stats || {}
   const activeCount = stats.active !== undefined ? stats.active : (notebook.sources || []).length
   const cacheKey = `${notebook.id}:${stats.sources || 0}:${activeCount}`
@@ -2199,6 +2226,8 @@ function Chat({ notebook, kinds, askOpen, onSay, modelReady, onCite, onOpenSourc
 
   // switching conversations: cache hit is instant, otherwise fetch the thread
   useEffect(() => {
+    stickRef.current = true
+    setShowLatest(false)
     const key = `${notebook.id}:${thread}`
     const cached = threadCache.get(key)
     if (cached) { setMsgs(cached); return undefined }
@@ -2224,18 +2253,19 @@ function Chat({ notebook, kinds, askOpen, onSay, modelReady, onCite, onOpenSourc
 
   useEffect(() => {
     const cached = ovCache.get(notebook.id)
-    if (cached && cached.key === cacheKey) { setOv(cached.ov || ''); setSugg(cached.sugg || null); return undefined }
+    if (cached && cached.key === cacheKey) { setOv(cached.ov || ''); setSugg(cached.sugg || null); setOvErr(false); return undefined }
     let live = true
-    setOv(''); setSugg(null)
+    setOv(''); setSugg(null); setOvErr(false)
     api('/overview', { method: 'POST', body: { notebook: notebook.id }, timeoutMs: 120000 })
       .then((o) => {
         if (!live) return
         const text = o.overview || ''
         setOv(text)
+        setOvErr(!text)
         const c = ovCache.get(notebook.id) || { key: cacheKey }
         ovCache.set(notebook.id, { key: cacheKey, ov: text, sugg: c.sugg || null })
       })
-      .catch(() => {})
+      .catch(() => { if (live) setOvErr(true) })
     api('/suggest', { method: 'POST', body: { notebook: notebook.id }, timeoutMs: 120000 })
       .then((o) => {
         if (!live) return
@@ -2246,7 +2276,7 @@ function Chat({ notebook, kinds, askOpen, onSay, modelReady, onCite, onOpenSourc
       })
       .catch(() => {})
     return () => { live = false }
-  }, [notebook.id, cacheKey])
+  }, [notebook.id, cacheKey, ovRetry])
 
   const saveNote = async () => {
     if (!ov.trim()) return
@@ -2272,13 +2302,25 @@ function Chat({ notebook, kinds, askOpen, onSay, modelReady, onCite, onOpenSourc
 
   useEffect(() => { if (askOpen) { const n = boxRef.current; if (n) n.focus() } }, [askOpen])
 
+  // stick to the newest message only while the reader is already there —
+  // yanking someone back mid-history on every tick is hostile
+  const onThreadScroll = () => {
+    const node = threadRef.current
+    if (!node) return
+    const near = node.scrollHeight - node.scrollTop - node.clientHeight < 90
+    stickRef.current = near
+    setShowLatest(!near)
+  }
+
   useEffect(() => {
     const node = threadRef.current
-    if (node) node.scrollTop = node.scrollHeight
+    if (node && stickRef.current) node.scrollTop = node.scrollHeight
   }, [msgs.length, pending && pending.since])
 
   const send = async (question, opts) => {
     if (pending) return
+    stickRef.current = true
+    setShowLatest(false)
     const retry = !!(opts && opts.retry)
     const t = thread
     const key = `${notebook.id}:${t}`
@@ -2350,7 +2392,8 @@ function Chat({ notebook, kinds, askOpen, onSay, modelReady, onCite, onOpenSourc
   const thrLabel = (thrMeta && thrMeta.title) || (thread === 'default' ? 'Chat' : 'New chat')
 
   return el('div', { className: 'nb-chat' },
-    el('div', { className: 'nb-thread', ref: threadRef, role: 'log', 'aria-live': 'polite', 'aria-label': 'Conversation' },
+    el('div', { className: 'nb-chatscroll' },
+    el('div', { className: 'nb-thread', ref: threadRef, onScroll: onThreadScroll, role: 'log', 'aria-live': 'polite', 'aria-label': 'Conversation' },
       ov
         ? el('div', { className: 'nb-overview' },
             el('div', { className: 'nb-overview-head' },
@@ -2362,6 +2405,21 @@ function Chat({ notebook, kinds, askOpen, onSay, modelReady, onCite, onOpenSourc
             ),
             el('div', { className: 'nb-overview-body' },
               jsx(Markdown, { text: ov, onCite })))
+        : null,
+      !ov && ovErr
+        ? el('div', { className: 'nb-overview' },
+            el('div', { className: 'nb-overview-head' },
+              jsx(Glyph, { name: 'sparkle', size: 14 }),
+              el('span', { className: 'nb-meta', children: 'Overview' }),
+              el('span', { style: { flex: 1 } }),
+              jsx(Btn, {
+                size: 'sm', icon: 'refresh',
+                onClick: () => { ovCache.delete(notebook.id); setOvErr(false); setOvRetry((n) => n + 1) },
+                children: 'Retry'
+              })),
+            el('div', { className: 'nb-overview-body' },
+              el('div', { className: 'nb-hint',
+                children: 'the briefing could not be generated — the model may be busy. retry, or ask a question below.' })))
         : null,
       msgs.length === 0 && !pending
         ? el('div', { style: { margin: msgs.length || ov ? '0' : 'auto', textAlign: 'center', maxWidth: '54ch' } },
@@ -2429,6 +2487,19 @@ function Chat({ notebook, kinds, askOpen, onSay, modelReady, onCite, onOpenSourc
                 `retrieving passages · ${elapsed}s`)))
         : null
     ),
+    showLatest
+      ? el('button', {
+          type: 'button', className: 'nb-latest',
+          'aria-label': 'Jump to the newest message',
+          onClick: () => {
+            const node = threadRef.current
+            if (node) node.scrollTop = node.scrollHeight
+            stickRef.current = true
+            setShowLatest(false)
+          },
+          children: [jsx(Glyph, { name: 'chevron', size: 13 }), ' latest']
+        })
+      : null),
 
     el('div', { className: 'nb-composer' },
       msgs.length === 0 && !pending
@@ -2477,6 +2548,27 @@ function Chat({ notebook, kinds, askOpen, onSay, modelReady, onCite, onOpenSourc
                 chat_custom: o.chat_custom || ''
               })
               setCfgOpen(true)
+            }
+          }),
+          jsx(IconBtn, {
+            icon: 'download', label: 'Export this chat (.md)', disabled: !msgs.length,
+            onClick: () => {
+              const lines = [
+                `# ${notebook.title} — chat`, '',
+                `*${thrLabel} · exported ${new Date().toISOString().slice(0, 10)}*`, ''
+              ]
+              for (const m of msgs) {
+                lines.push(m.role === 'user' ? '## You' : '## Hermes Notebook', '', m.content || '', '')
+                if (m.citations && m.citations.length) {
+                  lines.push('Sources: ' + m.citations.map((c) => `[S${c.n}] ${c.title}`).join(' · '), '')
+                }
+              }
+              const blob = new Blob([lines.join('\n')], { type: 'text/markdown' })
+              const a = document.createElement('a')
+              a.href = URL.createObjectURL(blob)
+              a.download = `${String(notebook.title || 'chat').replace(/[^\w]+/g, '-').toLowerCase()}-chat.md`
+              document.body.appendChild(a); a.click(); a.remove()
+              setTimeout(() => URL.revokeObjectURL(a.href), 4000)
             }
           }),
           el('span', { className: 'nb-hint', style: { marginLeft: 'auto' },
@@ -2795,9 +2887,17 @@ function SourcePeek({ source, notebook, onClose, onAskAbout, onRefresh }) {
       el('div', { style: { flex: 1, minWidth: 0 } },
         el('div', { className: 'nb-view-title', children: source.title }),
         el('div', { style: { fontSize: '12.5px', color: T.text4, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' },
-          children: `${kindLabel(source.kind)} · ${nfmt(source.chars)} chars · ${source.origin || 'stored text'}` })),
+          children: `${kindLabel(source.kind)} · ${nfmt(source.chars)} chars · ${source.origin || 'stored text'}` +
+            (source.added_at ? ` · added ${ago(source.added_at)}` : '') +
+            (source.refreshed_at ? ` · refreshed ${ago(source.refreshed_at)}` : '') })),
       source.origin && source.origin.startsWith('http')
         ? jsx(IconBtn, { icon: 'external', label: 'Open the original', onClick: () => host.openLink ? host.openLink(source.origin) : window.open(source.origin, '_blank') })
+        : null,
+      text
+        ? jsx(IconBtn, {
+            icon: 'copy', label: 'Copy source text',
+            onClick: () => { try { if (navigator.clipboard) navigator.clipboard.writeText(text) } catch { /* clipboard unavailable */ } }
+          })
         : null,
       onRefresh && !['note', 'text'].includes(source.kind)
         ? jsx(IconBtn, {
@@ -2907,14 +3007,14 @@ function StudioPanel({ kinds, notebook, busy, generate, filter, setFilter, onOpe
                 type: 'button', className: 'nb-art',
                 'data-kind': a.kind,
                 onClick: () => onOpen(a),
-                'aria-label': `Open ${a.label || a.kind}`,
-                title: a.primary || a.label,
+                'aria-label': `Open ${a.title || a.label || a.kind}`,
+                title: a.title || a.primary || a.label,
                 children: [
                   el('span', { className: 'nb-art-ico', 'aria-hidden': 'true' },
                     i < 12 ? jsx(ArtThumb, { run: a, nbId: notebook && notebook.id })
                       : jsx(Glyph, { name: KIND_ICON[a.kind] || 'doc', size: 17 })),
                   el('span', { className: 'nb-art-main' },
-                    el('span', { className: 'nb-art-title', children: a.label || a.kind }),
+                    el('span', { className: 'nb-art-title', children: a.title || a.label || a.kind }),
                     el('span', { className: 'nb-art-sub',
                       children: `${nfmt(a.bytes)} · ${ago(a.modified)}` }))
                 ]
@@ -3624,8 +3724,23 @@ function useFile(notebookId, name) {
   return st
 }
 
-function Viewer({ artifact, notebook, onCite, onRegenerate, regenerating }) {
+function Viewer({ artifact, notebook, onCite, onRegenerate, regenerating, onChanged }) {
+  const [renOpen, setRenOpen] = useState(false)
+  const [renVal, setRenVal] = useState('')
+  const [renBusy, setRenBusy] = useState(false)
   const files = artifact.files || []
+  const saveRename = async () => {
+    setRenBusy(true)
+    try {
+      await api('/artifact/rename', {
+        method: 'POST',
+        body: { notebook: notebook.id, key: artifact.key, title: renVal.trim() },
+        timeoutMs: 30000
+      })
+      setRenOpen(false)
+      if (onChanged) onChanged()
+    } catch { /* rename is best-effort */ } finally { setRenBusy(false) }
+  }
   const jsonName = (files.find((f) => f.ext === 'json') || {}).name || ''
   const txtName = (files.find((f) => f.ext === 'txt') || {}).name || ''
   const primary = useFile(notebook.id, artifact.primary)
@@ -3670,7 +3785,7 @@ function Viewer({ artifact, notebook, onCite, onRegenerate, regenerating }) {
     el('div', { className: 'nb-view-head' },
       el('span', { className: 'nb-chip', 'data-tone': 'accent', children: artifact.label }),
       el('div', { style: { flex: 1, minWidth: 0 } },
-        el('div', { className: 'nb-view-title', children: (asJson.json && (asJson.json.title || asJson.json.topic)) || prettyFile(artifact.primary) }),
+        el('div', { className: 'nb-view-title', children: artifact.title || (asJson.json && (asJson.json.title || asJson.json.topic)) || prettyFile(artifact.primary) }),
         el('div', { style: { fontSize: '12.5px', color: T.text4 },
           children: `${artifact.files.length} file${artifact.files.length === 1 ? '' : 's'} · ${Math.max(1, Math.round(artifact.bytes / 1024))} KB · ${ago(artifact.modified)}` })),
       primary.text
@@ -3687,9 +3802,33 @@ function Viewer({ artifact, notebook, onCite, onRegenerate, regenerating }) {
         icon: 'refresh', label: `Regenerate ${artifact.label}`,
         active: !!regenerating, disabled: !!regenerating,
         onClick: onRegenerate
-      }) : null
+      }) : null,
+      jsx(IconBtn, {
+        icon: 'pencil', label: 'Rename this artifact',
+        onClick: () => { setRenVal(artifact.title || ''); setRenOpen(true) }
+      })
     ),
-    body
+    body,
+    renOpen
+      ? jsx(Dialog, {
+          open: true, onClose: () => setRenOpen(false), title: 'Name this artifact', width: 420,
+          children: el('div', { style: { display: 'grid', gap: '12px' } },
+            el('input', {
+              className: 'nb-genopt-text', type: 'text', autoFocus: true,
+              placeholder: prettyFile(artifact.primary), value: renVal,
+              onChange: (e) => setRenVal(e.target.value),
+              onKeyDown: (e) => { if (e.key === 'Enter' && !renBusy) saveRename() }
+            }),
+            el('div', { className: 'nb-hint', children: 'A display name only — the files keep their generated names.' }),
+            el('div', { style: { display: 'flex', gap: '8px', justifyContent: 'flex-end' } },
+              jsx(Btn, { size: 'sm', onClick: () => setRenOpen(false), children: 'Cancel' }),
+              jsx(Btn, {
+                size: 'sm', variant: 'primary', disabled: renBusy,
+                onClick: saveRename,
+                children: renBusy ? 'Saving…' : 'Save'
+              })))
+        })
+      : null
   )
 }
 
@@ -3734,29 +3873,58 @@ function AudioView({ src, json, text }) {
   const [playing, setPlaying] = useState(false)
   const [t, setT] = useState(0)
   const [dur, setDur] = useState(0)
+  const [rate, setRate] = useState(1)
+  const speakers = new Set(((json && json.segments) || []).map((s) => s && s.speaker).filter(Boolean))
+  const hostLabel = speakers.size > 1 ? 'TWO HOSTS' : speakers.size === 1 ? 'ONE NARRATOR' : 'AUDIO'
+  // segments carry start/end once audio.py stamps them — old artifacts don't
+  const segsTimed = useMemo(() => {
+    const segs = (json && json.segments) || []
+    return segs.length && segs.every((s) => s && typeof s.start === 'number') ? segs : null
+  }, [json])
 
   const lines = useMemo(() => {
     const out = []
+    let segN = -1
     for (const raw of String(text || '').split('\n')) {
       let l = raw.trim()
       if (!l) continue
-      if (/^#\s/.test(l)) { out.push({ who: '', text: l.replace(/^#\s*/, ''), head: true }); continue }
+      if (/^#\s/.test(l)) { out.push({ who: '', text: l.replace(/^#\s*/, ''), head: true, seg: -1 }); continue }
       if (/^[_*]{1,2}[^_*].*[_*]{1,2}$/.test(l) && l.length < 160) {
-        out.push({ who: '', text: l.replace(/^[_*]+|[_*]+$/g, ''), meta: true })
+        out.push({ who: '', text: l.replace(/^[_*]+|[_*]+$/g, ''), meta: true, seg: -1 })
         continue
       }
       // "**Host A:** text" and "Host A: text" both appear in the transcript file
       l = l.replace(/\*\*/g, '')
       const m = /^\[?\s*(host\s*[ab]|speaker\s*\d+)\s*\]?\s*[:—-]\s*(.*)$/i.exec(l)
       if (m) {
+        segN += 1
         const who = /b|2/i.test(m[1]) ? 'B' : 'A'
-        out.push({ who, text: m[2] })
+        out.push({ who, text: m[2], seg: segN })
         continue
       }
-      if (out.length) out.push({ who: out[out.length - 1].who, text: l })
+      if (out.length) out.push({ who: out[out.length - 1].who, text: l, seg: out[out.length - 1].seg })
     }
     return out
   }, [text])
+
+  const activeSeg = useMemo(() => {
+    if (!segsTimed) return -1
+    let idx = -1
+    for (let i = 0; i < segsTimed.length; i += 1) {
+      if (segsTimed[i].start <= t) idx = i
+      else break
+    }
+    return idx
+  }, [segsTimed, t])
+
+  const seekSeg = (i) => {
+    const a = audioRef.current
+    const seg = segsTimed && segsTimed[i]
+    if (!a || !seg) return
+    a.currentTime = seg.start
+    setT(seg.start)
+    if (a.paused) { a.play(); setPlaying(true) }
+  }
 
   const bars = useMemo(() => {
     const n = 64
@@ -3778,7 +3946,7 @@ function AudioView({ src, json, text }) {
     el('div', { className: 'nb-stage' },
       el('div', { className: 'nb-screen nb-screen-audio', style: { aspectRatio: 'auto' } },
         el('div', { style: { display: 'flex', alignItems: 'center', gap: '10px' } },
-          el('span', { className: 'nb-chip', 'data-tone': 'accent', children: 'TWO HOSTS' }),
+          el('span', { className: 'nb-chip', 'data-tone': 'accent', children: hostLabel }),
           el('span', { style: { fontSize: '16px', fontWeight: 620, color: '#eee' },
             children: (json && json.title) || 'Audio Overview' }),
           el('span', { style: { flex: 1 } }),
@@ -3818,10 +3986,18 @@ function AudioView({ src, json, text }) {
               if (a && dur) { a.currentTime = (Number(e.target.value) / 100) * dur }
             }
           }),
-          el('span', {
-            className: 'nb-chip',
-            style: { background: 'rgba(255,255,255,.12)', color: '#cfd3e0', borderColor: 'transparent' },
-            children: '1.0×'
+          el('button', {
+            type: 'button', className: 'nb-chip', 'data-click': 'true',
+            'aria-label': 'Playback speed', title: 'Playback speed',
+            style: { background: 'rgba(255,255,255,.12)', color: '#cfd3e0', borderColor: 'transparent', cursor: 'pointer' },
+            onClick: () => {
+              const rates = [0.75, 1, 1.25, 1.5, 2]
+              const next = rates[(rates.indexOf(rate) + 1) % rates.length]
+              const a = audioRef.current
+              if (a) a.playbackRate = next
+              setRate(next)
+            },
+            children: `${rate}×`
           })),
         el('audio', {
           ref: audioRef, src: src || undefined, preload: 'metadata',
@@ -3833,12 +4009,18 @@ function AudioView({ src, json, text }) {
       lines.length
         ? el('div', { className: 'nb-doc', style: { maxWidth: '100%' } },
             el('div', { className: 'nb-meta', style: { marginBottom: '10px' }, children: 'Transcript' }),
-            lines.map((l, i) => jsx(TranscriptLine, { line: l, first: i === 0 }, `l${i}`)))
+            lines.map((l, i) => jsx(TranscriptLine, {
+              line: l, first: i === 0,
+              active: segsTimed && l.seg === activeSeg,
+              seekable: !!segsTimed && l.seg >= 0,
+              segStart: segsTimed && l.seg >= 0 ? segsTimed[l.seg].start : 0,
+              onSeek: () => seekSeg(l.seg)
+            }, `l${i}`)))
         : null)
   )
 }
 
-function TranscriptLine({ line, first }) {
+function TranscriptLine({ line, first, active, seekable, segStart, onSeek }) {
   if (line.head) {
     return jsx('div', {
       style: { fontSize: '17px', fontWeight: 650, letterSpacing: '-.01em', margin: '0 0 6px' },
@@ -3852,9 +4034,17 @@ function TranscriptLine({ line, first }) {
     })
   }
   return el('div', {
+    role: seekable ? 'button' : undefined,
+    tabIndex: seekable ? 0 : undefined,
+    'aria-label': seekable ? `Play from ${fmtTime(segStart)}` : undefined,
+    onClick: seekable ? onSeek : undefined,
+    onKeyDown: seekable ? (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onSeek() } } : undefined,
     style: {
       display: 'grid', gridTemplateColumns: '26px 1fr', gap: '10px',
-      padding: '7px 0', borderTop: first ? 'none' : `1px solid ${T.lineSoft}`
+      padding: '7px 10px', margin: '0 -10px', borderRadius: '8px',
+      borderTop: first ? 'none' : `1px solid ${T.lineSoft}`,
+      cursor: seekable ? 'pointer' : undefined,
+      background: active ? `color-mix(in srgb, ${T.accent} 12%, transparent)` : undefined
     }
   },
   jsx('span', {
@@ -4175,8 +4365,14 @@ function SlidesView({ data, htmlUrl }) {
     return () => document.removeEventListener('keydown', onKey)
   }, [go])
 
+  const openDeck = htmlUrl
+    ? () => (host.openLink ? host.openLink(htmlUrl) : window.open(htmlUrl, '_blank'))
+    : null
+
   if (!slides.length) {
-    return el('div', { className: 'nb-view-body' }, el('div', { className: 'nb-hint', children: 'this deck has no slides in its json — open the html file' }))
+    return el('div', { className: 'nb-view-body' },
+      el('div', { className: 'nb-hint', children: 'this deck has no slides in its json' }),
+      openDeck ? jsx(Btn, { size: 'sm', icon: 'external', onClick: openDeck, children: 'Open the interactive deck' }) : null)
   }
   const s = slides[i]
   return el('div', { className: 'nb-view-body' },
@@ -4195,7 +4391,16 @@ function SlidesView({ data, htmlUrl }) {
         el('span', { style: { fontSize: '11.5px', letterSpacing: '.14em', textTransform: 'uppercase', color: '#9aa0b5', fontWeight: 700 },
           children: deck.title || 'Deck' }),
         el('span', { style: { flex: 1 } }),
-        el('span', { className: 'nb-mono', style: { fontSize: '12px', color: '#9aa0b5' }, children: `${i + 1}/${slides.length}` })),
+        el('span', { className: 'nb-mono', style: { fontSize: '12px', color: '#9aa0b5' }, children: `${i + 1}/${slides.length}` }),
+        openDeck
+          ? el('button', {
+              type: 'button', className: 'nb-chip', 'data-click': 'true',
+              'aria-label': 'Open the interactive HTML deck', title: 'Open the interactive HTML deck',
+              style: { background: 'rgba(255,255,255,.1)', color: '#cfd3e0', borderColor: 'transparent', cursor: 'pointer' },
+              onClick: (e) => { e.stopPropagation(); openDeck() },
+              children: 'open deck ↗'
+            })
+          : null),
       el('div', { style: { fontSize: '30px', fontWeight: 680, letterSpacing: '-.02em', color: '#f2f3f8', margin: '18px 0 14px', lineHeight: 1.15 }, children: s.title }),
       el('ul', { style: { margin: 0, paddingLeft: '20px', color: '#d6d8e6', fontSize: '17px', lineHeight: 1.6, display: 'grid', gap: '9px' } },
         (s.bullets || []).map((b, bi) => el('li', { children: b }, `b${bi}`))),
