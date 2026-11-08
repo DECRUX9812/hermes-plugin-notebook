@@ -457,7 +457,7 @@ function HomeDashboard({ data, onOpen, onNew, onDelete, onRename, onDuplicate })
         ? el('div', { className: 'nb-feature-row', role: 'list', 'aria-label': 'Featured notebooks' },
             featured.map((n, i) => el('button', {
               key: n.id, type: 'button', role: 'listitem', className: 'nb-feature',
-              style: { '--kc': hues[i % hues.length] },
+              style: { '--kc': hues[i % hues.length], animationDelay: `${i * 60}ms` },
               onClick: () => onOpen(n.id),
               'aria-label': `Open notebook ${n.title}`,
               children: [
@@ -490,7 +490,8 @@ function HomeDashboard({ data, onOpen, onNew, onDelete, onRename, onDuplicate })
                     jsx(Btn, { variant: 'primary', icon: 'plus', onClick: onNew, children: 'New notebook' }))
                 : null))
         : el('div', { className: 'nb-home-grid', role: 'list' },
-            shown.map((n) => el('div', { key: n.id, className: 'nb-nbcard-wrap', role: 'listitem' },
+            shown.map((n, i) => el('div', { key: n.id, className: 'nb-nbcard-wrap', role: 'listitem',
+              style: { animationDelay: `${Math.min(i, 11) * 45}ms` } },
               el('button', {
                 type: 'button', className: 'nb-nbcard',
                 onClick: () => onOpen(n.id),

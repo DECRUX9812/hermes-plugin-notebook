@@ -14935,7 +14935,17 @@ var CSS2 = `
 .nb-latest{position:absolute;left:50%;bottom:14px;transform:translateX(-50%);z-index:20;display:inline-flex;align-items:center;gap:4px;padding:7px 14px;border-radius:999px;border:1px solid var(--nb-line,#2a2d3d);background:var(--nb-card,#14161f);color:var(--nb-text2,#c6c9d8);font-size:12.5px;font-weight:600;cursor:pointer;box-shadow:0 6px 20px rgba(0,0,0,.35);transition:transform .15s ease,box-shadow .15s ease}
 .nb-latest:hover{transform:translateX(-50%) translateY(-1px);box-shadow:0 8px 24px rgba(0,0,0,.45)}
 .nb-thread{flex:1;min-height:0;overflow:auto;padding:28px 28px 12px;display:flex;flex-direction:column;gap:24px}
-.nb-msg{max-width:72ch}
+.nb-msg{max-width:72ch;animation:nb-msg-in .28s cubic-bezier(.2,.7,.3,1) both}
+@keyframes nb-msg-in{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:none}}
+/* generative marks breathe \u2014 a slow 1.5% drift so sigils feel alive, not pasted */
+.nb-hero-emoji svg,.nb-nbcard-emoji svg,.nb-feature-emoji svg{animation:nb-sigil-float 9s ease-in-out infinite}
+@keyframes nb-sigil-float{0%,100%{transform:translateY(0) rotate(0deg)}50%{transform:translateY(-2px) rotate(1.2deg)}}
+/* home cards arrive in a stagger \u2014 the directory assembles itself */
+.nb-nbcard-wrap,.nb-feature{animation:nb-card-in .4s cubic-bezier(.2,.7,.3,1) both}
+@keyframes nb-card-in{from{opacity:0;transform:translateY(12px) scale(.985)}to{opacity:1;transform:none}}
+@media (prefers-reduced-motion:reduce){
+  .nb-msg,.nb-nbcard-wrap,.nb-feature,.nb-hero-emoji svg,.nb-nbcard-emoji svg,.nb-feature-emoji svg,.nb-blob{animation:none!important}
+}
 .nb-msg[data-role=assistant]{display:grid;grid-template-columns:30px minmax(0,1fr);gap:14px;align-self:flex-start}
 .nb-msg[data-role=user]{align-self:flex-end;max-width:62ch}
 .nb-msg-body{min-width:0}
@@ -16534,7 +16544,7 @@ function HomeDashboard({ data, onOpen, onNew, onDelete, onRename, onDuplicate })
           type: "button",
           role: "listitem",
           className: "nb-feature",
-          style: { "--kc": hues[i % hues.length] },
+          style: { "--kc": hues[i % hues.length], animationDelay: `${i * 60}ms` },
           onClick: () => onOpen(n.id),
           "aria-label": `Open notebook ${n.title}`,
           children: [
@@ -16575,9 +16585,14 @@ function HomeDashboard({ data, onOpen, onNew, onDelete, onRename, onDuplicate })
       ) : el(
         "div",
         { className: "nb-home-grid", role: "list" },
-        shown.map((n) => el(
+        shown.map((n, i) => el(
           "div",
-          { key: n.id, className: "nb-nbcard-wrap", role: "listitem" },
+          {
+            key: n.id,
+            className: "nb-nbcard-wrap",
+            role: "listitem",
+            style: { animationDelay: `${Math.min(i, 11) * 45}ms` }
+          },
           el("button", {
             type: "button",
             className: "nb-nbcard",
