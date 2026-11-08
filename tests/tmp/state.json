@@ -1,8 +1,26 @@
 {
  "ok": true,
- "generated_at": "2026-11-08T15:55:32Z",
+ "generated_at": "2026-11-08T17:14:02Z",
  "model_ready": false,
  "notebooks": [
+  {
+   "id": "t-2",
+   "title": "T",
+   "description": "d",
+   "updated_at": "2026-11-08T17:11:02+00:00",
+   "sources": 0,
+   "artifacts": 0,
+   "chars": 0
+  },
+  {
+   "id": "t",
+   "title": "T",
+   "description": "d",
+   "updated_at": "2026-11-08T17:10:55+00:00",
+   "sources": 0,
+   "artifacts": 0,
+   "chars": 0
+  },
   {
    "id": "business-analyst-job-interview-you-know-thanks",
    "title": "Business Analyst Job Interview you know. Thanks",
@@ -18,7 +36,7 @@
    "description": "Six sources on the state of commercial fusion: the CRS briefing for Congress, the DOE deployment roadmap, two ITER releases, the IAEA outlook and the reference article.",
    "updated_at": "2026-11-07T17:53:27+00:00",
    "sources": 6,
-   "artifacts": 12,
+   "artifacts": 13,
    "chars": 157369
   },
   {
@@ -27,7 +45,7 @@
    "description": "Short sources used to smoke-test labels and artifacts.",
    "updated_at": "2026-11-07T17:38:11+00:00",
    "sources": 3,
-   "artifacts": 6,
+   "artifacts": 9,
    "chars": 24919
   }
  ],
@@ -35,6 +53,7 @@
   "id": "commercial-fusion-2026",
   "title": "Commercial Fusion Energy in 2026",
   "description": "Six sources on the state of commercial fusion: the CRS briefing for Congress, the DOE deployment roadmap, two ITER releases, the IAEA outlook and the reference article.",
+  "emoji": "",
   "created_at": "2026-11-07T16:36:51+00:00",
   "updated_at": "2026-11-07T17:53:27+00:00",
   "sources": [
@@ -147,8 +166,10 @@
   ],
   "artifacts": [
    {
-    "key": "20261107-audio_overview",
+    "key": "20261107-171108-audio_overview",
     "kind": "audio_overview",
+    "title": "",
+    "opts": {},
     "label": "Audio Overview",
     "group": "media",
     "primary": "20261107-171108-audio_overview.mp3",
@@ -175,8 +196,10 @@
     "modified": "2026-11-07T17:11:34+00:00"
    },
    {
-    "key": "20261107-video_overview",
+    "key": "20261107-170743-video_overview",
     "kind": "video_overview",
+    "title": "",
+    "opts": {},
     "label": "Video Overview",
     "group": "media",
     "primary": "20261107-170743-video_overview.mp4",
@@ -203,8 +226,10 @@
     "modified": "2026-11-07T17:08:31+00:00"
    },
    {
-    "key": "20261107-faq",
+    "key": "20261107-170050-faq",
     "kind": "faq",
+    "title": "",
+    "opts": {},
     "label": "FAQ",
     "group": "docs",
     "primary": "20261107-170050-faq.md",
@@ -221,8 +246,10 @@
     "modified": "2026-11-07T17:00:50+00:00"
    },
    {
-    "key": "20261107-study_guide",
+    "key": "20261107-170050-study_guide",
     "kind": "study_guide",
+    "title": "",
+    "opts": {},
     "label": "Study Guide",
     "group": "study",
     "primary": "20261107-170050-study_guide.md",
@@ -239,8 +266,10 @@
     "modified": "2026-11-07T17:00:50+00:00"
    },
    {
-    "key": "20261107-briefing_doc",
+    "key": "20261107-170050-briefing_doc",
     "kind": "briefing_doc",
+    "title": "",
+    "opts": {},
     "label": "Briefing Doc",
     "group": "docs",
     "primary": "20261107-170050-briefing_doc.md",
@@ -257,8 +286,10 @@
     "modified": "2026-11-07T17:00:50+00:00"
    },
    {
-    "key": "20261107-timeline",
+    "key": "20261107-170042-timeline",
     "kind": "timeline",
+    "title": "",
+    "opts": {},
     "label": "Timeline",
     "group": "docs",
     "primary": "20261107-170042-timeline.md",
@@ -275,31 +306,50 @@
     "modified": "2026-11-07T17:00:42+00:00"
    },
    {
-    "key": "20261107-infographic",
+    "key": "20261107-170042-infographic",
     "kind": "infographic",
+    "title": "",
+    "opts": {},
     "label": "Infographic",
     "group": "visual",
     "primary": "20261107-170042-infographic.png",
     "ext": "png",
     "media": true,
-    "bytes": 87390,
+    "bytes": 86310,
     "files": [
      {
       "name": "20261107-170042-infographic.png",
       "ext": "png",
       "size": 86310
-     },
+     }
+    ],
+    "modified": "2026-11-07T17:00:42+00:00"
+   },
+   {
+    "key": "20261107-170041-infographic",
+    "kind": "infographic",
+    "title": "",
+    "opts": {},
+    "label": "Infographic",
+    "group": "visual",
+    "primary": "20261107-170041-infographic.json",
+    "ext": "json",
+    "media": false,
+    "bytes": 1080,
+    "files": [
      {
       "name": "20261107-170041-infographic.json",
       "ext": "json",
       "size": 1080
      }
     ],
-    "modified": "2026-11-07T17:00:42+00:00"
+    "modified": "2026-11-07T17:00:41+00:00"
    },
    {
-    "key": "20261107-slides",
+    "key": "20261107-170041-slides",
     "kind": "slides",
+    "title": "",
+    "opts": {},
     "label": "Slides",
     "group": "visual",
     "primary": "20261107-170041-slides.html",
@@ -321,8 +371,10 @@
     "modified": "2026-11-07T17:00:41+00:00"
    },
    {
-    "key": "20261107-quiz",
+    "key": "20261107-170041-quiz",
     "kind": "quiz",
+    "title": "",
+    "opts": {},
     "label": "Quiz",
     "group": "study",
     "primary": "20261107-170041-quiz.md",
@@ -344,8 +396,10 @@
     "modified": "2026-11-07T17:00:41+00:00"
    },
    {
-    "key": "20261107-flashcards",
+    "key": "20261107-170041-flashcards",
     "kind": "flashcards",
+    "title": "",
+    "opts": {},
     "label": "Flashcards",
     "group": "study",
     "primary": "20261107-170041-flashcards.md",
@@ -367,8 +421,10 @@
     "modified": "2026-11-07T17:00:41+00:00"
    },
    {
-    "key": "20261107-mind_map",
+    "key": "20261107-170041-mind_map",
     "kind": "mind_map",
+    "title": "",
+    "opts": {},
     "label": "Mind Map",
     "group": "visual",
     "primary": "20261107-170041-mind_map.md",
@@ -390,8 +446,10 @@
     "modified": "2026-11-07T17:00:41+00:00"
    },
    {
-    "key": "20261107-summary",
+    "key": "20261107-170041-summary",
     "kind": "summary",
+    "title": "",
+    "opts": {},
     "label": "Summary",
     "group": "docs",
     "primary": "20261107-170041-summary.md",
@@ -534,7 +592,7 @@
    "labels": 21,
    "unlabeled": 0,
    "active": 6,
-   "artifacts": 12,
+   "artifacts": 13,
    "kinds": [
     "audio_overview",
     "briefing_doc",
@@ -577,6 +635,18 @@
       "medium",
       "long"
      ]
+    },
+    {
+     "id": "language",
+     "label": "Language",
+     "kind": "text",
+     "placeholder": "Auto (English)"
+    },
+    {
+     "id": "focus",
+     "label": "Focus",
+     "kind": "text",
+     "placeholder": "e.g. only the cost and timeline sections"
     }
    ]
   },
@@ -612,6 +682,12 @@
      "label": "Language",
      "kind": "text",
      "placeholder": "Auto (English)"
+    },
+    {
+     "id": "focus",
+     "label": "Focus",
+     "kind": "text",
+     "placeholder": "e.g. only the cost and timeline sections"
     }
    ]
   },
@@ -621,7 +697,15 @@
    "group": "docs",
    "ext": "md",
    "blurb": "The notebook in a page",
-   "secs": 12
+   "secs": 12,
+   "options": [
+    {
+     "id": "focus",
+     "label": "Focus",
+     "kind": "text",
+     "placeholder": "e.g. only the cost and timeline sections"
+    }
+   ]
   },
   {
    "id": "briefing_doc",
@@ -629,7 +713,15 @@
    "group": "docs",
    "ext": "md",
    "blurb": "Decisions, risks, what to do next",
-   "secs": 18
+   "secs": 18,
+   "options": [
+    {
+     "id": "focus",
+     "label": "Focus",
+     "kind": "text",
+     "placeholder": "e.g. only the cost and timeline sections"
+    }
+   ]
   },
   {
    "id": "study_guide",
@@ -637,7 +729,15 @@
    "group": "study",
    "ext": "md",
    "blurb": "Concepts, questions, answers",
-   "secs": 18
+   "secs": 18,
+   "options": [
+    {
+     "id": "focus",
+     "label": "Focus",
+     "kind": "text",
+     "placeholder": "e.g. only the cost and timeline sections"
+    }
+   ]
   },
   {
    "id": "faq",
@@ -645,7 +745,15 @@
    "group": "docs",
    "ext": "md",
    "blurb": "The questions the sources answer",
-   "secs": 14
+   "secs": 14,
+   "options": [
+    {
+     "id": "focus",
+     "label": "Focus",
+     "kind": "text",
+     "placeholder": "e.g. only the cost and timeline sections"
+    }
+   ]
   },
   {
    "id": "timeline",
@@ -653,7 +761,15 @@
    "group": "docs",
    "ext": "md",
    "blurb": "Dated events in order",
-   "secs": 14
+   "secs": 14,
+   "options": [
+    {
+     "id": "focus",
+     "label": "Focus",
+     "kind": "text",
+     "placeholder": "e.g. only the cost and timeline sections"
+    }
+   ]
   },
   {
    "id": "mind_map",
@@ -661,7 +777,15 @@
    "group": "visual",
    "ext": "md",
    "blurb": "Radial structure you can pan",
-   "secs": 16
+   "secs": 16,
+   "options": [
+    {
+     "id": "focus",
+     "label": "Focus",
+     "kind": "text",
+     "placeholder": "e.g. only the cost and timeline sections"
+    }
+   ]
   },
   {
    "id": "flashcards",
@@ -669,7 +793,15 @@
    "group": "study",
    "ext": "md",
    "blurb": "Flip deck, Anki-ready export",
-   "secs": 16
+   "secs": 16,
+   "options": [
+    {
+     "id": "focus",
+     "label": "Focus",
+     "kind": "text",
+     "placeholder": "e.g. only the cost and timeline sections"
+    }
+   ]
   },
   {
    "id": "quiz",
@@ -677,7 +809,15 @@
    "group": "study",
    "ext": "md",
    "blurb": "Multiple choice with explanations",
-   "secs": 16
+   "secs": 16,
+   "options": [
+    {
+     "id": "focus",
+     "label": "Focus",
+     "kind": "text",
+     "placeholder": "e.g. only the cost and timeline sections"
+    }
+   ]
   },
   {
    "id": "slides",
@@ -685,7 +825,15 @@
    "group": "visual",
    "ext": "html",
    "blurb": "Self-contained deck, arrow keys",
-   "secs": 22
+   "secs": 22,
+   "options": [
+    {
+     "id": "focus",
+     "label": "Focus",
+     "kind": "text",
+     "placeholder": "e.g. only the cost and timeline sections"
+    }
+   ]
   },
   {
    "id": "infographic",
@@ -1038,6 +1186,12 @@
       "standard",
       "detailed"
      ]
+    },
+    {
+     "id": "focus",
+     "label": "Focus",
+     "kind": "text",
+     "placeholder": "e.g. only the cost and timeline sections"
     }
    ]
   },
@@ -1047,7 +1201,15 @@
    "group": "docs",
    "ext": "csv",
    "blurb": "Structured rows, exports to Sheets",
-   "secs": 14
+   "secs": 14,
+   "options": [
+    {
+     "id": "focus",
+     "label": "Focus",
+     "kind": "text",
+     "placeholder": "e.g. only the cost and timeline sections"
+    }
+   ]
   }
  ]
 }

@@ -237,10 +237,14 @@ def notebook_ask(args: dict, **kw) -> str:
         )
     user = (
         f"Question: {question}\n\n"
-        f"Source excerpts (tags [S1]…[Sn] map to sources):\n\n{result['context']}"
+        f"Notebook sources (each <source id=\"S1\">…</source> block is tagged "
+        f"[S1]…[Sn] for citation):\n\n{result['context']}"
     )
     # optional chat thread — prior exchanges ride along as context
     thread_name = (args.get("thread") or "").strip() or None
+    if thread_name and args.get("retry"):
+        # regenerate the last exchange rather than growing the thread
+        store.pop_thread_exchange(nb_id, thread_name)
     system_prompt, max_tokens = _ask_system(nb_id)
     messages = [{"role": "system", "content": system_prompt}]
     if thread_name:
@@ -257,7 +261,16 @@ def notebook_ask(args: dict, **kw) -> str:
     )
     if thread_name:
         store.append_thread(nb_id, thread_name, "user", question)
-        store.append_thread(nb_id, thread_name, "assistant", answer)
+        # persist the citation rows so reloaded threads keep chips, hover
+        # passages and click-to-source — same shape /ask returns live
+        cites = [{
+            "n": src.get("n", i), "title": src.get("title") or "source",
+            "kind": src.get("kind", ""), "origin": src.get("origin", ""),
+            "id": src.get("id", ""), "snippet": src.get("snippet", ""),
+        } for i, src in enumerate(
+            retrieve.cited_sources(result["sources_used"], answer), 1)]
+        store.append_thread(nb_id, thread_name, "assistant", answer,
+                            extra={"citations": cites} if cites else None)
     return runtime.ok(
         notebook=nb_id, question=question, answer=answer,
         thread=thread_name,
@@ -320,6 +333,7 @@ async def notebook_video(args: dict, **kw) -> str:
         length=args.get("length") or None,
         focus=args.get("focus") or "",
         style=args.get("style") or None,
+        language=args.get("language") or "",
     )
     return runtime.ok(**{k: v for k, v in out.items() if k != "ok"})
 
@@ -341,7 +355,7 @@ _SUGGEST_SCHEMA = {
         "questions": {"type": "array", "items": {"type": "string"},
                       "description": "5-8 questions the user is likely to want answered from these sources"},
         "artifacts": {"type": "array", "items": {"type": "string"},
-                      "description": "3-5 artifact kinds worth generating (summary|briefing_doc|study_guide|faq|timeline|mind_map|flashcards|quiz) with a one-line reason each, formatted 'kind: reason'"},
+                      "description": "3-5 artifact kinds worth generating (video_overview|audio_overview|summary|briefing_doc|study_guide|faq|timeline|mind_map|flashcards|quiz|slides|infographic|data_table) with a one-line reason each, formatted 'kind: reason'"},
         "gaps": {"type": "array", "items": {"type": "string"},
                  "description": "2-4 source gaps — what to add to make the notebook stronger"},
     },
@@ -365,8 +379,9 @@ def notebook_suggest(args: dict, **kw) -> str:
         instructions=(
             "Suggest what a user should DO with this notebook, NotebookLM-style. "
             "Questions should be specific to the actual content. Artifact "
-            "suggestions pick from: summary, briefing_doc, study_guide, faq, "
-            "timeline, mind_map, flashcards, quiz. Gaps name concrete missing "
+            "suggestions pick from: video_overview, audio_overview, summary, "
+            "briefing_doc, study_guide, faq, timeline, mind_map, flashcards, "
+            "quiz, slides, infographic, data_table. Gaps name concrete missing "
             "sources/topics."
         ),
         input=[{"type": "text", "text":

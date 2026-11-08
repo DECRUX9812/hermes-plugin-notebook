@@ -17,7 +17,7 @@ import subprocess
 from pathlib import Path
 from typing import Any, Optional
 
-from . import audio, llmio, retrieve, runtime, store
+from . import audio, llmio, retrieve, runtime, store, voices
 
 try:
     from PIL import Image, ImageDraw, ImageFont
@@ -72,9 +72,11 @@ _EXPLAINER_PALETTES = ("ember", "forest", "mono", "indigo")
 
 
 def _video_script_prompt(meta: dict, digest: str, length: str, focus: str,
-                         style: str = "cinematic") -> str:
+                         style: str = "cinematic", language: str = "") -> str:
     lo, hi = VIDEO_LENGTHS[length]["words"]
     focus_line = f"\nFocus requested by the user: {focus.strip()}\n" if focus.strip() else ""
+    lang_line = (f"\nLANGUAGE: write the entire script in {language.strip()} — "
+                 "natural, idiomatic, not translated-sounding.\n") if language.strip() else ""
     if style == "explainer":
         voice = (
             "QUICK EXPLAINER style — like a crisp 3-minute tech explainer: "
@@ -97,7 +99,7 @@ def _video_script_prompt(meta: dict, digest: str, length: str, focus: str,
         "through the material section by section; land on the 2-3 takeaways. "
         "Write for the EAR — it will be spoken, so use short sentences, "
         "concrete images, no bullet lists, no citations markers.\n"
-        f"{focus_line}\n"
+        f"{lang_line}{focus_line}\n"
         f"NOTEBOOK: {meta.get('title')}\nDESCRIPTION: {meta.get('description', '')}\n\n"
         f"SOURCES:\n{digest}"
     )
@@ -387,11 +389,11 @@ def _assemble_video(clips: list[Path], out_path: Path) -> None:
 
 
 async def _video_script(nb_id: str, meta: dict, digest: str, length: str,
-                        focus: str, style: str) -> tuple[list[dict], str]:
+                        focus: str, style: str, language: str = "") -> tuple[list[dict], str]:
     """The LLM script stage only: parsed JSON → normalized beats + title."""
     parsed = llmio.structured(
         instructions="Write the full cinematic video-overview script as JSON.",
-        input=[{"type": "text", "text": _video_script_prompt(meta, digest, length, focus, style)}],
+        input=[{"type": "text", "text": _video_script_prompt(meta, digest, length, focus, style, language)}],
         json_schema=_VIDEO_SCHEMA,
         schema_name="notebook.video_script",
         system_prompt=(
@@ -414,7 +416,8 @@ async def _video_script(nb_id: str, meta: dict, digest: str, length: str,
 
 
 async def video_notes(notebook: str, *, length: Optional[str] = None,
-                      focus: str = "", style: Optional[str] = None) -> dict:
+                      focus: str = "", style: Optional[str] = None,
+                      language: str = "") -> dict:
     """Producer notes only — the title + per-beat headline/narration/palette the
     render WOULD use, before any frame or audio exists. The page shows these for
     review; generate() accepts them back and skips the rewrite."""
@@ -429,15 +432,16 @@ async def video_notes(notebook: str, *, length: Optional[str] = None,
     if style not in STYLES:
         style = "cinematic"
     digest = retrieve.notebook_digest(nb_id, max_chars=int(runtime.config("podcast_context_chars", default=42000)))
-    segs, ep_title = await _video_script(nb_id, meta, digest, length, focus, style)
-    return {"title": ep_title, "length": length, "style": style,
+    segs, ep_title = await _video_script(nb_id, meta, digest, length, focus, style, language)
+    return {"title": ep_title, "length": length, "style": style, "language": language,
             "beats": [{"headline": s.get("headline", ""), "text": s.get("text", ""),
                        "palette": s.get("palette", "")} for s in segs]}
 
 
 async def make_video_overview(notebook: str, *, length: Optional[str] = None,
                               focus: str = "", style: Optional[str] = None,
-                              notes: Optional[dict] = None) -> dict:
+                              notes: Optional[dict] = None,
+                              language: str = "") -> dict:
     """Generate the cinematic video overview. Async — runs under an event loop.
     notes: approved producer notes from video_notes() — skips the script rewrite."""
     if Image is None:
@@ -481,9 +485,14 @@ async def make_video_overview(notebook: str, *, length: Optional[str] = None,
             for i, seg in enumerate(segs):
                 seg["palette"] = _EXPLAINER_PALETTES[i % len(_EXPLAINER_PALETTES)]
     else:
-        segs, ep_title = await _video_script(nb_id, meta, digest, length, focus, style)
+        segs, ep_title = await _video_script(nb_id, meta, digest, length, focus, style, language)
 
     voice = str(runtime.config("video_voice", default="en-US-AndrewNeural"))
+    # requested language picks a matching neural voice unless the operator
+    # pinned video_voice in config (same rule as the podcast hosts)
+    lang_voice = voices.single_for(language)
+    if lang_voice and voice == "en-US-AndrewNeural":
+        voice = lang_voice
     rate = str(runtime.config("video_voice_rate", default="-4%"))
 
     nb_dir = store._nb_dir(nb_id)
@@ -495,6 +504,9 @@ async def make_video_overview(notebook: str, *, length: Optional[str] = None,
     # intermittently returns NoAudioReceived (throttle or a text it can't
     # voice) — retry with a ladder: same voice w/o rate → fallback voice.
     fallback_voice = str(runtime.config("audio_voice_host_b", default="en-US-EmmaNeural"))
+    lang_pair = voices.pair_for(language)
+    if lang_pair and fallback_voice == "en-US-EmmaNeural":
+        fallback_voice = lang_pair[1]
 
     def _clean(text: str) -> str:
         # strip characters known to break edge-tts synthesis (emoji, controls,
@@ -538,6 +550,12 @@ async def make_video_overview(notebook: str, *, length: Optional[str] = None,
 
     parts = [work / f"seg_{i:03d}.mp3" for i in range(len(segs))]
     durs = [_real_duration(p) for p in parts]
+    # stamp each segment's timeline position — the viewer seeks chapters by it
+    t = 0.0
+    for seg, d in zip(segs, durs):
+        seg["start"] = round(t, 2)
+        t += d
+        seg["end"] = round(t, 2)
 
     src_titles = [s.get("title", "source") for s in sources][:12]
     cards = _plan_cards(work, segs, meta.get("title", ""), ep_title, src_titles)

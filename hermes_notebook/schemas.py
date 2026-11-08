@@ -68,6 +68,8 @@ NOTEBOOK_ASK = {
                       "description": "Optional context budget override (default ~28000 chars)"},
         "thread": {"type": "string",
                    "description": "Optional conversation thread name — prior Q&A in this thread is included as context (NotebookLM chat history). Omit for stateless ask."},
+        "retry": {"type": "boolean",
+                  "description": "Optional: regenerate the last answer in this thread — the previous exchange is replaced, not duplicated"},
     }, "required": ["question"]},
 }
 
@@ -169,6 +171,8 @@ NOTEBOOK_VIDEO = {
         "focus": {"type": "string", "description": "Optional video focus"},
         "style": {"type": "string", "enum": ["cinematic", "explainer"],
                   "description": "cinematic = documentary narration (default); explainer = punchy tech-explainer pacing + brighter cards"},
+        "language": {"type": "string",
+                     "description": "Optional language for the script AND narration voice (e.g. 'Spanish')"},
     }},
 }
 

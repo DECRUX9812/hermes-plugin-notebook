@@ -52,7 +52,7 @@ def _now() -> float:
 
 def _iso(ts: float) -> str:
     import datetime
-    return datetime.datetime.fromtimestamp(ts, datetime.timezone.utc).isoformat(timespec="microseconds")
+    return datetime.datetime.fromtimestamp(ts, datetime.timezone.utc).isoformat(timespec="seconds")
 
 
 # ---------------------------------------------------------------- notebooks
@@ -67,6 +67,7 @@ def list_notebooks() -> list[dict]:
         nb_id = nb_json.parent.name
         sources = list_sources(nb_id)
         artifacts = list_artifacts(nb_id)
+        threads_dir = nb_json.parent / "threads"
         out.append({
             "id": nb_id,
             "title": meta.get("title") or nb_id,
@@ -75,6 +76,8 @@ def list_notebooks() -> list[dict]:
             "updated_at": meta.get("updated_at", ""),
             "sources": len(sources),
             "artifacts": len(artifacts),
+            "threads": (len(list(threads_dir.glob("*.json")))
+                        if threads_dir.is_dir() else 0),
             "total_chars": sum(s.get("chars", 0) for s in sources),
             "dir": str(nb_json.parent),
         })
@@ -202,6 +205,31 @@ def update_meta(notebook_id: str, *, title: Optional[str] = None,
     meta["updated_at"] = _iso(_now())
     _write_json(d / "notebook.json", meta)
     return meta
+
+
+def duplicate_notebook(notebook_id: str) -> dict:
+    """Copy a notebook — sources, artifacts, labels, options — under a fresh
+    id and 'Copy of …' title. Chat threads do NOT carry over."""
+    import shutil
+    nb_id = resolve_notebook(notebook_id)
+    src_dir = _nb_dir(nb_id)
+    meta = get_meta(nb_id)
+    new_meta = create_notebook(f"Copy of {meta.get('title') or nb_id}",
+                               meta.get("description") or "")
+    new_id = new_meta["id"]
+    new_dir = _nb_dir(new_id)
+    for sub in ("sources", "artifacts"):
+        sdir = src_dir / sub
+        if sdir.is_dir():
+            shutil.copytree(sdir, new_dir / sub, dirs_exist_ok=True)
+    # sources/index.json travels with the copy; notebook.json keeps the new id
+    merged = get_meta(new_id)
+    for k in ("options", "emoji"):
+        if meta.get(k):
+            merged[k] = meta[k]
+    merged["updated_at"] = _iso(_now())
+    _write_json(new_dir / "notebook.json", merged)
+    return {"id": new_id, "title": merged["title"], "copied_from": nb_id}
 
 
 def delete_notebook(notebook_id: str) -> dict:
@@ -456,15 +484,20 @@ def read_thread(notebook_id: str, name: str = DEFAULT_THREAD) -> dict:
     return doc
 
 
-def append_thread(notebook_id: str, name: str, role: str, content: str) -> list[dict]:
-    """Append one message; titles the thread from its first question. Returns messages."""
+def append_thread(notebook_id: str, name: str, role: str, content: str,
+                  extra: Optional[dict] = None) -> list[dict]:
+    """Append one message; titles the thread from its first question. ``extra``
+    carries per-message payload such as an answer's citations."""
     nb_id = resolve_notebook(notebook_id)
     path = _thread_path(nb_id, name)
     doc = _read_thread_file(path)
     if not doc["created"]:
         doc["created"] = _iso(_now())
     msgs = doc["messages"]
-    msgs.append({"role": role, "content": str(content)[:8000], "ts": _iso(_now())})
+    msg = {"role": role, "content": str(content)[:8000], "ts": _iso(_now())}
+    if extra:
+        msg.update(extra)
+    msgs.append(msg)
     doc["messages"] = msgs[-_THREAD_CAP:]
     doc["updated"] = _iso(_now())
     if role == "user" and not doc["title"]:
@@ -493,13 +526,18 @@ def list_threads(notebook_id: str) -> list[dict]:
                 "created": doc["created"],
                 "updated": doc["updated"] or (msgs[-1].get("ts") if msgs else ""),
                 "messages": len(msgs),
+                "_mtime": path.stat().st_mtime,
                 "preview": next((str(m.get("content") or "")[:160] for m in reversed(msgs)
                                  if m.get("role") == "assistant"), ""),
             })
     # most recently used first; ties fall back to creation, then name, so the order
     # is stable rather than whatever the filesystem returned
-    out.sort(key=lambda t: (t.get("updated") or "", t.get("created") or "", t.get("name") or ""),
-             reverse=True)
+    # newest write first; the file's mtime breaks same-second ties, which the ISO
+    # stamps cannot (and they stay second-precision for the UI)
+    out.sort(key=lambda t: (t.get("updated") or "", t.get("_mtime") or 0,
+                            t.get("name") or ""), reverse=True)
+    for row in out:
+        row.pop("_mtime", None)
     return out
 
 
@@ -543,6 +581,23 @@ def delete_thread(notebook_id: str, name: str) -> dict:
     remaining = list_threads(nb_id)
     return {"deleted": _thread_name_of(path),
             "next": remaining[0]["name"] if remaining else ""}
+
+
+def pop_thread_exchange(notebook_id: str, name: str = DEFAULT_THREAD) -> list[dict]:
+    """Drop the trailing assistant message and its user question — a retry
+    regenerates the exchange instead of duplicating it."""
+    nb_id = resolve_notebook(notebook_id)
+    path = _thread_path(nb_id, name)
+    doc = _read_thread_file(path)
+    msgs = doc["messages"]
+    if msgs and msgs[-1].get("role") == "assistant":
+        msgs.pop()
+    if msgs and msgs[-1].get("role") == "user":
+        msgs.pop()
+    doc["messages"] = msgs
+    doc["updated"] = _iso(_now())
+    _write_thread_file(path, doc)
+    return msgs
 
 
 def clear_thread(notebook_id: str, name: str = DEFAULT_THREAD) -> dict:

@@ -28,12 +28,32 @@ def test_chunk_text_small_and_empty():
 
 def test_retrieve_ranks_relevant_source_first(ctx):
     nb_id = _seed(ctx)
-    out = retrieve.retrieve(nb_id, "how much do cats sleep?")
+    # small budget forces the chunked BM25 path — full-context only engages
+    # when every active source fits the caller's context window
+    out = retrieve.retrieve(nb_id, "how much do cats sleep?", max_chars=2000)
     assert out["context"]
     # the Cats source should be citation S1
     assert out["sources_used"][0]["title"] == "Cats"
     assert "[S1" in out["context"]
     assert out["sources_used"][0]["n"] == 1
+
+
+def test_retrieve_full_context_when_sources_fit(ctx):
+    nb_id = _seed(ctx)
+    out = retrieve.retrieve(nb_id, "anything at all", max_chars=100000)
+    assert out.get("full_context") is True
+    assert '<source id="S1"' in out["context"] and "</source>" in out["context"]
+    # every active source is injected whole and citable — zero loss
+    assert {s["title"] for s in out["sources_used"]} == {"Cats", "Dogs"}
+    assert "Cats sleep most of the day" in out["context"]
+    assert "Dogs need daily walks" in out["context"]
+
+
+def test_cited_sources_filters_to_marked(ctx):
+    used = [{"n": 1, "title": "A"}, {"n": 2, "title": "B"}, {"n": 3, "title": "C"}]
+    assert [s["title"] for s in retrieve.cited_sources(used, "see [S1] and [S3]")] == ["A", "C"]
+    # unmarked answers keep the full set rather than dropping provenance
+    assert len(retrieve.cited_sources(used, "no markers here")) == 3
 
 
 def test_retrieve_only_ids_scopes_sources(ctx):

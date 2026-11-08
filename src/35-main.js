@@ -2,8 +2,8 @@
 
 function Main({ notebook, kinds, tab, setTab, picked, setPicked, busy, generate, onAsk,
                 askOpen, onSay, reload, modelReady, error, loading,
-                peek, setPeek, onOpenSource, onAddSource, onNewNotebook, onFindSources,
-                threads }) {
+                peek, setPeek, onOpenSource, onRefreshSource, onAddSource, onNewNotebook, onFindSources,
+                refreshArtifact }) {
   const sources = (notebook && notebook.sources) || []
   const [askScope, setAskScope] = useState(null)   // chat scoped to one source
 
@@ -46,15 +46,37 @@ function Main({ notebook, kinds, tab, setTab, picked, setPicked, busy, generate,
   const viewName = picked ? picked.label : ''
   const stats = notebook.stats || {}
   const activeCount = stats.active !== undefined ? stats.active : sources.length
+  const hasArts = (notebook.artifacts || []).length > 0
+
+  // a notebook with nothing in it gets a guided empty state, not dead panels
+  if (!sources.length && !hasArts) {
+    return el('main', { className: 'nb-col nb-main-col' },
+      el('div', { className: 'nb-void' },
+        el('div', null,
+          el('h3', { children: `“${notebook.title}” has no sources yet` }),
+          el('p', { children: 'Everything here is grounded in your sources — answers cite them, and every studio output is built from them. Add the material first.' }),
+          el('div', { style: { marginTop: '16px', display: 'flex', gap: '8px', justifyContent: 'center', flexWrap: 'wrap' } },
+            jsx(Btn, { variant: 'primary', icon: 'sparkle', onClick: () => onAddSource && onAddSource({ mode: 'find' }), children: 'Find sources' }),
+            jsx(Btn, { icon: 'link', onClick: () => onAddSource && onAddSource({ mode: 'url' }), children: 'Add a link' }),
+            jsx(Btn, { icon: 'note', onClick: () => onAddSource && onAddSource({ mode: 'note' }), children: 'Paste notes' })
+          )
+        )
+      )
+    )
+  }
 
   return el('main', { className: 'nb-col nb-main-col' },
     el('div', { className: 'nb-main-head' },
       el('div', { className: 'nb-hero' },
-        el('span', { className: 'nb-hero-emoji', 'aria-hidden': 'true', children: emojiFor(notebook.id) }),
+        el('span', { className: 'nb-hero-emoji', 'aria-hidden': 'true', children: emojiFor(notebook.id, notebook.emoji) }),
         el('div', { className: 'nb-hero-main' },
           el('h1', { className: 'nb-h1', children: notebook.title }),
           el('p', { className: 'nb-sub', children:
-            `${sources.length} source${sources.length === 1 ? '' : 's'} · ${activeCount} active · ${stats.labels || 0} topics · updated ${ago(notebook.updated_at) || 'recently'}` })),
+            `${sources.length} source${sources.length === 1 ? '' : 's'} · ${activeCount} active · ${stats.labels || 0} topics · updated ${ago(notebook.updated_at) || 'recently'}` }),
+          notebook.description
+            ? el('p', { className: 'nb-sub', style: { marginTop: '4px', color: T.text3, fontStyle: 'italic' },
+                children: notebook.description })
+            : null),
         el('div', { className: 'nb-hero-side' },
           el('span', {
             className: 'nb-chip', 'data-tone': modelReady ? 'ok' : 'warn',
@@ -81,21 +103,43 @@ function Main({ notebook, kinds, tab, setTab, picked, setPicked, busy, generate,
     ),
 
     tab === 'peek' && peek
-      ? jsx(SourcePeek, {
-          source: peek, notebook,
-          onClose: () => { setPeek(null); setTab('chat') },
-          onAskAbout: (s) => { setAskScope({ id: s.id, title: s.title }); setTab('chat') }
-        })
+      ? (() => {
+          const pi = sources.findIndex((s) => s.id === peek.id)
+          return jsx(SourcePeek, {
+            source: peek, notebook,
+            onClose: () => { setPeek(null); setTab('chat') },
+            onAskAbout: (s) => { setAskScope({ ids: [s.id], title: s.title }); setTab('chat') },
+            onRefresh: onRefreshSource ? () => onRefreshSource(peek) : null,
+            onPrev: pi > 0 ? () => setPeek(sources[pi - 1]) : null,
+            onNext: pi >= 0 && pi < sources.length - 1 ? () => setPeek(sources[pi + 1]) : null
+          })
+        })()
       : tab === 'view' && picked
-        ? jsx(Viewer, { artifact: picked, notebook, onSearch: () => {}, onCite: (n) => {
-            const src = sources.find((s) => s.n === n)
-            if (src) { setPeek(src); setTab('peek') }
-          } })
+        ? (() => {
+            // sibling runs of the same kind, oldest first — ‹ › flips versions
+            const sibs = (notebook.artifacts || []).filter((a) => a.kind === picked.kind)
+              .slice().sort((a, b) => String(a.modified).localeCompare(String(b.modified)))
+            const si = sibs.findIndex((a) => a.key === picked.key)
+            return jsx(Viewer, {
+              artifact: picked, notebook,
+              regenerating: !!(busy && busy[picked.kind]),
+              onRegenerate: () => generate(picked.kind, picked.opts || {}),
+              onChanged: refreshArtifact || (() => reload && reload(true)),
+              onPrevRun: si > 0 ? () => setPicked(sibs[si - 1]) : null,
+              onNextRun: si >= 0 && si < sibs.length - 1 ? () => setPicked(sibs[si + 1]) : null,
+              runPos: sibs.length > 1 ? `${si + 1} of ${sibs.length}` : '',
+              onCite: (n, cite) => {
+                const src = sources.find((s) => (cite && cite.id && s.id === cite.id) || s.n === n)
+                if (src) { setPeek({ ...src, citeSnippet: (cite && cite.snippet) || '' }); setTab('peek') }
+              }
+            })
+          })()
         : jsx(Chat, {
-            notebook, askOpen, onSay, modelReady, reload, askScope, setAskScope, threads,
-            onCite: (n) => {
-              const src = sources.find((s) => s.n === n)
-              if (src) { setPeek(src); setTab('peek') }
+            notebook, kinds, askOpen, onSay, modelReady, reload, askScope, setAskScope,
+            generate,
+            onCite: (n, cite) => {
+              const src = sources.find((s) => (cite && cite.id && s.id === cite.id) || s.n === n)
+              if (src) { setPeek({ ...src, citeSnippet: (cite && cite.snippet) || '' }); setTab('peek') }
             },
             onOpenSource,
             onFindSources
@@ -114,56 +158,110 @@ const SUGGEST = [
 /* overview + suggestions are fetched once per notebook-content version and
    cached for the session — tab switches must not re-bill the model. */
 const ovCache = new Map()
+/* conversations survive Chat unmounts (peek/viewer tabs swap it out) — the
+   module-level cache is the source of truth once a thread has been opened. */
+const threadCache = new Map()
 
-function Chat({ notebook, askOpen, onSay, modelReady, onCite, onOpenSource, onFindSources, reload, askScope, setAskScope, threads }) {
-  const [msgs, setMsgs] = useState(() => (notebook.thread || []).map((m, i) => ({ ...m, k: `t${i}` })))
+function Chat({ notebook, kinds, askOpen, onSay, modelReady, onCite, onOpenSource, onFindSources, reload, askScope, setAskScope, generate }) {
+  const nbKey = `${notebook.id}:default`
+  const [thread, setThread] = useState('default')
+  const [threads, setThreads] = useState(() => notebook.threads || [])
+  const [thrOpen, setThrOpen] = useState(false)
+  const curThread = useRef('default')
+  curThread.current = thread
+  const [msgs, setMsgs] = useState(() =>
+    threadCache.get(nbKey) || (notebook.thread || []).map((m, i) => ({ ...m, k: `t${i}` })))
   const [text, setText] = useState('')
   const [pending, setPending] = useState(null)
   const [ov, setOv] = useState('')
+  const [ovErr, setOvErr] = useState(false)
+  const [ovRetry, setOvRetry] = useState(0)
   const [sugg, setSugg] = useState(null)
+  const [suggErr, setSuggErr] = useState(false)
   const [cfgOpen, setCfgOpen] = useState(false)
+  const [scopeOpen, setScopeOpen] = useState(false)
   const [cfg, setCfg] = useState({})
   const [cfgBusy, setCfgBusy] = useState(false)
-  const [threadsOpen, setThreadsOpen] = useState(false)
   const threadRef = useRef(null)
   const boxRef = useRef(null)
+  const stickRef = useRef(true)
+  const [showLatest, setShowLatest] = useState(false)
   const stats = notebook.stats || {}
   const activeCount = stats.active !== undefined ? stats.active : (notebook.sources || []).length
   const cacheKey = `${notebook.id}:${stats.sources || 0}:${activeCount}`
 
-  useEffect(() => {
-    const stored = (notebook.thread || []).map((m, i) => ({ ...m, k: `t${i}` }))
-    setMsgs(stored)
-  }, [notebook.id, notebook.thread && notebook.thread.length])
+  const cacheMsgs = (key, list) => { threadCache.set(key, list); return list }
 
-  // a source scope belongs to the notebook it was picked in
-  useEffect(() => { if (setAskScope) setAskScope(null) }, [notebook.id])
+  // a different notebook → back to its default conversation
+  useEffect(() => {
+    setThread('default')
+    if (setAskScope) setAskScope(null)
+    setThreads(notebook.threads || [])
+    const key = `${notebook.id}:default`
+    const cached = threadCache.get(key)
+    const mapped = cached || (notebook.thread || []).map((m, i) => ({ ...m, k: `t${i}` }))
+    cacheMsgs(key, mapped)
+    setMsgs(mapped)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [notebook.id])
+
+  // /state refreshes the thread list (a first message creates the file)
+  useEffect(() => { setThreads(notebook.threads || []) }, [notebook.threads])
+
+  // switching conversations: cache hit is instant, otherwise fetch the thread
+  useEffect(() => {
+    stickRef.current = true
+    setShowLatest(false)
+    const key = `${notebook.id}:${thread}`
+    const cached = threadCache.get(key)
+    if (cached) { setMsgs(cached); return undefined }
+    if (thread === 'default') {
+      const mapped = (notebook.thread || []).map((m, i) => ({ ...m, k: `t${i}` }))
+      cacheMsgs(key, mapped)
+      setMsgs(mapped)
+      return undefined
+    }
+    let live = true
+    setMsgs([])
+    api(`/thread?${qs({ notebook: notebook.id, name: thread })}`, { timeoutMs: 30000 })
+      .then((out) => {
+        if (!live) return
+        const mapped = (out.messages || []).map((m, i) => ({ ...m, k: `t${i}` }))
+        cacheMsgs(key, mapped)
+        setMsgs(mapped)
+      })
+      .catch(() => { if (live && onSay) onSay('could not load that conversation — try again') })
+    return () => { live = false }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [notebook.id, thread])
 
   useEffect(() => {
     const cached = ovCache.get(notebook.id)
-    if (cached && cached.key === cacheKey) { setOv(cached.ov || ''); setSugg(cached.sugg || null); return undefined }
+    if (cached && cached.key === cacheKey) { setOv(cached.ov || ''); setSugg(cached.sugg || null); setOvErr(false); setSuggErr(false); return undefined }
     let live = true
-    setOv(''); setSugg(null)
+    setOv(''); setSugg(null); setOvErr(false); setSuggErr(false)
     api('/overview', { method: 'POST', body: { notebook: notebook.id }, timeoutMs: 120000 })
       .then((o) => {
         if (!live) return
         const text = o.overview || ''
         setOv(text)
+        setOvErr(!text)
         const c = ovCache.get(notebook.id) || { key: cacheKey }
         ovCache.set(notebook.id, { key: cacheKey, ov: text, sugg: c.sugg || null })
       })
-      .catch(() => {})
+      .catch(() => { if (live) setOvErr(true) })
     api('/suggest', { method: 'POST', body: { notebook: notebook.id }, timeoutMs: 120000 })
       .then((o) => {
         if (!live) return
         const s = o.suggestions || null
         setSugg(s)
+        setSuggErr(!s)
         const c = ovCache.get(notebook.id) || { key: cacheKey }
         ovCache.set(notebook.id, { key: cacheKey, ov: c.ov || '', sugg: s })
       })
-      .catch(() => {})
+      .catch(() => { if (live) setSuggErr(true) })
     return () => { live = false }
-  }, [notebook.id, cacheKey])
+  }, [notebook.id, cacheKey, ovRetry])
 
   const saveNote = async () => {
     if (!ov.trim()) return
@@ -189,16 +287,47 @@ function Chat({ notebook, askOpen, onSay, modelReady, onCite, onOpenSource, onFi
 
   useEffect(() => { if (askOpen) { const n = boxRef.current; if (n) n.focus() } }, [askOpen])
 
+  // stick to the newest message only while the reader is already there —
+  // yanking someone back mid-history on every tick is hostile
+  const onThreadScroll = () => {
+    const node = threadRef.current
+    if (!node) return
+    const near = node.scrollHeight - node.scrollTop - node.clientHeight < 90
+    stickRef.current = near
+    setShowLatest(!near)
+  }
+
   useEffect(() => {
     const node = threadRef.current
-    if (node) node.scrollTop = node.scrollHeight
+    if (node && stickRef.current) node.scrollTop = node.scrollHeight
   }, [msgs.length, pending && pending.since])
 
-  const send = async (question) => {
-    const q = (question || text).trim()
-    if (!q || pending) return
-    setText('')
-    setMsgs((m) => [...m, { role: 'user', content: q, k: `u${Date.now()}` }])
+  const send = async (question, opts) => {
+    if (pending) return
+    stickRef.current = true
+    setShowLatest(false)
+    const retry = !!(opts && opts.retry)
+    const t = thread
+    const key = `${notebook.id}:${t}`
+    let q
+    if (retry) {
+      // regenerate the last exchange: keep through the last user message,
+      // drop the answer(s) after it — the backend pops the stored pair too
+      const cur = threadCache.get(key) || msgs
+      let lastUser = -1
+      for (let i = cur.length - 1; i >= 0; i--) { if (cur[i].role === 'user') { lastUser = i; break } }
+      if (lastUser < 0) return
+      q = String(cur[lastUser].content || '').trim()
+      if (!q) return
+      const cut = cur.slice(0, lastUser + 1)
+      cacheMsgs(key, cut)
+      setMsgs(cut)
+    } else {
+      q = (question || text).trim()
+      if (!q) return
+      setText('')
+      setMsgs((m) => cacheMsgs(key, [...m, { role: 'user', content: q, k: `u${Date.now()}` }]))
+    }
     const started = Date.now()
     setPending({ since: started, q })
     const tick = setInterval(() => setPending((p) => (p ? { ...p, now: Date.now() } : p)), 500)
@@ -206,22 +335,32 @@ function Chat({ notebook, askOpen, onSay, modelReady, onCite, onOpenSource, onFi
       const out = await api('/ask', {
         method: 'POST',
         body: {
-          notebook: notebook.id, question: q,
-          thread: (threads && threads.name) || notebook.thread_name || 'default',
-          ...(askScope ? { source_ids: [askScope.id] } : {})
+          notebook: notebook.id, question: q, thread: t,
+          ...(retry ? { retry: true } : {}),
+          ...(askScope && (askScope.ids || askScope.id)
+            ? { source_ids: askScope.ids || [askScope.id] }
+            : {})
         },
         timeoutMs: 180000
       })
-      setMsgs((m) => [...m, {
+      const answer = {
         role: 'assistant', content: out.answer, k: `a${Date.now()}`,
         citations: out.citations || [], seconds: out.seconds,
         meta: `${out.chunks_used || 0} of ${out.total_chunks || 0} passages`
-      }])
+      }
+      const prev = threadCache.get(key) || []
+      const next = cacheMsgs(key, [...prev, answer])
+      if (curThread.current === t) setMsgs(next)
+      // refresh /state so the thread list + default thread stay truthful
+      if (reload) reload(true)
     } catch (e) {
-      setMsgs((m) => [...m, {
+      const errMsg = {
         role: 'assistant', content: `**That question did not get an answer.**\n\n${e.message || e}`,
         k: `e${Date.now()}`, error: true
-      }])
+      }
+      const prev = threadCache.get(key) || []
+      const next = cacheMsgs(key, [...prev, errMsg])
+      if (curThread.current === t) setMsgs(next)
       if (onSay) onSay(e.message || 'ask failed')
     } finally {
       clearInterval(tick)
@@ -234,29 +373,12 @@ function Chat({ notebook, askOpen, onSay, modelReady, onCite, onOpenSource, onFi
   }
 
   const elapsed = pending ? Math.round(((pending.now || Date.now()) - pending.since) / 1000) : 0
+  const thrMeta = (threads || []).find((x) => x.name === thread)
+  const thrLabel = (thrMeta && thrMeta.title) || (thread === 'default' ? 'Chat' : 'New chat')
 
-  const threadName = (threads && threads.title) || notebook.thread_title || 'Conversation'
-  const threadCount = (notebook.thread || []).length
   return el('div', { className: 'nb-chat' },
-    el('div', { className: 'nb-chatbar' },
-      el('button', {
-        type: 'button', className: 'nb-threadpick', onClick: () => setThreadsOpen(true),
-        'aria-haspopup': 'dialog', 'aria-label': `Conversations — ${threadName}`,
-        title: 'Switch, rename or start a conversation',
-        children: [
-          jsx(Glyph, { name: 'summary', size: 15 }),
-          el('span', { className: 'nb-threadpick-title', children: threadName }),
-          threadCount ? el('span', { className: 'nb-chip', children: `${threadCount}` }) : null,
-          jsx(Glyph, { name: 'chevron', size: 14 })
-        ]
-      }),
-      el('span', { style: { flex: 1 } }),
-      jsx(Btn, {
-        size: 'sm', icon: 'plus', disabled: !threads || !!pending,
-        onClick: () => threads && threads.onNew(),
-        children: 'New chat'
-      })),
-    el('div', { className: 'nb-thread', ref: threadRef, role: 'log', 'aria-live': 'polite', 'aria-label': 'Conversation' },
+    el('div', { className: 'nb-chatscroll' },
+    el('div', { className: 'nb-thread', ref: threadRef, onScroll: onThreadScroll, role: 'log', 'aria-live': 'polite', 'aria-label': 'Conversation' },
       ov
         ? el('div', { className: 'nb-overview' },
             el('div', { className: 'nb-overview-head' },
@@ -268,6 +390,21 @@ function Chat({ notebook, askOpen, onSay, modelReady, onCite, onOpenSource, onFi
             ),
             el('div', { className: 'nb-overview-body' },
               jsx(Markdown, { text: ov, onCite })))
+        : null,
+      !ov && ovErr
+        ? el('div', { className: 'nb-overview' },
+            el('div', { className: 'nb-overview-head' },
+              jsx(Glyph, { name: 'sparkle', size: 14 }),
+              el('span', { className: 'nb-meta', children: 'Overview' }),
+              el('span', { style: { flex: 1 } }),
+              jsx(Btn, {
+                size: 'sm', icon: 'refresh',
+                onClick: () => { ovCache.delete(notebook.id); setOvErr(false); setOvRetry((n) => n + 1) },
+                children: 'Retry'
+              })),
+            el('div', { className: 'nb-overview-body' },
+              el('div', { className: 'nb-hint',
+                children: 'the briefing could not be generated — the model may be busy. retry, or ask a question below.' })))
         : null,
       msgs.length === 0 && !pending
         ? el('div', { style: { margin: msgs.length || ov ? '0' : 'auto', textAlign: 'center', maxWidth: '54ch' } },
@@ -301,9 +438,38 @@ function Chat({ notebook, askOpen, onSay, modelReady, onCite, onOpenSource, onFi
                     key: g, onClick: () => onFindSources && onFindSources(g),
                     title: 'Find sources for this gap', children: g
                   })))
+              : null,
+            (sugg.artifacts || []).length
+              ? el('div', { className: 'nb-gaprow', style: { marginTop: '14px' } },
+                  el('span', { className: 'nb-meta', children: 'Worth making' }),
+                  sugg.artifacts.slice(0, 4).map((a) => {
+                    const [kid, ...rest] = String(a).split(':')
+                    const kindId = (kid || '').trim()
+                    const known = (kinds || []).some((k) => k.id === kindId)
+                    const reason = rest.join(':').trim() || kindId
+                    return jsx(Chip, {
+                      key: a,
+                      onClick: known && generate ? () => generate(kindId) : undefined,
+                      title: known ? `Generate ${kindLabel(kindId)}` : 'unknown output kind',
+                      children: reason
+                    })
+                  }))
               : null)
         : null,
-      msgs.map((m) => jsx(Msg, { msg: m, onCite, onOpenSource, notebook }, m.k)),
+      msgs.length === 0 && !pending && !sugg && suggErr
+        ? el('div', { className: 'nb-gaprow', style: { marginTop: ov ? '18px' : '0' } },
+            el('span', { className: 'nb-hint', children: 'suggestions could not be generated — the model may be busy.' }),
+            jsx(Btn, {
+              size: 'sm', icon: 'refresh', children: 'Retry',
+              onClick: () => { ovCache.delete(notebook.id); setSuggErr(false); setOvRetry((n) => n + 1) }
+            }))
+        : null,
+      msgs.map((m, i) => jsx(Msg, {
+        msg: m, onCite, onOpenSource, notebook,
+        canRetry: !pending && m.role === 'assistant' && i === msgs.length - 1 &&
+                  msgs.slice(0, i).some((x) => x.role === 'user'),
+        onRetry: () => send(null, { retry: true })
+      }, m.k)),
       pending
         ? el('div', { className: 'nb-msg', 'data-role': 'assistant' },
             el('span', { className: 'nb-avatar', children: 'HN' }),
@@ -314,6 +480,19 @@ function Chat({ notebook, askOpen, onSay, modelReady, onCite, onOpenSource, onFi
                 `retrieving passages · ${elapsed}s`)))
         : null
     ),
+    showLatest
+      ? el('button', {
+          type: 'button', className: 'nb-latest',
+          'aria-label': 'Jump to the newest message',
+          onClick: () => {
+            const node = threadRef.current
+            if (node) node.scrollTop = node.scrollHeight
+            stickRef.current = true
+            setShowLatest(false)
+          },
+          children: [jsx(Glyph, { name: 'chevron', size: 13 }), ' latest']
+        })
+      : null),
 
     el('div', { className: 'nb-composer' },
       msgs.length === 0 && !pending
@@ -332,6 +511,11 @@ function Chat({ notebook, askOpen, onSay, modelReady, onCite, onOpenSource, onFi
         }),
         el('div', { className: 'nb-askfoot' },
           jsx(Chip, {
+            title: 'Conversations — switch or start a new chat',
+            onClick: () => setThrOpen(true),
+            children: `💬 ${thrLabel}`
+          }),
+          jsx(Chip, {
             title: `${activeCount} of ${stats.sources || 0} sources are in context`,
             children: `${activeCount} source${activeCount === 1 ? '' : 's'}`
           }),
@@ -340,9 +524,13 @@ function Chat({ notebook, askOpen, onSay, modelReady, onCite, onOpenSource, onFi
                 tone: 'accent',
                 title: `Answering from ${askScope.title} only — click to clear`,
                 onClick: () => setAskScope && setAskScope(null),
-                children: `only: ${String(askScope.title || 'source').slice(0, 28)}`
+                children: `only: ${String(askScope.title || 'sources').slice(0, 28)}`
               })
             : null,
+          jsx(IconBtn, {
+            icon: 'layers', label: 'Choose which sources to answer from',
+            onClick: () => setScopeOpen(true)
+          }),
           jsx(IconBtn, {
             icon: 'sliders', label: 'Configure chat',
             onClick: () => {
@@ -355,8 +543,29 @@ function Chat({ notebook, askOpen, onSay, modelReady, onCite, onOpenSource, onFi
               setCfgOpen(true)
             }
           }),
+          jsx(IconBtn, {
+            icon: 'download', label: 'Export this chat (.md)', disabled: !msgs.length,
+            onClick: () => {
+              const lines = [
+                `# ${notebook.title} — chat`, '',
+                `*${thrLabel} · exported ${new Date().toISOString().slice(0, 10)}*`, ''
+              ]
+              for (const m of msgs) {
+                lines.push(m.role === 'user' ? '## You' : '## Hermes Notebook', '', m.content || '', '')
+                if (m.citations && m.citations.length) {
+                  lines.push('Sources: ' + m.citations.map((c) => `[S${c.n}] ${c.title}`).join(' · '), '')
+                }
+              }
+              const blob = new Blob([lines.join('\n')], { type: 'text/markdown' })
+              const a = document.createElement('a')
+              a.href = URL.createObjectURL(blob)
+              a.download = `${String(notebook.title || 'chat').replace(/[^\w]+/g, '-').toLowerCase()}-chat.md`
+              document.body.appendChild(a); a.click(); a.remove()
+              setTimeout(() => URL.revokeObjectURL(a.href), 4000)
+            }
+          }),
           el('span', { className: 'nb-hint', style: { marginLeft: 'auto' },
-            children: modelReady ? '⏎ send · ⇧⏎ newline' : 'model offline — enable the plugin and restart the gateway' }),
+            children: modelReady ? '↵ Send · ⇧↵ New line' : 'model offline — enable the plugin and restart the gateway' }),
           el('button', {
             type: 'button', className: 'nb-sendbtn',
             onClick: () => send(), disabled: !text.trim() || !!pending,
@@ -437,37 +646,228 @@ function Chat({ notebook, askOpen, onSay, modelReady, onCite, onOpenSource, onFi
                 })))
             })
         : null,
-      threadsOpen && threads
-        ? jsx(ThreadsDialog, {
-            open: true, threads: threads.list || [], active: threads.name,
-            busy: !!pending,
-            onClose: () => setThreadsOpen(false),
-            onOpen: (name) => { threads.onOpen(name); setThreadsOpen(false) },
-            onNew: (title) => { threads.onNew(title); setThreadsOpen(false) },
-            onRename: (name, title) => threads.onRename(name, title),
-            onDelete: (name) => threads.onDelete(name)
+      scopeOpen
+        ? jsx(ScopeDialog, {
+            notebook, current: askScope,
+            onClose: () => setScopeOpen(false),
+            onPick: (scope) => { if (setAskScope) setAskScope(scope); setScopeOpen(false) }
+          })
+        : null,
+      thrOpen
+        ? jsx(ThreadDialog, {
+            notebook, threads, current: thread,
+            onClose: () => setThrOpen(false),
+            onPick: (name) => { setThread(name); setThrOpen(false) },
+            onNew: async (title) => {
+              try {
+                const out = await api('/thread/new', {
+                  method: 'POST',
+                  body: { notebook: notebook.id, title: title || '' },
+                  timeoutMs: 30000
+                })
+                const name = (out && out.thread && out.thread.name) || `chat-${Date.now().toString(36)}`
+                threadCache.set(`${notebook.id}:${name}`, [])
+                setThreads((ts) => [{ name, title: (out && out.thread && out.thread.title) || 'New chat',
+                                      count: 0, updated: '' }, ...ts])
+                setThread(name); setThrOpen(false)
+              } catch (e) { onSay && onSay(`could not start a chat: ${e.message || e}`) }
+            },
+            onRename: async (name, title) => {
+              try {
+                const out = await api('/thread/rename', {
+                  method: 'POST',
+                  body: { notebook: notebook.id, thread: name, title },
+                  timeoutMs: 30000
+                })
+                const fresh = (out && out.thread) || {}
+                setThreads((ts) => ts.map((t) => (t.name === name
+                  ? { ...t, title: fresh.title || title } : t)))
+                if (reload) reload(true)
+              } catch (e) { onSay && onSay(`could not rename: ${e.message || e}`) }
+            },
+            onDelete: async (name) => {
+              try {
+                await api('/thread/delete', {
+                  method: 'POST',
+                  body: { notebook: notebook.id, thread: name, confirm: true },
+                  timeoutMs: 30000
+                })
+                const key = `${notebook.id}:${name}`
+                threadCache.delete(key)
+                setThreads((ts) => ts.filter((t) => t.name !== name))
+                if (name === thread) {
+                  if (name === 'default') { cacheMsgs(key, []); setMsgs([]) }
+                  else setThread('default')
+                }
+                if (reload) reload(true)
+                if (onSay) onSay('conversation deleted')
+              } catch (e) { onSay && onSay(`could not delete chat: ${e.message || e}`) }
+            }
           })
         : null
     )
   )
 }
 
+/* pick which sources the next answers draw from — NotebookLM's per-chat
+   source selection. Scope rides /ask's source_ids (max 12 server-side). */
+function ScopeDialog({ notebook, current, onClose, onPick }) {
+  const sources = (notebook && notebook.sources) || []
+  const curIds = new Set((current && (current.ids || (current.id ? [current.id] : []))) || [])
+  const [sel, setSel] = useState(() => new Set(curIds))
+  const toggle = (id) => setSel((s) => {
+    const n = new Set(s)
+    if (n.has(id)) n.delete(id); else n.add(id)
+    return n
+  })
+  const ids = [...sel]
+  const title = ids.length === 1
+    ? (sources.find((s) => s.id === ids[0]) || {}).title || '1 source'
+    : `${ids.length} sources`
+  return jsx(Dialog, {
+    open: true, onClose, title: 'Answer from', width: 480,
+    children: el('div', { style: { display: 'grid', gap: '8px' } },
+      sources.length > 12
+        ? el('div', { className: 'nb-hint', style: { marginBottom: '4px' },
+            children: 'At most 12 sources can scope one answer — pick the most relevant.' })
+        : null,
+      sources.map((s) => el('button', {
+        key: s.id, type: 'button', className: 'nb-thrrow',
+        onClick: () => toggle(s.id),
+        'aria-pressed': sel.has(s.id) ? 'true' : 'false'
+      },
+        el('span', {
+          className: 'nb-scope-check' + (sel.has(s.id) ? ' on' : ''),
+          'aria-hidden': 'true',
+          children: sel.has(s.id) ? '✓' : ''
+        }),
+        el('span', { className: 'nb-chip', 'data-tone': 'accent', children: `S${s.n}` }),
+        el('span', { style: { flex: 1, minWidth: 0, textAlign: 'left' } },
+          el('div', { style: { fontSize: '13.5px', fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' },
+            children: s.title }),
+          el('div', { className: 'nb-meta', children: kindLabel(s.kind) })))),
+      el('div', { style: { display: 'flex', gap: '8px', justifyContent: 'space-between', marginTop: '10px' } },
+        jsx(Btn, {
+          size: 'sm', onClick: () => onPick(null),
+          children: 'All sources'
+        }),
+        jsx(Btn, {
+          size: 'sm', variant: 'primary', disabled: !ids.length,
+          onClick: () => onPick({ ids: ids.slice(0, 12), title }),
+          children: ids.length ? `Use ${ids.length} source${ids.length === 1 ? '' : 's'}` : 'Pick sources'
+        })))
+  })
+}
+
+function ThreadDialog({ notebook, threads, current, onClose, onPick, onNew, onDelete, onRename }) {
+  const list = threads && threads.length ? threads : [{ name: 'default', title: 'Chat', count: 0 }]
+  const [title, setTitle] = useState('')
+  const [editing, setEditing] = useState('')
+  const [draft, setDraft] = useState('')
+  const [confirming, setConfirming] = useState('')
+
+  const commit = (name) => {
+    const next = draft.trim()
+    setEditing('')
+    if (next && onRename) onRename(name, next)
+  }
+
+  return jsx(Dialog, {
+    open: true, onClose, title: 'Conversations', width: 560,
+    children: el('div', { style: { display: 'grid', gap: '12px' } },
+      el('div', { className: 'nb-newthread' },
+        el('input', {
+          className: 'nb-genopt-text', type: 'text',
+          placeholder: 'Name a new conversation (optional)',
+          'aria-label': 'New conversation name',
+          value: title,
+          onChange: (e) => setTitle(e.target.value),
+          onKeyDown: (e) => { if (e.key === 'Enter') { onNew(title); setTitle('') } }
+        }),
+        jsx(Btn, {
+          size: 'sm', variant: 'primary', icon: 'plus',
+          onClick: () => { onNew(title); setTitle('') },
+          children: 'Start'
+        })),
+      el('div', { className: 'nb-thrlist', role: 'list', 'aria-label': 'Conversations' },
+        list.map((t) => {
+          const on = t.name === current
+          const isEditing = editing === t.name
+          return el('div', { key: t.name, className: 'nb-thrwrap', role: 'listitem',
+                             'data-on': on ? 'true' : 'false' },
+            isEditing
+              ? el('div', { className: 'nb-thredit' },
+                  el('input', {
+                    className: 'nb-genopt-text', type: 'text', autoFocus: true,
+                    'aria-label': `Rename ${t.title || t.name}`,
+                    value: draft,
+                    onChange: (e) => setDraft(e.target.value),
+                    onKeyDown: (e) => {
+                      if (e.key === 'Enter') commit(t.name)
+                      if (e.key === 'Escape') setEditing('')
+                    }
+                  }),
+                  jsx(Btn, { size: 'sm', onClick: () => commit(t.name), children: 'Save' }))
+              : el('div', { style: { display: 'flex', alignItems: 'center', flex: 1, minWidth: 0 } },
+                  el('button', {
+                    type: 'button',
+                    className: 'nb-thrrow' + (on ? ' is-current' : ''),
+                    onClick: () => onPick(t.name),
+                    'aria-current': on ? 'true' : undefined,
+                    children: [
+                      el('div', { style: { flex: 1, minWidth: 0 } },
+                        el('div', { style: { fontSize: '14px', fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' },
+                          children: t.title || t.name }),
+                        el('div', { className: 'nb-meta',
+                          children: `${t.count || t.messages || 0} messages`
+                                   + (t.updated ? ` · ${ago(t.updated)}` : '') })),
+                      on ? jsx(Glyph, { name: 'check', size: 15 }) : null
+                    ]
+                  }),
+                  jsx(IconBtn, {
+                    icon: 'note', size: 13, label: `Rename conversation — ${t.title || t.name}`,
+                    onClick: () => { setEditing(t.name); setDraft(t.title || ''); setConfirming('') }
+                  }),
+                  confirming === t.name
+                    ? jsx(Btn, {
+                        size: 'sm', className: 'nb-danger',
+                        label: `Confirm delete — ${t.title || t.name}`,
+                        onClick: () => { setConfirming(''); onDelete(t.name) },
+                        children: 'Really delete'
+                      })
+                    : jsx(IconBtn, {
+                        icon: 'trash', size: 13, label: `Delete conversation — ${t.title || t.name}`,
+                        onClick: () => setConfirming(t.name)
+                      })))
+        })),
+      el('div', { className: 'nb-hint',
+        children: 'Each conversation keeps its own history; answers still cite the same sources.' }))
+  })
+}
+
 const CITE_TEXT_CACHE = new Map()
 
-function Msg({ msg, onCite, notebook }) {
+function Msg({ msg, onCite, notebook, canRetry, onRetry }) {
   const isUser = msg.role === 'user'
   const [citePop, setCitePop] = useState(null)
 
   const citeFor = (n) => (msg.citations || []).find((c) => c.n === n)
+  // hand the whole citation up — its snippet lets the source open at the
+  // exact passage the answer cited
+  const citeClick = (n) => onCite && onCite(n, citeFor(n))
 
   const onMouseOver = (e) => {
-    const b = e.target && e.target.closest ? e.target.closest('.nb-inline-cite') : null
+    const b = e.target && e.target.closest ? e.target.closest('.nb-inline-cite, .nb-citechip') : null
     if (!b || !notebook) return
     const n = Number(b.getAttribute('data-n'))
     const c = citeFor(n)
     if (!c) return
     const r = b.getBoundingClientRect()
-    setCitePop({ n, x: r.left, y: r.bottom + 8, title: c.title, kind: c.kind, id: c.id, text: null, loading: true })
+    // citations carry the passage they were built from — show it instantly;
+    // older messages without snippets fall back to the source's head
+    const snippet = c.snippet ? String(c.snippet).replace(/\s+/g, ' ').trim().slice(0, 420) : ''
+    setCitePop({ n, x: r.left, y: r.bottom + 8, title: c.title, kind: c.kind, id: c.id, text: snippet || null, loading: !snippet })
+    if (snippet) return
     const key = `${notebook.id}:${c.id || n}`
     if (CITE_TEXT_CACHE.has(key)) {
       setCitePop((p) => (p && p.n === n ? { ...p, text: CITE_TEXT_CACHE.get(key), loading: false } : p))
@@ -486,7 +886,7 @@ function Msg({ msg, onCite, notebook }) {
       })
   }
   const onMouseOut = (e) => {
-    const b = e.target && e.target.closest ? e.target.closest('.nb-inline-cite') : null
+    const b = e.target && e.target.closest ? e.target.closest('.nb-inline-cite, .nb-citechip') : null
     if (b) setCitePop(null)
   }
 
@@ -501,6 +901,15 @@ function Msg({ msg, onCite, notebook }) {
             el('div', { className: 'nb-who' },
               'Hermes Notebook',
               msg.meta ? el('span', { style: { marginLeft: '8px', color: T.text4, fontWeight: 500, textTransform: 'none', letterSpacing: 0 }, children: `· ${msg.meta}` }) : null,
+              jsx(IconBtn, {
+                icon: 'copy', size: 13, label: 'Copy answer',
+                onClick: () => {
+                  try { if (navigator.clipboard) navigator.clipboard.writeText(msg.content) } catch { /* clipboard unavailable */ }
+                }
+              }),
+              canRetry
+                ? jsx(IconBtn, { icon: 'refresh', size: 13, label: 'Regenerate this answer', onClick: onRetry })
+                : null,
               notebook ? jsx(IconBtn, {
                 icon: 'pin', size: 13, label: 'Save this answer as a note',
                 onClick: async () => {
@@ -515,12 +924,13 @@ function Msg({ msg, onCite, notebook }) {
                 }
               }) : null),
             el('div', { className: 'nb-bubble' },
-              jsx(Markdown, { text: msg.content, onCite })),
+              jsx(Markdown, { text: msg.content, onCite: citeClick })),
             (msg.citations || []).length
               ? el('div', { style: { display: 'flex', gap: '6px', flexWrap: 'wrap', marginTop: '10px' }, role: 'list', 'aria-label': 'Citations' },
                   msg.citations.map((c) => el('button', {
                     key: `${c.n}-${c.title}`, type: 'button', className: 'nb-chip nb-citechip',
-                    onClick: () => onCite && onCite(c.n),
+                    'data-n': c.n,
+                    onClick: () => citeClick(c.n),
                     title: c.origin || c.title,
                     'aria-label': `Citation ${c.n} — ${c.title}`,
                     children: [el('b', { children: `S${c.n}` }), el('span', { children: c.title })]
@@ -549,27 +959,88 @@ function Msg({ msg, onCite, notebook }) {
 
 /* ---------------------------------------------------------------- peek */
 
-function SourcePeek({ source, notebook, onClose, onAskAbout }) {
+function SourcePeek({ source, notebook, onClose, onAskAbout, onRefresh, onPrev, onNext }) {
   const [text, setText] = useState('')
   const [err, setErr] = useState('')
+  const [refreshing, setRefreshing] = useState(false)
+  const [hi, setHi] = useState(null)
   useEffect(() => {
     let live = true
     setText('')
+    setHi(null)
     api(`/source_text?${qs({ notebook: notebook.id, id: source.id, chars: 24000 })}`)
       .then((out) => { if (live) setText(out.text || '') })
       .catch((e) => { if (live) setErr(e.message || String(e)) })
     return () => { live = false }
-  }, [source.id, notebook.id])
+  }, [source.id, notebook.id, source.chars, source.refreshed_at])
+
+  // a citation carries the passage it was built from — find it in the stored
+  // text (whitespace-normalized, since chunks reflow) and mark it
+  const citeSnippet = source.citeSnippet || ''
+  useEffect(() => {
+    setHi(null)
+    const h = String(citeSnippet).replace(/\s+/g, ' ').trim()
+    if (!text || h.length < 20) return undefined
+    const norm = []
+    const map = []
+    let ws = false
+    for (let i = 0; i < text.length; i += 1) {
+      const c = text[i]
+      if (/\s/.test(c)) {
+        if (!ws) { norm.push(' '); map.push(i) }
+        ws = true
+      } else { norm.push(c); map.push(i); ws = false }
+    }
+    const ntext = norm.join('')
+    for (const len of [h.length, 240, 140, 80]) {
+      if (len > h.length) continue
+      const needle = h.slice(0, len)
+      const ni = ntext.indexOf(needle)
+      if (ni < 0) continue
+      const start = map[ni]
+      const end = map[Math.min(ni + needle.length - 1, map.length - 1)] + 1
+      setHi({ start, end })
+      break
+    }
+    return undefined
+  }, [text, citeSnippet])
+
+  useEffect(() => {
+    if (!hi) return undefined
+    const n = document.querySelector('.nb-hl')
+    if (n) n.scrollIntoView({ block: 'center' })
+    return undefined
+  }, [hi])
   return el('div', { className: 'nb-view' },
     el('div', { className: 'nb-view-head' },
       el('span', { className: 'nb-chip', 'data-tone': 'accent', children: `S${source.n}` }),
       el('div', { style: { flex: 1, minWidth: 0 } },
         el('div', { className: 'nb-view-title', children: source.title }),
         el('div', { style: { fontSize: '12.5px', color: T.text4, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' },
-          children: `${kindLabel(source.kind)} · ${nfmt(source.chars)} chars · ${source.origin || 'stored text'}` })),
+          children: `${kindLabel(source.kind)} · ${nfmt(source.chars)} chars · ${source.origin || 'stored text'}` +
+            (source.added_at ? ` · added ${ago(source.added_at)}` : '') +
+            (source.refreshed_at ? ` · refreshed ${ago(source.refreshed_at)}` : '') })),
       source.origin && source.origin.startsWith('http')
         ? jsx(IconBtn, { icon: 'external', label: 'Open the original', onClick: () => host.openLink ? host.openLink(source.origin) : window.open(source.origin, '_blank') })
         : null,
+      text
+        ? jsx(IconBtn, {
+            icon: 'copy', label: 'Copy source text',
+            onClick: () => { try { if (navigator.clipboard) navigator.clipboard.writeText(text) } catch { /* clipboard unavailable */ } }
+          })
+        : null,
+      onRefresh && !['note', 'text'].includes(source.kind)
+        ? jsx(IconBtn, {
+            icon: 'refresh', label: 'Refresh source — re-fetch it from its origin',
+            active: refreshing, disabled: refreshing,
+            onClick: async () => {
+              setRefreshing(true)
+              try { await onRefresh() } finally { setRefreshing(false) }
+            }
+          })
+        : null,
+      onPrev ? jsx(IconBtn, { icon: 'arrowLeft', label: `Previous source — S${source.n - 1}`, onClick: onPrev }) : null,
+      onNext ? jsx(IconBtn, { icon: 'arrowRight', label: `Next source — S${source.n + 1}`, onClick: onNext }) : null,
       jsx(IconBtn, { icon: 'close', label: 'Close source', onClick: onClose })
     ),
     el('div', { className: 'nb-view-body' },
@@ -598,7 +1069,11 @@ function SourcePeek({ source, notebook, onClose, onAskAbout }) {
           ? el('pre', {
               className: 'nb-mono',
               style: { whiteSpace: 'pre-wrap', fontSize: '14.5px', lineHeight: 1.7, color: T.text2, margin: 0 },
-              children: text
+              children: hi
+                ? [text.slice(0, hi.start),
+                   el('mark', { key: 'hl', className: 'nb-hl', children: text.slice(hi.start, hi.end) }),
+                   text.slice(hi.end)]
+                : text
             })
           : el('div', { className: 'nb-hint', children: 'reading…' }))
   )
@@ -606,7 +1081,7 @@ function SourcePeek({ source, notebook, onClose, onAskAbout }) {
 
 /* --------------------------------------------------------------- studio panel */
 
-function StudioPanel({ kinds, notebook, busy, generate, filter, setFilter, onOpen, onCollapse, onAddNote }) {
+function StudioPanel({ kinds, notebook, busy, generate, filter, setFilter, onOpen, onDelete, onCollapse, onAddNote }) {
   const ready = latestByKind(notebook ? notebook.artifacts : [])
   const arts = (notebook && notebook.artifacts) || []
   const kindGroup = {}
@@ -646,10 +1121,12 @@ function StudioPanel({ kinds, notebook, busy, generate, filter, setFilter, onOpe
           onOpen: () => { const a = ready[k.id]; if (a) onOpen(a); else generate(k.id) },
           onGenerate: (opts) => generate(k.id, opts)
         })))),
-    el('div', { className: 'nb-pad', style: { paddingTop: '10px', paddingBottom: '4px', borderTop: `1px solid ${T.lineSoft}` } },
-      el('div', { style: { display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' } },
-        el('span', { className: 'nb-meta', children: 'Artifacts' }),
+    el('div', { className: 'nb-pad', style: { paddingTop: '12px', paddingBottom: 0, borderTop: `1px solid ${T.lineSoft}` } },
+      el('div', { style: { display: 'flex', alignItems: 'baseline', gap: '8px' } },
+        el('span', { className: 'nb-meta', children: `Files · ${shownArts.length}` }),
         el('span', { style: { flex: 1 } }),
+        el('span', { className: 'nb-meta', style: { color: T.text4 }, children: 'every run on disk' })),
+      el('div', { className: 'nb-chiprow' },
         FILTERS.map((f) => jsx(Chip, {
           key: f.id, tone: filter === f.id ? 'accent' : undefined,
           pressed: filter === f.id,
@@ -657,28 +1134,34 @@ function StudioPanel({ kinds, notebook, busy, generate, filter, setFilter, onOpe
           title: `${f.label} artifacts`, children: f.label
         })))),
     el('div', { className: 'nb-scroll', ref: scrollRef, 'data-scrollable': canScroll ? 'true' : 'false' },
-      el('div', { className: 'nb-artlist', style: { padding: '4px 8px 18px' } },
+      el('div', { className: 'nb-artlist', style: { padding: '4px 8px 56px' } },
         shownArts.length === 0
           ? el('div', { className: 'nb-hint', style: { padding: '14px 8px', lineHeight: 1.5 } },
               notebook && notebook.sources && notebook.sources.length
                 ? 'Nothing generated yet — pick an output above.'
                 : 'Add sources first — every artifact is built from them.')
-          : shownArts.map((a, i) => el('button', {
-              key: a.key || a.primary || i, type: 'button', className: 'nb-art',
-              'data-kind': a.kind,
-              onClick: () => onOpen(a),
-              'aria-label': `Open ${a.label || a.kind}`,
-              title: a.primary || a.label,
-              children: [
-                el('span', { className: 'nb-art-ico', 'aria-hidden': 'true' },
-                  i < 12 ? jsx(ArtThumb, { run: a, nbId: notebook && notebook.id })
-                    : jsx(Glyph, { name: KIND_ICON[a.kind] || 'doc', size: 17 })),
-                el('span', { className: 'nb-art-main' },
-                  el('span', { className: 'nb-art-title', children: a.label || a.kind }),
-                  el('span', { className: 'nb-art-sub',
-                    children: `${nfmt(a.bytes)} · ${ago(a.modified)}` }))
-              ]
-            }, a.key || a.primary || i)))),
+          : shownArts.map((a, i) => el('div', { key: a.key || a.primary || i, className: 'nb-artrow' },
+              el('button', {
+                type: 'button', className: 'nb-art',
+                'data-kind': a.kind,
+                onClick: () => onOpen(a),
+                'aria-label': `Open ${a.title || a.label || a.kind}`,
+                title: `${a.title || a.primary || a.label}${optsSummary(a.opts) ? ` — ${optsSummary(a.opts)}` : ''}`,
+                children: [
+                  el('span', { className: 'nb-art-ico', 'aria-hidden': 'true' },
+                    i < 12 ? jsx(ArtThumb, { run: a, nbId: notebook && notebook.id })
+                      : jsx(Glyph, { name: KIND_ICON[a.kind] || 'doc', size: 17 })),
+                  el('span', { className: 'nb-art-main' },
+                    el('span', { className: 'nb-art-title', children: a.title || a.label || a.kind }),
+                    el('span', { className: 'nb-art-sub',
+                      children: `${nfmt(a.bytes)} · ${ago(a.modified)}${a.opts && Object.keys(a.opts).length ? ' · tailored' : ''}` }))
+                ]
+              }, a.key || a.primary || i),
+              onDelete ? jsx(IconBtn, {
+                icon: 'trash', size: 13, className: 'nb-art-del',
+                label: `Delete ${a.label || a.kind} artifact`,
+                onClick: () => onDelete(a)
+              }) : null)))),
     canScroll ? jsx('div', { className: 'nb-fade', 'aria-hidden': 'true' }) : null,
     el('div', { className: 'nb-pad', style: { borderTop: `1px solid ${T.lineSoft}`, display: 'flex', justifyContent: 'center', paddingTop: '10px', paddingBottom: '12px' } },
       jsx(Btn, { icon: 'note', onClick: onAddNote, disabled: !notebook, children: 'Add note' }))
@@ -691,24 +1174,19 @@ function GenPill({ kind, art, started, nbId, onOpen, onGenerate }) {
   const [cfgOpen, setCfgOpen] = useState(false)
   const [notes, setNotes] = useState(null)
   const [notesBusy, setNotesBusy] = useState(false)
-  const [thumbs, setThumbs] = useState(null)        // style id -> data: URL
   const optSpecs = kind.options || []
-  // Opening the options dialog asks the backend for one thumbnail per style, drawn
-  // by the same renderer that will draw the artifact — so the choice is made on the
-  // real thing, using this notebook's own last infographic when it has one.
-  useEffect(() => {
-    if (!cfgOpen || !nbId) return undefined
-    let live = true
-    api(`/infographic_styles?previews=1&${qs({ notebook: nbId })}`, { timeoutMs: 120000 })
-      .then((out) => { if (live && out && out.previews) setThumbs(out.previews) })
-      .catch(() => {})
-    return () => { live = false }
-  }, [cfgOpen, nbId])
   useEffect(() => {
     if (!started) return undefined
     const t = setInterval(() => force((n) => n + 1), 1000)
     return () => clearInterval(t)
   }, [started])
+  // prefill the customize popover with the knobs the latest run actually used
+  useEffect(() => {
+    if (art && art.opts && Object.keys(art.opts).length && !Object.keys(opts).length) {
+      setOpts({ ...art.opts })
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [art && art.key])
   const secs = started ? Math.max(0, Math.round((Date.now() - started) / 1000)) : 0
   const state = started ? `writing · ${secs}s` : art ? `ready · ${ago(art.modified)}` : 'Generate'
   const pick = (id, v) => setOpts((o) => ({ ...o, [id]: v }))
@@ -748,91 +1226,52 @@ function GenPill({ kind, art, started, nbId, onOpen, onGenerate }) {
         })
       : null,
     cfgOpen && optSpecs.length
-      // Sixteen looks do not fit an inline popover in a 330px rail: the options
-      // open as a real dialog, sized for the choice list rather than the card.
-      ? jsx(Dialog, {
-          open: true, title: `${kind.label} options`, width: 560,
-          onClose: () => setCfgOpen(false),
-          children: el('div', { style: { display: 'grid', gap: '16px' } },
-            optSpecs.map((spec) => el('div', { key: spec.id, className: 'nb-genopt' },
-              el('div', { className: 'nb-genopt-label', children: spec.label }),
-              spec.kind === 'text'
-                ? el('input', {
-                    className: 'nb-genopt-text', type: 'text',
-                    placeholder: spec.placeholder || '',
-                    value: opts[spec.id] || '',
-                    onChange: (e) => pick(spec.id, e.target.value)
-                  })
-                : spec.kind === 'select'
-                  ? el('div', { className: 'nb-stylewrap' },
-                      el('div', { className: 'nb-stylegrid', role: 'radiogroup', 'aria-label': spec.label },
-                        (spec.items || (spec.choices || []).map((c) => ({ id: c, label: c }))).map((it) => {
-                          const cur = (opts[spec.id] || spec.default || (spec.choices || [])[0]) === it.id
-                          const src = thumbs && thumbs[it.id]
-                        const loaded = !!thumbs
-                          return el('button', {
-                            key: it.id, type: 'button', role: 'radio',
-                            'aria-checked': cur ? 'true' : 'false',
-                            className: 'nb-styleopt', 'data-on': cur ? 'true' : 'false',
-                            title: it.blurb || it.label,
-                            onClick: () => pick(spec.id, it.id),
-                            children: [
-                              el('span', { className: 'nb-stylethumb', 'data-empty': src ? undefined : 'true' },
-                                src ? el('img', { src, alt: `${it.label} infographic style`, loading: 'lazy' }) : null,
-                                cur ? el('span', { className: 'nb-stylecheck', 'aria-hidden': 'true', children: '✓' }) : null),
-                              el('span', { className: 'nb-stylelabel', children: it.label })
-                            ]
-                          })
-                        })),
-                      el('div', { className: 'nb-stylehint',
-                                  children: thumbs
-                                    ? 'Previews are this notebook’s own last infographic, drawn in each style.'
-                                    : 'Drawing previews…' }))
-                  : el(Seg, {
-                      value: opts[spec.id] || spec.choices[0],
-                      onChange: (v) => pick(spec.id, v),
-                      options: spec.choices.map((c) => ({
-                        id: c, label: c.replace(/_/g, ' ').replace(/\b\w/g, (ch) => ch.toUpperCase())
-                      }))
-                    }))),
-            kind.id === 'video_overview' && nbId
-              ? el('div', { style: { borderTop: `1px solid ${T.lineSoft}`, paddingTop: '12px', display: 'grid', gap: '8px' } },
-                  jsx(Btn, {
-                    size: 'sm', icon: 'doc', disabled: notesBusy || started,
-                    onClick: async () => {
-                      setNotesBusy(true)
-                      try {
-                        const out = await api('/video_notes', {
-                          method: 'POST',
-                          body: { notebook: nbId, style: opts.style || 'cinematic', length: opts.length || 'short' },
-                          timeoutMs: 180000
-                        })
-                        setNotes(out)
-                      } catch (e) {
-                        setNotes({ error: e.message || String(e) })
-                      } finally {
-                        setNotesBusy(false)
-                      }
-                    },
-                    children: notesBusy ? 'Writing script…' : 'Review script first'
-                  }),
-                  notes && !notes.error
-                    ? jsx(Btn, {
-                        size: 'sm', variant: 'primary', disabled: started,
-                        onClick: () => { setCfgOpen(false); onGenerate({ ...opts, notes }) },
-                        children: `Render with these notes (${(notes.beats || []).length} beats)`
+      ? el('div', { className: 'nb-genpop', role: 'dialog', 'aria-label': `${kind.label} options` },
+          optSpecs.map((spec) => el('div', { key: spec.id, className: 'nb-genopt' },
+            el('div', { className: 'nb-genopt-label', children: spec.label }),
+            spec.kind === 'text'
+              ? el('input', {
+                  className: 'nb-genopt-text', type: 'text',
+                  placeholder: spec.placeholder || '',
+                  value: opts[spec.id] || '',
+                  onChange: (e) => pick(spec.id, e.target.value)
+                })
+              : el(Seg, {
+                  value: opts[spec.id] || spec.choices[0],
+                  onChange: (v) => pick(spec.id, v),
+                  options: spec.choices.map((c) => ({
+                    id: c, label: c.replace(/_/g, ' ').replace(/\b\w/g, (ch) => ch.toUpperCase())
+                  }))
+                }))),
+          kind.id === 'video_overview' && nbId
+            ? el('div', { style: { borderTop: `1px solid ${T.lineSoft}`, paddingTop: '10px', display: 'grid', gap: '8px' } },
+                jsx(Btn, {
+                  size: 'sm', icon: 'doc', disabled: notesBusy || started,
+                  onClick: async () => {
+                    setNotesBusy(true)
+                    try {
+                      const out = await api('/video_notes', {
+                        method: 'POST',
+                        body: { notebook: nbId, style: opts.style || 'cinematic', length: opts.length || 'short', language: opts.language || '', focus: opts.focus || '' },
+                        timeoutMs: 180000
                       })
-                    : null)
-              : null,
-            el('div', { style: { display: 'flex', justifyContent: 'flex-end', gap: '8px',
-                                 borderTop: `1px solid ${T.lineSoft}`, paddingTop: '12px' } },
-              jsx(Btn, { size: 'sm', onClick: () => setCfgOpen(false), children: 'Cancel' }),
-              jsx(Btn, {
-                size: 'sm', variant: 'primary', disabled: !!started,
-                onClick: () => { setCfgOpen(false); onGenerate(opts) },
-                children: art ? 'Regenerate' : 'Generate'
-              })))
-        })
+                      setNotes(out)
+                    } catch (e) {
+                      setNotes({ error: e.message || String(e) })
+                    } finally {
+                      setNotesBusy(false)
+                    }
+                  },
+                  children: notesBusy ? 'Writing script…' : 'Review script first'
+                }),
+                notes && !notes.error
+                  ? jsx(Btn, {
+                      size: 'sm', variant: 'primary', disabled: started,
+                      onClick: () => { setCfgOpen(false); onGenerate({ ...opts, notes }) },
+                      children: `Render with these notes (${(notes.beats || []).length} beats)`
+                    })
+                  : null)
+            : null)
       : null,
     notes
       ? jsx(Dialog, {
@@ -854,102 +1293,6 @@ function GenPill({ kind, art, started, nbId, onOpen, onGenerate }) {
       : null
   )
 }
-
-/* ----------------------------------------------------------------- threads
- * A notebook is usually several lines of enquiry at once. The picker in the chat
- * header lists them, opens one, renames it, or starts a clean one — each thread
- * keeps its own memory, so "pricing" does not drag the history of "history" along.
- */
-function ThreadsDialog({ open, threads, active, busy, onClose, onOpen, onNew, onRename, onDelete }) {
-  const [title, setTitle] = useState('')
-  const [editing, setEditing] = useState('')
-  const [draft, setDraft] = useState('')
-  const [confirming, setConfirming] = useState('')
-  const list = threads || []
-
-  const commitRename = (name) => {
-    const next = draft.trim()
-    setEditing('')
-    if (next) onRename(name, next)
-  }
-
-  return jsx(Dialog, {
-    open: true, title: 'Conversations', width: 620, onClose,
-    children: el('div', { style: { display: 'grid', gap: '14px' } },
-      el('div', { className: 'nb-newthread' },
-        el('input', {
-          className: 'nb-genopt-text', type: 'text', autoFocus: true,
-          placeholder: 'Name a new conversation (optional)',
-          'aria-label': 'New conversation name',
-          value: title,
-          onChange: (e) => setTitle(e.target.value),
-          onKeyDown: (e) => { if (e.key === 'Enter') { onNew(title); setTitle('') } }
-        }),
-        jsx(Btn, {
-          size: 'sm', variant: 'primary', icon: 'plus', disabled: busy,
-          onClick: () => { onNew(title); setTitle('') },
-          children: 'Start'
-        })),
-      el('div', { className: 'nb-threadlist', role: 'list', 'aria-label': 'Conversations' },
-        list.length === 0
-          ? el('div', { className: 'nb-hint', style: { padding: '10px 4px' },
-              children: 'No conversations yet — the first question starts one.' })
-          : list.map((t) => {
-              const on = t.name === active
-              const isEditing = editing === t.name
-              return el('div', {
-                key: t.name, className: 'nb-threadrow', role: 'listitem',
-                'data-on': on ? 'true' : 'false'
-              },
-              el('button', {
-                type: 'button', className: 'nb-threadrow-main',
-                disabled: isEditing,
-                onClick: () => onOpen(t.name),
-                'aria-current': on ? 'true' : undefined,
-                'aria-label': `Open conversation ${t.title}`,
-                children: [
-                  el('span', { className: 'nb-threadrow-title', children: t.title }),
-                  el('span', { className: 'nb-threadrow-meta',
-                    children: `${t.messages || 0} message${t.messages === 1 ? '' : 's'}`
-                             + (t.updated ? ` · ${ago(t.updated)}` : '') })
-                ]
-              }),
-              isEditing
-                ? el('div', { className: 'nb-threadrow-edit' },
-                    el('input', {
-                      className: 'nb-genopt-text', type: 'text', autoFocus: true,
-                      'aria-label': `Rename ${t.title}`,
-                      value: draft,
-                      onChange: (e) => setDraft(e.target.value),
-                      onKeyDown: (e) => {
-                        if (e.key === 'Enter') commitRename(t.name)
-                        if (e.key === 'Escape') setEditing('')
-                      }
-                    }),
-                    jsx(Btn, { size: 'sm', onClick: () => commitRename(t.name), children: 'Save' }))
-                : el('div', { className: 'nb-threadrow-acts' },
-                    jsx(Btn, {
-                      size: 'sm', icon: 'note', label: `Rename ${t.title}`,
-                      children: 'Rename',
-                      onClick: () => { setEditing(t.name); setDraft(t.title); setConfirming('') }
-                    }),
-                    confirming === t.name
-                      ? jsx(Btn, {
-                          size: 'sm', className: 'nb-danger', label: `Confirm delete ${t.title}`,
-                          onClick: () => { setConfirming(''); onDelete(t.name) },
-                          children: 'Really delete'
-                        })
-                      : jsx(Btn, {
-                          size: 'sm', icon: 'close', label: `Delete ${t.title}`,
-                          children: 'Delete',
-                          onClick: () => setConfirming(t.name)
-                        })))
-            })),
-      el('div', { className: 'nb-hint',
-        children: 'Each conversation keeps its own history; answers still cite the same sources.' }))
-  })
-}
-
 
 /* ------------------------------------------------------------- art thumbs
  * Cheap previews inside the 40px artifact tile: infographic fetches its png
@@ -1056,6 +1399,72 @@ const SOURCE_MODES = [
 
 const hostOf = (url) => {
   try { return new URL(url).hostname.replace(/^www\./, '') } catch { return '' }
+}
+
+/* notebook-wide passage search — deterministic BM25 over every source,
+   results open the owning source in the peek pane. */
+function SearchDialog({ open, onClose, notebook, onPick }) {
+  const [q, setQ] = useState('')
+  const [hits, setHits] = useState(null)
+  const [busy, setBusy] = useState(false)
+  const [err, setErr] = useState('')
+  const nbId = notebook && notebook.id
+
+  useEffect(() => {
+    if (!open) { setQ(''); setHits(null); setErr(''); setBusy(false); return undefined }
+    const query = q.trim()
+    if (query.length < 2 || !nbId) { setHits(null); setBusy(false); return undefined }
+    let live = true
+    setBusy(true)
+    const t = setTimeout(() => {
+      api('/search', { method: 'POST', body: { notebook: nbId, query, limit: 12 }, timeoutMs: 30000 })
+        .then((out) => {
+          if (!live) return
+          setHits((((out || {}).result || {}).hits) || [])
+          setErr('')
+        })
+        .catch((e) => { if (live) { setHits([]); setErr(e.message || String(e)) } })
+        .finally(() => { if (live) setBusy(false) })
+    }, 260)
+    return () => { live = false; clearTimeout(t) }
+  }, [q, open, nbId])
+
+  const query = q.trim()
+  const mark = (text) => {
+    if (!query) return text
+    const parts = String(text || '').split(
+      new RegExp(`(${query.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')})`, 'ig'))
+    return parts.map((p, i) => (i % 2 ? el('mark', { key: i, children: p }) : p))
+  }
+
+  return jsx(Dialog, {
+    open, onClose, title: 'Search this notebook', width: 640,
+    children: [
+      jsx(SearchField, {
+        value: q, onChange: setQ,
+        placeholder: 'Search across every source…', label: 'Search this notebook'
+      }),
+      el('div', { style: { marginTop: '14px', display: 'grid', gap: '8px' } },
+        err ? el('div', { style: { color: T.danger, fontSize: '13px' }, children: err }) : null,
+        query.length < 2
+          ? el('div', { className: 'nb-hint', children: 'Type at least two characters — results are ranked passages from your sources.' })
+          : null,
+        query.length >= 2 && !busy && hits && hits.length === 0
+          ? el('div', { className: 'nb-hint', children: `No passages match “${query}”.` })
+          : null,
+        busy ? el('div', { className: 'nb-hint', children: 'searching…' }) : null,
+        (hits || []).map((h) => el('button', {
+          key: `${h.source_id}-${h.chunk_index}`, type: 'button', className: 'nb-search-hit',
+          onClick: () => { if (onPick) onPick(h); onClose() },
+          children: [
+            el('div', { className: 'nb-search-hit-head' },
+              el('b', { children: h.title || h.source_id }),
+              h.kind ? el('span', { className: 'nb-meta', children: kindLabel(h.kind) }) : null),
+            el('div', { className: 'nb-search-hit-snip', children: mark(h.snippet) })
+          ]
+        })))
+    ]
+  })
 }
 
 function AddSourceDialog({ open, onClose, notebook, onDone, initialMode, seedQuery, noteOnly }) {

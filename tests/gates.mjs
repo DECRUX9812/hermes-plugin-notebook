@@ -115,6 +115,24 @@ async function functional(port) {
   const cards = await page.locator('.nb-card').count()
   ok('studio renders all outputs', cards === 13, `${cards} cards`)
 
+  // Discover is its own surface, and it must start empty rather than pretending
+  // it has results: the panel only fills after a real /discover pass.
+  const discoverTab = page.locator('.nb-seg button', { hasText: 'Discover' })
+  if (await discoverTab.count()) {
+    await discoverTab.first().click()
+    await settle(page, 400)
+    const panel = await page.locator('.nb-disc').count()
+    const empty = await page.locator('.nb-disc-empty').count()
+    const input = await page.locator('.nb-input').count()
+    ok('discover surface renders with its own search box', panel === 1 && input === 1,
+       `panel=${panel} input=${input}`)
+    ok('discover starts empty, not with invented results', empty >= 1, `${empty} empty state`)
+    await page.locator('.nb-seg button', { hasText: 'Studio' }).first().click()
+    await settle(page, 300)
+  } else {
+    ok('discover surface renders with its own search box', false, 'no Discover tab')
+  }
+
   // a ready card opens the viewer for its own kind
   const ready = page.locator('.nb-card[data-ready="true"]').first()
   const readyCount = await page.locator('.nb-card[data-ready="true"]').count()
@@ -144,16 +162,25 @@ async function functional(port) {
   const cites = await page.locator('.nb-inline-cite').count()
   ok('answer carries inline citations', cites > 0, `${cites} markers`)
 
-  // citations inside an ANSWER — the overview block has its own markers, and
-  // testing "a citation opens its source" against those tests the wrong element
-  const citeBtn = page.locator('.nb-msg .nb-inline-cite').first()
+  // A citation only opens a source when its [S#] maps to a source row. The mock
+  // answer can name more sources than the notebook has, so pick the first marker
+  // that is actually bound to one — otherwise the check is a coin flip.
   if (cites) {
-    await citeBtn.click()
-    await settle(page, 500)
-    const peek = await page.locator('.nb-view-title').count()
-    ok('a citation opens the source it points at', peek > 0, 'source peek open')
-    await page.locator('.nb-tab', { hasText: 'Chat' }).click()
-    await settle(page, 200)
+    const srcCount = await page.locator('.nb-src').count()
+    const numbers = await page.locator('.nb-inline-cite').evaluateAll(
+      (nodes) => nodes.map((n) => Number(n.getAttribute('data-n')) || 0))
+    const idx = numbers.findIndex((n) => n >= 1 && n <= srcCount)
+    if (idx >= 0) {
+      await page.locator('.nb-inline-cite').nth(idx).click()
+      await settle(page, 500)
+      const peek = await page.locator('.nb-view-title').count()
+      ok('a citation opens the source it points at', peek > 0, `S${numbers[idx]} of ${srcCount}`)
+      await page.locator('.nb-tab', { hasText: 'Chat' }).click()
+      await settle(page, 200)
+    } else {
+      ok('a citation opens the source it points at', false,
+         `no marker maps to one of ${srcCount} sources (${numbers.join(',')})`)
+    }
   }
 
   // label filter narrows the rail

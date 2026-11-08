@@ -41,14 +41,12 @@ renders that sentence.
 
 from __future__ import annotations
 
-import base64
-import io
 import json
 import mimetypes
 import sys
 import time
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Optional
 
 from fastapi import APIRouter, Body, HTTPException, Query
 from fastapi.responses import FileResponse, JSONResponse, PlainTextResponse
@@ -74,7 +72,9 @@ KINDS: List[Dict[str, Any]] = [
      "options": [{"id": "style", "label": "Style",
                   "choices": ["cinematic", "explainer"]},
                  {"id": "length", "label": "Length",
-                  "choices": ["short", "medium", "long"]}]},
+                  "choices": ["short", "medium", "long"]},
+                 {"id": "language", "label": "Language", "kind": "text",
+                  "placeholder": "Auto (English)"}]},
     {"id": "audio_overview", "label": "Audio Overview", "group": "media", "ext": "mp3",
      "blurb": "Hosts talking through the sources", "secs": 90,
      "options": [{"id": "format", "label": "Format",
@@ -106,10 +106,10 @@ KINDS: List[Dict[str, Any]] = [
      "options": [
          {"id": "style", "label": "Look", "kind": "select",
           "default": gfx_themes.DEFAULT_PRESET,
-          "choices": [s["id"] for s in gfx_themes.catalog()],
-          "items": [{"id": s["id"], "label": s["label"], "blurb": s["blurb"],
-                     "family": s["family"], "swatch": s["swatch"]}
-                    for s in gfx_themes.catalog()]},
+          "choices": [p["id"] for p in gfx_themes.catalog()],
+          "items": [{"id": p["id"], "label": p["label"], "blurb": p["blurb"],
+                     "family": p["family"], "swatch": p["swatch"]}
+                    for p in gfx_themes.catalog()]},
          {"id": "template", "label": "Layout", "kind": "select", "default": "infographic",
           "choices": ["infographic", "key_figure", "stat_grid", "timeline",
                       "comparison", "process", "quote_card", "cover", "illustration"],
@@ -125,6 +125,23 @@ KINDS: List[Dict[str, Any]] = [
      "blurb": "Structured rows, exports to Sheets", "secs": 14},
 ]
 KIND_INDEX = {k["id"]: k for k in KINDS}
+
+# Every generator accepts a free-text focus — surfaced as a universal option
+# so each studio card's customize popover can narrow the run ("only costs").
+_FOCUS_OPTION = {"id": "focus", "label": "Focus", "kind": "text",
+                 "placeholder": "e.g. only the cost and timeline sections"}
+
+
+def _kinds_payload() -> list:
+    out = []
+    for k in KINDS:
+        kk = dict(k)
+        opts = list(kk.get("options") or [])
+        if not any(o.get("id") == "focus" for o in opts):
+            opts.append(dict(_FOCUS_OPTION))
+        kk["options"] = opts
+        out.append(kk)
+    return out
 MEDIA_EXT = {"mp4": "video/mp4", "mp3": "audio/mpeg", "png": "image/png",
              "html": "text/html", "webm": "video/webm", "wav": "audio/wav",
              "svg": "image/svg+xml"}
@@ -170,13 +187,19 @@ def _artifact_kind_of(name: str) -> str:
 
 
 def _artifact_stamp(name: str) -> str:
-    return name.split("-", 2)[0] if name.count("-") >= 2 else ""
+    # filenames are <yyyymmdd>-<hhmmss>-<kind>.<ext> — the run key needs the
+    # full stamp, not just the date, or same-day regenerations of one kind
+    # collapse into a single row (and delete would eat both runs)
+    parts = name.split("-", 2)
+    return "-".join(parts[:2]) if len(parts) >= 3 else ""
 
 
 def _collect_artifacts(notebook_id: str) -> List[Dict[str, Any]]:
     """One row per *generation*, not per file: a single audio run writes .mp3 +
     .txt + .json, and a panel that lists all three reads as a mess."""
     raw = store.list_artifacts(notebook_id)
+    titles = (store.get_meta(notebook_id).get("artifact_titles") or {})
+    gen_opts = (store.get_meta(notebook_id).get("artifact_opts") or {})
     runs: Dict[str, Dict[str, Any]] = {}
     for item in raw:
         name = item["name"]
@@ -189,6 +212,7 @@ def _collect_artifacts(notebook_id: str) -> List[Dict[str, Any]]:
         if item.get("modified", "") > run["modified"]:
             run["modified"] = item["modified"]
     out = []
+    legacy_used = set()
     for run in runs.values():
         exts = {f["ext"] for f in run["files"]}
         meta = KIND_INDEX.get(run["kind"], {})
@@ -199,9 +223,19 @@ def _collect_artifacts(notebook_id: str) -> List[Dict[str, Any]]:
                 break
         else:
             primary = run["files"][0]
+        # titles renamed before the stamp fix live under the date-only key —
+        # the newest run of that day+kind inherits it (files arrive newest-first)
+        legacy_key = f"{run['key'].split('-', 1)[0]}-{run['kind']}"
+        title = titles.get(run["key"], "")
+        if not title and legacy_key not in legacy_used:
+            title = titles.get(legacy_key, "")
+            if title:
+                legacy_used.add(legacy_key)
         out.append({
             "key": run["key"],
             "kind": run["kind"],
+            "title": title,
+            "opts": gen_opts.get(run["key"], {}),
             "label": meta.get("label") or run["kind"].replace("_", " ").title(),
             "group": meta.get("group", "docs"),
             "primary": primary["name"],
@@ -248,17 +282,18 @@ def _notebook_payload(notebook_id: str, thread: str = "") -> Dict[str, Any]:
     names = {t["name"] for t in threads}
     active = wanted if wanted in names else (threads[0]["name"] if threads else store.DEFAULT_THREAD)
     open_thread = store.read_thread(notebook_id, active)
-    msgs = open_thread["messages"][-24:]
+    threads = store.list_threads(notebook_id)
     return {
         "id": meta.get("id", notebook_id),
         "title": meta.get("title") or notebook_id,
         "description": meta.get("description") or "",
+        "emoji": meta.get("emoji") or "",
         "created_at": meta.get("created_at", ""),
         "updated_at": meta.get("updated_at", ""),
         "sources": sources,
         "artifacts": arts,
         "labels": labels,
-        "thread": msgs,
+        "thread": open_thread["messages"][-24:],
         "thread_name": open_thread["name"],
         "thread_title": open_thread["title"],
         "threads": threads,
@@ -292,11 +327,7 @@ def health() -> Dict[str, Any]:
 def infographic_styles(previews: int = Query(0, description="1 = include SVG thumbnails"),
                        notebook: str = Query("", description="preview with this notebook's own last infographic")) -> Dict[str, Any]:
     """The graphics library as the picker needs it: every look, every layout, the
-    shapes and detail levels, and optional previews.
-
-    Previews are SVG data URLs drawn by the same renderer that draws the artifact —
-    a few KB each instead of a 40 KB raster, and sharp at any size.
-    """
+    shapes and detail levels, and optional previews drawn by the real renderer."""
     manifest = gfx.library_manifest()
     out: Dict[str, Any] = {
         "ok": True,
@@ -316,20 +347,18 @@ def infographic_styles(previews: int = Query(0, description="1 = include SVG thu
 
 @router.get("/graphics_library")
 def graphics_library() -> Dict[str, Any]:
-    """Machine-readable inventory of the graphics library (templates × presets ×
-    orientations × detail levels) for host apps and agents."""
+    """Machine-readable inventory of the graphics library for host apps and agents."""
     return {"ok": True, **gfx.library_manifest()}
 
 
-#: Style previews are deterministic for a (payload, preset) pair, so one render per
-#: pair is enough per process.
+#: Style previews are deterministic for a (payload, preset) pair.
 _THUMB_CACHE: Dict[Tuple[str, str], str] = {}
 
 
 def _preview_source(notebook: str) -> Tuple[Dict[str, Any], str]:
-    """The payload previews are drawn from: the notebook's latest infographic JSON
-    when it has one, otherwise the library's built-in sample."""
-    sample = _SAMPLE_GRAPHIC
+    """The payload previews are drawn from: the notebook's latest infographic JSON,
+    otherwise the library's built-in sample."""
+    sample = gfx.samples.SAMPLE_GRAPHIC
     try:
         nb_id = store.resolve_notebook(notebook) if (notebook or "").strip() else ""
         if nb_id:
@@ -345,9 +374,6 @@ def _preview_source(notebook: str) -> Tuple[Dict[str, Any], str]:
     except Exception:
         pass
     return sample, "Tidal power"
-
-
-_SAMPLE_GRAPHIC: Dict[str, Any] = gfx.samples.SAMPLE_GRAPHIC
 
 
 def _style_thumb(data: Dict[str, Any], title: str, style_id: str) -> str:
@@ -406,7 +432,7 @@ def state(notebook: str = Query("", description="notebook id, title or slug"),
         "model_ready": _model_ready(),
         "notebooks": cards,
         "notebook": active,
-        "kinds": KINDS,
+        "kinds": _kinds_payload(),
     }
 
 
@@ -446,27 +472,29 @@ def add_source(payload: Dict[str, Any] = Body(...)) -> Any:
 
 @router.post("/discover")
 def discover(payload: Dict[str, Any] = Body(...)) -> Any:
-    """NotebookLM-style "describe it": web-search candidate sources for a query
-    (empty query falls back to the notebook's own title + description inside
-    the tool). Nothing is added — the page shows the candidates and the user
-    picks, then POSTs the kept urls to /sources."""
-    from hermes_notebook import tools as tools_mod
-    nb = str(payload.get("notebook") or "")
-    args: Dict[str, Any] = {"notebook": nb}
-    query = str(payload.get("query") or "").strip()
-    if query:
-        args["query"] = query
-    if payload.get("max_results"):
-        args["max_results"] = int(payload["max_results"])
+    """A discovery pass that knows the notebook: plan queries from its gaps, fan
+    out across the search providers, rank with a per-domain cap, and explain each
+    candidate. Nothing is added — the page shows the cards and the person picks,
+    then POSTs the kept urls to /sources.
+    """
+    from hermes_notebook import discover as discover_mod
+    nb_arg = str(payload.get("notebook") or "")
+    try:
+        nb_id = store.resolve_notebook(nb_arg)
+    except Exception as exc:
+        return _fail(str(exc), 404)
     _ensure_model()
     try:
-        out = json.loads(tools_mod.notebook_discover(args))
+        out = discover_mod.discover(
+            nb_id,
+            query=str(payload.get("query") or ""),
+            max_results=max(4, min(30, int(payload.get("max_results") or 12))),
+            per_domain=max(1, min(4, int(payload.get("per_domain") or 2))),
+            plan=bool(payload.get("plan", True)),
+        )
     except Exception as exc:
         return _fail(f"{type(exc).__name__}: {exc}", 500)
-    if not out.get("ok"):
-        return _fail(out.get("error") or "search failed", 422, detail=out)
-    return {"ok": True, "query": out.get("query") or "",
-            "candidates": out.get("candidates") or []}
+    return out
 
 
 @router.post("/sources")
@@ -517,18 +545,117 @@ def add_sources(payload: Dict[str, Any] = Body(...)) -> Any:
 @router.post("/source_state")
 def source_state(payload: Dict[str, Any] = Body(...)) -> Any:
     """NotebookLM's per-source checkbox: active sources feed answers and
-    generation; unchecked ones stay stored but out of the context window."""
+    generation; unchecked ones stay stored but out of the context window.
+    `source_ids` (list) bulk-toggles a whole folder/group in one call."""
     nb = str(payload.get("notebook") or "")
-    sid = str(payload.get("source_id") or "")
     enabled = bool(payload.get("enabled", True))
     try:
         nb_id = store.resolve_notebook(nb)
+        sids = payload.get("source_ids")
+        if isinstance(sids, list) and sids:
+            ids = [str(x) for x in sids]
+            known = {s.get("id") for s in store.list_sources(nb_id)}
+            missing = [x for x in ids if x not in known]
+            if missing:
+                return _fail(f"sources not in this notebook: {missing[:3]}", 404)
+            for sid in ids:
+                store.set_source_enabled(nb_id, sid, enabled)
+            return {"ok": True, "active": enabled, "count": len(ids),
+                    "state": _notebook_payload(store.resolve_notebook(nb))}
+        sid = str(payload.get("source_id") or "")
         if not store.get_source(nb_id, sid):
             return _fail(f"source {sid!r} is not in this notebook", 404)
         store.set_source_enabled(nb_id, sid, enabled)
     except Exception as exc:
         return _fail(f"{type(exc).__name__}: {exc}", 500)
     return {"ok": True, "source_id": sid, "active": enabled,
+            "state": _notebook_payload(store.resolve_notebook(nb))}
+
+
+@router.post("/source/delete")
+def delete_source(payload: Dict[str, Any] = Body(...)) -> Any:
+    """Remove a source entirely — index entry + stored text."""
+    nb = str(payload.get("notebook") or "")
+    sid = str(payload.get("source_id") or "")
+    try:
+        nb_id = store.resolve_notebook(nb)
+        store.remove_source(nb_id, sid)
+    except KeyError as exc:
+        return _fail(str(exc), 404)
+    except Exception as exc:
+        return _fail(f"{type(exc).__name__}: {exc}", 500)
+    return {"ok": True, "source_id": sid,
+            "state": _notebook_payload(store.resolve_notebook(nb))}
+
+
+@router.post("/artifact/delete")
+def delete_artifact(payload: Dict[str, Any] = Body(...)) -> Any:
+    """Delete one generated run — every file sharing its stamp+kind prefix."""
+    nb = str(payload.get("notebook") or "")
+    key = str(payload.get("key") or "")
+    try:
+        nb_id = store.resolve_notebook(nb)
+    except Exception as exc:
+        return _fail(str(exc), 404)
+    run = next((a for a in _collect_artifacts(nb_id) if a["key"] == key), None)
+    if not run:
+        return _fail(f"artifact {key!r} is not in this notebook", 404)
+    removed = []
+    for f in run["files"]:
+        try:
+            p = store.artifact_path(nb_id, f["name"])
+            if p.exists():
+                p.unlink()
+                removed.append(f["name"])
+        except Exception:
+            continue
+    if not removed:
+        return _fail("could not remove the artifact files", 500)
+    return {"ok": True, "removed": removed,
+            "state": _notebook_payload(store.resolve_notebook(nb))}
+
+
+@router.post("/artifact/rename")
+def rename_artifact(payload: Dict[str, Any] = Body(...)) -> Any:
+    """Display title for a generated run — filenames encode stamp+kind, so the
+    override lives in notebook meta keyed by the run key. Empty title resets."""
+    nb = str(payload.get("notebook") or "")
+    key = str(payload.get("key") or "")
+    title = str(payload.get("title") or "").strip()[:120]
+    try:
+        nb_id = store.resolve_notebook(nb)
+    except Exception as exc:
+        return _fail(str(exc), 404)
+    run = next((a for a in _collect_artifacts(nb_id) if a["key"] == key), None)
+    if not run:
+        return _fail(f"artifact {key!r} is not in this notebook", 404)
+    titles = dict(store.get_meta(nb_id).get("artifact_titles") or {})
+    if title:
+        titles[key] = title
+    else:
+        titles.pop(key, None)
+    store.update_meta(nb_id, artifact_titles=titles)
+    return {"ok": True, "title": titles.get(key, ""),
+            "state": _notebook_payload(store.resolve_notebook(nb))}
+
+
+@router.post("/source/refresh")
+async def refresh_source(payload: Dict[str, Any] = Body(...)) -> Any:
+    """Re-fetch a url/file source from its locator and update it in place —
+    labels and summary are regenerated to match the new text."""
+    nb = str(payload.get("notebook") or "")
+    sid = str(payload.get("source_id") or "")
+    try:
+        nb_id = store.resolve_notebook(nb)
+        if not store.get_source(nb_id, sid):
+            return _fail(f"source {sid!r} is not in this notebook", 404)
+        from hermes_notebook import ingest
+        updated = await run_in_threadpool(ingest.refresh_source, nb_id, sid)
+    except KeyError as exc:
+        return _fail(str(exc), 404)
+    except Exception as exc:
+        return _fail(f"{type(exc).__name__}: {exc}", 422)
+    return {"ok": True, "source": updated,
             "state": _notebook_payload(store.resolve_notebook(nb))}
 
 
@@ -581,7 +708,7 @@ async def overview(payload: Dict[str, Any] = Body(...)) -> Any:
         nb_id = store.resolve_notebook(nb)
     except Exception as exc:
         return _fail(str(exc), 404)
-    digest = retrieve.notebook_digest(nb_id, max_chars=16000)
+    digest = retrieve.notebook_digest(nb_id, max_chars=16000, cited=True)
     if not digest.strip():
         return _fail("no active sources to summarize — check some sources first", 422)
     started = time.time()
@@ -593,8 +720,10 @@ async def overview(payload: Dict[str, Any] = Body(...)) -> Any:
                     "You write the opening overview of a research notebook. One tight "
                     "paragraph of 3-5 sentences synthesizing what the sources actually "
                     "say — the thesis, the strongest findings, and what is contested. "
-                    "Mark load-bearing terms with **bold** so they scan. No preamble, "
-                    "no sign-off, no invented facts.")},
+                    "Mark load-bearing terms with **bold** so they scan, and cite the "
+                    "source behind each load-bearing claim inline as [S<n>] using the "
+                    "numbers in the excerpt headers. No preamble, no sign-off, no "
+                    "invented facts.")},
                 {"role": "user", "content": f"Notebook source excerpts:\n\n{digest}"},
             ],
             purpose="hermes-notebook.overview",
@@ -635,20 +764,33 @@ def set_options(payload: Dict[str, Any] = Body(...)) -> Any:
 
 @router.post("/notebook/update")
 def update_notebook(payload: Dict[str, Any] = Body(...)) -> Any:
-    """Rename / re-describe a notebook (NotebookLM's notebook settings)."""
+    """Rename / re-describe / re-icon a notebook (NotebookLM's notebook settings)."""
     nb = str(payload.get("notebook") or "")
     title = payload.get("title")
     desc = payload.get("description")
-    if title is None and desc is None:
-        return _fail("give a title and/or description")
+    emoji = payload.get("emoji")
+    if title is None and desc is None and emoji is None:
+        return _fail("give a title, description and/or emoji")
     try:
         meta = store.update_meta(
             nb,
             title=str(title) if title is not None else None,
-            description=str(desc) if desc is not None else None)
+            description=str(desc) if desc is not None else None,
+            **({"emoji": str(emoji)[:16]} if emoji is not None else {}))
     except Exception as exc:
         return _fail(f"{type(exc).__name__}: {exc}", 500)
     return {"ok": True, "notebook": _notebook_payload(meta["id"])}
+
+
+@router.post("/notebook/duplicate")
+def duplicate_notebook(payload: Dict[str, Any] = Body(...)) -> Any:
+    """Copy a notebook — sources, artifacts, labels and options, fresh chat."""
+    nb = str(payload.get("notebook") or "")
+    try:
+        out = store.duplicate_notebook(nb)
+    except Exception as exc:
+        return _fail(f"{type(exc).__name__}: {exc}", 500)
+    return {"ok": True, "notebook": out}
 
 
 @router.post("/notebook/delete")
@@ -680,10 +822,12 @@ async def ask(payload: Dict[str, Any] = Body(...)) -> Any:
     def _run() -> Dict[str, Any]:
         from hermes_notebook import tools as tools_mod
         args = {"notebook": nb_id, "question": question,
-                "thread": str(payload.get("thread") or store.DEFAULT_THREAD)}
+                "thread": runtime.slugify(str(payload.get("thread") or "default"), 60) or "default"}
         ids = payload.get("source_ids")
         if isinstance(ids, list) and ids:
             args["source_ids"] = [str(x) for x in ids][:12]
+        if payload.get("retry"):
+            args["retry"] = True
         out = json.loads(tools_mod.notebook_ask(args))
         return out
 
@@ -693,15 +837,21 @@ async def ask(payload: Dict[str, Any] = Body(...)) -> Any:
         return _fail(f"{type(exc).__name__}: {exc}", 500)
     if not out.get("ok"):
         return _fail(out.get("error") or "the model did not answer", 422, detail=out)
-    # the citation rows the page renders: number, title, real origin
+    # the citation rows the page renders: number, title, real origin — only
+    # the sources the answer actually cites (full-context puts them all in
+    # context, so sources_used alone would chip every source on every answer)
+    from hermes_notebook import retrieve as retrieve_mod
     used = []
-    for i, src in enumerate(out.get("sources_used") or [], 1):
+    for i, src in enumerate(
+            retrieve_mod.cited_sources(out.get("sources_used") or [],
+                                       out.get("answer", "")), 1):
         used.append({
             "n": src.get("n", i),
             "title": src.get("title") or "source",
             "kind": src.get("kind", ""),
             "origin": src.get("origin", ""),
             "id": src.get("id", ""),
+            "snippet": src.get("snippet", ""),
         })
     return {
         "ok": True,
@@ -713,7 +863,6 @@ async def ask(payload: Dict[str, Any] = Body(...)) -> Any:
         "total_chunks": out.get("total_chunks"),
         "seconds": round(time.time() - started, 1),
         "thread": out.get("thread"),
-        "thread_name": str(payload.get("thread") or store.DEFAULT_THREAD),
     }
 
 
@@ -779,6 +928,7 @@ async def generate(payload: Dict[str, Any] = Body(...)) -> Any:
             out = await video.make_video_overview(
                 nb_id, style=str(payload.get("style") or "cinematic"),
                 length=str(payload.get("length") or "short"),
+                language=str(payload.get("language") or ""),
                 notes=payload.get("notes") if isinstance(payload.get("notes"), dict) else None)
         else:
             out = await run_in_threadpool(
@@ -792,11 +942,50 @@ async def generate(payload: Dict[str, Any] = Body(...)) -> Any:
                              "detail": payload.get("detail") or "standard"}))
     except Exception as exc:
         return _fail(f"{type(exc).__name__}: {exc}", 500)
+    # remember the knobs this run used — regenerate reuses them and the row
+    # can show the artifact was tailored
+    opts_used = {k: str(payload.get(k) or "").strip()
+                 for k in ("focus", "count_hint", "format", "length", "language", "style",
+                           "template", "orientation", "detail")}
+    opts_used = {k: v for k, v in opts_used.items() if v}
+    if opts_used:
+        try:
+            src = out.get("path") or out.get("audio") or out.get("video") or ""
+            fname = str(src).replace("\\", "/").rsplit("/", 1)[-1]
+            key = f"{_artifact_stamp(fname)}-{kind}" if fname else ""
+            if key:
+                aopts = dict(store.get_meta(nb_id).get("artifact_opts") or {})
+                aopts[key] = opts_used
+                store.update_meta(nb_id, artifact_opts=aopts)
+        except Exception:
+            pass
     payload_state = _notebook_payload(nb_id)
     return {"ok": True, "kind": kind, "result": out,
             "seconds": round(time.time() - started, 1),
             "artifacts": payload_state["artifacts"],
             "stats": payload_state["stats"]}
+
+
+@router.post("/audio_render")
+async def audio_render(payload: Dict[str, Any] = Body(...)) -> Any:
+    """Re-voice an edited podcast script — the Studio's script stage. Takes the
+    script JSON shape the audio sidecar already stores ({title, segments:
+    [{speaker, text}], voices?}) and runs the same TTS pipeline as generation,
+    minus the model call. Output lands as a new timestamped run."""
+    nb_arg = str(payload.get("notebook") or "")
+    try:
+        nb_id = store.resolve_notebook(nb_arg)
+    except Exception as exc:
+        return _fail(str(exc), 404)
+    from hermes_notebook import audio
+    script = payload.get("script") if isinstance(payload.get("script"), dict) else payload
+    started = time.time()
+    try:
+        out = await audio.render_audio_script(nb_id, script)
+    except Exception as exc:
+        return _fail(f"{type(exc).__name__}: {exc}", 500)
+    return {"ok": True, "result": out,
+            "seconds": round(time.time() - started, 1)}
 
 
 @router.post("/video_notes")
@@ -816,6 +1005,7 @@ async def video_notes(payload: Dict[str, Any] = Body(...)) -> Any:
             nb_id,
             length=str(payload.get("length") or "") or None,
             style=str(payload.get("style") or "") or None,
+            language=str(payload.get("language") or ""),
             focus=str(payload.get("focus") or ""))
     except Exception as exc:
         return _fail(f"{type(exc).__name__}: {exc}", 500)
@@ -855,6 +1045,19 @@ async def label(payload: Dict[str, Any] = Body(...)) -> Any:
     except Exception as exc:
         return _fail(f"{type(exc).__name__}: {exc}", 500)
     return {"ok": True, **out, "state": _notebook_payload(nb_id)}
+
+
+@router.get("/thread")
+def get_thread(notebook: str = Query(...), name: str = Query("default")) -> Any:
+    """One conversation's messages — the page fetches non-default threads on
+    demand instead of shipping every thread in /state."""
+    try:
+        nb_id = store.resolve_notebook(notebook)
+    except Exception as exc:
+        return _fail(str(exc), 404)
+    safe = runtime.slugify(name or "default", 60) or "default"
+    return {"ok": True, "thread": safe,
+            "messages": store.get_thread(nb_id, safe)[-48:]}
 
 
 @router.get("/threads")
@@ -957,6 +1160,26 @@ def artifact(notebook: str = Query(...), name: str = Query(...),
                                  media_type="text/plain; charset=utf-8")
     guessed = mimetypes.guess_type(path.name)[0] or "application/octet-stream"
     return FileResponse(str(path), media_type=guessed, filename=path.name)
+
+
+@router.get("/export")
+def export_nb(notebook: str = Query(...),
+              b64: int = Query(0, description="1 = base64 JSON (the page's blob path)")) -> Any:
+    """Whole-notebook zip: sources + artifacts + threads + meta. ``b64=1``
+    matches /artifact — the page fetches through ctx.rest and downloads a blob."""
+    try:
+        nb_id = store.resolve_notebook(notebook)
+        meta = store.get_meta(nb_id)
+        out = store.export_notebook(nb_id)
+    except Exception as exc:
+        return _fail(str(exc), 404)
+    zp = Path(out["zip"])
+    name = f"{nb_id}-notebook.zip"
+    if b64:
+        import base64 as _b64
+        return {"ok": True, "name": name, "bytes": out["size_bytes"], "files": out["files"],
+                "b64": _b64.b64encode(zp.read_bytes()).decode("ascii")}
+    return FileResponse(str(zp), media_type="application/zip", filename=name)
 
 
 # -------------------------------------------------------------- ops (folded)
