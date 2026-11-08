@@ -4274,8 +4274,14 @@ function SlidesView({ data, htmlUrl }) {
     return () => document.removeEventListener('keydown', onKey)
   }, [go])
 
+  const openDeck = htmlUrl
+    ? () => (host.openLink ? host.openLink(htmlUrl) : window.open(htmlUrl, '_blank'))
+    : null
+
   if (!slides.length) {
-    return el('div', { className: 'nb-view-body' }, el('div', { className: 'nb-hint', children: 'this deck has no slides in its json — open the html file' }))
+    return el('div', { className: 'nb-view-body' },
+      el('div', { className: 'nb-hint', children: 'this deck has no slides in its json' }),
+      openDeck ? jsx(Btn, { size: 'sm', icon: 'external', onClick: openDeck, children: 'Open the interactive deck' }) : null)
   }
   const s = slides[i]
   return el('div', { className: 'nb-view-body' },
@@ -4294,7 +4300,16 @@ function SlidesView({ data, htmlUrl }) {
         el('span', { style: { fontSize: '11.5px', letterSpacing: '.14em', textTransform: 'uppercase', color: '#9aa0b5', fontWeight: 700 },
           children: deck.title || 'Deck' }),
         el('span', { style: { flex: 1 } }),
-        el('span', { className: 'nb-mono', style: { fontSize: '12px', color: '#9aa0b5' }, children: `${i + 1}/${slides.length}` })),
+        el('span', { className: 'nb-mono', style: { fontSize: '12px', color: '#9aa0b5' }, children: `${i + 1}/${slides.length}` }),
+        openDeck
+          ? el('button', {
+              type: 'button', className: 'nb-chip', 'data-click': 'true',
+              'aria-label': 'Open the interactive HTML deck', title: 'Open the interactive HTML deck',
+              style: { background: 'rgba(255,255,255,.1)', color: '#cfd3e0', borderColor: 'transparent', cursor: 'pointer' },
+              onClick: (e) => { e.stopPropagation(); openDeck() },
+              children: 'open deck ↗'
+            })
+          : null),
       el('div', { style: { fontSize: '30px', fontWeight: 680, letterSpacing: '-.02em', color: '#f2f3f8', margin: '18px 0 14px', lineHeight: 1.15 }, children: s.title }),
       el('ul', { style: { margin: 0, paddingLeft: '20px', color: '#d6d8e6', fontSize: '17px', lineHeight: 1.6, display: 'grid', gap: '9px' } },
         (s.bullets || []).map((b, bi) => el('li', { children: b }, `b${bi}`))),
