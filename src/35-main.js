@@ -45,6 +45,24 @@ function Main({ notebook, kinds, tab, setTab, picked, setPicked, busy, generate,
   const viewName = picked ? picked.label : ''
   const stats = notebook.stats || {}
   const activeCount = stats.active !== undefined ? stats.active : sources.length
+  const hasArts = (notebook.artifacts || []).length > 0
+
+  // a notebook with nothing in it gets a guided empty state, not dead panels
+  if (!sources.length && !hasArts) {
+    return el('main', { className: 'nb-col nb-main-col' },
+      el('div', { className: 'nb-void' },
+        el('div', null,
+          el('h3', { children: `“${notebook.title}” has no sources yet` }),
+          el('p', { children: 'Everything here is grounded in your sources — answers cite them, and every studio output is built from them. Add the material first.' }),
+          el('div', { style: { marginTop: '16px', display: 'flex', gap: '8px', justifyContent: 'center', flexWrap: 'wrap' } },
+            jsx(Btn, { variant: 'primary', icon: 'sparkle', onClick: () => onAddSource && onAddSource({ mode: 'find' }), children: 'Find sources' }),
+            jsx(Btn, { icon: 'link', onClick: () => onAddSource && onAddSource({ mode: 'url' }), children: 'Add a link' }),
+            jsx(Btn, { icon: 'note', onClick: () => onAddSource && onAddSource({ mode: 'note' }), children: 'Paste notes' })
+          )
+        )
+      )
+    )
+  }
 
   return el('main', { className: 'nb-col nb-main-col' },
     el('div', { className: 'nb-main-head' },
