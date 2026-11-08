@@ -13594,6 +13594,41 @@ var CSS = `
 .nb-disc-err{color:${T.danger};font-size:13px;padding:10px 14px;border-radius:12px;
   background:color-mix(in srgb,${T.danger} 12%, transparent)}
 @media (max-width:820px){ .nb-disc{padding:18px 16px 32px} }
+
+/* study \u2014 a session, not a deck viewer: one card at a time, keyboard first */
+.nb-study{display:flex;flex-direction:column;gap:16px;padding:26px 30px 40px;max-width:980px;margin:0 auto;min-height:0}
+.nb-study-head{display:flex;align-items:flex-start;gap:14px;flex-wrap:wrap}
+.nb-study-title{font-size:21px;font-weight:650;letter-spacing:-.01em;color:${T.text}}
+.nb-study-chips{display:flex;gap:6px;flex-wrap:wrap;margin-top:8px}
+.nb-study-actions{display:flex;gap:8px;align-items:center}
+.nb-study-progress{display:flex;align-items:center;gap:12px}
+.nb-study-bar{flex:1;height:4px;border-radius:99px;background:var(--nb-hair-soft);overflow:hidden}
+.nb-study-bar i{display:block;height:100%;background:${T.accent};border-radius:99px;transition:width .25s ease}
+.nb-study-card{border:1px solid var(--nb-hair);border-radius:20px;background:var(--nb-card);
+  padding:28px 30px 24px;min-height:210px;display:flex;flex-direction:column;gap:16px;
+  box-shadow:var(--nb-shadow)}
+.nb-study-card[data-phase="new"]{border-color:color-mix(in srgb,${T.accent} 40%, var(--nb-hair))}
+.nb-study-q{font-size:22px;line-height:1.4;font-weight:600;color:${T.text};max-width:62ch}
+.nb-study-choices{display:grid;gap:8px;max-width:62ch}
+.nb-study-choice{padding:10px 14px;border-radius:11px;border:1px solid var(--nb-hair-soft);
+  background:var(--nb-card-deep, transparent);color:${T.text2};font-size:14.5px}
+.nb-study-choice[data-right="true"]{border-color:${T.ok};background:color-mix(in srgb,${T.ok} 14%, transparent);color:${T.text}}
+.nb-study-a{display:flex;flex-direction:column;gap:8px;font-size:16px;line-height:1.55;color:${T.text};
+  padding-top:14px;border-top:1px solid var(--nb-hair-soft)}
+.nb-study-a-label{font-size:11px;letter-spacing:.14em;text-transform:uppercase;color:${T.text4}}
+.nb-study-reveal{display:flex;align-items:center;gap:12px;margin-top:auto}
+.nb-study-ratings{display:flex;gap:8px;flex-wrap:wrap;min-height:44px;align-items:center}
+.nb-study-rate{flex:1 1 150px;display:flex;flex-direction:column;gap:2px;align-items:flex-start;
+  padding:10px 14px;border-radius:12px;border:1px solid var(--nb-hair);background:var(--nb-card);
+  color:${T.text};cursor:pointer;font-size:14px}
+.nb-study-rate span{font-size:11.5px;color:${T.text3}}
+.nb-study-rate:hover{background:var(--nb-card-hover, color-mix(in srgb,#fff 4%, transparent))}
+.nb-study-src{align-self:flex-start;display:inline-flex;align-items:center;gap:6px;padding:0;
+  border:0;background:none;color:${T.accent};font-size:12.5px;text-decoration:underline;
+  text-underline-offset:3px;cursor:pointer}
+.nb-study-empty{display:grid;justify-items:center;gap:10px;padding:64px 20px;text-align:center;
+  color:${T.text3};border:1px dashed var(--nb-hair-soft);border-radius:18px}
+@media (max-width:820px){ .nb-study{padding:18px 16px 32px} .nb-study-q{font-size:19px} }
 `;
 var el = (tag, props, ...kids) => {
   const merged = { ...props || {} };
@@ -14974,6 +15009,7 @@ function App() {
   const ops = mode2 === "ops";
   const home = mode2 === "home";
   const discoverMode = mode2 === "discover";
+  const studyMode = mode2 === "study";
   return el(
     "div",
     { className: "nb-root", "data-mode": mode2, "data-plugin": ID },
@@ -14989,7 +15025,7 @@ function App() {
         el(
           "span",
           { className: "nb-crumb" },
-          ops ? el("b", { children: "Lab Ops" }) : home ? el("b", { children: "All notebooks" }) : discoverMode ? el("b", { children: "Discover" }) : el("span", null, "/ ", notebook ? el("button", {
+          ops ? el("b", { children: "Lab Ops" }) : home ? el("b", { children: "All notebooks" }) : discoverMode ? el("b", { children: "Discover" }) : studyMode ? el("b", { children: "Study" }) : el("span", null, "/ ", notebook ? el("button", {
             type: "button",
             className: "nb-crumbedit",
             onClick: () => setRenNb(notebook),
@@ -15006,6 +15042,7 @@ function App() {
         options: [
           { id: "home", label: "Home", icon: "grid" },
           { id: "discover", label: "Discover", icon: "search" },
+          { id: "study", label: "Study", icon: "cards" },
           { id: "studio", label: "Studio", icon: "notebook" },
           { id: "ops", label: "Lab Ops", icon: "server" }
         ]
@@ -15043,6 +15080,18 @@ function App() {
       notebook,
       onSay: say,
       reload: () => studio.reload(true)
+    }) : studyMode ? (0, import_jsx_runtime.jsx)(StudyPanel, {
+      notebook,
+      onSay: say,
+      onOpenSource: (title) => {
+        const s = (notebook && notebook.sources || []).find(
+          (x) => (x.title || "").trim().toLowerCase() === String(title).trim().toLowerCase()
+        );
+        if (s) {
+          setPeek({ ...s, citeSnippet: "" });
+          setTab("peek");
+        }
+      }
     }) : el(
       "div",
       { className: "nb-body" },
@@ -18709,6 +18758,308 @@ function DiscoverPanel({ notebook, onSay, reload }) {
     ) : null
   );
 }
+var STUDY = Machine("study", {
+  initial: "idle",
+  context: { queue: [], stats: null, idx: 0, error: "", review: 0, limit: 12 },
+  states: {
+    idle: { on: { OPEN: { target: "loading", action: (c, p) => ({ idx: 0, error: "", limit: p && p.limit || c.limit }) } } },
+    loading: {
+      tags: ["busy"],
+      enter: (c, m) => {
+        let live = true;
+        api(`/study?${qs({ notebook: c.notebook, limit: c.limit })}`).then((out) => {
+          if (!live) return;
+          const queue = out && out.queue || [];
+          m.set({ queue, stats: out && out.stats || null });
+          m.send(queue.length ? "LOADED" : "EMPTY");
+        }).catch((e) => {
+          if (live) m.send("FAIL", { message: e.message || String(e) });
+        });
+        return () => {
+          live = false;
+        };
+      },
+      on: {
+        LOADED: { target: "reviewing", action: () => ({ error: "" }) },
+        EMPTY: { target: "done", action: () => ({ idx: 0 }) },
+        FAIL: { target: "error", action: (c, p) => ({ error: p && p.message || "could not load the deck" }) },
+        CLOSE: "idle"
+      }
+    },
+    reviewing: {
+      on: {
+        REVEAL: "revealed",
+        OPEN: { target: "loading", action: (c, p) => ({ idx: 0, error: "", limit: p && p.limit || c.limit }) },
+        CLOSE: "idle"
+      }
+    },
+    revealed: {
+      enter: () => null,
+      on: {
+        RATE: { target: "saving", guard: (c, p) => !!(p && p.rating), action: (c, p) => ({ rating: p.rating }) },
+        OPEN: { target: "loading", action: (c, p) => ({ idx: 0, error: "", limit: p && p.limit || c.limit }) },
+        CLOSE: "idle"
+      }
+    },
+    saving: {
+      tags: ["busy"],
+      enter: (c, m) => {
+        let live = true;
+        const card = c.queue[c.idx];
+        const rating = c.rating;
+        api("/study/review", {
+          method: "POST",
+          timeoutMs: 2e4,
+          body: { notebook: c.notebook, card: card && card.id, rating }
+        }).then((out) => {
+          if (!live) return;
+          m.set({ stats: out && out.stats || c.stats, review: c.review + 1 });
+          m.send("RATED");
+        }).catch((e) => {
+          if (live) m.send("FAIL", { message: e.message || String(e) });
+        });
+        return () => {
+          live = false;
+        };
+      },
+      on: { RATED: "advance", FAIL: { target: "error", action: (c, p) => ({ error: p && p.message || "could not save that review" }) } }
+    },
+    advance: {
+      enter: (c, m) => {
+        const next = c.idx + 1;
+        m.set({ idx: next });
+        m.send(next < c.queue.length ? "NEXT" : "FINISHED");
+        return null;
+      },
+      on: { NEXT: "reviewing", FINISHED: "done" }
+    },
+    done: {
+      on: {
+        OPEN: { target: "loading", action: (c, p) => ({ idx: 0, error: "", limit: p && p.limit || c.limit }) },
+        CLOSE: "idle"
+      }
+    },
+    error: {
+      on: {
+        OPEN: { target: "loading", action: (c, p) => ({ idx: 0, error: "", limit: p && p.limit || c.limit }) },
+        CLOSE: "idle"
+      }
+    }
+  }
+});
+var RATING_HINT = {
+  again: "in a minute",
+  hard: "a bit sooner",
+  good: "as scheduled",
+  easy: "much later"
+};
+function StudyPanel({ notebook, onSay, onOpenSource }) {
+  const m = useMachine(STUDY);
+  const nbId = notebook && notebook.id;
+  const card = m.ctx.queue[m.ctx.idx] || null;
+  const stats = m.ctx.stats || {};
+  const total = m.ctx.queue.length;
+  const done = m.matches("done");
+  const revealed = m.matches("revealed");
+  (0, import_react.useEffect)(() => {
+    if (!nbId) return void 0;
+    STUDY.set({ notebook: nbId });
+    if (STUDY.matches("idle", "done", "error")) STUDY.send("OPEN", { limit: 12 });
+    return () => {
+      if (STUDY.can("CLOSE")) STUDY.send("CLOSE");
+    };
+  }, [nbId]);
+  const rate = (rating) => {
+    if (STUDY.can("RATE")) STUDY.send("RATE", { rating });
+  };
+  (0, import_react.useEffect)(() => {
+    const onKey = (e) => {
+      if (!nbId || m.matches("idle", "loading", "saving", "error")) return;
+      if (e.target && /input|textarea/i.test(e.target.tagName || "")) return;
+      if ((e.code === "Space" || e.key === "Enter") && STUDY.can("REVEAL")) {
+        e.preventDefault();
+        STUDY.send("REVEAL");
+      } else if (/^[1-4]$/.test(e.key) && STUDY.can("RATE")) {
+        e.preventDefault();
+        STUDY.send("RATE", { rating: ["again", "hard", "good", "easy"][Number(e.key) - 1] });
+      }
+    };
+    document.addEventListener("keydown", onKey);
+    return () => document.removeEventListener("keydown", onKey);
+  }, [nbId, m.state]);
+  const counts = stats.counts || {};
+  const chip = (label, value, tone) => el("span", {
+    className: "nb-chip",
+    "data-tone": tone || void 0,
+    children: `${value} ${label}`
+  });
+  const header = el(
+    "div",
+    { className: "nb-study-head" },
+    el(
+      "div",
+      null,
+      el("div", { className: "nb-study-title", children: "Study" }),
+      el("div", { className: "nb-hint", children: stats.cards ? `${stats.cards} cards in this notebook \xB7 ${stats.due || 0} due \xB7 ${stats.mastered_pct || 0}% mastered` : "No flashcards or quiz in this notebook yet \u2014 generate one, then come back." }),
+      el(
+        "div",
+        { className: "nb-study-chips" },
+        chip("due", stats.due || 0, stats.due ? "accent" : void 0),
+        chip("new", counts.new || 0),
+        chip("learning", counts.learning || 0),
+        chip("mastered", counts.mastered || 0, "ok"),
+        stats.streak ? chip("day streak", stats.streak) : null,
+        stats.reviews_today ? chip("today", stats.reviews_today) : null
+      )
+    ),
+    el("div", { className: "nb-spacer" }),
+    el(
+      "div",
+      { className: "nb-study-actions" },
+      (0, import_jsx_runtime.jsx)(Btn, {
+        size: "sm",
+        icon: "refresh",
+        onClick: () => STUDY.send("OPEN", { limit: 12 }),
+        children: m.matches("loading") ? "Loading\u2026" : "Reload deck"
+      }),
+      (0, import_jsx_runtime.jsx)(Btn, {
+        size: "sm",
+        icon: "plus",
+        onClick: () => STUDY.send("OPEN", { limit: 30 }),
+        children: "Study 30"
+      })
+    )
+  );
+  if (!nbId) {
+    return el(
+      "div",
+      { className: "nb-study" },
+      header,
+      el("div", { className: "nb-study-empty", children: "Pick a notebook first." })
+    );
+  }
+  if (m.matches("loading") || m.matches("idle")) {
+    return el(
+      "div",
+      { className: "nb-study", "data-study-state": m.state },
+      header,
+      el(
+        "div",
+        { className: "nb-study-empty" },
+        el("span", { className: "nb-dot", style: { background: T.accent } }),
+        el("div", { children: "Building today\u2019s queue\u2026" })
+      )
+    );
+  }
+  if (m.matches("error")) {
+    return el(
+      "div",
+      { className: "nb-study", "data-study-state": m.state },
+      header,
+      el(
+        "div",
+        { className: "nb-study-empty" },
+        el("div", { style: { color: T.danger }, children: m.ctx.error }),
+        (0, import_jsx_runtime.jsx)(Btn, { size: "sm", icon: "refresh", onClick: () => STUDY.send("OPEN"), children: "Try again" })
+      )
+    );
+  }
+  if (done && !total) {
+    return el(
+      "div",
+      { className: "nb-study", "data-study-state": m.state },
+      header,
+      el(
+        "div",
+        { className: "nb-study-empty" },
+        (0, import_jsx_runtime.jsx)(Glyph, { name: "check", size: 26 }),
+        el("div", { children: stats.cards ? "Nothing is due right now." : "Generate flashcards or a quiz for this notebook, then come back to study." }),
+        el("div", { className: "nb-hint", children: stats.cards ? `${counts.mastered || 0} mastered \xB7 ${counts.young || 0} scheduled ahead \xB7 reinforces itself as you review.` : "Studio \u2192 Flashcards, or Studio \u2192 Quiz." })
+      )
+    );
+  }
+  if (done && total) {
+    return el(
+      "div",
+      { className: "nb-study", "data-study-state": m.state },
+      header,
+      el(
+        "div",
+        { className: "nb-study-empty" },
+        (0, import_jsx_runtime.jsx)(Glyph, { name: "check", size: 26 }),
+        el("div", { children: `Session done \u2014 ${total} cards reviewed.` }),
+        el("div", { className: "nb-hint", children: "The queue reorders itself by when each card is due; nothing to keep track of by hand." }),
+        (0, import_jsx_runtime.jsx)(Btn, { size: "sm", icon: "refresh", variant: "primary", onClick: () => STUDY.send("OPEN"), children: "Check for due cards" })
+      )
+    );
+  }
+  return el(
+    "div",
+    { className: "nb-study", "data-study-state": m.state, "data-study-card": card && card.id },
+    header,
+    el(
+      "div",
+      { className: "nb-study-progress" },
+      el(
+        "div",
+        { className: "nb-study-bar" },
+        el("i", { style: { width: `${total ? Math.round(m.ctx.idx / total * 100) : 0}%` } })
+      ),
+      el("span", { className: "nb-hint", children: `${m.ctx.idx + 1} of ${total} \xB7 ${card && card.kind === "quiz" ? "quiz" : "flashcard"}` })
+    ),
+    el(
+      "div",
+      { className: "nb-study-card", "data-phase": card && card.phase, "aria-live": "polite" },
+      el("div", { className: "nb-study-q", children: card && card.front }),
+      card && card.kind === "quiz" && card.choices && card.choices.length ? el(
+        "div",
+        { className: "nb-study-choices" },
+        card.choices.map((c, i) => el("div", {
+          key: `ch${i}`,
+          className: "nb-study-choice",
+          "data-right": revealed && normAnswer(c) === normAnswer(card.back) ? "true" : void 0,
+          children: c
+        }))
+      ) : null,
+      revealed ? el(
+        "div",
+        { className: "nb-study-a" },
+        el("div", { className: "nb-study-a-label", children: "Answer" }),
+        el("div", { children: card && card.back }),
+        card && card.explanation ? el("div", { className: "nb-hint", children: card.explanation }) : null,
+        card && card.source ? el("button", {
+          type: "button",
+          className: "nb-study-src",
+          onClick: () => onOpenSource && onOpenSource(card.source),
+          children: [`Source: ${card.source}`]
+        }) : null
+      ) : el(
+        "div",
+        { className: "nb-study-reveal" },
+        (0, import_jsx_runtime.jsx)(Btn, { variant: "primary", icon: "eye", onClick: () => STUDY.send("REVEAL"), children: "Show answer" }),
+        el("span", { className: "nb-hint", children: "space" })
+      )
+    ),
+    el(
+      "div",
+      { className: "nb-study-ratings" },
+      revealed ? [
+        ["again", "Again", "1", T.danger],
+        ["hard", "Hard", "2", T.warn],
+        ["good", "Good", "3", T.ok],
+        ["easy", "Easy", "4", T.accent]
+      ].map(([id, label, key, tone]) => el("button", {
+        key: id,
+        type: "button",
+        className: "nb-study-rate",
+        "data-tone": id,
+        style: { borderColor: tone },
+        onClick: () => rate(id),
+        children: [el("b", { children: label }), el("span", { children: `${key} \xB7 ${RATING_HINT[id]}` })]
+      })) : el("span", { className: "nb-hint", children: "Rate the card after you see the answer \u2014 that is what schedules it." })
+    )
+  );
+}
 function useFile(notebookId, name) {
   const [st, setSt] = (0, import_react.useState)({ loading: !!name, text: "", json: null, url: "", mime: "", error: "" });
   (0, import_react.useEffect)(() => {
@@ -21082,6 +21433,54 @@ var plugin = {
 };
 
 // tests/tmp/payloads.mjs
+var STUDY_CARDS = [
+  {
+    id: "c-iter-six",
+    kind: "flash",
+    phase: "new",
+    front: "What does ITER's 'six of nine' refer to?",
+    back: "Sector modules installed in the tokamak pit \u2014 two-thirds of the torus core, as of 28 July 2026.",
+    source: "ITER Organization",
+    interval: 0,
+    reps: 0
+  },
+  {
+    id: "c-fia-count",
+    kind: "flash",
+    phase: "new",
+    front: "What does the FIA count?",
+    back: "$4.48B raised in the twelve months to July 2026, $14.24B cumulative since 2021.",
+    source: "Reuters",
+    interval: 0,
+    reps: 0
+  },
+  {
+    id: "c-quiz-body",
+    kind: "quiz",
+    phase: "new",
+    front: "Which body counts $4.48B of fusion investment in the year to July 2026?",
+    back: "The Fusion Industry Association",
+    choices: ["The IAEA", "The Fusion Industry Association", "The Congressional Research Service", "The DOE"],
+    explanation: "Reuters reports the FIA figure; the CRS runs its own, smaller, survey.",
+    interval: 0,
+    reps: 0
+  }
+];
+var STUDY_DONE = {};
+var STUDY_STATS = () => {
+  const total = STUDY_CARDS.length;
+  const done = Object.keys(STUDY_DONE).length;
+  return {
+    ok: true,
+    cards: total,
+    due: total - done,
+    counts: { new: Math.max(0, total - done - 1), due: 0, learning: 0, young: 1, mastered: done ? 1 : 0 },
+    reviews_today: done,
+    streak: done ? 1 : 0,
+    mastered_pct: total ? Math.round(100 * (done ? 1 : 0) / total) : 0,
+    days_studied: done ? 1 : 0
+  };
+};
 var STATE = { "ok": true, "generated_at": "2026-11-08T17:14:02Z", "model_ready": false, "notebooks": [{ "id": "t-2", "title": "T", "description": "d", "updated_at": "2026-11-08T17:11:02+00:00", "sources": 0, "artifacts": 0, "chars": 0 }, { "id": "t", "title": "T", "description": "d", "updated_at": "2026-11-08T17:10:55+00:00", "sources": 0, "artifacts": 0, "chars": 0 }, { "id": "business-analyst-job-interview-you-know-thanks", "title": "Business Analyst Job Interview you know. Thanks", "description": "", "updated_at": "2026-11-07T18:34:28+00:00", "sources": 0, "artifacts": 0, "chars": 0 }, { "id": "commercial-fusion-2026", "title": "Commercial Fusion Energy in 2026", "description": "Six sources on the state of commercial fusion: the CRS briefing for Congress, the DOE deployment roadmap, two ITER releases, the IAEA outlook and the reference article.", "updated_at": "2026-11-07T17:53:27+00:00", "sources": 6, "artifacts": 13, "chars": 157369 }, { "id": "smoke-test-notebook", "title": "Scratchpad", "description": "Short sources used to smoke-test labels and artifacts.", "updated_at": "2026-11-07T17:38:11+00:00", "sources": 3, "artifacts": 9, "chars": 24919 }], "notebook": { "id": "commercial-fusion-2026", "title": "Commercial Fusion Energy in 2026", "description": "Six sources on the state of commercial fusion: the CRS briefing for Congress, the DOE deployment roadmap, two ITER releases, the IAEA outlook and the reference article.", "emoji": "", "created_at": "2026-11-07T16:36:51+00:00", "updated_at": "2026-11-07T17:53:27+00:00", "sources": [{ "n": 1, "id": "crs-toward-commercial-fusion-energy", "title": "Toward Commercial Fusion Energy: Considerations for Congress (CRS R48866)", "kind": "url", "origin": "https://www.congress.gov/crs_external_products/R/HTML/R48866.html", "chars": 59746, "labels": ["CRS", "policy", "federal funding", "FY2025 budget"], "summary": "Congressional Research Service briefing: fusion physics, the DOE/FES programme ($790M in FY2025), inertial confinement (~$700M), and the policy questions a commercial build-out raises.", "added_at": "2026-11-07T16:36:51+00:00", "refreshed_at": "2026-11-07T17:00:41+00:00", "active": true }, { "n": 2, "id": "reuters-us-fusion-roadmap-mid-2030s", "title": "US roadmap targets fusion deployment by mid 2030s - Reuters", "kind": "url", "origin": "https://www.reuters.com/business/energy/us-roadmap-targets-fusion-deployment-by-mid-2030s--reeii-2026-08-25/", "chars": 14406, "labels": ["roadmap", "Reuters", "FIA funding", "engineering gaps"], "summary": "DOE's Fusion Science and Technology Roadmap (June) targets pilot plants by the mid-2030s; industry says it needs >$1B a year. FIA counts $4.48B raised to July 2026 and $14.24B cumulative since 2021.", "added_at": "2026-11-07T16:36:51+00:00", "refreshed_at": "2026-11-07T17:00:41+00:00", "active": true }, { "n": 3, "id": "ans-iter-assembly-progress", "title": "ITER reports \u201Csubstantial progress\u201D in assembly and installation work - ANS Nuclear Newswire", "kind": "url", "origin": "https://www.ans.org/news/2026-09-09/article-8375/iter-reports-substantial-progress-in-assembly-and-installation-work/", "chars": 11601, "labels": ["ITER", "assembly", "schedule"], "summary": "ANS Nuclear Newswire on ITER's assembly campaign: sector-module installation running ahead of plan under the accelerated assembly approach.", "added_at": "2026-11-07T16:36:51+00:00", "refreshed_at": "2026-11-07T17:00:41+00:00", "active": true }, { "n": 4, "id": "iter-two-thirds-tokamak-core", "title": "Two-thirds of ITER tokamak core now in place - ITER Organization", "kind": "url", "origin": "https://www.iter.org/two-thirds-iter-tokamak-core-now-place", "chars": 6116, "labels": ["ITER", "tokamak", "sector module", "milestone"], "summary": "ITER's own release: sixth of nine sector modules installed on 28 July 2026, ~30 hours of lifting, a 1,100-tonne module, two-thirds of the torus in place, final module due 2027.", "added_at": "2026-11-07T16:36:51+00:00", "refreshed_at": "2026-11-07T17:00:41+00:00", "active": true }, { "n": 5, "id": "iaea-world-fusion-outlook-2025", "title": "IAEA World Fusion Outlook 2025 (IAEA/PAT/012)", "kind": "url", "origin": "https://www.iaea.org/publications/15935/iaea-world-fusion-outlook-2025", "chars": 6329, "labels": ["IAEA", "outlook", "global fleet"], "summary": "IAEA's World Fusion Outlook 2025: the international reference on device counts, timelines and the regulatory picture across member states.", "added_at": "2026-11-07T16:36:51+00:00", "refreshed_at": "2026-11-07T17:00:41+00:00", "active": true }, { "n": 6, "id": "wikipedia-fusion-power", "title": "Fusion power - Wikipedia", "kind": "url", "origin": "https://en.wikipedia.org/wiki/Fusion_power", "chars": 59171, "labels": ["reference", "confinement", "tritium", "history"], "summary": "Reference article: confinement approaches, tritium breeding, the neutron-damage problem and the historical funding curve.", "added_at": "2026-11-07T16:36:51+00:00", "refreshed_at": "2026-11-07T17:00:41+00:00", "active": true }], "artifacts": [{ "key": "20261107-171108-audio_overview", "kind": "audio_overview", "title": "", "opts": {}, "label": "Audio Overview", "group": "media", "primary": "20261107-171108-audio_overview.mp3", "ext": "mp3", "media": true, "bytes": 1118613, "files": [{ "name": "20261107-171108-audio_overview.json", "ext": "json", "size": 4454 }, { "name": "20261107-171108-audio_overview.txt", "ext": "txt", "size": 3395 }, { "name": "20261107-171108-audio_overview.mp3", "ext": "mp3", "size": 1110764 }], "modified": "2026-11-07T17:11:34+00:00" }, { "key": "20261107-170743-video_overview", "kind": "video_overview", "title": "", "opts": {}, "label": "Video Overview", "group": "media", "primary": "20261107-170743-video_overview.mp4", "ext": "mp4", "media": true, "bytes": 1829333, "files": [{ "name": "20261107-170743-video_overview.json", "ext": "json", "size": 2042 }, { "name": "20261107-170743-video_overview.txt", "ext": "txt", "size": 1459 }, { "name": "20261107-170743-video_overview.mp4", "ext": "mp4", "size": 1825832 }], "modified": "2026-11-07T17:08:31+00:00" }, { "key": "20261107-170050-faq", "kind": "faq", "title": "", "opts": {}, "label": "FAQ", "group": "docs", "primary": "20261107-170050-faq.md", "ext": "md", "media": false, "bytes": 1647, "files": [{ "name": "20261107-170050-faq.md", "ext": "md", "size": 1647 }], "modified": "2026-11-07T17:00:50+00:00" }, { "key": "20261107-170050-study_guide", "kind": "study_guide", "title": "", "opts": {}, "label": "Study Guide", "group": "study", "primary": "20261107-170050-study_guide.md", "ext": "md", "media": false, "bytes": 2041, "files": [{ "name": "20261107-170050-study_guide.md", "ext": "md", "size": 2041 }], "modified": "2026-11-07T17:00:50+00:00" }, { "key": "20261107-170050-briefing_doc", "kind": "briefing_doc", "title": "", "opts": {}, "label": "Briefing Doc", "group": "docs", "primary": "20261107-170050-briefing_doc.md", "ext": "md", "media": false, "bytes": 2293, "files": [{ "name": "20261107-170050-briefing_doc.md", "ext": "md", "size": 2293 }], "modified": "2026-11-07T17:00:50+00:00" }, { "key": "20261107-170042-timeline", "kind": "timeline", "title": "", "opts": {}, "label": "Timeline", "group": "docs", "primary": "20261107-170042-timeline.md", "ext": "md", "media": false, "bytes": 1309, "files": [{ "name": "20261107-170042-timeline.md", "ext": "md", "size": 1309 }], "modified": "2026-11-07T17:00:42+00:00" }, { "key": "20261107-170042-infographic", "kind": "infographic", "title": "", "opts": {}, "label": "Infographic", "group": "visual", "primary": "20261107-170042-infographic.png", "ext": "png", "media": true, "bytes": 86310, "files": [{ "name": "20261107-170042-infographic.png", "ext": "png", "size": 86310 }], "modified": "2026-11-07T17:00:42+00:00" }, { "key": "20261107-170041-infographic", "kind": "infographic", "title": "", "opts": {}, "label": "Infographic", "group": "visual", "primary": "20261107-170041-infographic.json", "ext": "json", "media": false, "bytes": 1080, "files": [{ "name": "20261107-170041-infographic.json", "ext": "json", "size": 1080 }], "modified": "2026-11-07T17:00:41+00:00" }, { "key": "20261107-170041-slides", "kind": "slides", "title": "", "opts": {}, "label": "Slides", "group": "visual", "primary": "20261107-170041-slides.html", "ext": "html", "media": true, "bytes": 5267, "files": [{ "name": "20261107-170041-slides.html", "ext": "html", "size": 3631 }, { "name": "20261107-170041-slides.json", "ext": "json", "size": 1636 }], "modified": "2026-11-07T17:00:41+00:00" }, { "key": "20261107-170041-quiz", "kind": "quiz", "title": "", "opts": {}, "label": "Quiz", "group": "study", "primary": "20261107-170041-quiz.md", "ext": "md", "media": false, "bytes": 3469, "files": [{ "name": "20261107-170041-quiz.md", "ext": "md", "size": 1498 }, { "name": "20261107-170041-quiz.json", "ext": "json", "size": 1971 }], "modified": "2026-11-07T17:00:41+00:00" }, { "key": "20261107-170041-flashcards", "kind": "flashcards", "title": "", "opts": {}, "label": "Flashcards", "group": "study", "primary": "20261107-170041-flashcards.md", "ext": "md", "media": false, "bytes": 3696, "files": [{ "name": "20261107-170041-flashcards.md", "ext": "md", "size": 1760 }, { "name": "20261107-170041-flashcards.json", "ext": "json", "size": 1936 }], "modified": "2026-11-07T17:00:41+00:00" }, { "key": "20261107-170041-mind_map", "kind": "mind_map", "title": "", "opts": {}, "label": "Mind Map", "group": "visual", "primary": "20261107-170041-mind_map.md", "ext": "md", "media": false, "bytes": 3417, "files": [{ "name": "20261107-170041-mind_map.md", "ext": "md", "size": 1577 }, { "name": "20261107-170041-mind_map.json", "ext": "json", "size": 1840 }], "modified": "2026-11-07T17:00:41+00:00" }, { "key": "20261107-170041-summary", "kind": "summary", "title": "", "opts": {}, "label": "Summary", "group": "docs", "primary": "20261107-170041-summary.md", "ext": "md", "media": false, "bytes": 1955, "files": [{ "name": "20261107-170041-summary.md", "ext": "md", "size": 1955 }], "modified": "2026-11-07T17:00:41+00:00" }], "labels": [{ "label": "ITER", "count": 2 }, { "label": "CRS", "count": 1 }, { "label": "FIA funding", "count": 1 }, { "label": "FY2025 budget", "count": 1 }, { "label": "IAEA", "count": 1 }, { "label": "Reuters", "count": 1 }, { "label": "assembly", "count": 1 }, { "label": "confinement", "count": 1 }, { "label": "engineering gaps", "count": 1 }, { "label": "federal funding", "count": 1 }, { "label": "global fleet", "count": 1 }, { "label": "history", "count": 1 }, { "label": "milestone", "count": 1 }, { "label": "outlook", "count": 1 }, { "label": "policy", "count": 1 }, { "label": "reference", "count": 1 }, { "label": "roadmap", "count": 1 }, { "label": "schedule", "count": 1 }, { "label": "sector module", "count": 1 }, { "label": "tokamak", "count": 1 }, { "label": "tritium", "count": 1 }], "thread": [{ "role": "user", "content": "Where does ITER's machine assembly actually stand?", "ts": "2026-11-07T16:36:51+00:00" }, { "role": "assistant", "content": "As of 29 July 2026 the ITER Organization had installed the sixth of nine tokamak sector modules in the tokamak pit, putting roughly two-thirds of the torus-shaped core in place. The organisation says the milestone landed almost six months ahead of schedule, and the module involved weighed about 1,100 tonnes and was transferred from the Assembly Hall in a coordinated lifting operation. Sources: 'Two-thirds of ITER tokamak core now in place' (ITER, 29 Jul 2026) and ANS Nuclear Newswire's 9 Sep 2026 assembly report.", "ts": "2026-11-07T16:36:51+00:00" }, { "role": "user", "content": "Is the US roadmap to fusion deployment by the mid-2030s credible?", "ts": "2026-11-07T16:36:51+00:00" }, { "role": "assistant", "content": `Reuters (25 Aug 2026) reports the US government launched a strategy to catalyse early-stage fusion plants by the mid-2030s, and that success hinges on more federal funding. Developers point to unsolved engineering: neutron-resistant structural materials, tritium separation and reprocessing, and components that survive constant high-energy neutron flux. Robb Hughes of Realta Fusion framed it as "The plan isn't the problem. We all agree on the plan. The X factor is the funding." The roadmap leans on existing DOE programmes such as Milestone-Based Fusion Development and INFUSE. Treat the timeline as policy intent, not a committed delivery date.`, "ts": "2026-11-07T16:36:51+00:00" }], "thread_name": "default", "thread_title": "Where does ITER's machine assembly actually stand?", "threads": [{ "name": "default", "title": "What do the sources say about funding?", "count": 4, "updated": "2025-11-02T10:00:00Z" }, { "name": "chat-abc123", "title": "Compare the two architectures", "count": 6, "updated": "2025-11-03T09:30:00Z" }], "stats": { "sources": 6, "chars": 157369, "labels": 21, "unlabeled": 0, "active": 6, "artifacts": 13, "kinds": ["audio_overview", "briefing_doc", "faq", "flashcards", "infographic", "mind_map", "quiz", "slides", "study_guide", "summary", "timeline", "video_overview"] }, "options": {} }, "kinds": [{ "id": "video_overview", "label": "Video Overview", "group": "media", "ext": "mp4", "blurb": "Narrated slideshow, cinematic or explainer", "secs": 60, "options": [{ "id": "style", "label": "Style", "choices": ["cinematic", "explainer"] }, { "id": "length", "label": "Length", "choices": ["short", "medium", "long"] }, { "id": "language", "label": "Language", "kind": "text", "placeholder": "Auto (English)" }, { "id": "focus", "label": "Focus", "kind": "text", "placeholder": "e.g. only the cost and timeline sections" }] }, { "id": "audio_overview", "label": "Audio Overview", "group": "media", "ext": "mp3", "blurb": "Hosts talking through the sources", "secs": 90, "options": [{ "id": "format", "label": "Format", "choices": ["deep_dive", "brief", "critique", "debate"] }, { "id": "length", "label": "Length", "choices": ["short", "medium", "long"] }, { "id": "language", "label": "Language", "kind": "text", "placeholder": "Auto (English)" }, { "id": "focus", "label": "Focus", "kind": "text", "placeholder": "e.g. only the cost and timeline sections" }] }, { "id": "summary", "label": "Summary", "group": "docs", "ext": "md", "blurb": "The notebook in a page", "secs": 12, "options": [{ "id": "focus", "label": "Focus", "kind": "text", "placeholder": "e.g. only the cost and timeline sections" }] }, { "id": "briefing_doc", "label": "Briefing Doc", "group": "docs", "ext": "md", "blurb": "Decisions, risks, what to do next", "secs": 18, "options": [{ "id": "focus", "label": "Focus", "kind": "text", "placeholder": "e.g. only the cost and timeline sections" }] }, { "id": "study_guide", "label": "Study Guide", "group": "study", "ext": "md", "blurb": "Concepts, questions, answers", "secs": 18, "options": [{ "id": "focus", "label": "Focus", "kind": "text", "placeholder": "e.g. only the cost and timeline sections" }] }, { "id": "faq", "label": "FAQ", "group": "docs", "ext": "md", "blurb": "The questions the sources answer", "secs": 14, "options": [{ "id": "focus", "label": "Focus", "kind": "text", "placeholder": "e.g. only the cost and timeline sections" }] }, { "id": "timeline", "label": "Timeline", "group": "docs", "ext": "md", "blurb": "Dated events in order", "secs": 14, "options": [{ "id": "focus", "label": "Focus", "kind": "text", "placeholder": "e.g. only the cost and timeline sections" }] }, { "id": "mind_map", "label": "Mind Map", "group": "visual", "ext": "md", "blurb": "Radial structure you can pan", "secs": 16, "options": [{ "id": "focus", "label": "Focus", "kind": "text", "placeholder": "e.g. only the cost and timeline sections" }] }, { "id": "flashcards", "label": "Flashcards", "group": "study", "ext": "md", "blurb": "Flip deck, Anki-ready export", "secs": 16, "options": [{ "id": "focus", "label": "Focus", "kind": "text", "placeholder": "e.g. only the cost and timeline sections" }] }, { "id": "quiz", "label": "Quiz", "group": "study", "ext": "md", "blurb": "Multiple choice with explanations", "secs": 16, "options": [{ "id": "focus", "label": "Focus", "kind": "text", "placeholder": "e.g. only the cost and timeline sections" }] }, { "id": "slides", "label": "Slides", "group": "visual", "ext": "html", "blurb": "Self-contained deck, arrow keys", "secs": 22, "options": [{ "id": "focus", "label": "Focus", "kind": "text", "placeholder": "e.g. only the cost and timeline sections" }] }, { "id": "infographic", "label": "Infographic", "group": "visual", "ext": "svg", "blurb": "Vector poster \u2014 18 looks, 9 layouts", "secs": 20, "options": [{ "id": "style", "label": "Look", "kind": "select", "default": "sections", "choices": ["sections", "editorial", "poster", "swiss", "magazine", "bento", "blueprint", "terminal", "neon", "brutalist", "retro", "risograph", "kraft", "chalkboard", "dashboard", "mission", "cartoon", "realistic"], "items": [{ "id": "sections", "label": "Sections", "blurb": "Warm paper, white stat cards, one accent per card.", "family": "cards", "swatch": ["#faf9f6", "#ffffff", "#1a73e8", "#e8710b", "#12877b", "#1f1f1f"] }, { "id": "editorial", "label": "Editorial", "blurb": "White page, oversized numerals, hairline rules, one accent.", "family": "rows", "swatch": ["#ffffff", "#ffffff", "#1a73e8", "#1f1f1f"] }, { "id": "poster", "label": "Poster", "blurb": "Dark indigo gradient, one accent, facts in a strip.", "family": "poster", "swatch": ["#1b1b3a", "#121220", "#8b7cff", "#f4f4fa"] }, { "id": "swiss", "label": "Swiss Grid", "blurb": "Helvetica discipline: strict columns, black type, red rule.", "family": "rows", "swatch": ["#ffffff", "#f6f6f6", "#c1121f", "#0b0b0b"] }, { "id": "magazine", "label": "Magazine", "blurb": "Warm cream, serif headlines, brown accents, wide margins.", "family": "cards", "swatch": ["#fbf6ee", "#fffdf8", "#9b5b32", "#1f3a5f", "#201914"] }, { "id": "bento", "label": "Bento", "blurb": "Mosaic of rounded tiles on cool paper, blue-led accents.", "family": "cards", "swatch": ["#f5f8ff", "#ffffff", "#2563eb", "#7c3aed", "#0891b2", "#101828"] }, { "id": "blueprint", "label": "Blueprint", "blurb": "Deep navy grid, white hairlines, monospace labels.", "family": "cards", "swatch": ["#0b2545", "#102e52", "#7fb2ff", "#ffd166", "#eaf2ff"] }, { "id": "terminal", "label": "Terminal", "blurb": "Near-black, phosphor blue, monospace, prompt rules.", "family": "rows", "swatch": ["#070b12", "#101826", "#38bdf8", "#22c55e", "#e6edf6"] }, { "id": "neon", "label": "Neon", "blurb": "Black-violet field with glowing magenta and cyan accents.", "family": "poster", "swatch": ["#070711", "#111126", "#c084fc", "#22d3ee", "#f472b6", "#f8f7ff"] }, { "id": "brutalist", "label": "Brutalist", "blurb": "Hard black borders, no radius, acid-yellow highlight.", "family": "cards", "swatch": ["#f5f1e8", "#ffffff", "#ffef5a", "#ff8c00", "#000000"] }, { "id": "retro", "label": "Retro Print", "blurb": "Cream stock, halftone dots, warm 70s palette.", "family": "cards", "swatch": ["#fff4cf", "#fffaf0", "#d24b1f", "#1f6f5c", "#2a4b8d", "#2a1810"] }, { "id": "risograph", "label": "Risograph", "blurb": "Two-ink overprint on cream, deliberately off-register.", "family": "cards", "swatch": ["#f6f1e7", "#fbf7ef", "#1b3a8f", "#ff4f2e", "#f2c230", "#16223b"] }, { "id": "kraft", "label": "Kraft", "blurb": "Taped paper cards on kraft stock, brown ink, soft serif.", "family": "cards", "swatch": ["#faf3df", "#fffaf0", "#8f5d24", "#6b7a4f", "#211b12"] }, { "id": "chalkboard", "label": "Chalkboard", "blurb": "Slate green board, chalk white, wobbly hand rules.", "family": "rows", "swatch": ["#22302a", "#22302a", "#f2e9a0", "#a9d8c0", "#f0b4b4", "#eef2ea"] }, { "id": "dashboard", "label": "Dashboard", "blurb": "Cool grey-white KPI tiles with bar meters and deltas.", "family": "kpi", "swatch": ["#f4f7fb", "#ffffff", "#0ea5e9", "#22c55e", "#f59e0b", "#111827"] }, { "id": "mission", "label": "Mission Control", "blurb": "Dark console: blue, amber and green telemetry tiles.", "family": "kpi", "swatch": ["#090b12", "#121722", "#60a5fa", "#fbbf24", "#34d399", "#f8fafc"] }, { "id": "cartoon", "label": "Cartoon", "blurb": "Thick outlines, flat fills, friendly shapes and a picture-book sky.", "family": "feature", "swatch": ["#fdf4e3", "#fffdf6", "#ff6b35", "#2e86e0", "#39b57a", "#1b1b2a"] }, { "id": "realistic", "label": "Realistic", "blurb": "Deep neutrals, layered light, soft shadow and film grain.", "family": "feature", "swatch": ["#14171c", "#1e232b", "#6ee7ff", "#ffb45c", "#9cf5c0", "#f4f6f8"] }] }, { "id": "template", "label": "Layout", "kind": "select", "default": "infographic", "choices": ["infographic", "key_figure", "stat_grid", "timeline", "comparison", "process", "quote_card", "cover", "illustration"], "items": [{ "id": "infographic", "label": "Infographic" }, { "id": "key_figure", "label": "Key Figure" }, { "id": "stat_grid", "label": "Stat Grid" }, { "id": "timeline", "label": "Timeline" }, { "id": "comparison", "label": "Comparison" }, { "id": "process", "label": "Process" }, { "id": "quote_card", "label": "Quote Card" }, { "id": "cover", "label": "Cover" }, { "id": "illustration", "label": "Illustration" }] }, { "id": "orientation", "label": "Shape", "kind": "seg", "choices": ["landscape", "square", "portrait"] }, { "id": "detail", "label": "Detail", "kind": "seg", "choices": ["concise", "standard", "detailed"] }, { "id": "focus", "label": "Focus", "kind": "text", "placeholder": "e.g. only the cost and timeline sections" }] }, { "id": "data_table", "label": "Data Table", "group": "docs", "ext": "csv", "blurb": "Structured rows, exports to Sheets", "secs": 14, "options": [{ "id": "focus", "label": "Focus", "kind": "text", "placeholder": "e.g. only the cost and timeline sections" }] }] };
 var FLEET = {
   "ok": true,
@@ -23357,6 +23756,17 @@ var rest = async (path, opts) => {
       snippet: String(s.summary || s.title || "") + ' \u2014 matching "' + q2 + '" across the stored passages of this source.'
     }));
     return { ok: true, result: { ok: true, query: q2, hits, total_chunks: 42 } };
+  }
+  if (route === "study") {
+    await new Promise((r) => setTimeout(r, 260));
+    const queue = STUDY_CARDS.filter((c) => !STUDY_DONE[c.id]);
+    return { ok: true, notebook: STATE.notebook && STATE.notebook.id, queue, stats: STUDY_STATS() };
+  }
+  if (route === "study/review") {
+    await new Promise((r) => setTimeout(r, 220));
+    const body = opts && opts.body || {};
+    if (body.card) STUDY_DONE[body.card] = body.rating || "good";
+    return { ok: true, result: { ok: true, card: body.card, rating: body.rating || "good" }, stats: STUDY_STATS() };
   }
   if (route === "suggest") {
     await new Promise((r) => setTimeout(r, 800));

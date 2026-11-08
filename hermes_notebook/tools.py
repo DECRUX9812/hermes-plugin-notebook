@@ -89,6 +89,29 @@ def notebook_search(args: dict, **kw) -> str:
     return runtime.ok(notebook=nb_id, **out)
 
 
+def notebook_study(args: dict, **kw) -> str:
+    """Spaced repetition over the notebook's own flashcards and quiz questions.
+
+    action=queue (default) returns today's cards; action=review records a rating and
+    returns the new schedule; action=stats reports mastery. The schedule lives in the
+    notebook directory, so the page, the CLI and an agent all see the same memory.
+    """
+    from . import study as study_mod
+    nb_id = store.resolve_notebook(args.get("notebook") or "")
+    action = (args.get("action") or "queue").strip().lower()
+    if action == "review":
+        card = (args.get("card") or "").strip()
+        if not card:
+            raise ValueError("card id is required for action=review")
+        out = study_mod.review(nb_id, card, args.get("rating") or "good")
+        return runtime.ok(notebook=nb_id, **out)
+    if action == "stats":
+        return runtime.ok(**study_mod.stats(nb_id))
+    limit = max(1, min(60, int(args.get("limit") or 12)))
+    return runtime.ok(notebook=nb_id, queue=study_mod.queue(nb_id, limit),
+                      stats=study_mod.stats(nb_id))
+
+
 def notebook_note(args: dict, **kw) -> str:
     nb_id = store.resolve_notebook(args.get("notebook") or "")
     rec = ingest.add_note(nb_id, args.get("text") or "", args.get("title") or None)
@@ -418,6 +441,7 @@ HANDLERS = {
     "notebook_video": notebook_video,
     "notebook_suggest": notebook_suggest,
     "notebook_search": notebook_search,
+    "notebook_study": notebook_study,
     "notebook_note": notebook_note,
     "notebook_refresh": notebook_refresh,
     "notebook_delete_source": notebook_delete_source,

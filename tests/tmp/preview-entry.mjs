@@ -2,7 +2,7 @@
 import React from 'react'
 import { createRoot } from 'react-dom/client'
 import { App, OpsDeck, plugin } from './preview.mjs'
-import { STATE, FLEET, SERVICES, AUDIT, EXEC, STYLES } from './payloads.mjs'
+import { STATE, FLEET, SERVICES, AUDIT, EXEC, STYLES, STUDY_CARDS, STUDY_DONE, STUDY_STATS } from './payloads.mjs'
 
 window.React = React
 
@@ -110,6 +110,19 @@ const rest = async (path, opts) => {
         snippet: String(s.summary || s.title || '') + ' — matching "' + q + '" across the stored passages of this source.'
       }))
     return { ok: true, result: { ok: true, query: q, hits, total_chunks: 42 } }
+  }
+  if (route === 'study') {
+    await new Promise((r) => setTimeout(r, 260))
+    // a deterministic deck: two flashcards and one quiz question, with a couple of
+    // cards already scheduled so the panel's counts are not all zero
+    const queue = STUDY_CARDS.filter((c) => !STUDY_DONE[c.id])
+    return { ok: true, notebook: STATE.notebook && STATE.notebook.id, queue, stats: STUDY_STATS() }
+  }
+  if (route === 'study/review') {
+    await new Promise((r) => setTimeout(r, 220))
+    const body = (opts && opts.body) || {}
+    if (body.card) STUDY_DONE[body.card] = body.rating || 'good'
+    return { ok: true, result: { ok: true, card: body.card, rating: body.rating || 'good' }, stats: STUDY_STATS() }
   }
   if (route === 'suggest') {
     await new Promise((r) => setTimeout(r, 800))

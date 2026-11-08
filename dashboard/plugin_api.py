@@ -315,6 +315,32 @@ def _notebook_payload(notebook_id: str, thread: str = "") -> Dict[str, Any]:
 
 # -------------------------------------------------------------------- state
 
+@router.get("/study")
+def study_queue(notebook: str = Query("", description="Notebook id or title"),
+                limit: int = Query(12, description="Cards to return (1-60)")) -> Any:
+    """Today's study queue plus the notebook's mastery counts."""
+    from hermes_notebook import study as study_mod
+    try:
+        nb = store.resolve_notebook(_q(notebook))
+        return {"ok": True, "notebook": nb,
+                "queue": study_mod.queue(nb, limit), "stats": study_mod.stats(nb)}
+    except Exception as exc:
+        return _fail(f"{type(exc).__name__}: {exc}", 400)
+
+
+@router.post("/study/review")
+def study_review(payload: Dict[str, Any] = Body(...)) -> Any:
+    """Record one rating (again|hard|good|easy) and return the new schedule."""
+    from hermes_notebook import study as study_mod
+    try:
+        nb = store.resolve_notebook(str(payload.get("notebook") or ""))
+        out = study_mod.review(nb, str(payload.get("card") or ""),
+                               str(payload.get("rating") or "good"))
+        return {"ok": True, "notebook": nb, "result": out, "stats": study_mod.stats(nb)}
+    except Exception as exc:
+        return _fail(f"{type(exc).__name__}: {exc}", 400)
+
+
 @router.get("/health")
 def health() -> Dict[str, Any]:
     root = None

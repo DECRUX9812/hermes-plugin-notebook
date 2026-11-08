@@ -74,6 +74,31 @@ const audit = existsSync(join(tmp, 'ops-audit.json')) ? readFileSync(join(tmp, '
 const styles = existsSync(join(tmp, 'styles.json')) ? readFileSync(join(tmp, 'styles.json'), 'utf8') : '{"ok":true,"styles":[],"previews":{}}'
 const exec = existsSync(join(tmp, 'ops-exec.json')) ? readFileSync(join(tmp, 'ops-exec.json'), 'utf8') : '{"ok":false,"result":{"ok":false,"out":"","err":"no captured run"}}'
 writeFileSync(join(tmp, 'payloads.mjs'), `
+export const STUDY_CARDS = [
+  { id: 'c-iter-six', kind: 'flash', phase: 'new', front: "What does ITER's 'six of nine' refer to?",
+    back: 'Sector modules installed in the tokamak pit — two-thirds of the torus core, as of 28 July 2026.',
+    source: 'ITER Organization', interval: 0, reps: 0 },
+  { id: 'c-fia-count', kind: 'flash', phase: 'new', front: 'What does the FIA count?',
+    back: '$4.48B raised in the twelve months to July 2026, $14.24B cumulative since 2021.',
+    source: 'Reuters', interval: 0, reps: 0 },
+  { id: 'c-quiz-body', kind: 'quiz', phase: 'new',
+    front: 'Which body counts $4.48B of fusion investment in the year to July 2026?',
+    back: 'The Fusion Industry Association',
+    choices: ['The IAEA', 'The Fusion Industry Association', 'The Congressional Research Service', 'The DOE'],
+    explanation: 'Reuters reports the FIA figure; the CRS runs its own, smaller, survey.', interval: 0, reps: 0 }
+]
+export const STUDY_DONE = {}
+export const STUDY_STATS = () => {
+  const total = STUDY_CARDS.length
+  const done = Object.keys(STUDY_DONE).length
+  return {
+    ok: true, cards: total, due: total - done,
+    counts: { new: Math.max(0, total - done - 1), due: 0, learning: 0, young: 1, mastered: done ? 1 : 0 },
+    reviews_today: done, streak: done ? 1 : 0,
+    mastered_pct: total ? Math.round((100 * (done ? 1 : 0)) / total) : 0, days_studied: done ? 1 : 0
+  }
+}
+
 export const STATE = ${JSON.stringify(state)}
 export const FLEET = ${fleet}
 export const SERVICES = ${services}
@@ -86,7 +111,7 @@ writeFileSync(join(tmp, 'preview-entry.mjs'), `
 import React from 'react'
 import { createRoot } from 'react-dom/client'
 import { App, OpsDeck, plugin } from './preview.mjs'
-import { STATE, FLEET, SERVICES, AUDIT, EXEC, STYLES } from './payloads.mjs'
+import { STATE, FLEET, SERVICES, AUDIT, EXEC, STYLES, STUDY_CARDS, STUDY_DONE, STUDY_STATS } from './payloads.mjs'
 
 window.React = React
 
@@ -194,6 +219,19 @@ const rest = async (path, opts) => {
         snippet: String(s.summary || s.title || '') + ' — matching "' + q + '" across the stored passages of this source.'
       }))
     return { ok: true, result: { ok: true, query: q, hits, total_chunks: 42 } }
+  }
+  if (route === 'study') {
+    await new Promise((r) => setTimeout(r, 260))
+    // a deterministic deck: two flashcards and one quiz question, with a couple of
+    // cards already scheduled so the panel's counts are not all zero
+    const queue = STUDY_CARDS.filter((c) => !STUDY_DONE[c.id])
+    return { ok: true, notebook: STATE.notebook && STATE.notebook.id, queue, stats: STUDY_STATS() }
+  }
+  if (route === 'study/review') {
+    await new Promise((r) => setTimeout(r, 220))
+    const body = (opts && opts.body) || {}
+    if (body.card) STUDY_DONE[body.card] = body.rating || 'good'
+    return { ok: true, result: { ok: true, card: body.card, rating: body.rating || 'good' }, stats: STUDY_STATS() }
   }
   if (route === 'suggest') {
     await new Promise((r) => setTimeout(r, 800))

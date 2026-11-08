@@ -827,6 +827,41 @@ const CSS = `
 .nb-disc-err{color:${T.danger};font-size:13px;padding:10px 14px;border-radius:12px;
   background:color-mix(in srgb,${T.danger} 12%, transparent)}
 @media (max-width:820px){ .nb-disc{padding:18px 16px 32px} }
+
+/* study — a session, not a deck viewer: one card at a time, keyboard first */
+.nb-study{display:flex;flex-direction:column;gap:16px;padding:26px 30px 40px;max-width:980px;margin:0 auto;min-height:0}
+.nb-study-head{display:flex;align-items:flex-start;gap:14px;flex-wrap:wrap}
+.nb-study-title{font-size:21px;font-weight:650;letter-spacing:-.01em;color:${T.text}}
+.nb-study-chips{display:flex;gap:6px;flex-wrap:wrap;margin-top:8px}
+.nb-study-actions{display:flex;gap:8px;align-items:center}
+.nb-study-progress{display:flex;align-items:center;gap:12px}
+.nb-study-bar{flex:1;height:4px;border-radius:99px;background:var(--nb-hair-soft);overflow:hidden}
+.nb-study-bar i{display:block;height:100%;background:${T.accent};border-radius:99px;transition:width .25s ease}
+.nb-study-card{border:1px solid var(--nb-hair);border-radius:20px;background:var(--nb-card);
+  padding:28px 30px 24px;min-height:210px;display:flex;flex-direction:column;gap:16px;
+  box-shadow:var(--nb-shadow)}
+.nb-study-card[data-phase="new"]{border-color:color-mix(in srgb,${T.accent} 40%, var(--nb-hair))}
+.nb-study-q{font-size:22px;line-height:1.4;font-weight:600;color:${T.text};max-width:62ch}
+.nb-study-choices{display:grid;gap:8px;max-width:62ch}
+.nb-study-choice{padding:10px 14px;border-radius:11px;border:1px solid var(--nb-hair-soft);
+  background:var(--nb-card-deep, transparent);color:${T.text2};font-size:14.5px}
+.nb-study-choice[data-right="true"]{border-color:${T.ok};background:color-mix(in srgb,${T.ok} 14%, transparent);color:${T.text}}
+.nb-study-a{display:flex;flex-direction:column;gap:8px;font-size:16px;line-height:1.55;color:${T.text};
+  padding-top:14px;border-top:1px solid var(--nb-hair-soft)}
+.nb-study-a-label{font-size:11px;letter-spacing:.14em;text-transform:uppercase;color:${T.text4}}
+.nb-study-reveal{display:flex;align-items:center;gap:12px;margin-top:auto}
+.nb-study-ratings{display:flex;gap:8px;flex-wrap:wrap;min-height:44px;align-items:center}
+.nb-study-rate{flex:1 1 150px;display:flex;flex-direction:column;gap:2px;align-items:flex-start;
+  padding:10px 14px;border-radius:12px;border:1px solid var(--nb-hair);background:var(--nb-card);
+  color:${T.text};cursor:pointer;font-size:14px}
+.nb-study-rate span{font-size:11.5px;color:${T.text3}}
+.nb-study-rate:hover{background:var(--nb-card-hover, color-mix(in srgb,#fff 4%, transparent))}
+.nb-study-src{align-self:flex-start;display:inline-flex;align-items:center;gap:6px;padding:0;
+  border:0;background:none;color:${T.accent};font-size:12.5px;text-decoration:underline;
+  text-underline-offset:3px;cursor:pointer}
+.nb-study-empty{display:grid;justify-items:center;gap:10px;padding:64px 20px;text-align:center;
+  color:${T.text3};border:1px dashed var(--nb-hair-soft);border-radius:18px}
+@media (max-width:820px){ .nb-study{padding:18px 16px 32px} .nb-study-q{font-size:19px} }
 `
 
 /* --------------------------------------------------------------- helpers */
@@ -2092,6 +2127,7 @@ function App() {
   const ops = mode === 'ops'
   const home = mode === 'home'
   const discoverMode = mode === 'discover'
+  const studyMode = mode === 'study'
 
   return el('div', { className: 'nb-root', 'data-mode': mode, 'data-plugin': ID },
     el('style', { dangerouslySetInnerHTML: { __html: CSS } }),
@@ -2106,6 +2142,8 @@ function App() {
               ? el('b', { children: 'All notebooks' })
               : discoverMode
                 ? el('b', { children: 'Discover' })
+                : studyMode
+                  ? el('b', { children: 'Study' })
                 : el('span', null, '/ ', notebook
                     ? el('button', {
                         type: 'button', className: 'nb-crumbedit',
@@ -2121,6 +2159,7 @@ function App() {
         options: [
           { id: 'home', label: 'Home', icon: 'grid' },
           { id: 'discover', label: 'Discover', icon: 'search' },
+          { id: 'study', label: 'Study', icon: 'cards' },
           { id: 'studio', label: 'Studio', icon: 'notebook' },
           { id: 'ops', label: 'Lab Ops', icon: 'server' }
         ]
@@ -2151,6 +2190,15 @@ function App() {
               notebook, onSay: say,
               reload: () => studio.reload(true)
             })
+          : studyMode
+            ? jsx(StudyPanel, {
+                notebook, onSay: say,
+                onOpenSource: (title) => {
+                  const s = ((notebook && notebook.sources) || []).find(
+                    (x) => (x.title || '').trim().toLowerCase() === String(title).trim().toLowerCase())
+                  if (s) { setPeek({ ...s, citeSnippet: '' }); setTab('peek') }
+                }
+              })
           : el('div', { className: 'nb-body' },
             railOpen
               ? jsx(Rail, {
@@ -4941,6 +4989,250 @@ function DiscoverPanel({ notebook, onSay, reload }) {
             ? el('span', { children: `queries: ${res.queries.slice(0, 3).join(' | ')}` })
             : null)
       : null)
+}
+
+/* ------------------------------------------------------------------- study
+ *
+ * Flashcards and quizzes were already generated; nothing remembered whether a card
+ * had been answered, so "study" meant re-reading a deck you already knew. This
+ * surface is a session: the notebook's own cards, ordered by what is about to be
+ * forgotten, with the schedule kept on the server so the page, the CLI and an agent
+ * see the same memory (see `hermes_notebook/study.py` and `notebook_study`).
+ */
+
+const STUDY = Machine('study', {
+  initial: 'idle',
+  context: { queue: [], stats: null, idx: 0, error: '', review: 0, limit: 12 },
+  states: {
+    idle: { on: { OPEN: { target: 'loading', action: (c, p) => ({ idx: 0, error: '', limit: (p && p.limit) || c.limit }) } } },
+    loading: {
+      tags: ['busy'],
+      enter: (c, m) => {
+        let live = true
+        api(`/study?${qs({ notebook: c.notebook, limit: c.limit })}`)
+          .then((out) => {
+            if (!live) return
+            const queue = (out && out.queue) || []
+            m.set({ queue, stats: (out && out.stats) || null })
+            m.send(queue.length ? 'LOADED' : 'EMPTY')
+          })
+          .catch((e) => { if (live) m.send('FAIL', { message: e.message || String(e) }) })
+        return () => { live = false }
+      },
+      on: {
+        LOADED: { target: 'reviewing', action: () => ({ error: '' }) },
+        EMPTY: { target: 'done', action: () => ({ idx: 0 }) },
+        FAIL: { target: 'error', action: (c, p) => ({ error: (p && p.message) || 'could not load the deck' }) },
+        CLOSE: 'idle'
+      }
+    },
+    reviewing: {
+      on: {
+        REVEAL: 'revealed',
+        OPEN: { target: 'loading', action: (c, p) => ({ idx: 0, error: '', limit: (p && p.limit) || c.limit }) },
+        CLOSE: 'idle'
+      }
+    },
+    revealed: {
+      enter: () => null,
+      on: {
+        RATE: { target: 'saving', guard: (c, p) => !!(p && p.rating), action: (c, p) => ({ rating: p.rating }) },
+        OPEN: { target: 'loading', action: (c, p) => ({ idx: 0, error: '', limit: (p && p.limit) || c.limit }) },
+        CLOSE: 'idle'
+      }
+    },
+    saving: {
+      tags: ['busy'],
+      enter: (c, m) => {
+        let live = true
+        const card = c.queue[c.idx]
+        const rating = c.rating
+        api('/study/review', {
+          method: 'POST', timeoutMs: 20000,
+          body: { notebook: c.notebook, card: card && card.id, rating }
+        })
+          .then((out) => {
+            if (!live) return
+            m.set({ stats: (out && out.stats) || c.stats, review: c.review + 1 })
+            m.send('RATED')
+          })
+          .catch((e) => { if (live) m.send('FAIL', { message: e.message || String(e) }) })
+        return () => { live = false }
+      },
+      on: { RATED: 'advance', FAIL: { target: 'error', action: (c, p) => ({ error: (p && p.message) || 'could not save that review' }) } }
+    },
+    advance: {
+      enter: (c, m) => {
+        const next = c.idx + 1
+        m.set({ idx: next })
+        m.send(next < c.queue.length ? 'NEXT' : 'FINISHED')
+        return null
+      },
+      on: { NEXT: 'reviewing', FINISHED: 'done' }
+    },
+    done: {
+      on: {
+        OPEN: { target: 'loading', action: (c, p) => ({ idx: 0, error: '', limit: (p && p.limit) || c.limit }) },
+        CLOSE: 'idle'
+      }
+    },
+    error: {
+      on: {
+        OPEN: { target: 'loading', action: (c, p) => ({ idx: 0, error: '', limit: (p && p.limit) || c.limit }) },
+        CLOSE: 'idle'
+      }
+    }
+  }
+})
+
+const RATING_HINT = {
+  again: 'in a minute', hard: 'a bit sooner', good: 'as scheduled', easy: 'much later'
+}
+
+function StudyPanel({ notebook, onSay, onOpenSource }) {
+  const m = useMachine(STUDY)
+  const nbId = notebook && notebook.id
+  const card = m.ctx.queue[m.ctx.idx] || null
+  const stats = m.ctx.stats || {}
+  const total = m.ctx.queue.length
+  const done = m.matches('done')
+  const revealed = m.matches('revealed')
+
+  useEffect(() => {
+    if (!nbId) return undefined
+    STUDY.set({ notebook: nbId })
+    if (STUDY.matches('idle', 'done', 'error')) STUDY.send('OPEN', { limit: 12 })
+    return () => { if (STUDY.can('CLOSE')) STUDY.send('CLOSE') }
+  }, [nbId])
+
+  const rate = (rating) => { if (STUDY.can('RATE')) STUDY.send('RATE', { rating }) }
+
+  useEffect(() => {
+    const onKey = (e) => {
+      if (!nbId || m.matches('idle', 'loading', 'saving', 'error')) return
+      if (e.target && /input|textarea/i.test(e.target.tagName || '')) return
+      if ((e.code === 'Space' || e.key === 'Enter') && STUDY.can('REVEAL')) {
+        e.preventDefault(); STUDY.send('REVEAL')
+      } else if (/^[1-4]$/.test(e.key) && STUDY.can('RATE')) {
+        e.preventDefault(); STUDY.send('RATE', { rating: ['again', 'hard', 'good', 'easy'][Number(e.key) - 1] })
+      }
+    }
+    document.addEventListener('keydown', onKey)
+    return () => document.removeEventListener('keydown', onKey)
+  }, [nbId, m.state])
+
+  const counts = stats.counts || {}
+  const chip = (label, value, tone) => el('span', {
+    className: 'nb-chip', 'data-tone': tone || undefined,
+    children: `${value} ${label}`
+  })
+
+  const header = el('div', { className: 'nb-study-head' },
+    el('div', null,
+      el('div', { className: 'nb-study-title', children: 'Study' }),
+      el('div', { className: 'nb-hint', children: stats.cards
+        ? `${stats.cards} cards in this notebook · ${stats.due || 0} due · ${stats.mastered_pct || 0}% mastered`
+        : 'No flashcards or quiz in this notebook yet — generate one, then come back.' }),
+      el('div', { className: 'nb-study-chips' },
+        chip('due', stats.due || 0, stats.due ? 'accent' : undefined),
+        chip('new', counts.new || 0),
+        chip('learning', counts.learning || 0),
+        chip('mastered', counts.mastered || 0, 'ok'),
+        stats.streak ? chip('day streak', stats.streak) : null,
+        stats.reviews_today ? chip('today', stats.reviews_today) : null)),
+    el('div', { className: 'nb-spacer' }),
+    el('div', { className: 'nb-study-actions' },
+      jsx(Btn, { size: 'sm', icon: 'refresh', onClick: () => STUDY.send('OPEN', { limit: 12 }),
+        children: m.matches('loading') ? 'Loading…' : 'Reload deck' }),
+      jsx(Btn, { size: 'sm', icon: 'plus', onClick: () => STUDY.send('OPEN', { limit: 30 }),
+        children: 'Study 30' })))
+
+  if (!nbId) {
+    return el('div', { className: 'nb-study' }, header,
+      el('div', { className: 'nb-study-empty', children: 'Pick a notebook first.' }))
+  }
+
+  if (m.matches('loading') || m.matches('idle')) {
+    return el('div', { className: 'nb-study', 'data-study-state': m.state }, header,
+      el('div', { className: 'nb-study-empty' },
+        el('span', { className: 'nb-dot', style: { background: T.accent } }),
+        el('div', { children: 'Building today’s queue…' })))
+  }
+
+  if (m.matches('error')) {
+    return el('div', { className: 'nb-study', 'data-study-state': m.state }, header,
+      el('div', { className: 'nb-study-empty' },
+        el('div', { style: { color: T.danger }, children: m.ctx.error }),
+        jsx(Btn, { size: 'sm', icon: 'refresh', onClick: () => STUDY.send('OPEN'), children: 'Try again' })))
+  }
+
+  if (done && !total) {
+    return el('div', { className: 'nb-study', 'data-study-state': m.state }, header,
+      el('div', { className: 'nb-study-empty' },
+        jsx(Glyph, { name: 'check', size: 26 }),
+        el('div', { children: stats.cards
+          ? 'Nothing is due right now.'
+          : 'Generate flashcards or a quiz for this notebook, then come back to study.' }),
+        el('div', { className: 'nb-hint', children: stats.cards
+          ? `${counts.mastered || 0} mastered · ${counts.young || 0} scheduled ahead · reinforces itself as you review.`
+          : 'Studio → Flashcards, or Studio → Quiz.' })))
+  }
+
+  if (done && total) {
+    return el('div', { className: 'nb-study', 'data-study-state': m.state }, header,
+      el('div', { className: 'nb-study-empty' },
+        jsx(Glyph, { name: 'check', size: 26 }),
+        el('div', { children: `Session done — ${total} cards reviewed.` }),
+        el('div', { className: 'nb-hint', children: 'The queue reorders itself by when each card is due; nothing to keep track of by hand.' }),
+        jsx(Btn, { size: 'sm', icon: 'refresh', variant: 'primary', onClick: () => STUDY.send('OPEN'), children: 'Check for due cards' })))
+  }
+
+  return el('div', { className: 'nb-study', 'data-study-state': m.state, 'data-study-card': card && card.id },
+    header,
+    el('div', { className: 'nb-study-progress' },
+      el('div', { className: 'nb-study-bar' },
+        el('i', { style: { width: `${total ? Math.round((m.ctx.idx / total) * 100) : 0}%` } })),
+      el('span', { className: 'nb-hint', children: `${m.ctx.idx + 1} of ${total} · ${card && card.kind === 'quiz' ? 'quiz' : 'flashcard'}` })),
+    el('div', { className: 'nb-study-card', 'data-phase': card && card.phase, 'aria-live': 'polite' },
+      el('div', { className: 'nb-study-q', children: card && card.front }),
+      card && card.kind === 'quiz' && card.choices && card.choices.length
+        ? el('div', { className: 'nb-study-choices' },
+            card.choices.map((c, i) => el('div', {
+              key: `ch${i}`,
+              className: 'nb-study-choice',
+              'data-right': revealed && normAnswer(c) === normAnswer(card.back) ? 'true' : undefined,
+              children: c
+            })))
+        : null,
+      revealed
+        ? el('div', { className: 'nb-study-a' },
+            el('div', { className: 'nb-study-a-label', children: 'Answer' }),
+            el('div', { children: card && card.back }),
+            card && card.explanation ? el('div', { className: 'nb-hint', children: card.explanation }) : null,
+            card && card.source
+              ? el('button', {
+                  type: 'button', className: 'nb-study-src', onClick: () => onOpenSource && onOpenSource(card.source),
+                  children: [`Source: ${card.source}`]
+                })
+              : null)
+        : el('div', { className: 'nb-study-reveal' },
+            jsx(Btn, { variant: 'primary', icon: 'eye', onClick: () => STUDY.send('REVEAL'), children: 'Show answer' }),
+            el('span', { className: 'nb-hint', children: 'space' }))),
+    el('div', { className: 'nb-study-ratings' },
+      revealed
+        ? [
+            ['again', 'Again', '1', T.danger],
+            ['hard', 'Hard', '2', T.warn],
+            ['good', 'Good', '3', T.ok],
+            ['easy', 'Easy', '4', T.accent]
+          ].map(([id, label, key, tone]) => el('button', {
+            key: id, type: 'button', className: 'nb-study-rate', 'data-tone': id,
+            style: { borderColor: tone },
+            onClick: () => rate(id),
+            children: [el('b', { children: label }), el('span', { children: `${key} · ${RATING_HINT[id]}` })]
+          }))
+        : el('span', { className: 'nb-hint', children: 'Rate the card after you see the answer — that is what schedules it.' }))
+  )
 }
 
 /* ------------------------------------------------------------------ viewers

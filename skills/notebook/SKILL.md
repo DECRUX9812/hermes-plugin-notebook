@@ -38,9 +38,10 @@ Everything goes through the notebook tools — there is no shell pipeline. Typic
 3. `notebook_ask` for questions — answers come back with `[S1]`-style citations mapped to source titles. Pass `thread=` so the conversation has memory; use a **different thread per line of enquiry** (they do not share history). `notebook_threads` lists / starts / renames / deletes them.
 4. `notebook_search` for "where does X say Y" lookups; `notebook_note` to pin user annotations as searchable sources.
 5. `notebook_discover` when the user wants more sources on a topic — it returns candidates, then confirm before `notebook_add_source`.
-6. `notebook_generate` for artifacts — `summary`, `briefing_doc`, `study_guide`, `faq`, `timeline`, `mind_map`, `flashcards` (md or `format=csv` for Anki), `quiz`, `slides` (HTML deck), `infographic` (PNG in 16 bundled styles — pass `style=`; see the `notebook-infographics` skill), `data_table` (CSV).
+6. `notebook_generate` for artifacts — `summary`, `briefing_doc`, `study_guide`, `faq`, `timeline`, `mind_map`, `flashcards` (md or `format=csv` for Anki), `quiz`, `slides` (HTML deck), `infographic` (SVG/PNG in 38 bundled looks — pass `style=`; see the `notebook-infographics` skill), `data_table` (CSV).
 7. `notebook_audio`/`notebook_video` for overviews (slow: minutes — warn first; video takes `style=cinematic|explainer`).
-8. `notebook_suggest` when the user is unsure what to do next; `notebook_refresh` re-pulls changed urls/files; `notebook_update` renames; `notebook_export` zips everything.
+8. `notebook_study` for spaced repetition over a notebook's own flashcards and quiz questions: `action=queue` (default) returns the cards due today with their phase and interval, `action=review` records one rating (`again|hard|good|easy`) and returns the new schedule, `action=stats` reports due count, mastery percentage and streak. The schedule lives in the notebook, so the desktop Study tab and the tool share one memory.
+9. `notebook_suggest` when the user is unsure what to do next; `notebook_refresh` re-pulls changed urls/files; `notebook_update` renames; `notebook_export` zips everything.
 
 Slash shortcut: `/notebook list|new|add|sources|ask|note|search|suggest`. CLI: `hermes notebook <sub>`.
 
@@ -54,6 +55,7 @@ Slash shortcut: `/notebook list|new|add|sources|ask|note|search|suggest`. CLI: `
 | "remember this / add a note" | `notebook_note` |
 | "find more sources on Z" | `notebook_discover` → confirm → `notebook_add_source` |
 | "make a study guide / podcast / slides / video" | `notebook_generate` kind=… / `notebook_audio` / `notebook_video` |
+| "quiz me / what should I revise?" | `notebook_study` (queue → review) |
 | "what should I ask or make?" | `notebook_suggest` |
 | "add this link/file/text" | `notebook_add_source` |
 | "rename / export / remove a source" | `notebook_update` / `notebook_export` / `notebook_delete_source` |

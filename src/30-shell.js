@@ -421,6 +421,7 @@ function App() {
   const ops = mode === 'ops'
   const home = mode === 'home'
   const discoverMode = mode === 'discover'
+  const studyMode = mode === 'study'
 
   return el('div', { className: 'nb-root', 'data-mode': mode, 'data-plugin': ID },
     el('style', { dangerouslySetInnerHTML: { __html: CSS } }),
@@ -435,6 +436,8 @@ function App() {
               ? el('b', { children: 'All notebooks' })
               : discoverMode
                 ? el('b', { children: 'Discover' })
+                : studyMode
+                  ? el('b', { children: 'Study' })
                 : el('span', null, '/ ', notebook
                     ? el('button', {
                         type: 'button', className: 'nb-crumbedit',
@@ -450,6 +453,7 @@ function App() {
         options: [
           { id: 'home', label: 'Home', icon: 'grid' },
           { id: 'discover', label: 'Discover', icon: 'search' },
+          { id: 'study', label: 'Study', icon: 'cards' },
           { id: 'studio', label: 'Studio', icon: 'notebook' },
           { id: 'ops', label: 'Lab Ops', icon: 'server' }
         ]
@@ -480,6 +484,15 @@ function App() {
               notebook, onSay: say,
               reload: () => studio.reload(true)
             })
+          : studyMode
+            ? jsx(StudyPanel, {
+                notebook, onSay: say,
+                onOpenSource: (title) => {
+                  const s = ((notebook && notebook.sources) || []).find(
+                    (x) => (x.title || '').trim().toLowerCase() === String(title).trim().toLowerCase())
+                  if (s) { setPeek({ ...s, citeSnippet: '' }); setTab('peek') }
+                }
+              })
           : el('div', { className: 'nb-body' },
             railOpen
               ? jsx(Rail, {

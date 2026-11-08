@@ -827,6 +827,41 @@ const CSS = `
 .nb-disc-err{color:${T.danger};font-size:13px;padding:10px 14px;border-radius:12px;
   background:color-mix(in srgb,${T.danger} 12%, transparent)}
 @media (max-width:820px){ .nb-disc{padding:18px 16px 32px} }
+
+/* study — a session, not a deck viewer: one card at a time, keyboard first */
+.nb-study{display:flex;flex-direction:column;gap:16px;padding:26px 30px 40px;max-width:980px;margin:0 auto;min-height:0}
+.nb-study-head{display:flex;align-items:flex-start;gap:14px;flex-wrap:wrap}
+.nb-study-title{font-size:21px;font-weight:650;letter-spacing:-.01em;color:${T.text}}
+.nb-study-chips{display:flex;gap:6px;flex-wrap:wrap;margin-top:8px}
+.nb-study-actions{display:flex;gap:8px;align-items:center}
+.nb-study-progress{display:flex;align-items:center;gap:12px}
+.nb-study-bar{flex:1;height:4px;border-radius:99px;background:var(--nb-hair-soft);overflow:hidden}
+.nb-study-bar i{display:block;height:100%;background:${T.accent};border-radius:99px;transition:width .25s ease}
+.nb-study-card{border:1px solid var(--nb-hair);border-radius:20px;background:var(--nb-card);
+  padding:28px 30px 24px;min-height:210px;display:flex;flex-direction:column;gap:16px;
+  box-shadow:var(--nb-shadow)}
+.nb-study-card[data-phase="new"]{border-color:color-mix(in srgb,${T.accent} 40%, var(--nb-hair))}
+.nb-study-q{font-size:22px;line-height:1.4;font-weight:600;color:${T.text};max-width:62ch}
+.nb-study-choices{display:grid;gap:8px;max-width:62ch}
+.nb-study-choice{padding:10px 14px;border-radius:11px;border:1px solid var(--nb-hair-soft);
+  background:var(--nb-card-deep, transparent);color:${T.text2};font-size:14.5px}
+.nb-study-choice[data-right="true"]{border-color:${T.ok};background:color-mix(in srgb,${T.ok} 14%, transparent);color:${T.text}}
+.nb-study-a{display:flex;flex-direction:column;gap:8px;font-size:16px;line-height:1.55;color:${T.text};
+  padding-top:14px;border-top:1px solid var(--nb-hair-soft)}
+.nb-study-a-label{font-size:11px;letter-spacing:.14em;text-transform:uppercase;color:${T.text4}}
+.nb-study-reveal{display:flex;align-items:center;gap:12px;margin-top:auto}
+.nb-study-ratings{display:flex;gap:8px;flex-wrap:wrap;min-height:44px;align-items:center}
+.nb-study-rate{flex:1 1 150px;display:flex;flex-direction:column;gap:2px;align-items:flex-start;
+  padding:10px 14px;border-radius:12px;border:1px solid var(--nb-hair);background:var(--nb-card);
+  color:${T.text};cursor:pointer;font-size:14px}
+.nb-study-rate span{font-size:11.5px;color:${T.text3}}
+.nb-study-rate:hover{background:var(--nb-card-hover, color-mix(in srgb,#fff 4%, transparent))}
+.nb-study-src{align-self:flex-start;display:inline-flex;align-items:center;gap:6px;padding:0;
+  border:0;background:none;color:${T.accent};font-size:12.5px;text-decoration:underline;
+  text-underline-offset:3px;cursor:pointer}
+.nb-study-empty{display:grid;justify-items:center;gap:10px;padding:64px 20px;text-align:center;
+  color:${T.text3};border:1px dashed var(--nb-hair-soft);border-radius:18px}
+@media (max-width:820px){ .nb-study{padding:18px 16px 32px} .nb-study-q{font-size:19px} }
 `
 
 /* --------------------------------------------------------------- helpers */

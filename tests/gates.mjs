@@ -111,6 +111,72 @@ async function machines(port, shared) {
   if (!shared) await b.close()
 }
 
+/* ----------------------------------------------------------------- study
+ * The study surface is a session over the notebook's own cards: reveal, rate, and
+ * the schedule advances. These checks use the keyboard path a person would use.
+ */
+async function study(port) {
+  const b = await browser()
+  const page = await b.newPage({ viewport: { width: 1440, height: 950 } })
+  const errors = []
+  page.on('pageerror', (e) => errors.push(e.message))
+  await page.goto(`http://127.0.0.1:${port}/preview.html`, { waitUntil: 'load' })
+  await settle(page, 1000)
+
+  await page.locator('.nb-seg button', { hasText: 'Study' }).first().click()
+  await settle(page, 800)
+
+  const first = await page.evaluate(() => {
+    const m = window.__nbMachine('study')
+    return { state: m && m.state, idx: m && m.ctx.idx, cards: m && m.ctx.queue.length,
+             question: (document.querySelector('.nb-study-q') || {}).textContent || '' }
+  })
+  ok('the study surface opens on the first card of a real queue',
+     first.state === 'reviewing' && first.cards === 3 && !!first.question,
+     JSON.stringify(first).slice(0, 140))
+
+  await page.keyboard.press('Space')
+  await settle(page, 300)
+  const revealed = await page.evaluate(() => {
+    const m = window.__nbMachine('study')
+    return { state: m.state,
+             answer: (document.querySelector('.nb-study-a') || {}).textContent || '',
+             rates: document.querySelectorAll('.nb-study-rate').length }
+  })
+  ok('space reveals the answer and offers four ratings',
+     revealed.state === 'revealed' && revealed.rates === 4 && /Sector modules/.test(revealed.answer),
+     JSON.stringify(revealed).slice(0, 140))
+
+  await page.keyboard.press('3')
+  await settle(page, 700)
+  const rated = await page.evaluate(() => {
+    const m = window.__nbMachine('study')
+    return { state: m.state, idx: m.ctx.idx, reviews: m.ctx.review,
+             progress: (document.querySelector('.nb-study-progress') || {}).textContent || '' }
+  })
+  ok('a rating advances the session and is recorded',
+     rated.state === 'reviewing' && rated.idx === 1 && rated.reviews === 1 && /2 of 3/.test(rated.progress),
+     JSON.stringify(rated).slice(0, 140))
+
+  // finish the session: 2 more cards, and the surface reports it rather than looping
+  for (let i = 0; i < 2; i += 1) {
+    await page.keyboard.press('Space'); await settle(page, 250)
+    await page.keyboard.press('3'); await settle(page, 600)
+  }
+  const finished = await page.evaluate(() => {
+    const m = window.__nbMachine('study')
+    return { state: m.state, review: m.ctx.review,
+             text: (document.querySelector('.nb-study-empty') || {}).textContent || '' }
+  })
+  ok('the session ends with a summary instead of an empty card',
+     finished.state === 'done' && finished.review === 3 && /reviewed/i.test(finished.text),
+     JSON.stringify(finished).slice(0, 140))
+
+  ok('the study surface raised no page errors', errors.length === 0, errors.slice(0, 2).join(' | '))
+  await page.close()
+  await b.close()
+}
+
 /* ---------------------------------------------------------- 1 bundle-load */
 async function bundleLoad() {
   // Build the COMMITTED bundle once more with the SDK swapped for a stub, so the
@@ -483,6 +549,7 @@ try {
   if (which === 'all' || which === 'bundle') await bundleLoad()
   if (which === 'all' || which === 'functional') await functional(port)
   if (which === 'all' || which === 'machines') await machines(port)
+  if (which === 'all' || which === 'study') await study(port)
   if (which === 'all' || which === 'a11y') await a11y(port)
   if (which === 'all' || which === 'layout') { layout.port = port; await layout() }
 } finally {

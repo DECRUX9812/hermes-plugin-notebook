@@ -306,6 +306,25 @@ NOTEBOOK_DELETE = {
         "notebook": _NB,
         "confirm": {"type": "boolean", "description": "Must be true to actually delete"},
     }, "required": ["confirm"]},
+    "notebook_study": {
+        "name": "notebook_study",
+        "description": (
+            "Spaced repetition over a notebook's own flashcards and quiz questions. "
+            "action=queue returns the cards due today (with phase and interval), "
+            "action=review records one rating (again|hard|good|easy) and returns the "
+            "new schedule, action=stats reports mastery, due count and streak. The "
+            "schedule persists in the notebook, so the desktop page and the agent see "
+            "the same memory."),
+        "parameters": {"type": "object", "properties": {
+            "notebook": {"type": "string", "description": "Notebook id or title"},
+            "action": {"type": "string", "enum": ["queue", "review", "stats"],
+                       "description": "queue (default) | review | stats"},
+            "limit": {"type": "integer", "description": "How many cards to return (1-60, default 12)"},
+            "card": {"type": "string", "description": "Card id from action=queue (required for review)"},
+            "rating": {"type": "string", "enum": ["again", "hard", "good", "easy"],
+                       "description": "How well the card was known (default good)"},
+        }, "required": ["notebook"]},
+    },
 }
 
 ALL = [
