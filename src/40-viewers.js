@@ -33,8 +33,23 @@ function useFile(notebookId, name) {
   return st
 }
 
-function Viewer({ artifact, notebook, onCite, onRegenerate, regenerating }) {
+function Viewer({ artifact, notebook, onCite, onRegenerate, regenerating, onChanged }) {
+  const [renOpen, setRenOpen] = useState(false)
+  const [renVal, setRenVal] = useState('')
+  const [renBusy, setRenBusy] = useState(false)
   const files = artifact.files || []
+  const saveRename = async () => {
+    setRenBusy(true)
+    try {
+      await api('/artifact/rename', {
+        method: 'POST',
+        body: { notebook: notebook.id, key: artifact.key, title: renVal.trim() },
+        timeoutMs: 30000
+      })
+      setRenOpen(false)
+      if (onChanged) onChanged()
+    } catch { /* rename is best-effort */ } finally { setRenBusy(false) }
+  }
   const jsonName = (files.find((f) => f.ext === 'json') || {}).name || ''
   const txtName = (files.find((f) => f.ext === 'txt') || {}).name || ''
   const primary = useFile(notebook.id, artifact.primary)
@@ -79,7 +94,7 @@ function Viewer({ artifact, notebook, onCite, onRegenerate, regenerating }) {
     el('div', { className: 'nb-view-head' },
       el('span', { className: 'nb-chip', 'data-tone': 'accent', children: artifact.label }),
       el('div', { style: { flex: 1, minWidth: 0 } },
-        el('div', { className: 'nb-view-title', children: (asJson.json && (asJson.json.title || asJson.json.topic)) || prettyFile(artifact.primary) }),
+        el('div', { className: 'nb-view-title', children: artifact.title || (asJson.json && (asJson.json.title || asJson.json.topic)) || prettyFile(artifact.primary) }),
         el('div', { style: { fontSize: '12.5px', color: T.text4 },
           children: `${artifact.files.length} file${artifact.files.length === 1 ? '' : 's'} · ${Math.max(1, Math.round(artifact.bytes / 1024))} KB · ${ago(artifact.modified)}` })),
       primary.text
@@ -96,9 +111,33 @@ function Viewer({ artifact, notebook, onCite, onRegenerate, regenerating }) {
         icon: 'refresh', label: `Regenerate ${artifact.label}`,
         active: !!regenerating, disabled: !!regenerating,
         onClick: onRegenerate
-      }) : null
+      }) : null,
+      jsx(IconBtn, {
+        icon: 'pencil', label: 'Rename this artifact',
+        onClick: () => { setRenVal(artifact.title || ''); setRenOpen(true) }
+      })
     ),
-    body
+    body,
+    renOpen
+      ? jsx(Dialog, {
+          open: true, onClose: () => setRenOpen(false), title: 'Name this artifact', width: 420,
+          children: el('div', { style: { display: 'grid', gap: '12px' } },
+            el('input', {
+              className: 'nb-genopt-text', type: 'text', autoFocus: true,
+              placeholder: prettyFile(artifact.primary), value: renVal,
+              onChange: (e) => setRenVal(e.target.value),
+              onKeyDown: (e) => { if (e.key === 'Enter' && !renBusy) saveRename() }
+            }),
+            el('div', { className: 'nb-hint', children: 'A display name only — the files keep their generated names.' }),
+            el('div', { style: { display: 'flex', gap: '8px', justifyContent: 'flex-end' } },
+              jsx(Btn, { size: 'sm', onClick: () => setRenOpen(false), children: 'Cancel' }),
+              jsx(Btn, {
+                size: 'sm', variant: 'primary', disabled: renBusy,
+                onClick: saveRename,
+                children: renBusy ? 'Saving…' : 'Save'
+              })))
+        })
+      : null
   )
 }
 

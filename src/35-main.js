@@ -109,6 +109,7 @@ function Main({ notebook, kinds, tab, setTab, picked, setPicked, busy, generate,
             artifact: picked, notebook, onSearch: () => {},
             regenerating: !!(busy && busy[picked.kind]),
             onRegenerate: () => generate(picked.kind),
+            onChanged: () => reload && reload(true),
             onCite: (n) => {
               const src = sources.find((s) => s.n === n)
               if (src) { setPeek(src); setTab('peek') }

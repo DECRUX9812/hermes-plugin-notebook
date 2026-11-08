@@ -804,7 +804,8 @@ const P = {
   tag: 'M4 4h6.6L20 13.4a2 2 0 0 1 0 2.8l-3.8 3.8a2 2 0 0 1-2.8 0L4 10.6V4Zm4.6 3.4a1.3 1.3 0 1 0 0 2.6 1.3 1.3 0 0 0 0-2.6Z',
   more: 'M5 12h.01M12 12h.01M19 12h.01',
   pin: 'M9 4h6l-1 6 3 3v2H7v-2l3-3-1-6Z',
-  sliders: 'M4 7h9m4 0h3M4 17h3m4 0h9M13 4v6m-6 4v6'
+  sliders: 'M4 7h9m4 0h3M4 17h3m4 0h9M13 4v6m-6 4v6',
+  pencil: 'M4 20h4L19.5 8.5a2.12 2.12 0 0 0-3-3L5 17v3Zm9.5-11.5 2 2'
 }
 
 function Glyph({ name, size = 16, stroke = 1.7 }) {
@@ -2141,6 +2142,7 @@ function Main({ notebook, kinds, tab, setTab, picked, setPicked, busy, generate,
             artifact: picked, notebook, onSearch: () => {},
             regenerating: !!(busy && busy[picked.kind]),
             onRegenerate: () => generate(picked.kind),
+            onChanged: () => reload && reload(true),
             onCite: (n) => {
               const src = sources.find((s) => s.n === n)
               if (src) { setPeek(src); setTab('peek') }
@@ -3669,8 +3671,23 @@ function useFile(notebookId, name) {
   return st
 }
 
-function Viewer({ artifact, notebook, onCite, onRegenerate, regenerating }) {
+function Viewer({ artifact, notebook, onCite, onRegenerate, regenerating, onChanged }) {
+  const [renOpen, setRenOpen] = useState(false)
+  const [renVal, setRenVal] = useState('')
+  const [renBusy, setRenBusy] = useState(false)
   const files = artifact.files || []
+  const saveRename = async () => {
+    setRenBusy(true)
+    try {
+      await api('/artifact/rename', {
+        method: 'POST',
+        body: { notebook: notebook.id, key: artifact.key, title: renVal.trim() },
+        timeoutMs: 30000
+      })
+      setRenOpen(false)
+      if (onChanged) onChanged()
+    } catch { /* rename is best-effort */ } finally { setRenBusy(false) }
+  }
   const jsonName = (files.find((f) => f.ext === 'json') || {}).name || ''
   const txtName = (files.find((f) => f.ext === 'txt') || {}).name || ''
   const primary = useFile(notebook.id, artifact.primary)
@@ -3715,7 +3732,7 @@ function Viewer({ artifact, notebook, onCite, onRegenerate, regenerating }) {
     el('div', { className: 'nb-view-head' },
       el('span', { className: 'nb-chip', 'data-tone': 'accent', children: artifact.label }),
       el('div', { style: { flex: 1, minWidth: 0 } },
-        el('div', { className: 'nb-view-title', children: (asJson.json && (asJson.json.title || asJson.json.topic)) || prettyFile(artifact.primary) }),
+        el('div', { className: 'nb-view-title', children: artifact.title || (asJson.json && (asJson.json.title || asJson.json.topic)) || prettyFile(artifact.primary) }),
         el('div', { style: { fontSize: '12.5px', color: T.text4 },
           children: `${artifact.files.length} file${artifact.files.length === 1 ? '' : 's'} · ${Math.max(1, Math.round(artifact.bytes / 1024))} KB · ${ago(artifact.modified)}` })),
       primary.text
@@ -3732,9 +3749,33 @@ function Viewer({ artifact, notebook, onCite, onRegenerate, regenerating }) {
         icon: 'refresh', label: `Regenerate ${artifact.label}`,
         active: !!regenerating, disabled: !!regenerating,
         onClick: onRegenerate
-      }) : null
+      }) : null,
+      jsx(IconBtn, {
+        icon: 'pencil', label: 'Rename this artifact',
+        onClick: () => { setRenVal(artifact.title || ''); setRenOpen(true) }
+      })
     ),
-    body
+    body,
+    renOpen
+      ? jsx(Dialog, {
+          open: true, onClose: () => setRenOpen(false), title: 'Name this artifact', width: 420,
+          children: el('div', { style: { display: 'grid', gap: '12px' } },
+            el('input', {
+              className: 'nb-genopt-text', type: 'text', autoFocus: true,
+              placeholder: prettyFile(artifact.primary), value: renVal,
+              onChange: (e) => setRenVal(e.target.value),
+              onKeyDown: (e) => { if (e.key === 'Enter' && !renBusy) saveRename() }
+            }),
+            el('div', { className: 'nb-hint', children: 'A display name only — the files keep their generated names.' }),
+            el('div', { style: { display: 'flex', gap: '8px', justifyContent: 'flex-end' } },
+              jsx(Btn, { size: 'sm', onClick: () => setRenOpen(false), children: 'Cancel' }),
+              jsx(Btn, {
+                size: 'sm', variant: 'primary', disabled: renBusy,
+                onClick: saveRename,
+                children: renBusy ? 'Saving…' : 'Save'
+              })))
+        })
+      : null
   )
 }
 

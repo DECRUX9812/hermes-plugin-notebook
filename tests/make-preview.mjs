@@ -236,6 +236,14 @@ const rest = async (path, opts) => {
     }
     return { ok: true, source_id: sid, state: STATE.notebook }
   }
+  if (route === 'artifact/rename') {
+    const key = (opts && opts.body && opts.body.key) || ''
+    const title = String((opts && opts.body && opts.body.title) || '')
+    for (const a of (STATE.notebook && STATE.notebook.artifacts) || []) {
+      if (a.key === key) a.title = title
+    }
+    return { ok: true, title, state: STATE.notebook }
+  }
   if (route === 'artifact/delete') {
     const key = (opts && opts.body && opts.body.key) || ''
     if (STATE.notebook && STATE.notebook.artifacts) {

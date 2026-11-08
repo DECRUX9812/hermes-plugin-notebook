@@ -169,6 +169,7 @@ def _collect_artifacts(notebook_id: str) -> List[Dict[str, Any]]:
     """One row per *generation*, not per file: a single audio run writes .mp3 +
     .txt + .json, and a panel that lists all three reads as a mess."""
     raw = store.list_artifacts(notebook_id)
+    titles = (store.get_meta(notebook_id).get("artifact_titles") or {})
     runs: Dict[str, Dict[str, Any]] = {}
     for item in raw:
         name = item["name"]
@@ -194,6 +195,7 @@ def _collect_artifacts(notebook_id: str) -> List[Dict[str, Any]]:
         out.append({
             "key": run["key"],
             "kind": run["kind"],
+            "title": titles.get(run["key"], ""),
             "label": meta.get("label") or run["kind"].replace("_", " ").title(),
             "group": meta.get("group", "docs"),
             "primary": primary["name"],
@@ -481,6 +483,30 @@ def delete_artifact(payload: Dict[str, Any] = Body(...)) -> Any:
     if not removed:
         return _fail("could not remove the artifact files", 500)
     return {"ok": True, "removed": removed,
+            "state": _notebook_payload(store.resolve_notebook(nb))}
+
+
+@router.post("/artifact/rename")
+def rename_artifact(payload: Dict[str, Any] = Body(...)) -> Any:
+    """Display title for a generated run — filenames encode stamp+kind, so the
+    override lives in notebook meta keyed by the run key. Empty title resets."""
+    nb = str(payload.get("notebook") or "")
+    key = str(payload.get("key") or "")
+    title = str(payload.get("title") or "").strip()[:120]
+    try:
+        nb_id = store.resolve_notebook(nb)
+    except Exception as exc:
+        return _fail(str(exc), 404)
+    run = next((a for a in _collect_artifacts(nb_id) if a["key"] == key), None)
+    if not run:
+        return _fail(f"artifact {key!r} is not in this notebook", 404)
+    titles = dict(store.get_meta(nb_id).get("artifact_titles") or {})
+    if title:
+        titles[key] = title
+    else:
+        titles.pop(key, None)
+    store.update_meta(nb_id, artifact_titles=titles)
+    return {"ok": True, "title": titles.get(key, ""),
             "state": _notebook_payload(store.resolve_notebook(nb))}
 
 
