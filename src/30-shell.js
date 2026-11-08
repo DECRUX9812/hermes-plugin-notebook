@@ -130,6 +130,18 @@ function App() {
     } catch (e) { say(`delete failed: ${e.message || e}`) }
   }, [nb, studio, say])
 
+  const renameNotebook = useCallback(async (id, title, desc) => {
+    try {
+      await api('/notebook/update', {
+        method: 'POST',
+        body: { notebook: id, title, description: desc },
+        timeoutMs: 30000
+      })
+      await studio.reload(true)
+      say('notebook updated')
+    } catch (e) { say(`rename failed: ${e.message || e}`) }
+  }, [studio, say])
+
   const openNotebook = useCallback((id) => {
     setNb(id); setPicked(null); setPeek(null); setTab('chat'); setMode('studio')
   }, [])
@@ -171,7 +183,7 @@ function App() {
       : home
         ? jsx(HomeDashboard, {
             data, onOpen: openNotebook, onNew: () => setNewNb(true),
-            onDelete: deleteNotebook
+            onDelete: deleteNotebook, onRename: renameNotebook
           })
         : el('div', { className: 'nb-body' },
             railOpen
@@ -221,9 +233,10 @@ function App() {
 
 /* --------------------------------------------------------- home dashboard */
 
-function HomeDashboard({ data, onOpen, onNew, onDelete }) {
+function HomeDashboard({ data, onOpen, onNew, onDelete, onRename }) {
   const [query, setQuery] = useState('')
   const [del, setDel] = useState(null)
+  const [ren, setRen] = useState(null)
   const notebooks = (data && data.notebooks) || []
   const needle = query.trim().toLowerCase()
   const shown = notebooks.filter((n) =>
@@ -294,6 +307,11 @@ function HomeDashboard({ data, onOpen, onNew, onDelete }) {
                 ]
               }, n.id),
               jsx(IconBtn, {
+                icon: 'note', label: `Rename notebook ${n.title}`, size: 14,
+                className: 'nb-nbcard-ren',
+                onClick: (e) => { e.stopPropagation(); setRen(n) }
+              }),
+              jsx(IconBtn, {
                 icon: 'trash', label: `Delete notebook ${n.title}`, size: 14,
                 className: 'nb-nbcard-del',
                 onClick: (e) => { e.stopPropagation(); setDel(n) }
@@ -313,8 +331,48 @@ function HomeDashboard({ data, onOpen, onNew, onDelete }) {
             onClick: () => { const id = del.id; setDel(null); onDelete(id) },
             children: 'Delete'
           })))
+    }) : null,
+
+    ren ? jsx(RenameDialog, {
+      notebook: ren, onClose: () => setRen(null),
+      onDone: async (title, desc) => { setRen(null); await onRename(ren.id, title, desc) }
     }) : null
   )
+}
+
+function RenameDialog({ notebook, onClose, onDone }) {
+  const [title, setTitle] = useState(notebook.title || '')
+  const [desc, setDesc] = useState(notebook.description || '')
+  const [busy, setBusy] = useState(false)
+  const [err, setErr] = useState('')
+  return jsx(Dialog, {
+    open: true, onClose, title: 'Notebook settings', width: 460,
+    children: el('div', null,
+      el('div', { className: 'nb-field', style: { height: '40px', marginBottom: '10px' } },
+        jsx(Glyph, { name: 'notebook', size: 14 }),
+        el('input', {
+          value: title, onChange: (e) => setTitle(e.target.value), autoFocus: true,
+          placeholder: 'Notebook title', 'aria-label': 'Notebook title'
+        })),
+      el('div', { className: 'nb-field', style: { height: '40px' } },
+        jsx(Glyph, { name: 'doc', size: 14 }),
+        el('input', {
+          value: desc, onChange: (e) => setDesc(e.target.value),
+          placeholder: 'Description (optional)', 'aria-label': 'Notebook description'
+        })),
+      err ? el('div', { style: { marginTop: '10px', color: T.danger, fontSize: '13.5px' }, children: err }) : null,
+      el('div', { style: { display: 'flex', gap: '8px', justifyContent: 'flex-end', marginTop: '16px' } },
+        jsx(Btn, { onClick: onClose, children: 'Cancel' }),
+        jsx(Btn, {
+          variant: 'primary', disabled: busy || !title.trim(),
+          onClick: async () => {
+            setBusy(true); setErr('')
+            try { await onDone(title.trim(), desc.trim()) }
+            catch (e) { setErr(e.message || String(e)); setBusy(false) }
+          },
+          children: busy ? 'Saving…' : 'Save'
+        })))
+  })
 }
 
 /* --------------------------------------------------------------- panel tog */

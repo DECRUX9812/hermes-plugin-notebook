@@ -83,6 +83,12 @@ function Viewer({ artifact, notebook, onCite }) {
         el('div', { className: 'nb-view-title', children: (asJson.json && (asJson.json.title || asJson.json.topic)) || prettyFile(artifact.primary) }),
         el('div', { style: { fontSize: '12.5px', color: T.text4 },
           children: `${artifact.files.length} file${artifact.files.length === 1 ? '' : 's'} · ${Math.max(1, Math.round(artifact.bytes / 1024))} KB · ${ago(artifact.modified)}` })),
+      primary.text
+        ? jsx(IconBtn, {
+            icon: 'copy', label: 'Copy artifact text',
+            onClick: () => { try { navigator.clipboard.writeText(primary.text) } catch { /* clipboard may be unavailable */ } }
+          })
+        : null,
       jsx(IconBtn, {
         icon: 'download', label: `Download ${artifact.label}`,
         onClick: () => downloading(primary.url, artifact.primary)

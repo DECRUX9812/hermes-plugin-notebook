@@ -596,6 +596,7 @@ const CSS = `
   transform:translateY(-2px);box-shadow:var(--nb-shadow-lift)}
 .nb-nbcard-emoji{font-size:32px;line-height:1}
 .nb-nbcard-del{position:absolute;top:9px;right:7px}
+.nb-nbcard-ren{position:absolute;top:9px;right:32px}
 .nb-nbcard-title{font-size:14.5px;font-weight:650;line-height:1.35;padding-right:28px}
 .nb-nbcard-meta{font-size:11.5px;color:${T.text3};margin-top:8px}
 

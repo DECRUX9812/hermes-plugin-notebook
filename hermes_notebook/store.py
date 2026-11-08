@@ -118,16 +118,6 @@ def get_meta(notebook_id: str) -> dict:
     return meta
 
 
-def update_meta(notebook_id: str, **fields) -> dict:
-    """Shallow-merge fields into notebook.json (options, prefs, …)."""
-    d = _nb_dir(notebook_id)
-    meta = get_meta(notebook_id)
-    meta.update(fields)
-    meta["updated_at"] = _iso(_now())
-    _write_json(d / "notebook.json", meta)
-    return meta
-
-
 def touch(notebook_id: str) -> None:
     d = _nb_dir(notebook_id)
     meta = get_meta(notebook_id)
@@ -195,8 +185,9 @@ def set_source_enabled(notebook_id: str, source_id: str, enabled: bool) -> dict:
 
 
 def update_meta(notebook_id: str, *, title: Optional[str] = None,
-                description: Optional[str] = None) -> dict:
-    """Rename / re-describe a notebook. Only provided fields change."""
+                description: Optional[str] = None, **fields) -> dict:
+    """Rename / re-describe a notebook, or shallow-merge extra fields
+    (options, prefs, …). Only provided fields change."""
     nb_id = resolve_notebook(notebook_id)
     d = _nb_dir(nb_id)
     meta = get_meta(nb_id)
@@ -207,6 +198,7 @@ def update_meta(notebook_id: str, *, title: Optional[str] = None,
         meta["title"] = t[:200]
     if description is not None:
         meta["description"] = description.strip()[:1000]
+    meta.update(fields)
     meta["updated_at"] = _iso(_now())
     _write_json(d / "notebook.json", meta)
     return meta

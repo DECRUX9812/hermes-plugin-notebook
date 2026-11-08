@@ -129,6 +129,14 @@ const rest = async (path, opts) => {
     await new Promise((r) => setTimeout(r, 500))
     return { ok: true, source: { id: 'note-mock', kind: 'note' } }
   }
+  if (route === 'notebook/update') {
+    const body = (opts && opts.body) || {}
+    if (STATE.notebook) {
+      if (body.title) STATE.notebook.title = body.title
+      if (body.description !== undefined) STATE.notebook.description = body.description
+    }
+    return { ok: true, notebook: STATE.notebook }
+  }
   if (route === 'notebook/delete') return { ok: true, deleted: (opts && opts.body && opts.body.notebook) || '' }
   if (route === 'options') {
     const body = (opts && opts.body) || {}

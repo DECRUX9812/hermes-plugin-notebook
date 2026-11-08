@@ -4,6 +4,7 @@ function Main({ notebook, kinds, tab, setTab, picked, setPicked, busy, generate,
                 askOpen, onSay, reload, modelReady, error, loading,
                 peek, setPeek, onOpenSource, onAddSource, onNewNotebook, onFindSources }) {
   const sources = (notebook && notebook.sources) || []
+  const [askScope, setAskScope] = useState(null)   // chat scoped to one source
 
   if (loading && !notebook) {
     return el('main', { className: 'nb-col nb-main-col' },
@@ -79,14 +80,18 @@ function Main({ notebook, kinds, tab, setTab, picked, setPicked, busy, generate,
     ),
 
     tab === 'peek' && peek
-      ? jsx(SourcePeek, { source: peek, notebook, onClose: () => { setPeek(null); setTab('chat') } })
+      ? jsx(SourcePeek, {
+          source: peek, notebook,
+          onClose: () => { setPeek(null); setTab('chat') },
+          onAskAbout: (s) => { setAskScope({ id: s.id, title: s.title }); setTab('chat') }
+        })
       : tab === 'view' && picked
         ? jsx(Viewer, { artifact: picked, notebook, onSearch: () => {}, onCite: (n) => {
             const src = sources.find((s) => s.n === n)
             if (src) { setPeek(src); setTab('peek') }
           } })
         : jsx(Chat, {
-            notebook, askOpen, onSay, modelReady, reload,
+            notebook, askOpen, onSay, modelReady, reload, askScope, setAskScope,
             onCite: (n) => {
               const src = sources.find((s) => s.n === n)
               if (src) { setPeek(src); setTab('peek') }
@@ -109,7 +114,7 @@ const SUGGEST = [
    cached for the session — tab switches must not re-bill the model. */
 const ovCache = new Map()
 
-function Chat({ notebook, askOpen, onSay, modelReady, onCite, onOpenSource, onFindSources, reload }) {
+function Chat({ notebook, askOpen, onSay, modelReady, onCite, onOpenSource, onFindSources, reload, askScope, setAskScope }) {
   const [msgs, setMsgs] = useState(() => (notebook.thread || []).map((m, i) => ({ ...m, k: `t${i}` })))
   const [text, setText] = useState('')
   const [pending, setPending] = useState(null)
@@ -128,6 +133,9 @@ function Chat({ notebook, askOpen, onSay, modelReady, onCite, onOpenSource, onFi
     const stored = (notebook.thread || []).map((m, i) => ({ ...m, k: `t${i}` }))
     setMsgs(stored)
   }, [notebook.id, notebook.thread && notebook.thread.length])
+
+  // a source scope belongs to the notebook it was picked in
+  useEffect(() => { if (setAskScope) setAskScope(null) }, [notebook.id])
 
   useEffect(() => {
     const cached = ovCache.get(notebook.id)
@@ -195,7 +203,10 @@ function Chat({ notebook, askOpen, onSay, modelReady, onCite, onOpenSource, onFi
     try {
       const out = await api('/ask', {
         method: 'POST',
-        body: { notebook: notebook.id, question: q, thread: 'default' },
+        body: {
+          notebook: notebook.id, question: q, thread: 'default',
+          ...(askScope ? { source_ids: [askScope.id] } : {})
+        },
         timeoutMs: 180000
       })
       setMsgs((m) => [...m, {
@@ -301,6 +312,14 @@ function Chat({ notebook, askOpen, onSay, modelReady, onCite, onOpenSource, onFi
             title: `${activeCount} of ${stats.sources || 0} sources are in context`,
             children: `${activeCount} source${activeCount === 1 ? '' : 's'}`
           }),
+          askScope
+            ? jsx(Chip, {
+                tone: 'accent',
+                title: `Answering from ${askScope.title} only — click to clear`,
+                onClick: () => setAskScope && setAskScope(null),
+                children: `only: ${String(askScope.title || 'source').slice(0, 28)}`
+              })
+            : null,
           jsx(IconBtn, {
             icon: 'sliders', label: 'Configure chat',
             onClick: () => {
@@ -447,7 +466,20 @@ function Msg({ msg, onCite, notebook }) {
         : el('div', null,
             el('div', { className: 'nb-who' },
               'Hermes Notebook',
-              msg.meta ? el('span', { style: { marginLeft: '8px', color: T.text4, fontWeight: 500, textTransform: 'none', letterSpacing: 0 }, children: `· ${msg.meta}` }) : null),
+              msg.meta ? el('span', { style: { marginLeft: '8px', color: T.text4, fontWeight: 500, textTransform: 'none', letterSpacing: 0 }, children: `· ${msg.meta}` }) : null,
+              notebook ? jsx(IconBtn, {
+                icon: 'pin', size: 13, label: 'Save this answer as a note',
+                onClick: async () => {
+                  try {
+                    const first = String(msg.content || '').split('\n').find((l) => l.trim()) || 'Notebook answer'
+                    await api('/note', {
+                      method: 'POST',
+                      body: { notebook: notebook.id, text: msg.content, title: first.slice(0, 90) },
+                      timeoutMs: 30000
+                    })
+                  } catch { /* note save is best-effort */ }
+                }
+              }) : null),
             el('div', { className: 'nb-bubble' },
               jsx(Markdown, { text: msg.content, onCite })),
             (msg.citations || []).length
@@ -483,7 +515,7 @@ function Msg({ msg, onCite, notebook }) {
 
 /* ---------------------------------------------------------------- peek */
 
-function SourcePeek({ source, notebook, onClose }) {
+function SourcePeek({ source, notebook, onClose, onAskAbout }) {
   const [text, setText] = useState('')
   const [err, setErr] = useState('')
   useEffect(() => {
@@ -507,6 +539,14 @@ function SourcePeek({ source, notebook, onClose }) {
       jsx(IconBtn, { icon: 'close', label: 'Close source', onClick: onClose })
     ),
     el('div', { className: 'nb-view-body' },
+      onAskAbout
+        ? el('div', { style: { marginBottom: '14px' } },
+            jsx(Btn, {
+              size: 'sm', icon: 'faq',
+              onClick: () => onAskAbout(source),
+              children: 'Ask about this source'
+            }))
+        : null,
       (source.labels || []).length || source.summary
         ? el('div', { style: { marginBottom: '14px', display: 'grid', gap: '8px' } },
             source.summary
@@ -849,6 +889,33 @@ function AddSourceDialog({ open, onClose, notebook, onDone, initialMode, seedQue
   const [adding, setAdding] = useState(false)
   const [added, setAdded] = useState(null)
   const wasOpen = useRef(false)
+  const fileRef = useRef(null)
+
+  // real file pick: Electron exposes .path (ingest the file itself); anywhere
+  // else small text-ish files are read and sent as pasted text
+  const onFile = async (e) => {
+    const f = e.target.files && e.target.files[0]
+    e.target.value = ''
+    if (!f || !notebook || busy) return
+    setBusy(true); setErr('')
+    try {
+      let body
+      if (f.path) {
+        body = { notebook: notebook.id, path: f.path, title: f.name }
+      } else if (f.size <= 1500000) {
+        body = { notebook: notebook.id, text: await f.text(), title: f.name }
+      } else {
+        setErr('That file is too large to read here — switch to File path and give its location.')
+        return
+      }
+      const out = await api('/source', { method: 'POST', body, timeoutMs: 120000 })
+      await onDone(out.source && out.source.title ? `added ${out.source.title}` : 'file added')
+    } catch (err2) {
+      setErr(err2.message || String(err2))
+    } finally {
+      setBusy(false)
+    }
+  }
 
   // fresh state on every open; the find box starts from the caller's seed (a
   // source gap, a describe prompt) or the notebook's own topic
@@ -1108,7 +1175,18 @@ function AddSourceDialog({ open, onClose, notebook, onDone, initialMode, seedQue
                   }))
               ),
               err ? el('div', { style: { marginTop: '12px', color: T.danger, fontSize: '14px' }, children: err }) : null,
-              el('div', { style: { display: 'flex', gap: '8px', justifyContent: 'flex-end', marginTop: '16px' } },
+              el('div', { style: { display: 'flex', gap: '8px', justifyContent: 'flex-end', marginTop: '16px', alignItems: 'center' } },
+                el('input', {
+                  ref: fileRef, type: 'file', hidden: true,
+                  onChange: onFile,
+                  accept: '.pdf,.docx,.pptx,.xlsx,.epub,.ipynb,.txt,.md,.csv,.json,.png,.jpg,.jpeg,.webp,.mp3,.wav,.m4a'
+                }),
+                jsx(Btn, {
+                  icon: 'folder', disabled: busy || !notebook,
+                  onClick: () => fileRef.current && fileRef.current.click(),
+                  children: 'Upload file'
+                }),
+                el('span', { style: { flex: 1 } }),
                 jsx(Btn, { onClick: onClose, children: 'Cancel' }),
                 jsx(Btn, {
                   variant: 'primary', icon: 'plus', onClick: submit,

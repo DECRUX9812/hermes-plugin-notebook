@@ -520,6 +520,24 @@ def set_options(payload: Dict[str, Any] = Body(...)) -> Any:
             "state": _notebook_payload(store.resolve_notebook(nb))}
 
 
+@router.post("/notebook/update")
+def update_notebook(payload: Dict[str, Any] = Body(...)) -> Any:
+    """Rename / re-describe a notebook (NotebookLM's notebook settings)."""
+    nb = str(payload.get("notebook") or "")
+    title = payload.get("title")
+    desc = payload.get("description")
+    if title is None and desc is None:
+        return _fail("give a title and/or description")
+    try:
+        meta = store.update_meta(
+            nb,
+            title=str(title) if title is not None else None,
+            description=str(desc) if desc is not None else None)
+    except Exception as exc:
+        return _fail(f"{type(exc).__name__}: {exc}", 500)
+    return {"ok": True, "notebook": _notebook_payload(meta["id"])}
+
+
 @router.post("/notebook/delete")
 def delete_notebook(payload: Dict[str, Any] = Body(...)) -> Any:
     nb = str(payload.get("notebook") or "")
@@ -548,8 +566,11 @@ async def ask(payload: Dict[str, Any] = Body(...)) -> Any:
 
     def _run() -> Dict[str, Any]:
         from hermes_notebook import tools as tools_mod
-        out = json.loads(tools_mod.notebook_ask(
-            {"notebook": nb_id, "question": question, "thread": "default"}))
+        args = {"notebook": nb_id, "question": question, "thread": "default"}
+        ids = payload.get("source_ids")
+        if isinstance(ids, list) and ids:
+            args["source_ids"] = [str(x) for x in ids][:12]
+        out = json.loads(tools_mod.notebook_ask(args))
         return out
 
     try:

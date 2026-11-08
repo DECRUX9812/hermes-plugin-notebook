@@ -15185,6 +15185,7 @@ var CSS2 = `
   transform:translateY(-2px);box-shadow:var(--nb-shadow-lift)}
 .nb-nbcard-emoji{font-size:32px;line-height:1}
 .nb-nbcard-del{position:absolute;top:9px;right:7px}
+.nb-nbcard-ren{position:absolute;top:9px;right:32px}
 .nb-nbcard-title{font-size:14.5px;font-weight:650;line-height:1.35;padding-right:28px}
 .nb-nbcard-meta{font-size:11.5px;color:${T.text3};margin-top:8px}
 
@@ -15976,6 +15977,19 @@ function App() {
       say(`delete failed: ${e.message || e}`);
     }
   }, [nb, studio, say]);
+  const renameNotebook = (0, import_react.useCallback)(async (id, title, desc) => {
+    try {
+      await api("/notebook/update", {
+        method: "POST",
+        body: { notebook: id, title, description: desc },
+        timeoutMs: 3e4
+      });
+      await studio.reload(true);
+      say("notebook updated");
+    } catch (e) {
+      say(`rename failed: ${e.message || e}`);
+    }
+  }, [studio, say]);
   const openNotebook = (0, import_react.useCallback)((id) => {
     setNb(id);
     setPicked(null);
@@ -16030,7 +16044,8 @@ function App() {
       data,
       onOpen: openNotebook,
       onNew: () => setNewNb(true),
-      onDelete: deleteNotebook
+      onDelete: deleteNotebook,
+      onRename: renameNotebook
     }) : el(
       "div",
       { className: "nb-body" },
@@ -16114,9 +16129,10 @@ function App() {
     })
   );
 }
-function HomeDashboard({ data, onOpen, onNew, onDelete }) {
+function HomeDashboard({ data, onOpen, onNew, onDelete, onRename }) {
   const [query, setQuery] = (0, import_react.useState)("");
   const [del, setDel] = (0, import_react.useState)(null);
+  const [ren, setRen] = (0, import_react.useState)(null);
   const notebooks = data && data.notebooks || [];
   const needle = query.trim().toLowerCase();
   const shown = notebooks.filter((n) => !needle || `${n.title} ${n.description || ""}`.toLowerCase().includes(needle));
@@ -16222,6 +16238,16 @@ function HomeDashboard({ data, onOpen, onNew, onDelete }) {
             ]
           }, n.id),
           (0, import_jsx_runtime.jsx)(IconBtn, {
+            icon: "note",
+            label: `Rename notebook ${n.title}`,
+            size: 14,
+            className: "nb-nbcard-ren",
+            onClick: (e) => {
+              e.stopPropagation();
+              setRen(n);
+            }
+          }),
+          (0, import_jsx_runtime.jsx)(IconBtn, {
             icon: "trash",
             label: `Delete notebook ${n.title}`,
             size: 14,
@@ -16262,8 +16288,76 @@ function HomeDashboard({ data, onOpen, onNew, onDelete }) {
           })
         )
       )
+    }) : null,
+    ren ? (0, import_jsx_runtime.jsx)(RenameDialog, {
+      notebook: ren,
+      onClose: () => setRen(null),
+      onDone: async (title, desc) => {
+        setRen(null);
+        await onRename(ren.id, title, desc);
+      }
     }) : null
   );
+}
+function RenameDialog({ notebook, onClose, onDone }) {
+  const [title, setTitle] = (0, import_react.useState)(notebook.title || "");
+  const [desc, setDesc] = (0, import_react.useState)(notebook.description || "");
+  const [busy, setBusy] = (0, import_react.useState)(false);
+  const [err, setErr] = (0, import_react.useState)("");
+  return (0, import_jsx_runtime.jsx)(Dialog, {
+    open: true,
+    onClose,
+    title: "Notebook settings",
+    width: 460,
+    children: el(
+      "div",
+      null,
+      el(
+        "div",
+        { className: "nb-field", style: { height: "40px", marginBottom: "10px" } },
+        (0, import_jsx_runtime.jsx)(Glyph, { name: "notebook", size: 14 }),
+        el("input", {
+          value: title,
+          onChange: (e) => setTitle(e.target.value),
+          autoFocus: true,
+          placeholder: "Notebook title",
+          "aria-label": "Notebook title"
+        })
+      ),
+      el(
+        "div",
+        { className: "nb-field", style: { height: "40px" } },
+        (0, import_jsx_runtime.jsx)(Glyph, { name: "doc", size: 14 }),
+        el("input", {
+          value: desc,
+          onChange: (e) => setDesc(e.target.value),
+          placeholder: "Description (optional)",
+          "aria-label": "Notebook description"
+        })
+      ),
+      err ? el("div", { style: { marginTop: "10px", color: T.danger, fontSize: "13.5px" }, children: err }) : null,
+      el(
+        "div",
+        { style: { display: "flex", gap: "8px", justifyContent: "flex-end", marginTop: "16px" } },
+        (0, import_jsx_runtime.jsx)(Btn, { onClick: onClose, children: "Cancel" }),
+        (0, import_jsx_runtime.jsx)(Btn, {
+          variant: "primary",
+          disabled: busy || !title.trim(),
+          onClick: async () => {
+            setBusy(true);
+            setErr("");
+            try {
+              await onDone(title.trim(), desc.trim());
+            } catch (e) {
+              setErr(e.message || String(e));
+              setBusy(false);
+            }
+          },
+          children: busy ? "Saving\u2026" : "Save"
+        })
+      )
+    )
+  });
 }
 function PanelToggles({ side, onShow }) {
   return el(
@@ -16664,6 +16758,7 @@ function Main({
   onFindSources
 }) {
   const sources = notebook && notebook.sources || [];
+  const [askScope, setAskScope] = (0, import_react.useState)(null);
   if (loading && !notebook) {
     return el(
       "main",
@@ -16791,10 +16886,18 @@ function Main({
         }) : null
       )
     ),
-    tab === "peek" && peek ? (0, import_jsx_runtime.jsx)(SourcePeek, { source: peek, notebook, onClose: () => {
-      setPeek(null);
-      setTab("chat");
-    } }) : tab === "view" && picked ? (0, import_jsx_runtime.jsx)(Viewer, { artifact: picked, notebook, onSearch: () => {
+    tab === "peek" && peek ? (0, import_jsx_runtime.jsx)(SourcePeek, {
+      source: peek,
+      notebook,
+      onClose: () => {
+        setPeek(null);
+        setTab("chat");
+      },
+      onAskAbout: (s) => {
+        setAskScope({ id: s.id, title: s.title });
+        setTab("chat");
+      }
+    }) : tab === "view" && picked ? (0, import_jsx_runtime.jsx)(Viewer, { artifact: picked, notebook, onSearch: () => {
     }, onCite: (n) => {
       const src = sources.find((s) => s.n === n);
       if (src) {
@@ -16807,6 +16910,8 @@ function Main({
       onSay,
       modelReady,
       reload,
+      askScope,
+      setAskScope,
       onCite: (n) => {
         const src = sources.find((s) => s.n === n);
         if (src) {
@@ -16825,7 +16930,7 @@ var SUGGEST = [
   "What is missing that I should go and find?"
 ];
 var ovCache = /* @__PURE__ */ new Map();
-function Chat({ notebook, askOpen, onSay, modelReady, onCite, onOpenSource, onFindSources, reload }) {
+function Chat({ notebook, askOpen, onSay, modelReady, onCite, onOpenSource, onFindSources, reload, askScope, setAskScope }) {
   const [msgs, setMsgs] = (0, import_react.useState)(() => (notebook.thread || []).map((m, i) => ({ ...m, k: `t${i}` })));
   const [text, setText] = (0, import_react.useState)("");
   const [pending, setPending] = (0, import_react.useState)(null);
@@ -16843,6 +16948,9 @@ function Chat({ notebook, askOpen, onSay, modelReady, onCite, onOpenSource, onFi
     const stored = (notebook.thread || []).map((m, i) => ({ ...m, k: `t${i}` }));
     setMsgs(stored);
   }, [notebook.id, notebook.thread && notebook.thread.length]);
+  (0, import_react.useEffect)(() => {
+    if (setAskScope) setAskScope(null);
+  }, [notebook.id]);
   (0, import_react.useEffect)(() => {
     const cached = ovCache.get(notebook.id);
     if (cached && cached.key === cacheKey) {
@@ -16917,7 +17025,12 @@ function Chat({ notebook, askOpen, onSay, modelReady, onCite, onOpenSource, onFi
     try {
       const out = await api("/ask", {
         method: "POST",
-        body: { notebook: notebook.id, question: q2, thread: "default" },
+        body: {
+          notebook: notebook.id,
+          question: q2,
+          thread: "default",
+          ...askScope ? { source_ids: [askScope.id] } : {}
+        },
         timeoutMs: 18e4
       });
       setMsgs((m) => [...m, {
@@ -17081,6 +17194,12 @@ ${e.message || e}`,
             title: `${activeCount} of ${stats.sources || 0} sources are in context`,
             children: `${activeCount} source${activeCount === 1 ? "" : "s"}`
           }),
+          askScope ? (0, import_jsx_runtime.jsx)(Chip, {
+            tone: "accent",
+            title: `Answering from ${askScope.title} only \u2014 click to clear`,
+            onClick: () => setAskScope && setAskScope(null),
+            children: `only: ${String(askScope.title || "source").slice(0, 28)}`
+          }) : null,
           (0, import_jsx_runtime.jsx)(IconBtn, {
             icon: "sliders",
             label: "Configure chat",
@@ -17253,7 +17372,23 @@ function Msg({ msg, onCite, notebook }) {
           "div",
           { className: "nb-who" },
           "Hermes Notebook",
-          msg.meta ? el("span", { style: { marginLeft: "8px", color: T.text4, fontWeight: 500, textTransform: "none", letterSpacing: 0 }, children: `\xB7 ${msg.meta}` }) : null
+          msg.meta ? el("span", { style: { marginLeft: "8px", color: T.text4, fontWeight: 500, textTransform: "none", letterSpacing: 0 }, children: `\xB7 ${msg.meta}` }) : null,
+          notebook ? (0, import_jsx_runtime.jsx)(IconBtn, {
+            icon: "pin",
+            size: 13,
+            label: "Save this answer as a note",
+            onClick: async () => {
+              try {
+                const first = String(msg.content || "").split("\n").find((l) => l.trim()) || "Notebook answer";
+                await api("/note", {
+                  method: "POST",
+                  body: { notebook: notebook.id, text: msg.content, title: first.slice(0, 90) },
+                  timeoutMs: 3e4
+                });
+              } catch {
+              }
+            }
+          }) : null
         ),
         el(
           "div",
@@ -17295,7 +17430,7 @@ function Msg({ msg, onCite, notebook }) {
     }) : null
   );
 }
-function SourcePeek({ source, notebook, onClose }) {
+function SourcePeek({ source, notebook, onClose, onAskAbout }) {
   const [text, setText] = (0, import_react.useState)("");
   const [err, setErr] = (0, import_react.useState)("");
   (0, import_react.useEffect)(() => {
@@ -17332,6 +17467,16 @@ function SourcePeek({ source, notebook, onClose }) {
     el(
       "div",
       { className: "nb-view-body" },
+      onAskAbout ? el(
+        "div",
+        { style: { marginBottom: "14px" } },
+        (0, import_jsx_runtime.jsx)(Btn, {
+          size: "sm",
+          icon: "faq",
+          onClick: () => onAskAbout(source),
+          children: "Ask about this source"
+        })
+      ) : null,
       (source.labels || []).length || source.summary ? el(
         "div",
         { style: { marginBottom: "14px", display: "grid", gap: "8px" } },
@@ -17747,6 +17892,31 @@ function AddSourceDialog({ open, onClose, notebook, onDone, initialMode, seedQue
   const [adding, setAdding] = (0, import_react.useState)(false);
   const [added, setAdded] = (0, import_react.useState)(null);
   const wasOpen = (0, import_react.useRef)(false);
+  const fileRef = (0, import_react.useRef)(null);
+  const onFile = async (e) => {
+    const f = e.target.files && e.target.files[0];
+    e.target.value = "";
+    if (!f || !notebook || busy) return;
+    setBusy(true);
+    setErr("");
+    try {
+      let body;
+      if (f.path) {
+        body = { notebook: notebook.id, path: f.path, title: f.name };
+      } else if (f.size <= 15e5) {
+        body = { notebook: notebook.id, text: await f.text(), title: f.name };
+      } else {
+        setErr("That file is too large to read here \u2014 switch to File path and give its location.");
+        return;
+      }
+      const out = await api("/source", { method: "POST", body, timeoutMs: 12e4 });
+      await onDone(out.source && out.source.title ? `added ${out.source.title}` : "file added");
+    } catch (err2) {
+      setErr(err2.message || String(err2));
+    } finally {
+      setBusy(false);
+    }
+  };
   (0, import_react.useEffect)(() => {
     if (open && !wasOpen.current) {
       setMode(noteOnly ? "note" : initialMode || "find");
@@ -18132,7 +18302,21 @@ function AddSourceDialog({ open, onClose, notebook, onDone, initialMode, seedQue
           err ? el("div", { style: { marginTop: "12px", color: T.danger, fontSize: "14px" }, children: err }) : null,
           el(
             "div",
-            { style: { display: "flex", gap: "8px", justifyContent: "flex-end", marginTop: "16px" } },
+            { style: { display: "flex", gap: "8px", justifyContent: "flex-end", marginTop: "16px", alignItems: "center" } },
+            el("input", {
+              ref: fileRef,
+              type: "file",
+              hidden: true,
+              onChange: onFile,
+              accept: ".pdf,.docx,.pptx,.xlsx,.epub,.ipynb,.txt,.md,.csv,.json,.png,.jpg,.jpeg,.webp,.mp3,.wav,.m4a"
+            }),
+            (0, import_jsx_runtime.jsx)(Btn, {
+              icon: "folder",
+              disabled: busy || !notebook,
+              onClick: () => fileRef.current && fileRef.current.click(),
+              children: "Upload file"
+            }),
+            el("span", { style: { flex: 1 } }),
             (0, import_jsx_runtime.jsx)(Btn, { onClick: onClose, children: "Cancel" }),
             (0, import_jsx_runtime.jsx)(Btn, {
               variant: "primary",
@@ -18329,6 +18513,16 @@ function Viewer({ artifact, notebook, onCite }) {
           children: `${artifact.files.length} file${artifact.files.length === 1 ? "" : "s"} \xB7 ${Math.max(1, Math.round(artifact.bytes / 1024))} KB \xB7 ${ago(artifact.modified)}`
         })
       ),
+      primary.text ? (0, import_jsx_runtime.jsx)(IconBtn, {
+        icon: "copy",
+        label: "Copy artifact text",
+        onClick: () => {
+          try {
+            navigator.clipboard.writeText(primary.text);
+          } catch {
+          }
+        }
+      }) : null,
       (0, import_jsx_runtime.jsx)(IconBtn, {
         icon: "download",
         label: `Download ${artifact.label}`,
@@ -22379,6 +22573,14 @@ var rest = async (path, opts) => {
   if (route === "note") {
     await new Promise((r) => setTimeout(r, 500));
     return { ok: true, source: { id: "note-mock", kind: "note" } };
+  }
+  if (route === "notebook/update") {
+    const body = opts && opts.body || {};
+    if (STATE.notebook) {
+      if (body.title) STATE.notebook.title = body.title;
+      if (body.description !== void 0) STATE.notebook.description = body.description;
+    }
+    return { ok: true, notebook: STATE.notebook };
   }
   if (route === "notebook/delete") return { ok: true, deleted: opts && opts.body && opts.body.notebook || "" };
   if (route === "options") {
