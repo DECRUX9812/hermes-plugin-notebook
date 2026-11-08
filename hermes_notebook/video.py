@@ -550,6 +550,12 @@ async def make_video_overview(notebook: str, *, length: Optional[str] = None,
 
     parts = [work / f"seg_{i:03d}.mp3" for i in range(len(segs))]
     durs = [_real_duration(p) for p in parts]
+    # stamp each segment's timeline position — the viewer seeks chapters by it
+    t = 0.0
+    for seg, d in zip(segs, durs):
+        seg["start"] = round(t, 2)
+        t += d
+        seg["end"] = round(t, 2)
 
     src_titles = [s.get("title", "source") for s in sources][:12]
     cards = _plan_cards(work, segs, meta.get("title", ""), ep_title, src_titles)

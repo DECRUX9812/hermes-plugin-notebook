@@ -153,11 +153,26 @@ const prettyFile = (name) => {
 
 function VideoView({ src, json, text }) {
   const segs = (json && (json.segments || json.beats || json.scenes)) || []
+  const videoRef = useRef(null)
+  const [t, setT] = useState(0)
+  // timed segments (newer scripts) make chapters seekable + highlight the beat
+  const timed = segs.length > 0 && segs.every((s) => s && typeof s.start === 'number')
+  const activeSeg = timed
+    ? segs.reduce((acc, s, i) => (s.start <= t ? i : acc), -1)
+    : -1
+  const seekSeg = (i) => {
+    const v = videoRef.current
+    const seg = segs[i]
+    if (v && seg) { v.currentTime = seg.start; setT(seg.start) }
+  }
   return el('div', { className: 'nb-view-body' },
     el('div', { className: 'nb-stage' },
       el('div', { className: 'nb-screen' },
         src
-          ? el('video', { src, controls: true, playsInline: true, preload: 'metadata' })
+          ? el('video', {
+              ref: videoRef, src, controls: true, playsInline: true, preload: 'metadata',
+              onTimeUpdate: (e) => setT(e.currentTarget.currentTime)
+            })
           : el('div', { className: 'nb-hint', children: 'the video file did not load' })),
       el('div', { style: { display: 'flex', gap: '8px', alignItems: 'center' } },
         el('span', { className: 'nb-chip', 'data-tone': 'ok', children: 'mp4 · h264' }),
@@ -166,14 +181,28 @@ function VideoView({ src, json, text }) {
         el('span', { className: 'nb-hint', children: segs.length ? `${segs.length} beats` : 'narrated slideshow' })),
       segs.length
         ? el('ol', { className: 'nb-timeline', 'aria-label': 'Video chapters' },
-            segs.map((s, i) => el('li', { className: 'nb-tl', key: `s${i}` },
-              el('span', { className: 'nb-tl-when', children: `BEAT ${i + 1}` }),
-              el('span', { className: 'nb-tl-what' },
-                el('b', { children: s.headline || s.title || s.label || '' }),
-                s.sub || s.subline ? el('span', { style: { color: T.text3 }, children: ` — ${s.sub || s.subline}` }) : null,
-                s.text || s.narration
-                  ? el('span', { style: { display: 'block', color: T.text3, marginTop: '3px', fontSize: '14px' }, children: s.text || s.narration })
-                  : null))))
+            segs.map((s, i) => el('li', {
+              className: 'nb-tl', key: `s${i}`,
+              role: timed ? 'button' : undefined,
+              tabIndex: timed ? 0 : undefined,
+              'aria-label': timed ? `Play from ${fmtTime(s.start)}` : undefined,
+              onClick: timed ? () => seekSeg(i) : undefined,
+              onKeyDown: timed ? (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); seekSeg(i) } } : undefined,
+              style: timed ? { cursor: 'pointer' } : undefined,
+              children: [
+                el('span', { className: 'nb-tl-when',
+                  style: timed && i === activeSeg ? { color: T.accent } : undefined,
+                  children: timed ? fmtTime(s.start) : `BEAT ${i + 1}` }),
+                el('span', { className: 'nb-tl-what',
+                  style: timed && i === activeSeg ? { color: T.text } : undefined,
+                  children: [
+                    el('b', { children: s.headline || s.title || s.label || '' }),
+                    s.sub || s.subline ? el('span', { style: { color: T.text3 }, children: ` — ${s.sub || s.subline}` }) : null,
+                    s.text || s.narration
+                      ? el('span', { style: { display: 'block', color: T.text3, marginTop: '3px', fontSize: '14px' }, children: s.text || s.narration })
+                      : null] })
+              ]
+            })))
         : (text ? el('pre', { className: 'nb-mono', style: { whiteSpace: 'pre-wrap', color: T.text3, fontSize: '13.5px' }, children: text }) : null))
   )
 }
