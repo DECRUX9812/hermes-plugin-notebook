@@ -768,7 +768,7 @@ function Msg({ msg, onCite, notebook, canRetry, onRetry }) {
   const citeClick = (n) => onCite && onCite(n, citeFor(n))
 
   const onMouseOver = (e) => {
-    const b = e.target && e.target.closest ? e.target.closest('.nb-inline-cite') : null
+    const b = e.target && e.target.closest ? e.target.closest('.nb-inline-cite, .nb-citechip') : null
     if (!b || !notebook) return
     const n = Number(b.getAttribute('data-n'))
     const c = citeFor(n)
@@ -797,7 +797,7 @@ function Msg({ msg, onCite, notebook, canRetry, onRetry }) {
       })
   }
   const onMouseOut = (e) => {
-    const b = e.target && e.target.closest ? e.target.closest('.nb-inline-cite') : null
+    const b = e.target && e.target.closest ? e.target.closest('.nb-inline-cite, .nb-citechip') : null
     if (b) setCitePop(null)
   }
 
@@ -840,6 +840,7 @@ function Msg({ msg, onCite, notebook, canRetry, onRetry }) {
               ? el('div', { style: { display: 'flex', gap: '6px', flexWrap: 'wrap', marginTop: '10px' }, role: 'list', 'aria-label': 'Citations' },
                   msg.citations.map((c) => el('button', {
                     key: `${c.n}-${c.title}`, type: 'button', className: 'nb-chip nb-citechip',
+                    'data-n': c.n,
                     onClick: () => citeClick(c.n),
                     title: c.origin || c.title,
                     'aria-label': `Citation ${c.n} — ${c.title}`,
