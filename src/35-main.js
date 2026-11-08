@@ -155,6 +155,8 @@ function Chat({ notebook, kinds, askOpen, onSay, modelReady, onCite, onOpenSourc
   const [text, setText] = useState('')
   const [pending, setPending] = useState(null)
   const [ov, setOv] = useState('')
+  const [ovErr, setOvErr] = useState(false)
+  const [ovRetry, setOvRetry] = useState(0)
   const [sugg, setSugg] = useState(null)
   const [cfgOpen, setCfgOpen] = useState(false)
   const [scopeOpen, setScopeOpen] = useState(false)
@@ -211,18 +213,19 @@ function Chat({ notebook, kinds, askOpen, onSay, modelReady, onCite, onOpenSourc
 
   useEffect(() => {
     const cached = ovCache.get(notebook.id)
-    if (cached && cached.key === cacheKey) { setOv(cached.ov || ''); setSugg(cached.sugg || null); return undefined }
+    if (cached && cached.key === cacheKey) { setOv(cached.ov || ''); setSugg(cached.sugg || null); setOvErr(false); return undefined }
     let live = true
-    setOv(''); setSugg(null)
+    setOv(''); setSugg(null); setOvErr(false)
     api('/overview', { method: 'POST', body: { notebook: notebook.id }, timeoutMs: 120000 })
       .then((o) => {
         if (!live) return
         const text = o.overview || ''
         setOv(text)
+        setOvErr(!text)
         const c = ovCache.get(notebook.id) || { key: cacheKey }
         ovCache.set(notebook.id, { key: cacheKey, ov: text, sugg: c.sugg || null })
       })
-      .catch(() => {})
+      .catch(() => { if (live) setOvErr(true) })
     api('/suggest', { method: 'POST', body: { notebook: notebook.id }, timeoutMs: 120000 })
       .then((o) => {
         if (!live) return
@@ -233,7 +236,7 @@ function Chat({ notebook, kinds, askOpen, onSay, modelReady, onCite, onOpenSourc
       })
       .catch(() => {})
     return () => { live = false }
-  }, [notebook.id, cacheKey])
+  }, [notebook.id, cacheKey, ovRetry])
 
   const saveNote = async () => {
     if (!ov.trim()) return
@@ -349,6 +352,21 @@ function Chat({ notebook, kinds, askOpen, onSay, modelReady, onCite, onOpenSourc
             ),
             el('div', { className: 'nb-overview-body' },
               jsx(Markdown, { text: ov, onCite })))
+        : null,
+      !ov && ovErr
+        ? el('div', { className: 'nb-overview' },
+            el('div', { className: 'nb-overview-head' },
+              jsx(Glyph, { name: 'sparkle', size: 14 }),
+              el('span', { className: 'nb-meta', children: 'Overview' }),
+              el('span', { style: { flex: 1 } }),
+              jsx(Btn, {
+                size: 'sm', icon: 'refresh',
+                onClick: () => { ovCache.delete(notebook.id); setOvErr(false); setOvRetry((n) => n + 1) },
+                children: 'Retry'
+              })),
+            el('div', { className: 'nb-overview-body' },
+              el('div', { className: 'nb-hint',
+                children: 'the briefing could not be generated — the model may be busy. retry, or ask a question below.' })))
         : null,
       msgs.length === 0 && !pending
         ? el('div', { style: { margin: msgs.length || ov ? '0' : 'auto', textAlign: 'center', maxWidth: '54ch' } },
