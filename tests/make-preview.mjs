@@ -207,6 +207,13 @@ const rest = async (path, opts) => {
     }
     return { ok: true, source_id: sid, active: enabled, state: STATE.notebook }
   }
+  if (route === 'source/refresh') {
+    const sid = (opts && opts.body && opts.body.source_id) || ''
+    for (const s of (STATE.notebook && STATE.notebook.sources) || []) {
+      if (s.id === sid) { s.chars = (s.chars || 0) + 1; s.refreshed_at = new Date().toISOString() }
+    }
+    return { ok: true, source: { id: sid }, state: STATE.notebook }
+  }
   if (route === 'source/delete') {
     const sid = (opts && opts.body && opts.body.source_id) || ''
     if (STATE.notebook && STATE.notebook.sources) {

@@ -467,6 +467,26 @@ def delete_artifact(payload: Dict[str, Any] = Body(...)) -> Any:
             "state": _notebook_payload(store.resolve_notebook(nb))}
 
 
+@router.post("/source/refresh")
+async def refresh_source(payload: Dict[str, Any] = Body(...)) -> Any:
+    """Re-fetch a url/file source from its locator and update it in place —
+    labels and summary are regenerated to match the new text."""
+    nb = str(payload.get("notebook") or "")
+    sid = str(payload.get("source_id") or "")
+    try:
+        nb_id = store.resolve_notebook(nb)
+        if not store.get_source(nb_id, sid):
+            return _fail(f"source {sid!r} is not in this notebook", 404)
+        from hermes_notebook import ingest
+        updated = await run_in_threadpool(ingest.refresh_source, nb_id, sid)
+    except KeyError as exc:
+        return _fail(str(exc), 404)
+    except Exception as exc:
+        return _fail(f"{type(exc).__name__}: {exc}", 422)
+    return {"ok": True, "source": updated,
+            "state": _notebook_payload(store.resolve_notebook(nb))}
+
+
 @router.post("/note")
 def add_note(payload: Dict[str, Any] = Body(...)) -> Any:
     """Quick note → a first-class searchable source (kind='note'). No model

@@ -2,7 +2,7 @@
 
 function Main({ notebook, kinds, tab, setTab, picked, setPicked, busy, generate, onAsk,
                 askOpen, onSay, reload, modelReady, error, loading,
-                peek, setPeek, onOpenSource, onAddSource, onNewNotebook, onFindSources }) {
+                peek, setPeek, onOpenSource, onRefreshSource, onAddSource, onNewNotebook, onFindSources }) {
   const sources = (notebook && notebook.sources) || []
   const [askScope, setAskScope] = useState(null)   // chat scoped to one source
 
@@ -83,7 +83,8 @@ function Main({ notebook, kinds, tab, setTab, picked, setPicked, busy, generate,
       ? jsx(SourcePeek, {
           source: peek, notebook,
           onClose: () => { setPeek(null); setTab('chat') },
-          onAskAbout: (s) => { setAskScope({ id: s.id, title: s.title }); setTab('chat') }
+          onAskAbout: (s) => { setAskScope({ id: s.id, title: s.title }); setTab('chat') },
+          onRefresh: onRefreshSource ? () => onRefreshSource(peek) : null
         })
       : tab === 'view' && picked
         ? jsx(Viewer, {
@@ -306,7 +307,7 @@ function Chat({ notebook, askOpen, onSay, modelReady, onCite, onOpenSource, onFi
               jsx(Btn, { size: 'sm', icon: 'pin', onClick: saveNote, children: 'Save to note' })
             ),
             el('div', { className: 'nb-overview-body' },
-              jsx(Markdown, { text: ov })))
+              jsx(Markdown, { text: ov, onCite })))
         : null,
       msgs.length === 0 && !pending
         ? el('div', { style: { margin: msgs.length || ov ? '0' : 'auto', textAlign: 'center', maxWidth: '54ch' } },
@@ -631,9 +632,10 @@ function Msg({ msg, onCite, notebook }) {
 
 /* ---------------------------------------------------------------- peek */
 
-function SourcePeek({ source, notebook, onClose, onAskAbout }) {
+function SourcePeek({ source, notebook, onClose, onAskAbout, onRefresh }) {
   const [text, setText] = useState('')
   const [err, setErr] = useState('')
+  const [refreshing, setRefreshing] = useState(false)
   useEffect(() => {
     let live = true
     setText('')
@@ -641,7 +643,7 @@ function SourcePeek({ source, notebook, onClose, onAskAbout }) {
       .then((out) => { if (live) setText(out.text || '') })
       .catch((e) => { if (live) setErr(e.message || String(e)) })
     return () => { live = false }
-  }, [source.id, notebook.id])
+  }, [source.id, notebook.id, source.chars, source.refreshed_at])
   return el('div', { className: 'nb-view' },
     el('div', { className: 'nb-view-head' },
       el('span', { className: 'nb-chip', 'data-tone': 'accent', children: `S${source.n}` }),
@@ -651,6 +653,16 @@ function SourcePeek({ source, notebook, onClose, onAskAbout }) {
           children: `${kindLabel(source.kind)} · ${nfmt(source.chars)} chars · ${source.origin || 'stored text'}` })),
       source.origin && source.origin.startsWith('http')
         ? jsx(IconBtn, { icon: 'external', label: 'Open the original', onClick: () => host.openLink ? host.openLink(source.origin) : window.open(source.origin, '_blank') })
+        : null,
+      onRefresh && !['note', 'text'].includes(source.kind)
+        ? jsx(IconBtn, {
+            icon: 'refresh', label: 'Refresh source — re-fetch it from its origin',
+            active: refreshing, disabled: refreshing,
+            onClick: async () => {
+              setRefreshing(true)
+              try { await onRefresh() } finally { setRefreshing(false) }
+            }
+          })
         : null,
       jsx(IconBtn, { icon: 'close', label: 'Close source', onClick: onClose })
     ),

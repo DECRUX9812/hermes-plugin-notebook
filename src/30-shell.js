@@ -156,6 +156,25 @@ function App() {
     } catch (e) { say(`could not delete artifact: ${e.message || e}`) }
   }, [nb, studio, say, picked])
 
+  const refreshSource = useCallback(async (s) => {
+    if (!nb || !s || !s.id) return
+    try {
+      const out = await api('/source/refresh', {
+        method: 'POST',
+        body: { notebook: nb, source_id: s.id }, timeoutMs: 180000
+      })
+      if (out && out.state && studio.data) {
+        studio.setData({ ...studio.data, notebook: out.state })
+      } else {
+        await studio.reload(true)
+      }
+      if (out && out.source && peek && peek.id === s.id) {
+        setPeek({ ...peek, ...out.source })
+      }
+      say(`“${s.title || s.id}” refreshed`)
+    } catch (e) { say(`refresh failed: ${e.message || e}`) }
+  }, [nb, studio, say, peek])
+
   const deleteNotebook = useCallback(async (id) => {
     try {
       await api('/notebook/delete', {
@@ -280,7 +299,7 @@ function App() {
               onAsk: () => setAskOpen((n) => n + 1), askOpen, onSay: say,
               reload: studio.reload, modelReady: data && data.model_ready,
               error: studio.error, loading: studio.loading,
-              peek, setPeek, onOpenSource: openSource,
+              peek, setPeek, onOpenSource: openSource, onRefreshSource: refreshSource,
               onAddSource: openAddSource, onNewNotebook: () => setNewNb(true),
               onFindSources: (seed) => openAddSource({ mode: 'find', seed: seed || '' })
             }),
