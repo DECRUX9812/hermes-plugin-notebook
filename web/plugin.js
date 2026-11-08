@@ -2124,7 +2124,8 @@ function Main({ notebook, kinds, tab, setTab, picked, setPicked, busy, generate,
             }
           })
         : jsx(Chat, {
-            notebook, askOpen, onSay, modelReady, reload, askScope, setAskScope,
+            notebook, kinds, askOpen, onSay, modelReady, reload, askScope, setAskScope,
+            generate,
             onCite: (n) => {
               const src = sources.find((s) => s.n === n)
               if (src) { setPeek(src); setTab('peek') }
@@ -2150,7 +2151,7 @@ const ovCache = new Map()
    module-level cache is the source of truth once a thread has been opened. */
 const threadCache = new Map()
 
-function Chat({ notebook, askOpen, onSay, modelReady, onCite, onOpenSource, onFindSources, reload, askScope, setAskScope }) {
+function Chat({ notebook, kinds, askOpen, onSay, modelReady, onCite, onOpenSource, onFindSources, reload, askScope, setAskScope, generate }) {
   const nbKey = `${notebook.id}:default`
   const [thread, setThread] = useState('default')
   const [threads, setThreads] = useState(() => notebook.threads || [])
@@ -2386,6 +2387,22 @@ function Chat({ notebook, askOpen, onSay, modelReady, onCite, onOpenSource, onFi
                     key: g, onClick: () => onFindSources && onFindSources(g),
                     title: 'Find sources for this gap', children: g
                   })))
+              : null,
+            (sugg.artifacts || []).length
+              ? el('div', { className: 'nb-gaprow', style: { marginTop: '14px' } },
+                  el('span', { className: 'nb-meta', children: 'Worth making' }),
+                  sugg.artifacts.slice(0, 4).map((a) => {
+                    const [kid, ...rest] = String(a).split(':')
+                    const kindId = (kid || '').trim()
+                    const known = (kinds || []).some((k) => k.id === kindId)
+                    const reason = rest.join(':').trim() || kindId
+                    return jsx(Chip, {
+                      key: a,
+                      onClick: known && generate ? () => generate(kindId) : undefined,
+                      title: known ? `Generate ${kindLabel(kindId)}` : 'unknown output kind',
+                      children: reason
+                    })
+                  }))
               : null)
         : null,
       msgs.map((m, i) => jsx(Msg, {

@@ -309,7 +309,7 @@ _SUGGEST_SCHEMA = {
         "questions": {"type": "array", "items": {"type": "string"},
                       "description": "5-8 questions the user is likely to want answered from these sources"},
         "artifacts": {"type": "array", "items": {"type": "string"},
-                      "description": "3-5 artifact kinds worth generating (summary|briefing_doc|study_guide|faq|timeline|mind_map|flashcards|quiz) with a one-line reason each, formatted 'kind: reason'"},
+                      "description": "3-5 artifact kinds worth generating (video_overview|audio_overview|summary|briefing_doc|study_guide|faq|timeline|mind_map|flashcards|quiz|slides|infographic|data_table) with a one-line reason each, formatted 'kind: reason'"},
         "gaps": {"type": "array", "items": {"type": "string"},
                  "description": "2-4 source gaps — what to add to make the notebook stronger"},
     },
@@ -333,8 +333,9 @@ def notebook_suggest(args: dict, **kw) -> str:
         instructions=(
             "Suggest what a user should DO with this notebook, NotebookLM-style. "
             "Questions should be specific to the actual content. Artifact "
-            "suggestions pick from: summary, briefing_doc, study_guide, faq, "
-            "timeline, mind_map, flashcards, quiz. Gaps name concrete missing "
+            "suggestions pick from: video_overview, audio_overview, summary, "
+            "briefing_doc, study_guide, faq, timeline, mind_map, flashcards, "
+            "quiz, slides, infographic, data_table. Gaps name concrete missing "
             "sources/topics."
         ),
         input=[{"type": "text", "text":
