@@ -173,6 +173,7 @@ function Chat({ notebook, kinds, askOpen, onSay, modelReady, onCite, onOpenSourc
   const [ovErr, setOvErr] = useState(false)
   const [ovRetry, setOvRetry] = useState(0)
   const [sugg, setSugg] = useState(null)
+  const [suggErr, setSuggErr] = useState(false)
   const [cfgOpen, setCfgOpen] = useState(false)
   const [scopeOpen, setScopeOpen] = useState(false)
   const [cfg, setCfg] = useState({})
@@ -225,16 +226,16 @@ function Chat({ notebook, kinds, askOpen, onSay, modelReady, onCite, onOpenSourc
         cacheMsgs(key, mapped)
         setMsgs(mapped)
       })
-      .catch(() => {})
+      .catch(() => { if (live && onSay) onSay('could not load that conversation — try again') })
     return () => { live = false }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [notebook.id, thread])
 
   useEffect(() => {
     const cached = ovCache.get(notebook.id)
-    if (cached && cached.key === cacheKey) { setOv(cached.ov || ''); setSugg(cached.sugg || null); setOvErr(false); return undefined }
+    if (cached && cached.key === cacheKey) { setOv(cached.ov || ''); setSugg(cached.sugg || null); setOvErr(false); setSuggErr(false); return undefined }
     let live = true
-    setOv(''); setSugg(null); setOvErr(false)
+    setOv(''); setSugg(null); setOvErr(false); setSuggErr(false)
     api('/overview', { method: 'POST', body: { notebook: notebook.id }, timeoutMs: 120000 })
       .then((o) => {
         if (!live) return
@@ -250,10 +251,11 @@ function Chat({ notebook, kinds, askOpen, onSay, modelReady, onCite, onOpenSourc
         if (!live) return
         const s = o.suggestions || null
         setSugg(s)
+        setSuggErr(!s)
         const c = ovCache.get(notebook.id) || { key: cacheKey }
         ovCache.set(notebook.id, { key: cacheKey, ov: c.ov || '', sugg: s })
       })
-      .catch(() => {})
+      .catch(() => { if (live) setSuggErr(true) })
     return () => { live = false }
   }, [notebook.id, cacheKey, ovRetry])
 
@@ -449,6 +451,14 @@ function Chat({ notebook, kinds, askOpen, onSay, modelReady, onCite, onOpenSourc
                     })
                   }))
               : null)
+        : null,
+      msgs.length === 0 && !pending && !sugg && suggErr
+        ? el('div', { className: 'nb-gaprow', style: { marginTop: ov ? '18px' : '0' } },
+            el('span', { className: 'nb-hint', children: 'suggestions could not be generated — the model may be busy.' }),
+            jsx(Btn, {
+              size: 'sm', icon: 'refresh', children: 'Retry',
+              onClick: () => { ovCache.delete(notebook.id); setSuggErr(false); setOvRetry((n) => n + 1) }
+            }))
         : null,
       msgs.map((m, i) => jsx(Msg, {
         msg: m, onCite, onOpenSource, notebook,
