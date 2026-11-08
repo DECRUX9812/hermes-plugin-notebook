@@ -1,6 +1,6 @@
 # State machines
 
-The page used to know what it was doing only by inference. Twelve state machines now
+The page used to know what it was doing only by inference. Thirteen state machines now
 say it outright, because "which booleans are true" is a question nobody can answer
 at 2am — not the person using the app, not the person maintaining it, and not an
 agent driving it.
@@ -53,6 +53,7 @@ state it arrived in, so the reason a click did nothing is on the record.
 | `player` | `playing` boolean mirrored from the media element | `idle → loading → playing ⇄ paused → ended \| error` |
 | `revoice` | `rendering` + `renderErr` | `idle → rendering → idle \| failed` |
 | `dialogs` | four independent modal booleans | `closed ⇄ open` (payload names the surface) |
+| `view` (pure reducer, `src/25-machine.js`) | `tab` × `picked` × `peek` as three useStates across ~15 call sites | `chat ⇄ view ⇄ peek` with per-room selections that survive a tab switch |
 | `study` | a `busy` + `revealed` + `idx` trio around a study session | `idle → loading → reviewing ⇄ revealed → saving → reviewing \| done` |
 
 ### Bugs these removals actually fixed
@@ -85,6 +86,15 @@ document.body.dataset.machines  // {"turn":"idle","jobs":"idle","dialogs":"close
 know why a control is disabled reads it instead of guessing at the DOM. The gates
 (`node tests/gates.mjs machines`) exercise the fleet through that same window API,
 so the agent surface cannot rot separately from the app.
+
+## Two shapes, one idea
+
+Async lifecycles use `Machine()` (`src/05-machine.js`) because they need `enter`
+cleanups, generations and a published fleet. The center view is a **pure reducer**
+(`src/25-machine.js`, `VIEW_FSM`): no async, no context, so `useReducer` + a plain
+transition table is the smaller tool. The overlay table that arrived with it was
+dropped in favour of the `dialogs` machine — one authority for modals — but its best
+rule survived: `OPEN_SEARCH` is guarded so Ctrl+K cannot discard a half-typed draft.
 
 ## Deliberately not migrated (and why)
 

@@ -80,6 +80,20 @@ async function machines(port, shared) {
      exclusive.open === 'settings' && exclusive.stillOpen === 'settings' && exclusive.closed === true,
      JSON.stringify(exclusive))
 
+  const draftGuard = await page.evaluate(() => {
+    const m = window.__nbMachine('dialogs')
+    m.send('OPEN', { surface: 'addSource', data: { mode: 'find' } })
+    const blocked = m.send('OPEN', { surface: 'search' })   // Ctrl+K mid-draft
+    const kept = (m.ctx.payload || {}).surface
+    m.send('CLOSE', { surface: 'addSource' })
+    const allowed = m.send('OPEN', { surface: 'search' })
+    m.send('CLOSE', { surface: 'search' })
+    return { blocked, kept, allowed }
+  })
+  ok('a global search shortcut cannot discard a half-typed draft',
+     draftGuard.blocked === false && draftGuard.kept === 'addSource' && draftGuard.allowed === true,
+     JSON.stringify(draftGuard))
+
   const lanes = await page.evaluate(() => {
     const m = window.__nbMachine('jobs')
     const first = m.send('RUN', { kind: 'mind_map', at: 1 })

@@ -23,7 +23,7 @@
  * stages and the terminal stay dark in both themes, like a player.
  */
 import * as SDK from '@hermes/plugin-sdk'
-import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import React, { useCallback, useEffect, useMemo, useReducer, useRef, useState } from 'react'
 import { jsx, jsxs } from 'react/jsx-runtime'
 
 /* Namespace import, then local constants with the host's own strings as the
@@ -82,13 +82,31 @@ const CSS = `
   --nb-card: ${T.card};
   --nb-shadow: 0 1px 2px rgba(8,10,18,.05), 0 14px 34px -20px rgba(8,10,18,.30);
   --nb-shadow-lift: 0 2px 6px rgba(8,10,18,.07), 0 20px 44px -18px rgba(8,10,18,.38);
+  /* motion — Astryx cadence: fast for hovers, medium for entrances, standard
+     curve decelerates, exit accelerates */
+  --nb-ease: cubic-bezier(.24,1,.4,1);
+  --nb-ease-exit: cubic-bezier(.3,0,.6,.6);
+  --nb-dur-fast: .175s; --nb-dur-med: .41s; --nb-dur-slow: .975s;
   --nb-media: linear-gradient(155deg,#20243a 0%,#12151f 100%);
   display:flex; flex-direction:column; height:100%; min-height:0;
   color:${T.text}; font-size:16px; line-height:1.5;
   font-variant-numeric: tabular-nums;
+  position:relative;
 }
+/* ambient generative field — each notebook's sigil hue bleeds into the room */
+.nb-aurora{position:absolute;inset:0;z-index:0;overflow:hidden;pointer-events:none}
+.nb-blob{position:absolute;border-radius:50%;filter:blur(90px);opacity:.15;
+  background:radial-gradient(circle,hsl(var(--nb-hue, 265) 80% 60% / .9),transparent 70%);
+  width:52vmax;height:52vmax;top:-16%;left:-10%;
+  animation:nb-drift 26s ease-in-out infinite alternate}
+.nb-blob:nth-child(2){background:radial-gradient(circle,hsl(calc(var(--nb-hue, 265) + 70) 80% 60% / .8),transparent 70%);
+  width:44vmax;height:44vmax;top:-10%;right:-8%;animation-duration:32s;animation-delay:-9s}
+.nb-blob:nth-child(3){background:radial-gradient(circle,hsl(calc(var(--nb-hue, 265) + 165) 75% 58% / .7),transparent 70%);
+  width:40vmax;height:40vmax;bottom:-16%;left:-6%;animation-duration:38s;animation-delay:-17s}
+@keyframes nb-drift{from{transform:translate3d(-3%,-2%,0) scale(1)}to{transform:translate3d(4%,3%,0) scale(1.08)}}
+.nb-bar,.nb-body,.nb-home,.nb-ops{position:relative;z-index:1}
 .nb-root *{box-sizing:border-box}
-.nb-root :focus-visible{outline:2px solid ${T.accent}; outline-offset:2px; border-radius:8px}
+.nb-root :focus-visible{outline:2px solid ${T.accent}; outline-offset:3px}
 .nb-mono{font-family:var(--ui-font-mono,ui-monospace,SFMono-Regular,Menlo,monospace);font-variant-ligatures:none}
 .nb-num{font-family:var(--ui-font-mono,ui-monospace,SFMono-Regular,Menlo,monospace);font-variant-numeric:tabular-nums}
 
@@ -100,7 +118,7 @@ const CSS = `
 .nb-bar{display:flex;align-items:center;gap:14px;height:56px;flex:0 0 56px;
   padding:0 18px;border-bottom:1px solid var(--nb-hair-soft)}
 .nb-brand{display:flex;align-items:center;gap:11px;min-width:0}
-.nb-mark{width:27px;height:27px;display:grid;place-items:center;flex:0 0 auto;border-radius:9px;
+.nb-mark{width:27px;height:27px;display:grid;place-items:center;flex:0 0 auto;border-radius:8px;
   background:color-mix(in srgb,${T.accent} 15%, transparent);color:${T.accent}}
 .nb-brandname{font-size:14.5px;font-weight:700;letter-spacing:-.01em;color:${T.text}}
 .nb-crumb{font-size:12.5px;color:${T.text3};white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:42ch}
@@ -118,7 +136,7 @@ const CSS = `
   min-height:36px;padding:0 18px;border-radius:99px;cursor:pointer;
   font-size:13px;font-weight:600;letter-spacing:0;text-transform:none;font-family:inherit;
   border:1px solid var(--nb-hair);background:var(--nb-wash);color:${T.text};
-  transition:background .14s ease,border-color .14s ease,box-shadow .14s ease,transform .1s ease}
+  transition:background var(--nb-dur-fast) var(--nb-ease),border-color var(--nb-dur-fast) var(--nb-ease),box-shadow var(--nb-dur-fast) var(--nb-ease),transform var(--nb-dur-fast) var(--nb-ease)}
 .nb-btn:hover{background:var(--nb-wash-2);border-color:color-mix(in srgb,${T.text} 22%, transparent)}
 .nb-btn:active{transform:translateY(1px)}
 .nb-btn[disabled]{opacity:.45;cursor:not-allowed}
@@ -128,22 +146,22 @@ const CSS = `
 .nb-btn[data-variant=primary][disabled]{background:var(--nb-wash);border-color:var(--nb-hair);color:${T.text3};box-shadow:none}
 .nb-btn[data-variant=ghost]{background:transparent;border-color:transparent;color:${T.text2}}
 .nb-btn[data-variant=ghost]:hover{background:var(--nb-wash-2);color:${T.text}}
-.nb-btn[data-size=sm]{min-height:32px;padding:0 12px;font-size:12.5px;border-radius:9px}
+.nb-btn[data-size=sm]{min-height:32px;padding:0 12px;font-size:12.5px;border-radius:8px}
 .nb-icon{width:36px;height:36px;min-height:36px;padding:0;border-radius:99px;display:grid;place-items:center;
   cursor:pointer;border:1px solid transparent;background:transparent;color:${T.text3};
-  transition:background .13s ease,color .13s ease,border-color .13s ease}
+  transition:background var(--nb-dur-fast) var(--nb-ease),color var(--nb-dur-fast) var(--nb-ease),border-color var(--nb-dur-fast) var(--nb-ease)}
 .nb-icon:hover{background:var(--nb-wash-2);color:${T.text}}
 .nb-icon[data-active=true]{background:color-mix(in srgb,${T.accent} 14%, transparent);color:${T.accent}}
 
 /* segmented control — a pill track with a lifted thumb */
-.nb-seg{display:inline-flex;gap:2px;padding:3px;border-radius:13px;
+.nb-seg{display:inline-flex;gap:2px;padding:3px;border-radius:12px;
   border:1px solid var(--nb-hair);background:var(--nb-wash)}
 .nb-seg[data-fill="true"]{display:flex;width:100%}
 .nb-seg[data-fill="true"] > button{flex:1;justify-content:center}
-.nb-seg > button{min-height:32px;padding:0 14px;border:0;border-radius:10px;background:transparent;
+.nb-seg > button{min-height:32px;padding:0 14px;border:0;border-radius:8px;background:transparent;
   color:${T.text3};cursor:pointer;font-family:inherit;font-size:12.5px;font-weight:600;letter-spacing:0;
   display:inline-flex;align-items:center;justify-content:center;gap:7px;
-  transition:background .13s ease,color .13s ease,box-shadow .13s ease}
+  transition:background var(--nb-dur-fast) var(--nb-ease),color var(--nb-dur-fast) var(--nb-ease),box-shadow var(--nb-dur-fast) var(--nb-ease)}
 .nb-seg > button:hover{color:${T.text};background:color-mix(in srgb,${T.text} 6%, transparent)}
 .nb-seg > button[aria-selected=true]{background:${T.card};color:${T.text};box-shadow:var(--nb-shadow)}
 
@@ -172,32 +190,34 @@ const CSS = `
 .nb-pane-head{display:flex;align-items:center;gap:8px;height:52px;flex:0 0 52px;padding:0 18px}
 .nb-pane-title{font-size:15px;font-weight:650;letter-spacing:-.01em;color:${T.text}}
 .nb-pane-head .nb-meta{flex:1}
-.nb-scroll{flex:1;min-height:0;overflow:auto;overscroll-behavior:contain;scrollbar-width:thin}
+.nb-scroll{flex:1;min-height:0;overflow:auto;overscroll-behavior:contain;scrollbar-width:thin;
+  scrollbar-color:color-mix(in srgb,${T.text} 22%,transparent) transparent}
+.nb-root ::selection{background:color-mix(in srgb,${T.accent} 32%,transparent)}
 .nb-pad{padding:12px 14px}
 
 /* ------------------------------------------------------------------- rail */
 .nb-nbrow{display:flex;align-items:center;gap:12px;width:100%;
-  text-align:left;cursor:pointer;border:0;border-radius:13px;background:transparent;
-  padding:9px 10px;color:${T.text};transition:background .12s ease}
+  text-align:left;cursor:pointer;border:0;border-radius:12px;background:transparent;
+  padding:9px 10px;color:${T.text};transition:background var(--nb-dur-fast) var(--nb-ease)}
 .nb-nbrow:hover{background:var(--nb-wash-2)}
 .nb-nbrow[aria-current=true]{background:color-mix(in srgb,${T.accent} 11%, transparent)}
 .nb-nbtitle{font-size:13.5px;font-weight:600;line-height:1.32;color:${T.text2};letter-spacing:-.005em;
   overflow:hidden;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical}
 .nb-nbrow[aria-current=true] .nb-nbtitle{color:${T.text}}
 .nb-nbsub{font-size:11.5px;color:${T.text3};margin-top:2px;display:block}
-.nb-avatar{width:36px;height:36px;flex:0 0 auto;display:grid;place-items:center;border-radius:11px;
+.nb-avatar{width:36px;height:36px;flex:0 0 auto;display:grid;place-items:center;border-radius:12px;
   background:var(--nb-wash-2);color:${T.text2};font-size:13px;font-weight:700}
 .nb-nbrow[aria-current=true] .nb-avatar{background:color-mix(in srgb,${T.accent} 20%, transparent);color:${T.accent}}
 
-.nb-src{display:flex;align-items:center;gap:4px;width:100%;border-radius:13px;
-  padding:5px 8px 5px 5px;position:relative;transition:background .12s ease}
+.nb-src{display:flex;align-items:center;gap:4px;width:100%;border-radius:12px;
+  padding:5px 8px 5px 5px;position:relative;transition:background var(--nb-dur-fast) var(--nb-ease)}
 .nb-src:hover{background:var(--nb-wash-2)}
 .nb-src[data-on=true]{background:color-mix(in srgb,${T.accent} 10%, transparent)}
 .nb-src[data-off=true]{opacity:.55}
 .nb-src-open{flex:1;min-width:0;display:grid;grid-template-columns:36px minmax(0,1fr);gap:11px;
-  align-items:center;text-align:left;background:transparent;border:0;padding:4px;border-radius:11px;
+  align-items:center;text-align:left;background:transparent;border:0;padding:4px;border-radius:12px;
   color:${T.text};cursor:pointer;font-family:inherit}
-.nb-src-ico{position:relative;width:36px;height:36px;border-radius:11px;display:grid;place-items:center;
+.nb-src-ico{position:relative;width:36px;height:36px;border-radius:12px;display:grid;place-items:center;
   background:var(--nb-wash-2);color:${T.text2};flex:0 0 auto}
 .nb-src[data-on=true] .nb-src-ico{background:color-mix(in srgb,${T.accent} 18%, transparent);color:${T.accent}}
 /* the citation number rides the icon's corner, like a source badge */
@@ -209,21 +229,21 @@ const CSS = `
   overflow:hidden;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical}
 .nb-src-meta{display:flex;align-items:center;gap:6px;margin-top:5px;flex-wrap:wrap}
 /* NotebookLM's per-source checkbox: a rounded box at the row's right edge */
-.nb-srccheck{width:32px;height:32px;flex:0 0 auto;border-radius:10px;cursor:pointer;
+.nb-srccheck{width:32px;height:32px;flex:0 0 auto;border-radius:8px;cursor:pointer;
   border:1.5px solid var(--nb-hair);background:transparent;color:#0d0e15;
-  display:grid;place-items:center;padding:0;transition:all .13s ease}
+  display:grid;place-items:center;padding:0;transition:all var(--nb-dur-fast) var(--nb-ease)}
 .nb-srccheck:hover{border-color:color-mix(in srgb,${T.accent} 55%, transparent)}
 .nb-srccheck[aria-checked=true]{background:${T.accent};border-color:${T.accent}}
 .nb-selall{display:flex;align-items:center;gap:9px;padding:2px 6px}
-.nb-selall .nb-srccheck{width:32px;height:32px;border-radius:10px}
+.nb-selall .nb-srccheck{width:32px;height:32px;border-radius:8px}
 .nb-src-del{position:absolute;right:44px;top:50%;transform:translateY(-50%);
-  opacity:0;transition:opacity .12s ease}
+  opacity:0;transition:opacity var(--nb-dur-fast) var(--nb-ease)}
 .nb-src:hover .nb-src-del,.nb-src-del:focus-visible{opacity:1}
 .nb-srcgroup{display:flex;align-items:center;gap:8px;width:100%;text-align:left;
-  padding:9px 10px;border:0;border-radius:11px;background:transparent;color:${T.text3};
+  padding:9px 10px;border:0;border-radius:12px;background:transparent;color:${T.text3};
   font-size:12px;font-weight:650;letter-spacing:.01em;cursor:pointer;font-family:inherit}
 .nb-srcgroup:hover{background:var(--nb-wash-2);color:${T.text2}}
-.nb-srcgroup svg{transition:transform .15s ease}
+.nb-srcgroup svg{transition:transform var(--nb-dur-fast) var(--nb-ease)}
 .nb-srcgroup[data-closed=true] svg{transform:rotate(-90deg)}
 .nb-srcgroup em{margin-left:auto;font-style:normal;font-weight:500;color:${T.text4};font-size:11px}
 .nb-srcgroup-list{display:flex;flex-direction:column;gap:2px;padding-left:14px}
@@ -284,7 +304,7 @@ const CSS = `
 /* discover candidates — the "find for me" picker inside the add-source sheet */
 .nb-cand-list{display:flex;flex-direction:column;gap:8px;max-height:308px;overflow:auto;padding:2px}
 .nb-cand{display:flex;gap:11px;align-items:flex-start;width:100%;text-align:left;
-  padding:11px 12px;border-radius:13px;border:1px solid var(--nb-hair-soft);
+  padding:11px 12px;border-radius:12px;border:1px solid var(--nb-hair-soft);
   background:var(--nb-card);cursor:pointer;font-family:inherit;color:inherit}
 .nb-cand:hover{border-color:color-mix(in srgb,${T.text} 20%, transparent);background:var(--nb-wash-2)}
 .nb-cand[data-on=true]{border-color:color-mix(in srgb,${T.accent} 45%, transparent);
@@ -321,67 +341,50 @@ const CSS = `
 .nb-tab{min-height:38px;padding:0 14px 11px;border:0;border-bottom:2px solid transparent;
   border-radius:10px 10px 0 0;background:transparent;color:${T.text2};font-size:13.5px;
   font-weight:600;cursor:pointer;display:inline-flex;align-items:center;gap:7px;letter-spacing:0;
-  font-family:inherit;transition:background .12s ease,color .12s ease}
+  font-family:inherit;transition:background var(--nb-dur-fast) var(--nb-ease),color var(--nb-dur-fast) var(--nb-ease)}
 .nb-tab:hover{color:${T.text};background:var(--nb-wash)}
 .nb-tab[aria-selected=true]{color:${T.text};border-bottom-color:${T.accent};background:var(--nb-wash)}
 .nb-tab[disabled]{opacity:.45;cursor:default}
 
 /* ------------------------------------------------------------------- chat */
-.nb-chat{flex:1;min-height:0;display:flex;flex-direction:column;position:relative}
-<<<<<<< HEAD
-/* conversation bar: the open thread is the page's subject, so it gets the top row */
-.nb-chatbar{display:flex;align-items:center;gap:8px;padding:10px 16px 8px;
-  border-bottom:1px solid ${T.lineSoft};flex-wrap:nowrap}
-.nb-threadpick{display:flex;align-items:center;gap:8px;min-width:0;max-width:min(56ch,72%);
-  min-height:34px;padding:4px 8px;border-radius:10px;border:1px solid transparent;
-  background:transparent;color:${T.text};font:inherit;font-size:14px;font-weight:600;
-  cursor:pointer}
-.nb-threadpick:hover{background:${T.inset};border-color:${T.lineSoft}}
-.nb-threadpick:focus-visible{outline:2px solid ${T.accent};outline-offset:1px}
-.nb-threadpick svg{color:${T.text4};flex:0 0 auto}
-.nb-threadpick-title{min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.nb-newthread{display:flex;gap:8px;align-items:center}
-.nb-newthread .nb-genopt-text{flex:1;min-width:0}
-.nb-threadlist{display:flex;flex-direction:column;gap:6px;max-height:min(48vh,380px);
-  overflow:auto;overscroll-behavior:contain}
-.nb-threadrow{display:flex;align-items:center;gap:6px;padding:2px;border-radius:12px;
-  border:1px solid ${T.lineSoft};background:${T.card}}
-.nb-threadrow[data-on="true"]{border-color:${T.accent};
-  background:color-mix(in srgb,${T.accent} 9%,transparent)}
-.nb-threadrow-main{flex:1;min-width:0;display:flex;flex-direction:column;gap:3px;
-  align-items:flex-start;text-align:left;background:transparent;border:0;cursor:pointer;
-  padding:8px 10px;border-radius:10px;color:${T.text};font:inherit;min-height:48px}
-.nb-threadrow-main:hover{background:${T.inset}}
-.nb-threadrow-main:focus-visible{outline:2px solid ${T.accent};outline-offset:-2px}
-.nb-threadrow-title{display:block;font-size:14px;font-weight:600;max-width:100%;
-  white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.nb-threadrow-meta{display:block;font-size:11.5px;color:${T.text4};line-height:1.2}
-.nb-threadrow-acts{display:flex;align-items:center;gap:4px;padding-right:6px}
-.nb-threadrow-acts .nb-btn{height:32px}
-.nb-threadrow-edit{display:flex;gap:6px;align-items:center;padding-right:8px;flex:1}
-.nb-threadrow-edit .nb-genopt-text{flex:1;min-width:0}
-=======
-/* A scrolled thread clips its first visible message at the panel edge, which reads
-   as a broken one-line fragment. Fade that edge with an overlay — pointer-events
-   off, so citations under it stay clickable (a mask would eat the clicks). */
-.nb-chat::before{content:'';position:absolute;top:0;left:0;right:0;height:18px;z-index:2;
-  pointer-events:none;background:linear-gradient(to bottom,var(--nb-card),transparent)}
+.nb-chat{flex:1;min-height:0;display:flex;flex-direction:column}
 .nb-chatscroll{flex:1;min-height:0;display:flex;flex-direction:column;position:relative}
 .nb-hl{background:color-mix(in srgb, ${T.accent} 30%, transparent);color:inherit;border-radius:4px;padding:0 2px}
-.nb-latest{position:absolute;left:50%;bottom:14px;transform:translateX(-50%);z-index:20;display:inline-flex;align-items:center;gap:4px;padding:7px 14px;border-radius:999px;border:1px solid var(--nb-line,#2a2d3d);background:var(--nb-card,#14161f);color:var(--nb-text2,#c6c9d8);font-size:12.5px;font-weight:600;cursor:pointer;box-shadow:0 6px 20px rgba(0,0,0,.35);transition:transform .15s ease,box-shadow .15s ease}
+.nb-latest{position:absolute;left:50%;bottom:14px;transform:translateX(-50%);z-index:20;display:inline-flex;align-items:center;gap:4px;padding:7px 14px;border-radius:999px;border:1px solid var(--nb-line,#2a2d3d);background:var(--nb-card,#14161f);color:var(--nb-text2,#c6c9d8);font-size:12.5px;font-weight:600;cursor:pointer;box-shadow:0 6px 20px rgba(0,0,0,.35);transition:transform var(--nb-dur-fast) var(--nb-ease),box-shadow var(--nb-dur-fast) var(--nb-ease)}
 .nb-latest:hover{transform:translateX(-50%) translateY(-1px);box-shadow:0 8px 24px rgba(0,0,0,.45)}
->>>>>>> origin/main
 .nb-thread{flex:1;min-height:0;overflow:auto;padding:28px 28px 12px;display:flex;flex-direction:column;gap:24px}
-.nb-chiprow{display:flex;align-items:center;gap:6px;flex-wrap:wrap;padding:8px 0 6px}
-.nb-msg{max-width:72ch}
+.nb-msg{max-width:72ch;animation:nb-msg-in var(--nb-dur-fast) var(--nb-ease) both}
+@keyframes nb-msg-in{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:none}}
+/* generative marks breathe — a slow 1.5% drift so sigils feel alive, not pasted */
+.nb-hero-emoji svg,.nb-nbcard-emoji svg,.nb-feature-emoji svg{animation:nb-sigil-float 9s ease-in-out infinite}
+@keyframes nb-sigil-float{0%,100%{transform:translateY(0) rotate(0deg)}50%{transform:translateY(-2px) rotate(1.2deg)}}
+/* home cards arrive in a stagger — the directory assembles itself */
+.nb-nbcard-wrap,.nb-feature{animation:nb-card-in var(--nb-dur-med) var(--nb-ease) both}
+@keyframes nb-card-in{from{opacity:0;transform:translateY(12px) scale(.985)}to{opacity:1;transform:none}}
+/* sigil inscription — ribbons draw themselves in sequence, nodes pop after */
+.nb-sigil-draw path{stroke-dasharray:1;stroke-dashoffset:1;animation:nb-draw .9s cubic-bezier(.45,.05,.3,1) forwards}
+.nb-sigil-draw path:nth-child(2){animation-delay:.18s}
+.nb-sigil-draw path:nth-child(3){animation-delay:.36s}
+.nb-sigil-draw circle{opacity:0;animation:nb-pop .45s cubic-bezier(.2,.9,.3,1.4) forwards}
+.nb-sigil-draw circle:nth-child(4){animation-delay:.75s}
+.nb-sigil-draw circle:nth-child(5){animation-delay:.9s}
+@keyframes nb-draw{to{stroke-dashoffset:0}}
+@keyframes nb-pop{from{opacity:0;transform:scale(.4)}to{opacity:1;transform:scale(1)}}
+.nb-sigil-draw{transform-origin:center;animation:nb-sigil-settle 1.1s var(--nb-ease) both}
+@keyframes nb-sigil-settle{from{opacity:0;transform:scale(.92)}to{opacity:1;transform:scale(1)}}
+@media (prefers-reduced-motion:reduce){
+  .nb-msg,.nb-nbcard-wrap,.nb-feature,.nb-hero-emoji svg,.nb-nbcard-emoji svg,.nb-feature-emoji svg,.nb-blob,.nb-sigil-draw{animation:none!important}
+  .nb-sigil-draw path{stroke-dashoffset:0!important}
+  .nb-sigil-draw circle{opacity:1!important;transform:none!important}
+}
 .nb-msg[data-role=assistant]{display:grid;grid-template-columns:30px minmax(0,1fr);gap:14px;align-self:flex-start}
 .nb-msg[data-role=user]{align-self:flex-end;max-width:62ch}
 .nb-msg-body{min-width:0}
 .nb-msg[data-role=user] .nb-bubble{background:var(--nb-wash-2);border:1px solid var(--nb-hair-soft);
-  border-radius:18px;padding:11px 17px;font-size:15px;line-height:1.55;color:${T.text}}
+  border-radius:16px;padding:11px 17px;font-size:15px;line-height:1.55;color:${T.text}}
 .nb-msg[data-role=assistant] .nb-bubble{font-size:16px;line-height:1.66;color:${T.text}}
 .nb-msg[data-role=assistant] .nb-avatar{width:30px;height:30px;margin-top:2px}
-.nb-avatar{width:36px;height:36px;flex:0 0 auto;display:grid;place-items:center;border-radius:11px;
+.nb-avatar{width:36px;height:36px;flex:0 0 auto;display:grid;place-items:center;border-radius:12px;
   background:var(--nb-wash-2);color:${T.text2};font-size:13px;font-weight:700}
 .nb-nbrow[aria-current=true] .nb-avatar{background:color-mix(in srgb,${T.accent} 20%, transparent);color:${T.accent}}
 .nb-msg .nb-avatar{width:30px;height:30px;border-radius:99px;
@@ -410,7 +413,7 @@ const CSS = `
 .nb-composer{flex:0 0 auto;padding:14px 30px 20px}
 .nb-askbox{display:flex;flex-direction:column;gap:10px;border:1px solid var(--nb-hair);
   border-radius:26px;background:var(--nb-card);padding:14px 16px;box-shadow:var(--nb-shadow);
-  transition:border-color .15s ease,box-shadow .15s ease}
+  transition:border-color var(--nb-dur-fast) var(--nb-ease),box-shadow var(--nb-dur-fast) var(--nb-ease)}
 .nb-askbox:focus-within{border-color:color-mix(in srgb,${T.accent} 55%, transparent);
   box-shadow:0 0 0 4px color-mix(in srgb,${T.accent} 15%, transparent), var(--nb-shadow)}
 .nb-askbox textarea{width:100%;min-height:44px;max-height:150px;resize:none;border:0;outline:0;
@@ -419,13 +422,13 @@ const CSS = `
 .nb-askfoot{display:flex;align-items:center;gap:8px}
 .nb-sendbtn{width:38px;height:38px;flex:0 0 auto;border-radius:99px;border:0;cursor:pointer;
   background:${T.accent};color:#0d0e15;display:grid;place-items:center;padding:0;
-  transition:opacity .13s ease,transform .1s ease}
+  transition:opacity var(--nb-dur-fast) var(--nb-ease),transform var(--nb-dur-fast) var(--nb-ease)}
 .nb-sendbtn:hover{transform:scale(1.05)}
 .nb-sendbtn[disabled]{opacity:.4;cursor:not-allowed;transform:none}
 .nb-disclaimer{font-size:11px;color:${T.text3};text-align:center;margin-top:9px}
 
 /* ------------------------------------------------- overview + suggestions */
-.nb-overview{border:1px solid var(--nb-hair-soft);border-radius:18px;background:var(--nb-card);
+.nb-overview{border:1px solid var(--nb-hair-soft);border-radius:16px;background:var(--nb-card);
   padding:18px 20px;display:grid;gap:10px}
 .nb-overview-head{display:flex;align-items:center;gap:8px}
 .nb-overview-head .nb-meta{flex:1}
@@ -435,8 +438,8 @@ const CSS = `
 .nb-suggest{display:flex;flex-direction:column;justify-content:space-between;gap:10px;
   min-height:104px;text-align:left;padding:14px;border-radius:16px;cursor:pointer;
   border:1px solid var(--nb-hair-soft);background:var(--nb-card);color:${T.text};
-  font-family:inherit;font-size:13px;line-height:1.45;transition:border-color .14s ease,
-  background .14s ease,transform .14s ease}
+  font-family:inherit;font-size:13px;line-height:1.45;transition:border-color var(--nb-dur-fast) var(--nb-ease),
+  background var(--nb-dur-fast) var(--nb-ease),transform var(--nb-dur-fast) var(--nb-ease)}
 .nb-suggest:hover{border-color:color-mix(in srgb,${T.accent} 45%, transparent);
   background:var(--nb-wash-2);transform:translateY(-1px)}
 .nb-suggest-q{font-weight:550}
@@ -449,25 +452,14 @@ const CSS = `
 .nb-thrrow:hover{background:var(--nb-wash)}
 .nb-thrrow.is-current{border-color:color-mix(in srgb,${T.accent} 40%, transparent);
   background:color-mix(in srgb,${T.accent} 8%, transparent)}
-.nb-thrwrap{display:flex;align-items:center;gap:4px;padding:1px;border-radius:12px}
+.nb-thrwrap{display:flex;align-items:center;gap:4px}
 .nb-thrwrap .nb-thrrow{flex:1;min-width:0}
-/* rename/delete are actions on a conversation, not hover trivia — keep them visible
-   and let hover only raise their weight */
-.nb-thrwrap .nb-icon{opacity:.7;transition:opacity .12s ease}
+.nb-thrwrap .nb-icon{opacity:0;transition:opacity var(--nb-dur-fast) var(--nb-ease)}
 .nb-thrwrap:hover .nb-icon,.nb-thrwrap:focus-within .nb-icon{opacity:1}
-.nb-thrwrap[data-on="true"]{background:color-mix(in srgb,${T.accent} 8%,transparent)}
-.nb-thrlist{display:flex;flex-direction:column;gap:6px;max-height:min(46vh,360px);
-  overflow:auto;overscroll-behavior:contain;padding:2px;margin:0 -2px}
-.nb-thredit{display:flex;gap:6px;align-items:center;width:100%;padding:2px 4px}
-.nb-thredit .nb-genopt-text{flex:1;min-width:0}
-.nb-newthread{display:flex;gap:8px;align-items:center}
-.nb-newthread .nb-genopt-text{flex:1;min-width:0}
-.nb-danger{color:${T.danger} !important;
-  border-color:color-mix(in srgb,${T.danger} 45%,transparent) !important}
 .nb-emgrid{display:grid;grid-template-columns:repeat(8,1fr);gap:6px}
-.nb-em{aspect-ratio:1;border-radius:10px;border:1px solid var(--nb-hair-soft);
+.nb-em{aspect-ratio:1;border-radius:8px;border:1px solid var(--nb-hair-soft);
   background:var(--nb-card);font-size:17px;cursor:pointer;display:grid;place-items:center;
-  transition:border-color .12s ease,background .12s ease}
+  transition:border-color var(--nb-dur-fast) var(--nb-ease),background var(--nb-dur-fast) var(--nb-ease)}
 .nb-em:hover{border-color:color-mix(in srgb,${T.accent} 45%, transparent)}
 .nb-em.is-on{border-color:${T.accent};background:color-mix(in srgb,${T.accent} 12%, transparent)}
 
@@ -475,21 +467,21 @@ const CSS = `
 .nb-grid{display:flex;flex-direction:column;gap:10px;padding:12px 14px 26px}
 /* the generator bento: compact 2-col pills, each tinted by its kind colour */
 .nb-gen-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px}
-/* an odd count leaves a lonely pill on the last row — let it take the full width */
-.nb-gen-grid > *:last-child:nth-child(odd){grid-column:1 / -1}
 
 /* each output pill carries its own colour (--kc) */
 .nb-card{--kc:${T.accent};
   display:flex;align-items:center;gap:10px;width:100%;padding:11px 12px;
-  border:1px solid var(--nb-hair-soft);border-radius:14px;
+  border:1px solid var(--nb-hair-soft);border-radius:16px;
   background:var(--nb-card);cursor:pointer;text-align:left;color:${T.text};
-  transition:background .13s ease,border-color .13s ease,transform .13s ease}
+  transition:background var(--nb-dur-fast) var(--nb-ease),border-color var(--nb-dur-fast) var(--nb-ease),transform var(--nb-dur-fast) var(--nb-ease),
+    box-shadow var(--nb-dur-fast) var(--nb-ease)}
 .nb-card:hover{background:var(--nb-wash-2);border-color:color-mix(in srgb,var(--kc) 42%, var(--nb-hair));
-  transform:translateY(-1px)}
+  transform:translateY(-1px);
+  box-shadow:0 8px 26px -10px color-mix(in srgb,var(--kc) 45%, transparent)}
 .nb-card[data-ready=true]{border-color:color-mix(in srgb,var(--kc) 30%, var(--nb-hair-soft))}
 .nb-card[data-busy=true]{border-color:color-mix(in srgb,var(--kc) 50%, transparent);
   background:color-mix(in srgb,var(--kc) 6%, var(--nb-card))}
-.nb-card-ico{width:32px;height:32px;flex:0 0 auto;border-radius:10px;display:grid;place-items:center;
+.nb-card-ico{width:32px;height:32px;flex:0 0 auto;border-radius:8px;display:grid;place-items:center;
   background:color-mix(in srgb,var(--kc) 14%, transparent);color:var(--kc)}
 .nb-card[data-kind=video_overview],.nb-art[data-kind=video_overview]{--kc:#81c995}
 .nb-card[data-kind=audio_overview],.nb-art[data-kind=audio_overview]{--kc:#a8c7fa}
@@ -518,14 +510,14 @@ const CSS = `
 .nb-card[data-ready=true] .nb-dot{background:${T.ok}}
 .nb-card[data-busy=true] .nb-dot{background:var(--kc);animation:nb-pulse 1.2s ease-in-out infinite}
 .nb-bar-track{height:4px;margin-top:2px;background:var(--nb-wash-2);border-radius:99px;overflow:hidden;display:block;flex:1;max-width:120px}
-.nb-bar-fill{height:100%;background:var(--kc);border-radius:99px;transition:width .4s ease}
+.nb-bar-fill{height:100%;background:var(--kc);border-radius:99px;transition:width var(--nb-dur-med) var(--nb-ease)}
 @keyframes nb-pulse{0%,100%{opacity:1}50%{opacity:.35}}
 
 /* the generated-artifacts list: tinted icon tile + title + meta */
 .nb-artlist{display:flex;flex-direction:column;gap:4px}
 .nb-art{display:flex;align-items:center;gap:11px;width:100%;text-align:left;
-  padding:8px 10px;border-radius:13px;border:0;background:transparent;color:${T.text};
-  cursor:pointer;font-family:inherit;transition:background .12s ease}
+  padding:8px 10px;border-radius:12px;border:0;background:transparent;color:${T.text};
+  cursor:pointer;font-family:inherit;transition:background var(--nb-dur-fast) var(--nb-ease)}
 .nb-art:hover{background:var(--nb-wash-2)}
 .nb-art-ico{width:40px;height:40px;flex:0 0 auto;border-radius:12px;position:relative;overflow:hidden;
   display:grid;place-items:center;
@@ -540,7 +532,7 @@ const CSS = `
   overflow:hidden;white-space:nowrap;text-overflow:ellipsis}
 .nb-artrow{position:relative}
 .nb-art-del{position:absolute;right:8px;top:50%;transform:translateY(-50%);
-  opacity:0;transition:opacity .12s ease}
+  opacity:0;transition:opacity var(--nb-dur-fast) var(--nb-ease)}
 .nb-artrow:hover .nb-art-del,.nb-art-del:focus-visible{opacity:1}
 .nb-artrow:hover .nb-art{padding-right:36px}
 
@@ -576,7 +568,7 @@ const CSS = `
 
 /* -------------------------------------------------------------- stage/media */
 .nb-stage{display:flex;flex-direction:column;gap:16px}
-.nb-screen{position:relative;overflow:hidden;border-radius:18px;border:1px solid var(--nb-hair);
+.nb-screen{position:relative;overflow:hidden;border-radius:16px;border:1px solid var(--nb-hair);
   background:var(--nb-media);aspect-ratio:16/9;display:grid;place-items:center;box-shadow:var(--nb-shadow)}
 .nb-screen video,.nb-screen iframe{width:100%;height:100%;border:0;display:block;background:#000}
 .nb-screen-audio{aspect-ratio:auto;padding:22px;display:flex;flex-direction:column;gap:16px;
@@ -609,7 +601,7 @@ const CSS = `
 .nb-flip-inner{position:relative;width:100%;min-height:310px;transition:transform .5s cubic-bezier(.2,.7,.2,1);
   transform-style:preserve-3d}
 .nb-flip[data-flipped=true] .nb-flip-inner{transform:rotateY(180deg)}
-.nb-face{position:absolute;inset:0;backface-visibility:hidden;border-radius:20px;
+.nb-face{position:absolute;inset:0;backface-visibility:hidden;border-radius:16px;
   border:1px solid var(--nb-hair);background:var(--nb-card);box-shadow:var(--nb-shadow);
   padding:30px;display:flex;flex-direction:column;justify-content:center;gap:12px;
   font-size:19px;line-height:1.5}
@@ -621,20 +613,20 @@ const CSS = `
 /* -------------------------------------------------------------------- ops */
 .nb-fleet{display:flex;flex-direction:column;gap:8px;padding:8px 0}
 .nb-frow{display:grid;grid-template-columns:10px minmax(0,1fr) auto;align-items:center;gap:12px;
-  padding:11px 14px;border:1px solid var(--nb-hair-soft);border-radius:13px;background:var(--nb-card);
+  padding:11px 14px;border:1px solid var(--nb-hair-soft);border-radius:12px;background:var(--nb-card);
   cursor:pointer;text-align:left;color:${T.text};min-height:54px;
-  transition:border-color .13s ease,box-shadow .13s ease,transform .13s ease}
+  transition:border-color var(--nb-dur-fast) var(--nb-ease),box-shadow var(--nb-dur-fast) var(--nb-ease),transform var(--nb-dur-fast) var(--nb-ease)}
 .nb-frow:hover{border-color:color-mix(in srgb,${T.text} 20%, transparent);box-shadow:var(--nb-shadow)}
 .nb-frow[aria-current=true]{border-color:color-mix(in srgb,${T.accent} 55%, transparent);
   background:color-mix(in srgb,${T.accent} 9%, var(--nb-card))}
 .nb-fname{font-size:14px;font-weight:600;line-height:1.25}
 .nb-frole{font-size:10.5px;color:${T.text3};text-transform:uppercase;letter-spacing:.06em;font-weight:600}
 .nb-term{font-family:var(--ui-font-mono,ui-monospace,monospace);font-size:13px;line-height:1.55;flex:1 1 auto;
-  background:#101320;color:#c9cede;border-radius:14px;padding:16px;min-height:130px;max-height:none;overflow:auto;
+  background:#101320;color:#c9cede;border-radius:16px;padding:16px;min-height:130px;max-height:none;overflow:auto;
   white-space:pre-wrap;word-break:break-word;border:1px solid rgba(255,255,255,.09);
   box-shadow:inset 0 1px 0 rgba(255,255,255,.05)}
 .nb-term-in{display:flex;gap:8px;align-items:center;margin-top:10px}
-.nb-term-in input{flex:1;height:38px;border-radius:11px;border:1px solid var(--nb-hair);
+.nb-term-in input{flex:1;height:38px;border-radius:12px;border:1px solid var(--nb-hair);
   background:var(--nb-wash);color:${T.text};padding:0 13px;font-size:13.5px;
   font-family:var(--ui-font-mono,ui-monospace,monospace);outline:0}
 .nb-term-in input:focus{border-color:color-mix(in srgb,${T.accent} 55%, transparent)}
@@ -658,12 +650,12 @@ const CSS = `
 .nb-home-search{width:260px;margin-left:auto}
 .nb-feature-row{display:flex;gap:14px;overflow-x:auto;padding:2px 2px 12px;margin-bottom:26px;
   scrollbar-width:thin}
-.nb-feature{flex:0 0 290px;height:170px;border-radius:20px;padding:18px;position:relative;
+.nb-feature{flex:0 0 290px;height:170px;border-radius:16px;padding:18px;position:relative;
   overflow:hidden;display:flex;flex-direction:column;justify-content:space-between;
   text-align:left;cursor:pointer;color:${T.text};font-family:inherit;
   border:1px solid var(--nb-hair-soft);
   background:linear-gradient(135deg, color-mix(in srgb,var(--kc) 30%, var(--nb-card)), var(--nb-card) 72%);
-  transition:transform .15s ease,box-shadow .15s ease}
+  transition:transform var(--nb-dur-fast) var(--nb-ease),box-shadow var(--nb-dur-fast) var(--nb-ease)}
 .nb-feature:hover{transform:translateY(-2px);box-shadow:var(--nb-shadow-lift)}
 .nb-feature::after{content:'';position:absolute;right:-46px;bottom:-58px;width:190px;height:190px;
   border-radius:99px;background:color-mix(in srgb,var(--kc) 22%, transparent);pointer-events:none}
@@ -674,11 +666,11 @@ const CSS = `
 .nb-home-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(215px,1fr));gap:13px;
   align-content:start}
 .nb-nbcard-wrap{position:relative;height:170px}
-.nb-nbcard{height:100%;position:relative;border-radius:18px;padding:16px;display:flex;
+.nb-nbcard{height:100%;position:relative;border-radius:16px;padding:16px;display:flex;
   flex-direction:column;justify-content:space-between;text-align:left;cursor:pointer;
   color:${T.text};font-family:inherit;
   border:1px solid var(--nb-hair-soft);background:var(--nb-card);
-  transition:border-color .14s ease,transform .14s ease,box-shadow .14s ease}
+  transition:border-color var(--nb-dur-fast) var(--nb-ease),transform var(--nb-dur-fast) var(--nb-ease),box-shadow var(--nb-dur-fast) var(--nb-ease)}
 .nb-nbcard:hover{border-color:color-mix(in srgb,${T.accent} 42%, var(--nb-hair));
   transform:translateY(-2px);box-shadow:var(--nb-shadow-lift)}
 .nb-nbcard-emoji{font-size:32px;line-height:1}
@@ -690,48 +682,21 @@ const CSS = `
 /* generator options popover + citation hover card + data table */
 .nb-gen{position:relative}
 .nb-gen-cfg{position:absolute;top:4px;right:4px;width:32px;height:32px;opacity:0;
-  transition:opacity .15s}
+  transition:opacity var(--nb-dur-fast) var(--nb-ease)}
 .nb-gen:hover .nb-gen-cfg,.nb-gen-cfg[data-active="true"]{opacity:1}
 .nb-genpop{position:absolute;top:calc(100% + 6px);left:0;right:0;z-index:30;
-  background:${T.card};border:1px solid ${T.line};border-radius:14px;
+  background:${T.card};border:1px solid ${T.line};border-radius:16px;
   box-shadow:var(--nb-shadow-lift);padding:12px;display:grid;gap:12px}
 .nb-genopt-label{font-size:11px;font-weight:600;color:${T.text3};margin-bottom:6px;
   text-transform:uppercase;letter-spacing:.06em}
 .nb-genopt .nb-seg{width:100%}
 .nb-genopt .nb-seg button{flex:1;justify-content:center}
-.nb-genopt-text{width:100%;height:32px;padding:0 10px;border-radius:9px;font-size:13px;
+.nb-genopt-text{width:100%;height:32px;padding:0 10px;border-radius:8px;font-size:13px;
   border:1px solid ${T.line};background:${T.inset};color:${T.text};outline:none}
 .nb-genopt-text:focus{border-color:color-mix(in srgb,${T.accent} 55%,transparent)}
-/* the infographic look picker: sixteen styles do not fit a segmented control or an
-   inline popover, so they open in a dialog as a gallery — the thumbnail is the real
-   renderer drawing the notebook's own last infographic in that style */
-.nb-stylegrid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:6px;
-  max-height:min(64vh,492px);overflow:auto;overscroll-behavior:contain;padding:2px;margin:0 -2px;
-  scrollbar-width:thin}
-.nb-styleopt{display:flex;flex-direction:column;align-items:stretch;gap:0;min-width:0;
-  padding:0;border-radius:11px;border:1px solid ${T.lineSoft};background:${T.card};
-  cursor:pointer;overflow:hidden;color:${T.text2};font-family:inherit}
-.nb-styleopt:hover{border-color:color-mix(in srgb,${T.accent} 45%,${T.lineSoft})}
-.nb-styleopt[data-on="true"]{border-color:${T.accent};box-shadow:0 0 0 1px ${T.accent} inset}
-.nb-styleopt:focus-visible{outline:2px solid ${T.accent};outline-offset:1px}
-.nb-stylethumb{display:block;position:relative;height:60px;background:${T.inset}}
-.nb-stylethumb img{width:100%;height:100%;object-fit:cover;display:block}
-.nb-stylethumb[data-empty="true"]::after{content:'';position:absolute;inset:0;
-  background:linear-gradient(100deg,transparent 20%,color-mix(in srgb,${T.text} 6%,transparent) 50%,transparent 80%);
-  animation:nb-shimmer 1.4s linear infinite}
-@keyframes nb-shimmer{from{transform:translateX(-100%)}to{transform:translateX(100%)}}
-.nb-stylecheck{position:absolute;top:4px;right:4px;width:18px;height:18px;border-radius:50%;
-  display:grid;place-items:center;background:${T.accent};color:#fff;font-size:10px;
-  font-weight:700;line-height:1}
-/* the picker states where the previews come from, so nobody reads them as the user's
-   finished artifact */
-.nb-stylehint{margin-top:6px;font-size:11.5px;color:${T.text4}}
-.nb-stylelabel{display:block;padding:4px 4px 5px;font-size:11px;font-weight:600;
-  text-align:center;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-
 
 .nb-citepop{position:fixed;z-index:80;width:320px;max-width:calc(100vw - 32px);
-  background:${T.card};border:1px solid ${T.line};border-radius:14px;
+  background:${T.card};border:1px solid ${T.line};border-radius:16px;
   box-shadow:var(--nb-shadow-lift);padding:12px 14px;pointer-events:none}
 .nb-citepop-head{display:flex;align-items:center;gap:8px;font-size:12.5px;
   color:${T.text3};margin-bottom:6px;flex-wrap:wrap}
@@ -741,12 +706,12 @@ const CSS = `
 
 .nb-scope-check{flex:none;width:18px;height:18px;border-radius:6px;
   border:1.5px solid ${T.line};display:grid;place-items:center;font-size:11px;
-  color:#fff;transition:all .12s}
+  color:#fff;transition:all var(--nb-dur-fast) var(--nb-ease)}
 .nb-scope-check.on{background:${T.accent};border-color:${T.accent}}
 
 .nb-search-hit{display:block;width:100%;text-align:left;background:transparent;
   border:1px solid ${T.line};border-radius:12px;padding:10px 12px;cursor:pointer;
-  color:${T.text};font:inherit;transition:border-color .12s,background .12s}
+  color:${T.text};font:inherit;transition:border-color var(--nb-dur-fast) var(--nb-ease),background var(--nb-dur-fast) var(--nb-ease)}
 .nb-search-hit:hover{border-color:color-mix(in srgb,${T.accent} 45%,transparent);
   background:color-mix(in srgb,${T.accent} 6%,transparent)}
 .nb-search-hit-head{display:flex;align-items:center;gap:8px;font-size:13.5px;
@@ -758,7 +723,7 @@ const CSS = `
 .nb-search-hit mark{background:color-mix(in srgb,${T.accent} 30%,transparent);
   color:${T.text};border-radius:3px;padding:0 1px}
 
-.nb-dt-wrap{overflow:auto;border:1px solid ${T.line};border-radius:14px;
+.nb-dt-wrap{overflow:auto;border:1px solid ${T.line};border-radius:16px;
   background:${T.card}}
 .nb-dt{border-collapse:collapse;width:100%;font-size:13px;min-width:520px}
 .nb-dt th{position:sticky;top:0;background:${T.inset};text-align:left;
@@ -788,45 +753,6 @@ const CSS = `
   .nb-body{padding:8px;gap:8px}
   .nb-suggest-grid{grid-template-columns:1fr}
 }
-
-/* ---------------------------------------------------------------- discover */
-.nb-disc{flex:1;min-height:0;overflow:auto;padding:26px 30px 40px;display:flex;flex-direction:column;
-  gap:14px;max-width:1040px;width:100%}
-.nb-disc-head h1{margin:0 0 6px}
-.nb-disc-search{display:flex;gap:10px;align-items:center;margin-top:4px}
-.nb-disc-search .nb-input{flex:1;min-width:0}
-.nb-input{height:44px;padding:0 16px;border-radius:14px;border:1px solid var(--nb-hair);
-  background:var(--nb-card);color:${T.text};font:inherit;font-size:14.5px;outline:0;
-  transition:border-color .15s ease, box-shadow .15s ease}
-.nb-input:focus{border-color:color-mix(in srgb,${T.accent} 55%, transparent);
-  box-shadow:0 0 0 4px color-mix(in srgb,${T.accent} 14%, transparent)}
-.nb-input::placeholder{color:${T.text4}}
-.nb-disc-gaps{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
-.nb-disc-body{display:flex;flex-direction:column;gap:10px;margin-top:4px}
-.nb-disc-card{display:flex;gap:12px;align-items:flex-start;padding:14px 16px;cursor:pointer;
-  border:1px solid var(--nb-hair-soft);border-radius:16px;background:var(--nb-card);
-  transition:border-color .15s ease, background .15s ease}
-.nb-disc-card:hover{border-color:var(--nb-hair)}
-.nb-disc-card[data-on=true]{border-color:color-mix(in srgb,${T.accent} 50%, transparent);
-  background:color-mix(in srgb,${T.accent} 8%, var(--nb-card))}
-.nb-disc-card input{width:16px;height:16px;margin-top:3px;accent-color:${T.accent};
-  cursor:pointer;flex:0 0 16px}
-.nb-disc-main{display:flex;flex-direction:column;gap:5px;min-width:0;flex:1}
-.nb-disc-top{display:flex;align-items:center;gap:8px;font-size:11.5px}
-.nb-disc-dom{color:${T.accent};font-weight:600;letter-spacing:.01em}
-.nb-disc-title{font-size:14.5px;font-weight:600;line-height:1.35;color:${T.text}}
-.nb-disc-snip{font-size:13px;line-height:1.5;color:${T.text3};
-  display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
-.nb-disc-why{display:flex;align-items:center;gap:6px;font-size:12px;color:${T.text2};padding-top:2px}
-.nb-disc-foot{display:flex;align-items:center;gap:12px;position:sticky;bottom:12px;
-  padding:12px 14px;border-radius:16px;border:1px solid var(--nb-hair);
-  background:var(--nb-card);box-shadow:var(--nb-shadow)}
-.nb-disc-meta{display:flex;gap:14px;flex-wrap:wrap;font-size:11.5px;color:${T.text4};padding-top:4px}
-.nb-disc-empty{display:grid;justify-items:center;gap:8px;padding:56px 20px;text-align:center;
-  color:${T.text3};border:1px dashed var(--nb-hair-soft);border-radius:18px}
-.nb-disc-err{color:${T.danger};font-size:13px;padding:10px 14px;border-radius:12px;
-  background:color-mix(in srgb,${T.danger} 12%, transparent)}
-@media (max-width:820px){ .nb-disc{padding:18px 16px 32px} }
 
 /* study — a session, not a deck viewer: one card at a time, keyboard first */
 .nb-study{display:flex;flex-direction:column;gap:16px;padding:26px 30px 40px;max-width:980px;margin:0 auto;min-height:0}
@@ -1212,7 +1138,10 @@ function _sigRnd(seed) {
     return ((t ^ (t >>> 14)) >>> 0) / 4294967296
   }
 }
-function Sigil({ seed, size = 44 }) {
+function sigHue(seed) {
+  return _sigHash(seed) % 360
+}
+function Sigil({ seed, size = 44, draw = false }) {
   const rnd = _sigRnd(_sigHash(seed))
   const hue = Math.floor(rnd() * 360)
   const out = []
@@ -1223,6 +1152,7 @@ function Sigil({ seed, size = 44 }) {
       const h2 = (hue + i * 47 + Math.floor(rnd() * 36)) % 360
       out.push(el('path', {
         key: `r${i}`,
+        pathLength: 1,
         d: `M -6 ${y1.toFixed(1)} C ${cx.toFixed(1)} ${(y1 - 16 - rnd() * 12).toFixed(1)}, ` +
            `${(54 - cx).toFixed(1)} ${(y2 + 16 + rnd() * 12).toFixed(1)}, 54 ${y2.toFixed(1)}`,
         fill: 'none',
@@ -1242,6 +1172,7 @@ function Sigil({ seed, size = 44 }) {
     return el('svg', {
       width: size, height: size, viewBox: '-6 -6 60 60',
       'aria-hidden': 'true', focusable: 'false',
+      className: draw ? 'nb-sigil-draw' : undefined,
       style: { display: 'block' },
       children: out
     })
@@ -1704,6 +1635,93 @@ const optsSummary = (opts) => Object.keys(opts || {})
   .map((k) => `${OPT_LABEL[k] || k}: ${String(opts[k]).slice(0, 48)}`)
   .join(' · ')
 
+/* ------------------------------------------------------------- state machines
+ *
+ * The app's de-facto state machines, made explicit. Before this module the
+ * same invariants were enforced by convention across scattered useState
+ * setters — legal-looking calls could produce impossible screens (a "view"
+ * tab with no artifact, two modal dialogs stacked, a peek tab with no
+ * source). Each machine below is a pure transition table: state + event →
+ * next state (return null/undefined to reject the event). React binds them
+ * with useReducer in 30-shell.js; nothing here touches the DOM, so the
+ * tables are unit-testable in plain node (tests/machine.test.mjs).
+ *
+ * ATLAS — every implicit machine found in the app, and its disposition:
+ *
+ *   M1  center view      tab{chat,view,peek} × picked artifact × peeked
+ *                        source — three useStates that had to agree.
+ *                        → VIEW_FSM (migrated; was the spine, most drift risk)
+ *   M2  overlays         srcDialog / newNb / renNb / searchOpen — four
+ *                        independent dialog flags, no exclusivity.
+ *                        → dialogs machine (src/05-machine.js; fixes stacked
+ *                          modals and is visible to agents)
+ *   M3  chat thread      thread/msgs/pending + overview{idle,loading,ready,
+ *                        error} + suggestions lifecycle — component-local,
+ *                        consistent today; migrate if it grows transitions.
+ *   M4  generation       busy{kind→startedAt} per studio card + reload
+ *                        polling — implicit but single-direction.
+ *   M5  add-source dlg   mode{url,text,find,note} × cands/sel/adding/added —
+ *                        nested machine inside one dialog; self-contained.
+ *   M6  audio player     playing/t/dur/rate × editing/draft/rendering —
+ *                        viewer-local, orthogonal substates.
+ *   M7  ops panels       per-panel state{idle,busy,done,error} — repeated
+ *                        shape, already honest about failures.
+ *   M8  viewer chrome    zoom/pan, slide index, quiz index, table sort —
+ *                        pure UI state, no cross-component invariants.
+ *
+ * Decision: migrate only the spine (M1+M2) where illegal combinations were
+ * representable and transitions were copy-pasted. The rest are local,
+ * consistent, and cheap — the pattern is here when they need it.
+ */
+
+/* createMachine(spec) → { initial, step(state, event) }
+ * spec.transitions[event.type] is (state, event) => nextState | null.
+ * Returning null/undefined rejects the event: state passes through
+ * unchanged, so guards live inside the table where they can be read. */
+export function createMachine(spec) {
+  return {
+    initial: spec.initial,
+    step(state, event) {
+      const fn = spec.transitions[event && event.type]
+      if (!fn) return state
+      const next = fn(state, event)
+      return next == null ? state : next
+    }
+  }
+}
+
+/* M1 — center view. `tab` is the visible pane; `artifact` and `source` are
+ * per-room selections that persist while another tab is showing (switching
+ * Chat → Viewer → Chat must not lose the open artifact). Illegal combos
+ * self-heal: clearing the selection under its own tab falls back to chat,
+ * and tab switches are guarded by the selection they require. */
+export const VIEW_FSM = createMachine({
+  initial: { tab: 'chat', artifact: null, source: null },
+  transitions: {
+    TAB_CHAT: (s) => ({ ...s, tab: 'chat' }),
+    TAB_VIEW: (s) => (s.artifact ? { ...s, tab: 'view' } : s),
+    TAB_PEEK: (s) => (s.source ? { ...s, tab: 'peek' } : s),
+    OPEN_ARTIFACT: (s, e) => ({ tab: 'view', artifact: e.artifact, source: s.source }),
+    OPEN_SOURCE: (s, e) => ({ tab: 'peek', artifact: s.artifact, source: e.source }),
+    STEP_ARTIFACT: (s, e) => ({
+      ...s, artifact: e.artifact,
+      tab: s.tab === 'view' && !e.artifact ? 'chat' : s.tab
+    }),
+    STEP_SOURCE: (s, e) => ({
+      ...s, source: e.source,
+      tab: s.tab === 'peek' && !e.source ? 'chat' : s.tab
+    }),
+    RESET_VIEW: () => ({ tab: 'chat', artifact: null, source: null })
+  }
+})
+
+/* M2 — modal overlays live in src/05-machine.js as the `dialogs` machine: same
+ * exclusivity rule, but stateful and published to the agent fleet
+ * (`window.__nbMachines().dialogs`), so an agent can read which surface is open.
+ * The lesson from this table survives: OPEN_SEARCH is a passive global shortcut
+ * and must not discard a half-typed draft — the dialogs machine guards it.
+ */
+
 /* ------------------------------------------------------------------ shell */
 
 /* Artifact generation used to be one `busy` object mutated in four places. Now a
@@ -1745,7 +1763,13 @@ const DIALOGS = Machine('dialogs', {
     },
     open: {
       on: {
-        OPEN: { target: 'open', guard: (c, p) => !!(p && p.surface),
+        // Search is a passive global shortcut (Ctrl+K). Opening it over a
+        // half-typed add-source draft would silently discard the draft, so it is
+        // only allowed when nothing is open — the same rule the view reducer's
+        // author arrived at independently.
+        OPEN: { target: 'open',
+                guard: (c, p) => !!(p && p.surface) &&
+                  (p.surface !== 'search' || !c.payload || c.payload.surface === 'search'),
                 action: (c, p) => ({ payload: { surface: p.surface, data: p.data || null } }) },
         // a stale close must not dismiss the surface somebody just opened
         CLOSE: { target: 'closed', guard: (c, p) => !p || !p.surface || (c.payload && c.payload.surface === p.surface),
@@ -1767,8 +1791,18 @@ function App() {
     const saved = persist.get(`thread.${nb}`, '')
     setThreadName(saved || '')
   }, [nb])
-  const [picked, setPicked] = useState(null)       // artifact run selected in the viewer
-  const [tab, setTab] = useState('chat')
+  // M1 — the center view (tab × artifact × peeked source) is a pure transition
+  // table (src/25-machine.js). An illegal combination cannot be represented, and
+  // clearing a selection under its own tab self-heals to chat instead of stranding
+  // an empty pane behind a tab that claims content.
+  const [view, viewSend] = useReducer(VIEW_FSM.step, VIEW_FSM.initial)
+  const { tab, artifact: picked, source: peek } = view
+  // setter-shaped adapters: every downstream prop keeps its old name and shape
+  const setTab = useCallback((t) => viewSend({
+    type: t === 'view' ? 'TAB_VIEW' : t === 'peek' ? 'TAB_PEEK' : 'TAB_CHAT'
+  }), [])
+  const setPicked = useCallback((a) => viewSend({ type: 'STEP_ARTIFACT', artifact: a }), [])
+  const setPeek = useCallback((src) => viewSend({ type: 'STEP_SOURCE', source: src }), [])
   const jobs = useMachine(JOBS)
   const busy = jobs.ctx.lanes                      // kind -> startedAt (ms)
   const [note, setNote] = useState('')
@@ -1784,7 +1818,6 @@ function App() {
   const newNb = surface === 'newNotebook'
   const renNb = surface === 'settings' ? (dialogs.ctx.payload.data || null) : null
   const [filter, setFilter] = useState('all')
-  const [peek, setPeek] = useState(null)           // source lifted so the rail can open it
   const [railOpen, setRailOpen] = useState(() => persist.get('rail', '1') !== '0')
   const [studioOpen, setStudioOpen] = useState(() => persist.get('studio', '1') !== '0')
   const [opsStats, setOpsStats] = useState(null)
@@ -2121,7 +2154,8 @@ function App() {
   }, [studio, say])
 
   const openNotebook = useCallback((id) => {
-    setNb(id); setPicked(null); setPeek(null); setTab('chat'); setMode('studio')
+    // one event instead of the copy-pasted three-setter ritual
+    setNb(id); viewSend({ type: 'RESET_VIEW' }); setMode('studio')
   }, [])
 
   const ops = mode === 'ops'
@@ -2129,8 +2163,17 @@ function App() {
   const discoverMode = mode === 'discover'
   const studyMode = mode === 'study'
 
-  return el('div', { className: 'nb-root', 'data-mode': mode, 'data-plugin': ID },
+  return el('div', {
+    className: 'nb-root', 'data-mode': mode, 'data-plugin': ID,
+    // the room takes on the notebook's colour: its sigil hue becomes the ambient
+    // field behind every panel, and home keeps a fixed violet
+    style: { '--nb-hue': sigHue(notebook ? notebook.id : 'hermes-home') }
+  },
     el('style', { dangerouslySetInnerHTML: { __html: CSS } }),
+    el('div', { className: 'nb-aurora', 'aria-hidden': 'true' },
+      el('i', { className: 'nb-blob' }),
+      el('i', { className: 'nb-blob' }),
+      el('i', { className: 'nb-blob' })),
     el('header', { className: 'nb-bar' },
       el('div', { className: 'nb-brand' },
         el('span', { className: 'nb-mark' }, jsx(Glyph, { name: 'notebook', size: 15 })),
@@ -2940,7 +2983,10 @@ function Main({ notebook, kinds, tab, setTab, picked, setPicked, busy, generate,
   return el('main', { className: 'nb-col nb-main-col' },
     el('div', { className: 'nb-main-head' },
       el('div', { className: 'nb-hero' },
-        el('span', { className: 'nb-hero-emoji', 'aria-hidden': 'true', children: emojiFor(notebook.id, notebook.emoji) }),
+        el('span', { className: 'nb-hero-emoji', 'aria-hidden': 'true',
+          children: (notebook.emoji && String(notebook.emoji).trim())
+            ? emojiFor(notebook.id, notebook.emoji)
+            : jsx(Sigil, { seed: notebook.id, size: 52, draw: true }) }),
         el('div', { className: 'nb-hero-main' },
           el('h1', { className: 'nb-h1', children: notebook.title }),
           el('p', { className: 'nb-sub', children:
@@ -3906,6 +3952,7 @@ function SourcePeek({ source, notebook, onClose, onAskAbout, onRefresh, onPrev, 
   return el('div', { className: 'nb-view' },
     el('div', { className: 'nb-view-head' },
       el('span', { className: 'nb-chip', 'data-tone': 'accent', children: `S${source.n}` }),
+      jsx(Sigil, { seed: source.id || source.title, size: 26 }),
       el('div', { style: { flex: 1, minWidth: 0 } },
         el('div', { className: 'nb-view-title', children: source.title }),
         el('div', { style: { fontSize: '12.5px', color: T.text4, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' },

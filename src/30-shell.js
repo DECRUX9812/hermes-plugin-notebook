@@ -39,7 +39,13 @@ const DIALOGS = Machine('dialogs', {
     },
     open: {
       on: {
-        OPEN: { target: 'open', guard: (c, p) => !!(p && p.surface),
+        // Search is a passive global shortcut (Ctrl+K). Opening it over a
+        // half-typed add-source draft would silently discard the draft, so it is
+        // only allowed when nothing is open — the same rule the view reducer's
+        // author arrived at independently.
+        OPEN: { target: 'open',
+                guard: (c, p) => !!(p && p.surface) &&
+                  (p.surface !== 'search' || !c.payload || c.payload.surface === 'search'),
                 action: (c, p) => ({ payload: { surface: p.surface, data: p.data || null } }) },
         // a stale close must not dismiss the surface somebody just opened
         CLOSE: { target: 'closed', guard: (c, p) => !p || !p.surface || (c.payload && c.payload.surface === p.surface),
@@ -61,8 +67,18 @@ function App() {
     const saved = persist.get(`thread.${nb}`, '')
     setThreadName(saved || '')
   }, [nb])
-  const [picked, setPicked] = useState(null)       // artifact run selected in the viewer
-  const [tab, setTab] = useState('chat')
+  // M1 — the center view (tab × artifact × peeked source) is a pure transition
+  // table (src/25-machine.js). An illegal combination cannot be represented, and
+  // clearing a selection under its own tab self-heals to chat instead of stranding
+  // an empty pane behind a tab that claims content.
+  const [view, viewSend] = useReducer(VIEW_FSM.step, VIEW_FSM.initial)
+  const { tab, artifact: picked, source: peek } = view
+  // setter-shaped adapters: every downstream prop keeps its old name and shape
+  const setTab = useCallback((t) => viewSend({
+    type: t === 'view' ? 'TAB_VIEW' : t === 'peek' ? 'TAB_PEEK' : 'TAB_CHAT'
+  }), [])
+  const setPicked = useCallback((a) => viewSend({ type: 'STEP_ARTIFACT', artifact: a }), [])
+  const setPeek = useCallback((src) => viewSend({ type: 'STEP_SOURCE', source: src }), [])
   const jobs = useMachine(JOBS)
   const busy = jobs.ctx.lanes                      // kind -> startedAt (ms)
   const [note, setNote] = useState('')
@@ -78,7 +94,6 @@ function App() {
   const newNb = surface === 'newNotebook'
   const renNb = surface === 'settings' ? (dialogs.ctx.payload.data || null) : null
   const [filter, setFilter] = useState('all')
-  const [peek, setPeek] = useState(null)           // source lifted so the rail can open it
   const [railOpen, setRailOpen] = useState(() => persist.get('rail', '1') !== '0')
   const [studioOpen, setStudioOpen] = useState(() => persist.get('studio', '1') !== '0')
   const [opsStats, setOpsStats] = useState(null)
@@ -415,7 +430,8 @@ function App() {
   }, [studio, say])
 
   const openNotebook = useCallback((id) => {
-    setNb(id); setPicked(null); setPeek(null); setTab('chat'); setMode('studio')
+    // one event instead of the copy-pasted three-setter ritual
+    setNb(id); viewSend({ type: 'RESET_VIEW' }); setMode('studio')
   }, [])
 
   const ops = mode === 'ops'
@@ -423,8 +439,17 @@ function App() {
   const discoverMode = mode === 'discover'
   const studyMode = mode === 'study'
 
-  return el('div', { className: 'nb-root', 'data-mode': mode, 'data-plugin': ID },
+  return el('div', {
+    className: 'nb-root', 'data-mode': mode, 'data-plugin': ID,
+    // the room takes on the notebook's colour: its sigil hue becomes the ambient
+    // field behind every panel, and home keeps a fixed violet
+    style: { '--nb-hue': sigHue(notebook ? notebook.id : 'hermes-home') }
+  },
     el('style', { dangerouslySetInnerHTML: { __html: CSS } }),
+    el('div', { className: 'nb-aurora', 'aria-hidden': 'true' },
+      el('i', { className: 'nb-blob' }),
+      el('i', { className: 'nb-blob' }),
+      el('i', { className: 'nb-blob' })),
     el('header', { className: 'nb-bar' },
       el('div', { className: 'nb-brand' },
         el('span', { className: 'nb-mark' }, jsx(Glyph, { name: 'notebook', size: 15 })),
