@@ -723,9 +723,14 @@ async def ask(payload: Dict[str, Any] = Body(...)) -> Any:
         return _fail(f"{type(exc).__name__}: {exc}", 500)
     if not out.get("ok"):
         return _fail(out.get("error") or "the model did not answer", 422, detail=out)
-    # the citation rows the page renders: number, title, real origin
+    # the citation rows the page renders: number, title, real origin — only
+    # the sources the answer actually cites (full-context puts them all in
+    # context, so sources_used alone would chip every source on every answer)
+    from hermes_notebook import retrieve as retrieve_mod
     used = []
-    for i, src in enumerate(out.get("sources_used") or [], 1):
+    for i, src in enumerate(
+            retrieve_mod.cited_sources(out.get("sources_used") or [],
+                                       out.get("answer", "")), 1):
         used.append({
             "n": src.get("n", i),
             "title": src.get("title") or "source",

@@ -237,7 +237,8 @@ def notebook_ask(args: dict, **kw) -> str:
         )
     user = (
         f"Question: {question}\n\n"
-        f"Source excerpts (tags [S1]…[Sn] map to sources):\n\n{result['context']}"
+        f"Notebook sources (each <source id=\"S1\">…</source> block is tagged "
+        f"[S1]…[Sn] for citation):\n\n{result['context']}"
     )
     # optional chat thread — prior exchanges ride along as context
     thread_name = (args.get("thread") or "").strip() or None
@@ -266,7 +267,8 @@ def notebook_ask(args: dict, **kw) -> str:
             "n": src.get("n", i), "title": src.get("title") or "source",
             "kind": src.get("kind", ""), "origin": src.get("origin", ""),
             "id": src.get("id", ""), "snippet": src.get("snippet", ""),
-        } for i, src in enumerate(result["sources_used"], 1)]
+        } for i, src in enumerate(
+            retrieve.cited_sources(result["sources_used"], answer), 1)]
         store.append_thread(nb_id, thread_name, "assistant", answer,
                             extra={"citations": cites} if cites else None)
     return runtime.ok(

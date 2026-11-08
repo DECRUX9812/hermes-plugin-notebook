@@ -55,6 +55,13 @@ def chunk_text(text: str, size: int = _CHUNK_SIZE, overlap: int = _CHUNK_OVERLAP
     return chunks
 
 
+def _xml_attr(value) -> str:
+    """Escape a value for a double-quoted XML attribute."""
+    return (str(value or "")
+            .replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
+            .replace('"', "&quot;"))
+
+
 def _bm25_scores(query_terms: list[str], docs: list[list[str]]) -> list[float]:
     """Tiny BM25: one score per doc (each doc a token list)."""
     if not query_terms or not docs:
@@ -132,6 +139,36 @@ def retrieve(notebook_id: str, query: str, *, max_chars: int = 28000,
     if not chunk_docs:
         return empty
 
+    # zero-loss path: when every active source fits the caller's context
+    # budget, inject them whole inside <source> tags — BM25 top-k is for
+    # corpora too big to fit, not for ones that fit
+    total_chars = sum(len(t) for _, t in pairs)
+    overhead = sum(len(str(r.get("title") or "")) + 140 for r, _ in pairs)
+    if total_chars + overhead <= max_chars:
+        parts = []
+        for i, (rec, text) in enumerate(pairs):
+            title = _xml_attr(rec.get("title"))
+            kind = _xml_attr(rec.get("kind"))
+            parts.append(
+                f"[S{i + 1} · {rec.get('title')} · {rec.get('kind')}]\n"
+                f'<source id="S{i + 1}" title="{title}" kind="{kind}">\n'
+                f"{text}\n</source>")
+        sources_used = [{
+            "n": i + 1, "id": rec["id"], "title": rec.get("title"),
+            "kind": rec.get("kind"), "origin": rec.get("origin"),
+            "labels": rec.get("labels", []),
+            # whole-source citations highlight the head, same as the
+            # chunked fallback
+            "snippet": text[:400].strip(),
+        } for i, (rec, text) in enumerate(pairs)]
+        return {
+            "context": "\n\n".join(parts),
+            "sources_used": sources_used,
+            "chunks_used": len(parts),
+            "total_chunks": len(chunk_docs),
+            "full_context": True,
+        }
+
     scores = _bm25_scores(tokenize(query), [d[2] for d in chunk_docs])
     order = sorted(range(len(chunk_docs)), key=lambda i: scores[i], reverse=True)
 
@@ -182,6 +219,18 @@ def retrieve(notebook_id: str, query: str, *, max_chars: int = 28000,
         "chunks_used": len(context_parts),
         "total_chunks": len(chunk_docs),
     }
+
+
+def cited_sources(sources_used: list[dict], answer: str) -> list[dict]:
+    """The citation rows an answer should show: only sources it actually marks
+    as [S<n>]. Full-context retrieval puts EVERY active source in context, so
+    without this filter every answer would chip every source. When the model
+    emits no markers at all, keep the full set — unmarked answers keep the
+    old behaviour rather than silently dropping provenance."""
+    nums = {int(m) for m in re.findall(r"\[S(\d+)\]", answer or "")}
+    if not nums:
+        return list(sources_used)
+    return [s for s in sources_used if s.get("n") in nums]
 
 
 def search(notebook_id: str, query: str, *, top_k: int = 8,
