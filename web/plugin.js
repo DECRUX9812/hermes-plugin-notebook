@@ -2835,7 +2835,11 @@ function Msg({ msg, onCite, notebook, canRetry, onRetry }) {
     const c = citeFor(n)
     if (!c) return
     const r = b.getBoundingClientRect()
-    setCitePop({ n, x: r.left, y: r.bottom + 8, title: c.title, kind: c.kind, id: c.id, text: null, loading: true })
+    // citations carry the passage they were built from — show it instantly;
+    // older messages without snippets fall back to the source's head
+    const snippet = c.snippet ? String(c.snippet).replace(/\s+/g, ' ').trim().slice(0, 420) : ''
+    setCitePop({ n, x: r.left, y: r.bottom + 8, title: c.title, kind: c.kind, id: c.id, text: snippet || null, loading: !snippet })
+    if (snippet) return
     const key = `${notebook.id}:${c.id || n}`
     if (CITE_TEXT_CACHE.has(key)) {
       setCitePop((p) => (p && p.n === n ? { ...p, text: CITE_TEXT_CACHE.get(key), loading: false } : p))
