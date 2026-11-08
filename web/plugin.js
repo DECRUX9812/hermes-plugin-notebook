@@ -3822,6 +3822,9 @@ function AudioView({ src, json, text }) {
   const [playing, setPlaying] = useState(false)
   const [t, setT] = useState(0)
   const [dur, setDur] = useState(0)
+  const [rate, setRate] = useState(1)
+  const speakers = new Set(((json && json.segments) || []).map((s) => s && s.speaker).filter(Boolean))
+  const hostLabel = speakers.size > 1 ? 'TWO HOSTS' : speakers.size === 1 ? 'ONE NARRATOR' : 'AUDIO'
 
   const lines = useMemo(() => {
     const out = []
@@ -3866,7 +3869,7 @@ function AudioView({ src, json, text }) {
     el('div', { className: 'nb-stage' },
       el('div', { className: 'nb-screen nb-screen-audio', style: { aspectRatio: 'auto' } },
         el('div', { style: { display: 'flex', alignItems: 'center', gap: '10px' } },
-          el('span', { className: 'nb-chip', 'data-tone': 'accent', children: 'TWO HOSTS' }),
+          el('span', { className: 'nb-chip', 'data-tone': 'accent', children: hostLabel }),
           el('span', { style: { fontSize: '16px', fontWeight: 620, color: '#eee' },
             children: (json && json.title) || 'Audio Overview' }),
           el('span', { style: { flex: 1 } }),
@@ -3906,10 +3909,18 @@ function AudioView({ src, json, text }) {
               if (a && dur) { a.currentTime = (Number(e.target.value) / 100) * dur }
             }
           }),
-          el('span', {
-            className: 'nb-chip',
-            style: { background: 'rgba(255,255,255,.12)', color: '#cfd3e0', borderColor: 'transparent' },
-            children: '1.0×'
+          el('button', {
+            type: 'button', className: 'nb-chip', 'data-click': 'true',
+            'aria-label': 'Playback speed', title: 'Playback speed',
+            style: { background: 'rgba(255,255,255,.12)', color: '#cfd3e0', borderColor: 'transparent', cursor: 'pointer' },
+            onClick: () => {
+              const rates = [0.75, 1, 1.25, 1.5, 2]
+              const next = rates[(rates.indexOf(rate) + 1) % rates.length]
+              const a = audioRef.current
+              if (a) a.playbackRate = next
+              setRate(next)
+            },
+            children: `${rate}×`
           })),
         el('audio', {
           ref: audioRef, src: src || undefined, preload: 'metadata',
