@@ -130,10 +130,6 @@ def canvas_for(orientation: Any = "landscape",
     return ORIENTATIONS.get(key, ORIENTATIONS["landscape"])
 
 
-def preset_id_ok(p: Preset) -> bool:
-    """True when the preset resolved (unknown names fall back to `sections`)."""
-    return getattr(p, "default_template", "") in templates.TEMPLATES
-
 
 def _defs(f: templates.Frame, p: Preset) -> List[str]:
     out: List[str] = list(illustrate.defs_for(p))
@@ -246,11 +242,12 @@ def render(graphic: Any, template: str = "infographic", preset: Optional[str] = 
         desc: accessible description; a summary is generated when empty.
     """
     g = normalise_graphic(graphic)
+    # the preset resolves first: "auto" means "the composition this look reaches for"
+    p = _themed(resolve_preset(preset or DEFAULT_PRESET), theme)
     requested = (template or "auto").strip().lower()
-    if requested in ("", "auto", "default") and preset_id_ok(p):
+    if requested in ("", "auto", "default"):
         requested = p.default_template
     tpl_name = requested if requested in templates.TEMPLATES else "infographic"
-    p = _themed(resolve_preset(preset or DEFAULT_PRESET), theme)
     detail = detail if detail in DETAIL_LEVELS else "standard"
 
     w, h = canvas_for(orientation, width, height)
