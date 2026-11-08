@@ -116,7 +116,7 @@ function Main({ notebook, kinds, tab, setTab, picked, setPicked, busy, generate,
               .slice().sort((a, b) => String(a.modified).localeCompare(String(b.modified)))
             const si = sibs.findIndex((a) => a.key === picked.key)
             return jsx(Viewer, {
-              artifact: picked, notebook, onSearch: () => {},
+              artifact: picked, notebook,
               regenerating: !!(busy && busy[picked.kind]),
               onRegenerate: () => generate(picked.kind, picked.opts || {}),
               onChanged: () => reload && reload(true),
