@@ -16965,6 +16965,16 @@ function Rail({
             );
           })
         )
+      ),
+      el(
+        "div",
+        { className: "nb-pad", style: { paddingTop: 0, paddingBottom: "12px" } },
+        el("span", {
+          className: "nb-chip",
+          title: "Sources live on this machine with no per-notebook cap \u2014 grounding scales from full-context injection to hybrid retrieval as the corpus grows.",
+          style: { fontSize: "11.5px", opacity: 0.85 },
+          children: "\u267E\uFE0F Unlimited sources \xB7 \u{1F6E1}\uFE0F Local-first ready"
+        })
       )
     ),
     dragOver ? el("div", {

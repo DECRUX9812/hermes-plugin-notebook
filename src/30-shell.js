@@ -813,7 +813,14 @@ function Rail({ data, notebook, onAddSource, onOpenSource, onToggleSource,
                       isClosed ? null : el('div', { className: 'nb-srcgroup-list' }, list.map(srcRow))
                     )
                   }))
-      )
+      ),
+    el('div', { className: 'nb-pad', style: { paddingTop: 0, paddingBottom: '12px' } },
+      el('span', {
+        className: 'nb-chip',
+        title: 'Sources live on this machine with no per-notebook cap — grounding scales from full-context injection to hybrid retrieval as the corpus grows.',
+        style: { fontSize: '11.5px', opacity: 0.85 },
+        children: '♾️ Unlimited sources · 🛡️ Local-first ready'
+      }))
     ),
     dragOver
       ? el('div', {
