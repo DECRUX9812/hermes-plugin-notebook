@@ -2836,7 +2836,9 @@ function SourcePeek({ source, notebook, onClose, onAskAbout, onRefresh }) {
       el('div', { style: { flex: 1, minWidth: 0 } },
         el('div', { className: 'nb-view-title', children: source.title }),
         el('div', { style: { fontSize: '12.5px', color: T.text4, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' },
-          children: `${kindLabel(source.kind)} · ${nfmt(source.chars)} chars · ${source.origin || 'stored text'}` })),
+          children: `${kindLabel(source.kind)} · ${nfmt(source.chars)} chars · ${source.origin || 'stored text'}` +
+            (source.added_at ? ` · added ${ago(source.added_at)}` : '') +
+            (source.refreshed_at ? ` · refreshed ${ago(source.refreshed_at)}` : '') })),
       source.origin && source.origin.startsWith('http')
         ? jsx(IconBtn, { icon: 'external', label: 'Open the original', onClick: () => host.openLink ? host.openLink(source.origin) : window.open(source.origin, '_blank') })
         : null,
@@ -2954,14 +2956,14 @@ function StudioPanel({ kinds, notebook, busy, generate, filter, setFilter, onOpe
                 type: 'button', className: 'nb-art',
                 'data-kind': a.kind,
                 onClick: () => onOpen(a),
-                'aria-label': `Open ${a.label || a.kind}`,
-                title: a.primary || a.label,
+                'aria-label': `Open ${a.title || a.label || a.kind}`,
+                title: a.title || a.primary || a.label,
                 children: [
                   el('span', { className: 'nb-art-ico', 'aria-hidden': 'true' },
                     i < 12 ? jsx(ArtThumb, { run: a, nbId: notebook && notebook.id })
                       : jsx(Glyph, { name: KIND_ICON[a.kind] || 'doc', size: 17 })),
                   el('span', { className: 'nb-art-main' },
-                    el('span', { className: 'nb-art-title', children: a.label || a.kind }),
+                    el('span', { className: 'nb-art-title', children: a.title || a.label || a.kind }),
                     el('span', { className: 'nb-art-sub',
                       children: `${nfmt(a.bytes)} · ${ago(a.modified)}` }))
                 ]
