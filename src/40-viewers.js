@@ -33,14 +33,13 @@ function useFile(notebookId, name) {
   return st
 }
 
-function Viewer({ artifact, notebook, onCite }) {
+function Viewer({ artifact, notebook, onCite, onRegenerate, regenerating }) {
   const files = artifact.files || []
   const jsonName = (files.find((f) => f.ext === 'json') || {}).name || ''
   const txtName = (files.find((f) => f.ext === 'txt') || {}).name || ''
   const primary = useFile(notebook.id, artifact.primary)
   const asJson = useFile(notebook.id, jsonName)
   const asTxt = useFile(notebook.id, txtName)
-  const [regen, setRegen] = useState(false)
 
   const downloading = (url, name) => {
     if (!url) return
@@ -93,10 +92,11 @@ function Viewer({ artifact, notebook, onCite }) {
         icon: 'download', label: `Download ${artifact.label}`,
         onClick: () => downloading(primary.url, artifact.primary)
       }),
-      jsx(IconBtn, {
-        icon: 'refresh', label: `Regenerate ${artifact.label}`, active: regen,
-        onClick: () => setRegen(true)
-      })
+      onRegenerate ? jsx(IconBtn, {
+        icon: 'refresh', label: `Regenerate ${artifact.label}`,
+        active: !!regenerating, disabled: !!regenerating,
+        onClick: onRegenerate
+      }) : null
     ),
     body
   )

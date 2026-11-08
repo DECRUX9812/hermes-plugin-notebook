@@ -16074,6 +16074,28 @@ function App() {
       say(`rename failed: ${e.message || e}`);
     }
   }, [studio, say]);
+  const duplicateNotebook = (0, import_react.useCallback)(async (id, openIt = true) => {
+    try {
+      const out = await api("/notebook/duplicate", {
+        method: "POST",
+        body: { notebook: id },
+        timeoutMs: 12e4
+      });
+      await studio.reload(true);
+      say(`copied as \u201C${out.notebook && out.notebook.title || "new notebook"}\u201D`);
+      if (openIt && out.notebook && out.notebook.id) {
+        setNb(out.notebook.id);
+        setPicked(null);
+        setPeek(null);
+        setTab("chat");
+        setMode("studio");
+      }
+      return out.notebook;
+    } catch (e) {
+      say(`copy failed: ${e.message || e}`);
+      return null;
+    }
+  }, [studio, say]);
   const openNotebook = (0, import_react.useCallback)((id) => {
     setNb(id);
     setPicked(null);
@@ -16140,7 +16162,8 @@ function App() {
       onOpen: openNotebook,
       onNew: () => setNewNb(true),
       onDelete: deleteNotebook,
-      onRename: renameNotebook
+      onRename: renameNotebook,
+      onDuplicate: (id) => duplicateNotebook(id, false)
     }) : el(
       "div",
       { className: "nb-body" },
@@ -16230,11 +16253,16 @@ function App() {
       onDone: async (title, desc, emoji) => {
         setRenNb(null);
         await renameNotebook(renNb.id, title, desc, emoji);
+      },
+      onDuplicate: async () => {
+        const id = renNb.id;
+        setRenNb(null);
+        await duplicateNotebook(id, true);
       }
     }) : null
   );
 }
-function HomeDashboard({ data, onOpen, onNew, onDelete, onRename }) {
+function HomeDashboard({ data, onOpen, onNew, onDelete, onRename, onDuplicate }) {
   const [query, setQuery] = (0, import_react.useState)("");
   const [del, setDel] = (0, import_react.useState)(null);
   const [ren, setRen] = (0, import_react.useState)(null);
@@ -16400,11 +16428,16 @@ function HomeDashboard({ data, onOpen, onNew, onDelete, onRename }) {
       onDone: async (title, desc, emoji) => {
         setRen(null);
         await onRename(ren.id, title, desc, emoji);
-      }
+      },
+      onDuplicate: onDuplicate ? async () => {
+        const n = ren;
+        setRen(null);
+        await onDuplicate(n.id);
+      } : null
     }) : null
   );
 }
-function RenameDialog({ notebook, onClose, onDone }) {
+function RenameDialog({ notebook, onClose, onDone, onDuplicate }) {
   const [title, setTitle] = (0, import_react.useState)(notebook.title || "");
   const [desc, setDesc] = (0, import_react.useState)(notebook.description || "");
   const [emoji, setEmoji] = (0, import_react.useState)(notebook.emoji || "");
@@ -16465,23 +16498,28 @@ function RenameDialog({ notebook, onClose, onDone }) {
       err ? el("div", { style: { marginTop: "10px", color: T.danger, fontSize: "13.5px" }, children: err }) : null,
       el(
         "div",
-        { style: { display: "flex", gap: "8px", justifyContent: "flex-end", marginTop: "16px" } },
-        (0, import_jsx_runtime.jsx)(Btn, { onClick: onClose, children: "Cancel" }),
-        (0, import_jsx_runtime.jsx)(Btn, {
-          variant: "primary",
-          disabled: busy || !title.trim(),
-          onClick: async () => {
-            setBusy(true);
-            setErr("");
-            try {
-              await onDone(title.trim(), desc.trim(), emoji);
-            } catch (e) {
-              setErr(e.message || String(e));
-              setBusy(false);
-            }
-          },
-          children: busy ? "Saving\u2026" : "Save"
-        })
+        { style: { display: "flex", gap: "8px", justifyContent: "space-between", marginTop: "16px" } },
+        onDuplicate ? (0, import_jsx_runtime.jsx)(Btn, { icon: "copy", onClick: onDuplicate, children: "Make a copy" }) : el("span"),
+        el(
+          "span",
+          { style: { display: "flex", gap: "8px" } },
+          (0, import_jsx_runtime.jsx)(Btn, { onClick: onClose, children: "Cancel" }),
+          (0, import_jsx_runtime.jsx)(Btn, {
+            variant: "primary",
+            disabled: busy || !title.trim(),
+            onClick: async () => {
+              setBusy(true);
+              setErr("");
+              try {
+                await onDone(title.trim(), desc.trim(), emoji);
+              } catch (e) {
+                setErr(e.message || String(e));
+                setBusy(false);
+              }
+            },
+            children: busy ? "Saving\u2026" : "Save"
+          })
+        )
       )
     )
   });
@@ -17032,14 +17070,21 @@ function Main({
         setAskScope({ id: s.id, title: s.title });
         setTab("chat");
       }
-    }) : tab === "view" && picked ? (0, import_jsx_runtime.jsx)(Viewer, { artifact: picked, notebook, onSearch: () => {
-    }, onCite: (n) => {
-      const src = sources.find((s) => s.n === n);
-      if (src) {
-        setPeek(src);
-        setTab("peek");
+    }) : tab === "view" && picked ? (0, import_jsx_runtime.jsx)(Viewer, {
+      artifact: picked,
+      notebook,
+      onSearch: () => {
+      },
+      regenerating: !!(busy && busy[picked.kind]),
+      onRegenerate: () => generate(picked.kind),
+      onCite: (n) => {
+        const src = sources.find((s) => s.n === n);
+        if (src) {
+          setPeek(src);
+          setTab("peek");
+        }
       }
-    } }) : (0, import_jsx_runtime.jsx)(Chat, {
+    }) : (0, import_jsx_runtime.jsx)(Chat, {
       notebook,
       askOpen,
       onSay,
@@ -18728,14 +18773,13 @@ function useFile(notebookId, name) {
   }, [notebookId, name]);
   return st;
 }
-function Viewer({ artifact, notebook, onCite }) {
+function Viewer({ artifact, notebook, onCite, onRegenerate, regenerating }) {
   const files = artifact.files || [];
   const jsonName = (files.find((f) => f.ext === "json") || {}).name || "";
   const txtName = (files.find((f) => f.ext === "txt") || {}).name || "";
   const primary = useFile(notebook.id, artifact.primary);
   const asJson = useFile(notebook.id, jsonName);
   const asTxt = useFile(notebook.id, txtName);
-  const [regen, setRegen] = (0, import_react.useState)(false);
   const downloading = (url, name) => {
     if (!url) return;
     const a = document.createElement("a");
@@ -18804,12 +18848,13 @@ function Viewer({ artifact, notebook, onCite }) {
         label: `Download ${artifact.label}`,
         onClick: () => downloading(primary.url, artifact.primary)
       }),
-      (0, import_jsx_runtime.jsx)(IconBtn, {
+      onRegenerate ? (0, import_jsx_runtime.jsx)(IconBtn, {
         icon: "refresh",
         label: `Regenerate ${artifact.label}`,
-        active: regen,
-        onClick: () => setRegen(true)
-      })
+        active: !!regenerating,
+        disabled: !!regenerating,
+        onClick: onRegenerate
+      }) : null
     ),
     body
   );

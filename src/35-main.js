@@ -86,10 +86,15 @@ function Main({ notebook, kinds, tab, setTab, picked, setPicked, busy, generate,
           onAskAbout: (s) => { setAskScope({ id: s.id, title: s.title }); setTab('chat') }
         })
       : tab === 'view' && picked
-        ? jsx(Viewer, { artifact: picked, notebook, onSearch: () => {}, onCite: (n) => {
-            const src = sources.find((s) => s.n === n)
-            if (src) { setPeek(src); setTab('peek') }
-          } })
+        ? jsx(Viewer, {
+            artifact: picked, notebook, onSearch: () => {},
+            regenerating: !!(busy && busy[picked.kind]),
+            onRegenerate: () => generate(picked.kind),
+            onCite: (n) => {
+              const src = sources.find((s) => s.n === n)
+              if (src) { setPeek(src); setTab('peek') }
+            }
+          })
         : jsx(Chat, {
             notebook, askOpen, onSay, modelReady, reload, askScope, setAskScope,
             onCite: (n) => {

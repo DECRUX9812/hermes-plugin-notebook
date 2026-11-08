@@ -588,6 +588,17 @@ def update_notebook(payload: Dict[str, Any] = Body(...)) -> Any:
     return {"ok": True, "notebook": _notebook_payload(meta["id"])}
 
 
+@router.post("/notebook/duplicate")
+def duplicate_notebook(payload: Dict[str, Any] = Body(...)) -> Any:
+    """Copy a notebook — sources, artifacts, labels and options, fresh chat."""
+    nb = str(payload.get("notebook") or "")
+    try:
+        out = store.duplicate_notebook(nb)
+    except Exception as exc:
+        return _fail(f"{type(exc).__name__}: {exc}", 500)
+    return {"ok": True, "notebook": out}
+
+
 @router.post("/notebook/delete")
 def delete_notebook(payload: Dict[str, Any] = Body(...)) -> Any:
     nb = str(payload.get("notebook") or "")

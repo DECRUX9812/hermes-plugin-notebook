@@ -195,6 +195,20 @@ function App() {
     } catch (e) { say(`rename failed: ${e.message || e}`) }
   }, [studio, say])
 
+  const duplicateNotebook = useCallback(async (id, openIt = true) => {
+    try {
+      const out = await api('/notebook/duplicate', {
+        method: 'POST', body: { notebook: id }, timeoutMs: 120000
+      })
+      await studio.reload(true)
+      say(`copied as “${(out.notebook && out.notebook.title) || 'new notebook'}”`)
+      if (openIt && out.notebook && out.notebook.id) {
+        setNb(out.notebook.id); setPicked(null); setPeek(null); setTab('chat'); setMode('studio')
+      }
+      return out.notebook
+    } catch (e) { say(`copy failed: ${e.message || e}`); return null }
+  }, [studio, say])
+
   const openNotebook = useCallback((id) => {
     setNb(id); setPicked(null); setPeek(null); setTab('chat'); setMode('studio')
   }, [])
@@ -246,7 +260,8 @@ function App() {
       : home
         ? jsx(HomeDashboard, {
             data, onOpen: openNotebook, onNew: () => setNewNb(true),
-            onDelete: deleteNotebook, onRename: renameNotebook
+            onDelete: deleteNotebook, onRename: renameNotebook,
+            onDuplicate: (id) => duplicateNotebook(id, false)
           })
         : el('div', { className: 'nb-body' },
             railOpen
@@ -295,14 +310,15 @@ function App() {
     }),
     renNb ? jsx(RenameDialog, {
       notebook: renNb, onClose: () => setRenNb(null),
-      onDone: async (title, desc, emoji) => { setRenNb(null); await renameNotebook(renNb.id, title, desc, emoji) }
+      onDone: async (title, desc, emoji) => { setRenNb(null); await renameNotebook(renNb.id, title, desc, emoji) },
+      onDuplicate: async () => { const id = renNb.id; setRenNb(null); await duplicateNotebook(id, true) }
     }) : null
   )
 }
 
 /* --------------------------------------------------------- home dashboard */
 
-function HomeDashboard({ data, onOpen, onNew, onDelete, onRename }) {
+function HomeDashboard({ data, onOpen, onNew, onDelete, onRename, onDuplicate }) {
   const [query, setQuery] = useState('')
   const [del, setDel] = useState(null)
   const [ren, setRen] = useState(null)
@@ -404,12 +420,13 @@ function HomeDashboard({ data, onOpen, onNew, onDelete, onRename }) {
 
     ren ? jsx(RenameDialog, {
       notebook: ren, onClose: () => setRen(null),
-      onDone: async (title, desc, emoji) => { setRen(null); await onRename(ren.id, title, desc, emoji) }
+      onDone: async (title, desc, emoji) => { setRen(null); await onRename(ren.id, title, desc, emoji) },
+      onDuplicate: onDuplicate ? async () => { const n = ren; setRen(null); await onDuplicate(n.id) } : null
     }) : null
   )
 }
 
-function RenameDialog({ notebook, onClose, onDone }) {
+function RenameDialog({ notebook, onClose, onDone, onDuplicate }) {
   const [title, setTitle] = useState(notebook.title || '')
   const [desc, setDesc] = useState(notebook.description || '')
   const [emoji, setEmoji] = useState(notebook.emoji || '')
@@ -443,8 +460,12 @@ function RenameDialog({ notebook, onClose, onDone }) {
           placeholder: 'Description (optional)', 'aria-label': 'Notebook description'
         })),
       err ? el('div', { style: { marginTop: '10px', color: T.danger, fontSize: '13.5px' }, children: err }) : null,
-      el('div', { style: { display: 'flex', gap: '8px', justifyContent: 'flex-end', marginTop: '16px' } },
-        jsx(Btn, { onClick: onClose, children: 'Cancel' }),
+      el('div', { style: { display: 'flex', gap: '8px', justifyContent: 'space-between', marginTop: '16px' } },
+        onDuplicate
+          ? jsx(Btn, { icon: 'copy', onClick: onDuplicate, children: 'Make a copy' })
+          : el('span'),
+        el('span', { style: { display: 'flex', gap: '8px' } },
+          jsx(Btn, { onClick: onClose, children: 'Cancel' }),
         jsx(Btn, {
           variant: 'primary', disabled: busy || !title.trim(),
           onClick: async () => {
@@ -453,7 +474,7 @@ function RenameDialog({ notebook, onClose, onDone }) {
             catch (e) { setErr(e.message || String(e)); setBusy(false) }
           },
           children: busy ? 'Saving…' : 'Save'
-        })))
+        }))))
   })
 }
 

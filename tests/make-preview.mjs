@@ -234,6 +234,11 @@ const rest = async (path, opts) => {
     }
     return { ok: true, notebook: STATE.notebook }
   }
+  if (route === 'notebook/duplicate') {
+    const copy = { id: 'copy-of-demo', title: 'Copy of ' + ((STATE.notebook && STATE.notebook.title) || 'notebook') }
+    STATE.notebooks = (STATE.notebooks || []).concat([{ id: copy.id, title: copy.title, sources: 0, artifacts: 0 }])
+    return { ok: true, notebook: copy }
+  }
   if (route === 'thread') {
     const name = params.get('name') || 'default'
     const messages = name === 'chat-abc123'

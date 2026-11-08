@@ -204,6 +204,31 @@ def update_meta(notebook_id: str, *, title: Optional[str] = None,
     return meta
 
 
+def duplicate_notebook(notebook_id: str) -> dict:
+    """Copy a notebook — sources, artifacts, labels, options — under a fresh
+    id and 'Copy of …' title. Chat threads do NOT carry over."""
+    import shutil
+    nb_id = resolve_notebook(notebook_id)
+    src_dir = _nb_dir(nb_id)
+    meta = get_meta(nb_id)
+    new_meta = create_notebook(f"Copy of {meta.get('title') or nb_id}",
+                               meta.get("description") or "")
+    new_id = new_meta["id"]
+    new_dir = _nb_dir(new_id)
+    for sub in ("sources", "artifacts"):
+        sdir = src_dir / sub
+        if sdir.is_dir():
+            shutil.copytree(sdir, new_dir / sub, dirs_exist_ok=True)
+    # sources/index.json travels with the copy; notebook.json keeps the new id
+    merged = get_meta(new_id)
+    for k in ("options", "emoji"):
+        if meta.get(k):
+            merged[k] = meta[k]
+    merged["updated_at"] = _iso(_now())
+    _write_json(new_dir / "notebook.json", merged)
+    return {"id": new_id, "title": merged["title"], "copied_from": nb_id}
+
+
 def delete_notebook(notebook_id: str) -> dict:
     nb_id = resolve_notebook(notebook_id)
     d = _nb_dir(nb_id)
