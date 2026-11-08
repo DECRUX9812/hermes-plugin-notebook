@@ -423,6 +423,49 @@ def source_state(payload: Dict[str, Any] = Body(...)) -> Any:
             "state": _notebook_payload(store.resolve_notebook(nb))}
 
 
+@router.post("/source/delete")
+def delete_source(payload: Dict[str, Any] = Body(...)) -> Any:
+    """Remove a source entirely — index entry + stored text."""
+    nb = str(payload.get("notebook") or "")
+    sid = str(payload.get("source_id") or "")
+    try:
+        nb_id = store.resolve_notebook(nb)
+        store.remove_source(nb_id, sid)
+    except KeyError as exc:
+        return _fail(str(exc), 404)
+    except Exception as exc:
+        return _fail(f"{type(exc).__name__}: {exc}", 500)
+    return {"ok": True, "source_id": sid,
+            "state": _notebook_payload(store.resolve_notebook(nb))}
+
+
+@router.post("/artifact/delete")
+def delete_artifact(payload: Dict[str, Any] = Body(...)) -> Any:
+    """Delete one generated run — every file sharing its stamp+kind prefix."""
+    nb = str(payload.get("notebook") or "")
+    key = str(payload.get("key") or "")
+    try:
+        nb_id = store.resolve_notebook(nb)
+    except Exception as exc:
+        return _fail(str(exc), 404)
+    run = next((a for a in _collect_artifacts(nb_id) if a["key"] == key), None)
+    if not run:
+        return _fail(f"artifact {key!r} is not in this notebook", 404)
+    removed = []
+    for f in run["files"]:
+        try:
+            p = store.artifact_path(nb_id, f["name"])
+            if p.exists():
+                p.unlink()
+                removed.append(f["name"])
+        except Exception:
+            continue
+    if not removed:
+        return _fail("could not remove the artifact files", 500)
+    return {"ok": True, "removed": removed,
+            "state": _notebook_payload(store.resolve_notebook(nb))}
+
+
 @router.post("/note")
 def add_note(payload: Dict[str, Any] = Body(...)) -> Any:
     """Quick note → a first-class searchable source (kind='note'). No model

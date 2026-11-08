@@ -210,6 +210,9 @@ const CSS = `
 .nb-srccheck[aria-checked=true]{background:${T.accent};border-color:${T.accent}}
 .nb-selall{display:flex;align-items:center;gap:9px;padding:2px 6px}
 .nb-selall .nb-srccheck{width:32px;height:32px;border-radius:10px}
+.nb-src-del{position:absolute;right:44px;top:50%;transform:translateY(-50%);
+  opacity:0;transition:opacity .12s ease}
+.nb-src:hover .nb-src-del,.nb-src-del:focus-visible{opacity:1}
 .nb-srcgroup{display:flex;align-items:center;gap:8px;width:100%;text-align:left;
   padding:9px 10px;border:0;border-radius:11px;background:transparent;color:${T.text3};
   font-size:12px;font-weight:650;letter-spacing:.01em;cursor:pointer;font-family:inherit}
@@ -462,6 +465,11 @@ const CSS = `
   overflow:hidden;white-space:nowrap;text-overflow:ellipsis}
 .nb-art-sub{display:block;font-size:11px;color:${T.text3};margin-top:2px;
   overflow:hidden;white-space:nowrap;text-overflow:ellipsis}
+.nb-artrow{position:relative}
+.nb-art-del{position:absolute;right:8px;top:50%;transform:translateY(-50%);
+  opacity:0;transition:opacity .12s ease}
+.nb-artrow:hover .nb-art-del,.nb-art-del:focus-visible{opacity:1}
+.nb-artrow:hover .nb-art{padding-right:36px}
 
 /* thumb content inside the artifact icon tile */
 .nb-art-ico .nb-thumb-img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;display:block}

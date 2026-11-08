@@ -119,6 +119,42 @@ function App() {
     } catch (e) { say(`could not update sources: ${e.message || e}`) }
   }, [nb, notebook, studio, say])
 
+  // removing a source/artifact returns the fresh notebook payload — merge it
+  // like toggleSource does, and close any viewer pointed at the deleted thing.
+  const deleteSource = useCallback(async (s) => {
+    if (!nb || !s || !s.id) return
+    try {
+      const out = await api('/source/delete', {
+        method: 'POST',
+        body: { notebook: nb, source_id: s.id }, timeoutMs: 30000
+      })
+      if (out && out.state && studio.data) {
+        studio.setData({ ...studio.data, notebook: out.state })
+      } else {
+        await studio.reload(true)
+      }
+      if (peek && peek.id === s.id) setPeek(null)
+      say(`removed “${s.title || s.id}”`)
+    } catch (e) { say(`could not remove source: ${e.message || e}`) }
+  }, [nb, studio, say, peek])
+
+  const deleteArtifact = useCallback(async (a) => {
+    if (!nb || !a || !a.key) return
+    try {
+      const out = await api('/artifact/delete', {
+        method: 'POST',
+        body: { notebook: nb, key: a.key }, timeoutMs: 30000
+      })
+      if (out && out.state && studio.data) {
+        studio.setData({ ...studio.data, notebook: out.state })
+      } else {
+        await studio.reload(true)
+      }
+      if (picked && picked.key === a.key) setPicked(null)
+      say('artifact deleted')
+    } catch (e) { say(`could not delete artifact: ${e.message || e}`) }
+  }, [nb, studio, say, picked])
+
   const deleteNotebook = useCallback(async (id) => {
     try {
       await api('/notebook/delete', {
@@ -210,6 +246,7 @@ function App() {
                   data, notebook,
                   onAddSource: () => openAddSource(), onOpenSource: openSource,
                   onToggleSource: toggleSource, onToggleAll: toggleAllSources,
+                  onDeleteSource: deleteSource,
                   onLabel: labelSources, onCollapse: () => setRailOpen(false),
                   onGoHome: () => setMode('home'), onSay: say,
                   loading: studio.loading, error: studio.error, reload: studio.reload
@@ -228,6 +265,7 @@ function App() {
               ? jsx(StudioPanel, {
                   kinds, notebook, busy, generate, filter, setFilter,
                   onOpen: (art) => { setPicked(art); setTab('view') },
+                  onDelete: deleteArtifact,
                   onCollapse: () => setStudioOpen(false),
                   onAddNote: () => openAddSource({ mode: 'note' })
                 })
@@ -409,7 +447,7 @@ function PanelToggles({ side, onShow }) {
 /* -------------------------------------------------------------------- rail */
 
 function Rail({ data, notebook, onAddSource, onOpenSource, onToggleSource,
-               onToggleAll, onLabel, onCollapse, onGoHome, onSay, loading, error, reload }) {
+               onToggleAll, onDeleteSource, onLabel, onCollapse, onGoHome, onSay, loading, error, reload }) {
   const sources = (notebook && notebook.sources) || []
   const labels = (notebook && notebook.labels) || []
   const [q, setQ] = useState('')
@@ -477,7 +515,12 @@ function Rail({ data, notebook, onAddSource, onOpenSource, onToggleSource,
         title: on ? 'Included in answers — click to exclude' : 'Excluded from answers — click to include',
         onClick: () => onToggleSource(s),
         children: on ? jsx(Glyph, { name: 'check', size: 14 }) : null
-      })
+      }),
+      onDeleteSource ? jsx(IconBtn, {
+        icon: 'trash', size: 13, className: 'nb-src-del',
+        label: `Remove source “${s.title}”`,
+        onClick: () => onDeleteSource(s)
+      }) : null
     )
   }
 

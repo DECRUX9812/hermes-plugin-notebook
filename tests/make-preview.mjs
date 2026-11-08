@@ -207,6 +207,20 @@ const rest = async (path, opts) => {
     }
     return { ok: true, source_id: sid, active: enabled, state: STATE.notebook }
   }
+  if (route === 'source/delete') {
+    const sid = (opts && opts.body && opts.body.source_id) || ''
+    if (STATE.notebook && STATE.notebook.sources) {
+      STATE.notebook.sources = STATE.notebook.sources.filter((s) => s.id !== sid)
+    }
+    return { ok: true, source_id: sid, state: STATE.notebook }
+  }
+  if (route === 'artifact/delete') {
+    const key = (opts && opts.body && opts.body.key) || ''
+    if (STATE.notebook && STATE.notebook.artifacts) {
+      STATE.notebook.artifacts = STATE.notebook.artifacts.filter((a) => a.key !== key)
+    }
+    return { ok: true, removed: [key], state: STATE.notebook }
+  }
   if (route === 'note') {
     await new Promise((r) => setTimeout(r, 500))
     return { ok: true, source: { id: 'note-mock', kind: 'note' } }

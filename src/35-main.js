@@ -683,7 +683,7 @@ function SourcePeek({ source, notebook, onClose, onAskAbout }) {
 
 /* --------------------------------------------------------------- studio panel */
 
-function StudioPanel({ kinds, notebook, busy, generate, filter, setFilter, onOpen, onCollapse, onAddNote }) {
+function StudioPanel({ kinds, notebook, busy, generate, filter, setFilter, onOpen, onDelete, onCollapse, onAddNote }) {
   const ready = latestByKind(notebook ? notebook.artifacts : [])
   const arts = (notebook && notebook.artifacts) || []
   const kindGroup = {}
@@ -740,22 +740,28 @@ function StudioPanel({ kinds, notebook, busy, generate, filter, setFilter, onOpe
               notebook && notebook.sources && notebook.sources.length
                 ? 'Nothing generated yet — pick an output above.'
                 : 'Add sources first — every artifact is built from them.')
-          : shownArts.map((a, i) => el('button', {
-              key: a.key || a.primary || i, type: 'button', className: 'nb-art',
-              'data-kind': a.kind,
-              onClick: () => onOpen(a),
-              'aria-label': `Open ${a.label || a.kind}`,
-              title: a.primary || a.label,
-              children: [
-                el('span', { className: 'nb-art-ico', 'aria-hidden': 'true' },
-                  i < 12 ? jsx(ArtThumb, { run: a, nbId: notebook && notebook.id })
-                    : jsx(Glyph, { name: KIND_ICON[a.kind] || 'doc', size: 17 })),
-                el('span', { className: 'nb-art-main' },
-                  el('span', { className: 'nb-art-title', children: a.label || a.kind }),
-                  el('span', { className: 'nb-art-sub',
-                    children: `${nfmt(a.bytes)} · ${ago(a.modified)}` }))
-              ]
-            }, a.key || a.primary || i)))),
+          : shownArts.map((a, i) => el('div', { key: a.key || a.primary || i, className: 'nb-artrow' },
+              el('button', {
+                type: 'button', className: 'nb-art',
+                'data-kind': a.kind,
+                onClick: () => onOpen(a),
+                'aria-label': `Open ${a.label || a.kind}`,
+                title: a.primary || a.label,
+                children: [
+                  el('span', { className: 'nb-art-ico', 'aria-hidden': 'true' },
+                    i < 12 ? jsx(ArtThumb, { run: a, nbId: notebook && notebook.id })
+                      : jsx(Glyph, { name: KIND_ICON[a.kind] || 'doc', size: 17 })),
+                  el('span', { className: 'nb-art-main' },
+                    el('span', { className: 'nb-art-title', children: a.label || a.kind }),
+                    el('span', { className: 'nb-art-sub',
+                      children: `${nfmt(a.bytes)} · ${ago(a.modified)}` }))
+                ]
+              }, a.key || a.primary || i),
+              onDelete ? jsx(IconBtn, {
+                icon: 'trash', size: 13, className: 'nb-art-del',
+                label: `Delete ${a.label || a.kind} artifact`,
+                onClick: () => onDelete(a)
+              }) : null)))),
     canScroll ? jsx('div', { className: 'nb-fade', 'aria-hidden': 'true' }) : null,
     el('div', { className: 'nb-pad', style: { borderTop: `1px solid ${T.lineSoft}`, display: 'flex', justifyContent: 'center', paddingTop: '10px', paddingBottom: '12px' } },
       jsx(Btn, { icon: 'note', onClick: onAddNote, disabled: !notebook, children: 'Add note' }))

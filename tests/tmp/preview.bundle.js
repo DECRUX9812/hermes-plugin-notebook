@@ -14799,6 +14799,9 @@ var CSS2 = `
 .nb-srccheck[aria-checked=true]{background:${T.accent};border-color:${T.accent}}
 .nb-selall{display:flex;align-items:center;gap:9px;padding:2px 6px}
 .nb-selall .nb-srccheck{width:32px;height:32px;border-radius:10px}
+.nb-src-del{position:absolute;right:44px;top:50%;transform:translateY(-50%);
+  opacity:0;transition:opacity .12s ease}
+.nb-src:hover .nb-src-del,.nb-src-del:focus-visible{opacity:1}
 .nb-srcgroup{display:flex;align-items:center;gap:8px;width:100%;text-align:left;
   padding:9px 10px;border:0;border-radius:11px;background:transparent;color:${T.text3};
   font-size:12px;font-weight:650;letter-spacing:.01em;cursor:pointer;font-family:inherit}
@@ -15051,6 +15054,11 @@ var CSS2 = `
   overflow:hidden;white-space:nowrap;text-overflow:ellipsis}
 .nb-art-sub{display:block;font-size:11px;color:${T.text3};margin-top:2px;
   overflow:hidden;white-space:nowrap;text-overflow:ellipsis}
+.nb-artrow{position:relative}
+.nb-art-del{position:absolute;right:8px;top:50%;transform:translateY(-50%);
+  opacity:0;transition:opacity .12s ease}
+.nb-artrow:hover .nb-art-del,.nb-art-del:focus-visible{opacity:1}
+.nb-artrow:hover .nb-art{padding-right:36px}
 
 /* thumb content inside the artifact icon tile */
 .nb-art-ico .nb-thumb-img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;display:block}
@@ -15969,6 +15977,44 @@ function App() {
       say(`could not update sources: ${e.message || e}`);
     }
   }, [nb, notebook, studio, say]);
+  const deleteSource = (0, import_react.useCallback)(async (s) => {
+    if (!nb || !s || !s.id) return;
+    try {
+      const out = await api("/source/delete", {
+        method: "POST",
+        body: { notebook: nb, source_id: s.id },
+        timeoutMs: 3e4
+      });
+      if (out && out.state && studio.data) {
+        studio.setData({ ...studio.data, notebook: out.state });
+      } else {
+        await studio.reload(true);
+      }
+      if (peek && peek.id === s.id) setPeek(null);
+      say(`removed \u201C${s.title || s.id}\u201D`);
+    } catch (e) {
+      say(`could not remove source: ${e.message || e}`);
+    }
+  }, [nb, studio, say, peek]);
+  const deleteArtifact = (0, import_react.useCallback)(async (a) => {
+    if (!nb || !a || !a.key) return;
+    try {
+      const out = await api("/artifact/delete", {
+        method: "POST",
+        body: { notebook: nb, key: a.key },
+        timeoutMs: 3e4
+      });
+      if (out && out.state && studio.data) {
+        studio.setData({ ...studio.data, notebook: out.state });
+      } else {
+        await studio.reload(true);
+      }
+      if (picked && picked.key === a.key) setPicked(null);
+      say("artifact deleted");
+    } catch (e) {
+      say(`could not delete artifact: ${e.message || e}`);
+    }
+  }, [nb, studio, say, picked]);
   const deleteNotebook = (0, import_react.useCallback)(async (id) => {
     try {
       await api("/notebook/delete", {
@@ -16087,6 +16133,7 @@ function App() {
         onOpenSource: openSource,
         onToggleSource: toggleSource,
         onToggleAll: toggleAllSources,
+        onDeleteSource: deleteSource,
         onLabel: labelSources,
         onCollapse: () => setRailOpen(false),
         onGoHome: () => setMode("home"),
@@ -16129,6 +16176,7 @@ function App() {
           setPicked(art);
           setTab("view");
         },
+        onDelete: deleteArtifact,
         onCollapse: () => setStudioOpen(false),
         onAddNote: () => openAddSource({ mode: "note" })
       }) : (0, import_jsx_runtime.jsx)(PanelToggles, { side: "right", onShow: () => setStudioOpen(true) })
@@ -16408,6 +16456,7 @@ function Rail({
   onOpenSource,
   onToggleSource,
   onToggleAll,
+  onDeleteSource,
   onLabel,
   onCollapse,
   onGoHome,
@@ -16490,7 +16539,14 @@ function Rail({
         title: on ? "Included in answers \u2014 click to exclude" : "Excluded from answers \u2014 click to include",
         onClick: () => onToggleSource(s),
         children: on ? (0, import_jsx_runtime.jsx)(Glyph, { name: "check", size: 14 }) : null
-      })
+      }),
+      onDeleteSource ? (0, import_jsx_runtime.jsx)(IconBtn, {
+        icon: "trash",
+        size: 13,
+        className: "nb-src-del",
+        label: `Remove source \u201C${s.title}\u201D`,
+        onClick: () => onDeleteSource(s)
+      }) : null
     );
   };
   return el(
@@ -17658,7 +17714,7 @@ function SourcePeek({ source, notebook, onClose, onAskAbout }) {
     )
   );
 }
-function StudioPanel({ kinds, notebook, busy, generate, filter, setFilter, onOpen, onCollapse, onAddNote }) {
+function StudioPanel({ kinds, notebook, busy, generate, filter, setFilter, onOpen, onDelete, onCollapse, onAddNote }) {
   const ready = latestByKind(notebook ? notebook.artifacts : []);
   const arts = notebook && notebook.artifacts || [];
   const kindGroup = {};
@@ -17742,31 +17798,41 @@ function StudioPanel({ kinds, notebook, busy, generate, filter, setFilter, onOpe
           "div",
           { className: "nb-hint", style: { padding: "14px 8px", lineHeight: 1.5 } },
           notebook && notebook.sources && notebook.sources.length ? "Nothing generated yet \u2014 pick an output above." : "Add sources first \u2014 every artifact is built from them."
-        ) : shownArts.map((a, i) => el("button", {
-          key: a.key || a.primary || i,
-          type: "button",
-          className: "nb-art",
-          "data-kind": a.kind,
-          onClick: () => onOpen(a),
-          "aria-label": `Open ${a.label || a.kind}`,
-          title: a.primary || a.label,
-          children: [
-            el(
-              "span",
-              { className: "nb-art-ico", "aria-hidden": "true" },
-              i < 12 ? (0, import_jsx_runtime.jsx)(ArtThumb, { run: a, nbId: notebook && notebook.id }) : (0, import_jsx_runtime.jsx)(Glyph, { name: KIND_ICON[a.kind] || "doc", size: 17 })
-            ),
-            el(
-              "span",
-              { className: "nb-art-main" },
-              el("span", { className: "nb-art-title", children: a.label || a.kind }),
-              el("span", {
-                className: "nb-art-sub",
-                children: `${nfmt(a.bytes)} \xB7 ${ago(a.modified)}`
-              })
-            )
-          ]
-        }, a.key || a.primary || i))
+        ) : shownArts.map((a, i) => el(
+          "div",
+          { key: a.key || a.primary || i, className: "nb-artrow" },
+          el("button", {
+            type: "button",
+            className: "nb-art",
+            "data-kind": a.kind,
+            onClick: () => onOpen(a),
+            "aria-label": `Open ${a.label || a.kind}`,
+            title: a.primary || a.label,
+            children: [
+              el(
+                "span",
+                { className: "nb-art-ico", "aria-hidden": "true" },
+                i < 12 ? (0, import_jsx_runtime.jsx)(ArtThumb, { run: a, nbId: notebook && notebook.id }) : (0, import_jsx_runtime.jsx)(Glyph, { name: KIND_ICON[a.kind] || "doc", size: 17 })
+              ),
+              el(
+                "span",
+                { className: "nb-art-main" },
+                el("span", { className: "nb-art-title", children: a.label || a.kind }),
+                el("span", {
+                  className: "nb-art-sub",
+                  children: `${nfmt(a.bytes)} \xB7 ${ago(a.modified)}`
+                })
+              )
+            ]
+          }, a.key || a.primary || i),
+          onDelete ? (0, import_jsx_runtime.jsx)(IconBtn, {
+            icon: "trash",
+            size: 13,
+            className: "nb-art-del",
+            label: `Delete ${a.label || a.kind} artifact`,
+            onClick: () => onDelete(a)
+          }) : null
+        ))
       )
     ),
     canScroll ? (0, import_jsx_runtime.jsx)("div", { className: "nb-fade", "aria-hidden": "true" }) : null,
@@ -22731,6 +22797,20 @@ var rest = async (path, opts) => {
       if (s.id === sid) s.active = enabled;
     }
     return { ok: true, source_id: sid, active: enabled, state: STATE.notebook };
+  }
+  if (route === "source/delete") {
+    const sid = opts && opts.body && opts.body.source_id || "";
+    if (STATE.notebook && STATE.notebook.sources) {
+      STATE.notebook.sources = STATE.notebook.sources.filter((s) => s.id !== sid);
+    }
+    return { ok: true, source_id: sid, state: STATE.notebook };
+  }
+  if (route === "artifact/delete") {
+    const key = opts && opts.body && opts.body.key || "";
+    if (STATE.notebook && STATE.notebook.artifacts) {
+      STATE.notebook.artifacts = STATE.notebook.artifacts.filter((a) => a.key !== key);
+    }
+    return { ok: true, removed: [key], state: STATE.notebook };
   }
   if (route === "note") {
     await new Promise((r) => setTimeout(r, 500));
