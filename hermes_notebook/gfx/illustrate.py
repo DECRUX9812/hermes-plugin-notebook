@@ -278,24 +278,62 @@ def clay_background(w: int, h: int, p: Preset) -> List[str]:
 
 
 def sumi_background(w: int, h: int, p: Preset) -> List[str]:
-    """Ink wash: two soft brush strokes in the corner, paper tone, nothing else. The
-    stroke is a filled path with a blurred twin underneath, which is how a wash reads
-    as pigment rather than as a shape."""
-    ink = core.mix(p.ink, p.paper, 0.55)
-    vermilion = core.mix(p.accents[1 % len(p.accents)], p.paper, 0.35)
+    """Ink wash: tapered brush strokes — the shape carries the pressure, not a blur.
+    A blurred twin underneath gives the bleed; a thin dry edge gives the bristle."""
+    ink = core.mix(p.ink, p.paper, 0.28)
+    vermilion = core.mix(p.accents[1 % len(p.accents)], p.paper, 0.30)
+
+    def stroke(pts, width):
+        """A tapered polygon: wide at the start, thin at the tail, with a wobbling edge."""
+        left, right = [], []
+        n = len(pts) - 1
+        for i, (x, y) in enumerate(pts):
+            nx, ny = pts[min(i + 1, n)]
+            px, py = pts[max(i - 1, 0)]
+            dx, dy = nx - px, ny - py
+            d = math.hypot(dx, dy) or 1.0
+            ux, uy = -dy / d, dx / d
+            t = i / max(1, n)
+            # a brush lands thin, swells, and lifts thin again — a blunt end reads
+            # as a rectangle, which is exactly how it was being read
+            half = width * (math.sin(math.pi * (0.12 + t * 0.88)) ** 0.55) * \
+                (1 + 0.10 * math.sin(t * 9 + 1.3))
+            left.append((x + ux * half, y + uy * half))
+            right.append((x - ux * half, y - uy * half))
+        path = " ".join(f"{'M' if i == 0 else 'L'}{x:.0f} {y:.0f}"
+                        for i, (x, y) in enumerate(left + right[::-1]))
+        return path + " Z"
+
+    # both strokes live inside the sheet: a shape cut by the edge reads as a crop
+    # mistake, not as a gesture
+    top = [(w * 0.09, h * 0.155), (w * 0.20, h * 0.112), (w * 0.33, h * 0.104),
+           (w * 0.45, h * 0.122), (w * 0.53, h * 0.150)]
+    bottom = [(w * 0.90, h * 0.835), (w * 0.78, h * 0.862), (w * 0.66, h * 0.884),
+              (w * 0.55, h * 0.900)]
     out: List[str] = [
-        core.gradient("sumiPaper", core.shade(p.paper, 0.04), core.shade(p.paper, -0.04)),
+        '<filter id="inkEdge" x="-10%" y="-10%" width="120%" height="120%">'
+        '<feTurbulence type="fractalNoise" baseFrequency="0.022" numOctaves="3" seed="7" result="n"/>'
+        '<feDisplacementMap in="SourceGraphic" in2="n" scale="7" xChannelSelector="R" '
+        'yChannelSelector="G"/></filter>',
+        core.gradient("inkDense", core.mix(ink, p.paper, 0.02), core.mix(ink, p.paper, 0.45),
+                      "diagonal"),
+        core.gradient("sumiPaper", core.shade(p.paper, 0.05), core.shade(p.paper, -0.05)),
         f'<rect width="{w}" height="{h}" fill="url(#sumiPaper)"/>',
-        f'<g filter="url(#soften)"><path d="M{w * 0.06:.0f} {h * 0.20:.0f} '
-        f'Q {w * 0.30:.0f} {h * 0.02:.0f} {w * 0.58:.0f} {h * 0.16:.0f} '
-        f'Q {w * 0.34:.0f} {h * 0.20:.0f} {w * 0.06:.0f} {h * 0.24:.0f} Z" '
-        f'fill="{core.hexed(ink)}" opacity="0.20"/></g>',
-        f'<g filter="url(#soften)"><path d="M{w * 0.94:.0f} {h * 0.94:.0f} '
-        f'Q {w * 0.62:.0f} {h * 0.86:.0f} {w * 0.40:.0f} {h * 1.02:.0f} '
-        f'Q {w * 0.70:.0f} {h * 0.98:.0f} {w * 0.94:.0f} {h * 0.98:.0f} Z" '
-        f'fill="{core.hexed(ink)}" opacity="0.14"/></g>',
-        core.circle(w * 0.90, h * 0.16, h * 0.018, fill=vermilion, opacity=0.85),
-        f'<rect width="{w}" height="{h}" filter="url(#grain)" opacity="0.5"/>',
+        f'<g filter="url(#soften)">',
+        f'<path d="{stroke(top, h * 0.030)}" fill="{core.hexed(ink)}" opacity="0.16"/>',
+        f'<path d="{stroke(bottom, h * 0.045)}" fill="{core.hexed(ink)}" opacity="0.11"/>',
+        '</g>',
+        f'<g filter="url(#inkEdge)">'
+        f'<path d="{stroke(top, h * 0.026)}" fill="url(#inkDense)" opacity="0.78"/>'
+        f'<path d="{stroke(bottom, h * 0.038)}" fill="url(#inkDense)" opacity="0.60"/></g>',
+        # dry bristle marks: two hairlines that follow the top stroke
+        # bristle striations inside the stroke: what separates a brush from a wedge
+        core.line(w * 0.12, h * 0.150, w * 0.48, h * 0.128, ink, 1, 0.30),
+        core.line(w * 0.15, h * 0.168, w * 0.42, h * 0.152, ink, 1, 0.22),
+        core.line(w * 0.20, h * 0.132, w * 0.40, h * 0.118, ink, 1, 0.16),
+        core.line(w * 0.66, h * 0.860, w * 0.86, h * 0.845, ink, 1, 0.22),
+        core.circle(w * 0.905, h * 0.155, h * 0.020, fill=vermilion, opacity=0.9),
+        f'<rect width="{w}" height="{h}" filter="url(#grain)" opacity="0.45"/>',
     ]
     return out
 

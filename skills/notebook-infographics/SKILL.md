@@ -13,7 +13,7 @@ metadata:
 
 # Notebook Infographics
 
-The `hermes-notebook` plugin ships a graphics library: **33 looks × 9 templates ×
+The `hermes-notebook` plugin ships a graphics library: **38 looks × 9 templates ×
 3 shapes × 3 detail levels**, emitted as SVG by `hermes_notebook.gfx`. This skill is
 how to choose a look and a layout, how to call it, and — when the user wants
 something painted rather than typeset — how to fall back to the image model.
@@ -74,6 +74,12 @@ summaries — those are their own artifact kinds.
 
 `hud`, `dither`, `verge`, `carbon`, `arc` and `aero` take their palettes from Open
 Design's design-token files, not from taste.
+
+**Astryx-derived** (palette seeds read from Meta's Astryx theme packages, MIT):
+`butter` warm cream + cobalt, stat grid · `matcha` pale green + clay, comparison ·
+`gothic` charcoal + muted jewel accents, serif, pull quote · `y2k` cream with
+hyper-saturated cyan/pink/lime, cover · `stone` warm grey + sage + mono labels,
+infographic.
 
 Full palettes, geometry and decoration rules: `references/style-pack.md`.
 Contact sheet: `assets/infographic-styles.png` in the plugin repo.

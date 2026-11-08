@@ -602,22 +602,42 @@ def tpl_quote_card(f: Frame, p: Preset, g: Dict[str, Any], detail: str = "standa
     els: List[str] = []
 
     acc = p.accents[0]
-    els.append(core.text(f.m, f.m + 90, "“", int(f.h * 0.30),
+    # kicker + meta: every other composition labels the sheet, and a quote card with
+    # no masthead is the page that reads as "empty" rather than "quiet". No title —
+    # a pull quote is the title.
+    els += [core.text(f.m, f.m + 24, p.kicker.upper(), 17,
+                      core.readable(acc, p.paper, 4.5), face, bold=True, tracking=2.6),
+            core.text(f.m + f.inner, f.m + 24, f"{p.label} · pull quote", 17,
+                      core.readable(p.muted, p.paper, 4.5), face, anchor="end"),
+            core.line(f.m, f.m + 44, f.m + f.inner, f.m + 44, p.ink, 1, 0.14)]
+    mark = int(f.h * 0.18)
+    els.append(core.text(f.m - 6, f.m + mark * 0.95, "“", mark,
                          core.mix(acc, p.paper, 0.55), "serif", bold=True))
     size = 44 if f.aspect > 1.2 else 38
-    lines = core.wrap(text, face, size, f.inner - 20)
+    lines = core.wrap(text, face, size, min(f.inner, 900) - 20)
     while len(lines) > 7 and size > 24:
         size -= 2
-        lines = core.wrap(text, face, size, f.inner - 20)
+        lines = core.wrap(text, face, size, min(f.inner, 900) - 20)
     lines = lines[:8]
     block_h = len(lines) * int(size * 1.35)
-    y = (f.h - block_h) // 2 + size
+    rail = [st for st in core.sequence(g.get("stats"), 3)] if detail != "concise" else []
+    rail_h = 132 if rail else 0
+    y = max(f.m + mark + 26, (f.h - rail_h - block_h) // 2 + size)
     for line in lines:
         els.append(core.text(f.m, y, line, size, core.readable(p.ink, p.paper), face))
         y += int(size * 1.35)
     if src:
         els.append(core.rect(f.m, y + 10, 46, 3, fill=acc))
-        els.append(core.text(f.m, y + 44, core.clip(src, face, 22, f.inner), 22, p.muted, face))
+        els.append(core.text(f.m, y + 44, core.clip(src, face, 22, min(f.inner, 900)), 22,
+                             core.readable(p.muted, p.paper, 4.5), face))
+    if rail:
+        # the evidence for the quote, so the page carries content and not only air
+        cols = len(rail)
+        tw = (f.inner - (cols - 1) * f.gap) // cols
+        ty = f.h - f.m - rail_h
+        for i, st in enumerate(rail):
+            x = f.m + i * (tw + f.gap)
+            els += tile(f, p, (x, ty, x + tw, ty + rail_h), st, p.accent_on(i + 1), dense=True)
     return els, f.h, 0
 
 

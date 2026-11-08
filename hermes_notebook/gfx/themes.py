@@ -245,8 +245,61 @@ _OPEN_DESIGN: List[Preset] = [
         decor=("hairline", "ticks"), kicker="MISSION // TIDAL", tone="dark", default_template="key_figure"),
 ]
 
+#: Fourth wave, from Meta's Astryx design system (MIT): the palettes are that
+#: project's own theme seeds — butter, matcha, gothic, y2k, stone — not invented
+#: here. Astryx ships 150+ components and eight themes precisely so a product can
+#: change voice without changing structure; these five looks borrow the voices.
+_ASTRYX: List[Preset] = [
+    Preset(
+        "butter", "Butter", "Warm cream stock, cobalt numerals, butter-yellow highlight.",
+        "Bright explainers, product tours, anything with a friendly, sure tone.",
+        "cards", "astryx-butter", paper=(0xFF, 0xFD, 0xF4), ink=(0x1D, 0x1C, 0x11),
+        muted=(0x5C, 0x5A, 0x46), card=(0xFF, 0xFF, 0xFF),
+        accents=[(0x22, 0x5B, 0xFF), (0xFF, 0xA3, 0x47), (0xFD, 0xEE, 0x8C)],
+        border=(0xED, 0xE7, 0xCE), radius=12, decor=(), kicker="BUTTER",
+        tone="light", default_template="stat_grid",
+    ),
+    Preset(
+        "matcha", "Matcha", "Pale green paper, deep olive type, clay and teal accents.",
+        "Sustainability, food, slow research, calm evidence.",
+        "cards", "astryx-matcha", paper=(0xF3, 0xF5, 0xE9), ink=(0x1E, 0x26, 0x16),
+        muted=(0x5A, 0x6B, 0x2A), card=(0xFB, 0xFD, 0xF3),
+        accents=[(0x4D, 0x99, 0x00), (0xC4, 0x76, 0x20), (0x2E, 0x6B, 0x5A)],
+        border=(0xDC, 0xE3, 0xC6), radius=6, decor=("hairline",), kicker="MATCHA",
+        tone="light", default_template="comparison",
+    ),
+    Preset(
+        "gothic", "Gothic", "Charcoal stone, muted jewel accents, serif, hairline rules.",
+        "Archives, history, literature — a page that reads as printed and old.",
+        "rows", "astryx-gothic", paper=(0x0E, 0x11, 0x13), ink=(0xE8, 0xEA, 0xEC),
+        muted=(0x98, 0xA0, 0xA8), card=(0x16, 0x1B, 0x1E),
+        accents=[(0xA3, 0x63, 0xBD), (0x6A, 0x9E, 0xB1), (0xC8, 0x7A, 0x4A)],
+        border=(0x26, 0x2C, 0x30), radius=0, typeface="serif",
+        decor=("hairline",), kicker="GOTHIC", tone="dark", default_template="quote_card",
+    ),
+    Preset(
+        "y2k", "Y2K", "Cream page, hyper-saturated cyan, pink and lime, glossy radii.",
+        "Launches, drops, culture — loud, optimistic, unmistakably now.",
+        "poster", "astryx-y2k", paper=(0xFF, 0xF6, 0xED), ink=(0x17, 0x1A, 0x24),
+        muted=(0x5D, 0x5A, 0x66), card=(0xFF, 0xFF, 0xFF),
+        accents=[(0x00, 0xA8, 0xFF), (0xFF, 0x72, 0xB6), (0xC5, 0xE1, 0x7A)],
+        border=(0xE9, 0xDF, 0xD3), radius=20, decor=(), kicker="Y2K.01",
+        tone="light", default_template="cover",
+    ),
+    Preset(
+        "stone", "Stone", "Warm grey sheet, muted clay and sage, mono labels, no radius.",
+        "Field reports, specs, quiet technical notes that still look designed.",
+        "rows", "astryx-stone", paper=(0xF4, 0xF3, 0xF1), ink=(0x25, 0x25, 0x2A),
+        muted=(0x6E, 0x6E, 0x76), card=(0xFF, 0xFF, 0xFF),
+        accents=[(0x8F, 0x71, 0x54), (0x52, 0x8B, 0x49), (0x6C, 0x78, 0x88)],
+        border=(0xE2, 0xE2, 0xE8), radius=2, typeface="mono",
+        decor=("hairline", "ticks"), kicker="STONE", tone="light",
+        default_template="infographic",
+    ),
+]
+
 PRESETS: List[Preset] = ([_from_style(s) for s in igstyles.STYLES] + _HOUSE + _MORE
-                         + _OPEN_DESIGN)
+                         + _OPEN_DESIGN + _ASTRYX)
 BY_ID: Dict[str, Preset] = {p.id: p for p in PRESETS}
 
 #: Words people and agents actually type, mapped onto ids.
@@ -271,6 +324,11 @@ ALIASES.update({
     "ibm-carbon": "carbon", "enterprise": "carbon", "carbon-grid": "carbon",
     "arc-browser": "arc", "pastel": "arc", "soft-gradient": "arc",
     "spacex": "aero", "space": "aero", "launch": "aero", "rocket": "aero",
+    "astryx": "butter", "meta": "butter", "meta-design": "butter",
+    "green": "matcha", "olive": "matcha", "sustainable": "matcha",
+    "dark-serif": "gothic", "archive": "gothic", "literary": "gothic",
+    "y2k-aesthetic": "y2k", "hyperpop": "y2k", "drop": "y2k",
+    "field-report": "stone", "spec": "stone", "technical": "stone",
 })
 
 DEFAULT_PRESET = "sections"

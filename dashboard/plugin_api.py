@@ -102,7 +102,7 @@ KINDS: List[Dict[str, Any]] = [
     {"id": "slides", "label": "Slides", "group": "visual", "ext": "html",
      "blurb": "Self-contained deck, arrow keys", "secs": 22},
     {"id": "infographic", "label": "Infographic", "group": "visual", "ext": "svg",
-     "blurb": "Vector poster — 33 looks, 9 layouts", "secs": 20,
+     "blurb": "Vector poster — 38 looks, 9 layouts", "secs": 20,
      "options": [
          {"id": "style", "label": "Look", "kind": "select",
           "default": gfx_themes.DEFAULT_PRESET,

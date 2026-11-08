@@ -110,7 +110,7 @@ NOTEBOOK_GENERATE = {
         "style": {"type": "string",
                   # built from the catalogue so the schema can never drift from it
                   "enum": _STYLE_IDS,
-                  "description": ("infographic only: which of the 33 bundled looks to draw. "
+                  "description": ("infographic only: which of the 38 bundled looks to draw. "
                                   "sections (default, warm cards), editorial (huge "
                                   "numerals), poster (dark cover), swiss (strict red "
                                   "grid), magazine (cream serif), bento (rounded "

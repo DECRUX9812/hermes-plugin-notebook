@@ -123,7 +123,7 @@ def main() -> int:
         tiles.append((f"styles/{preset.id}.svg", preset.label, f"{preset.id} · {kind}"))
     cols = 4
     rows = math.ceil(len(tiles) / cols)
-    html = _sheet_html(tiles, cols, 600, 450, "hermes-notebook · 33 looks",
+    html = _sheet_html(tiles, cols, 600, 450, "hermes-notebook · 38 looks",
                        "one invented sample payload · type-led, illustrated and "
                        "Open Design-derived looks, each in its own composition")
     (assets / "styles.html").write_text(html)

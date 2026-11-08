@@ -1,11 +1,11 @@
 # The graphics library
 
-`hermes_notebook/gfx` is a reusable HTML/SVG graphics library: **33 looks × 9
+`hermes_notebook/gfx` is a reusable HTML/SVG graphics library: **38 looks × 9
 templates × 3 shapes × 3 detail levels**, composed from primitives instead of
 hand-built one-offs. It renders NotebookLM-class artifact visuals without an image
 model, so every numeral on the sheet is the numeral that came out of the sources.
 
-![33 looks](../assets/infographic-styles.png)
+![38 looks](../assets/infographic-styles.png)
 
 ![templates](../assets/graphics-templates.png)
 
@@ -141,7 +141,7 @@ and `data-template` / `data-preset` / `data-detail` for tooling.
 
 ### Presets
 
-**33 looks**, in three waves. Every look carries its own palette, typeface, radius,
+**38 looks**, in three waves. Every look carries its own palette, typeface, radius,
 decoration set, art treatment **and default composition** — because 33 looks that all
 draw the same card grid are three looks in 33 skins.
 
@@ -150,6 +150,7 @@ draw the same card grid are three looks in 33 skins.
 | 1 · type-led (16) | `sections`, `editorial`, `poster`, `swiss`, `magazine`, `bento`, `blueprint`, `terminal`, `neon`, `brutalist`, `retro`, `risograph`, `kraft`, `chalkboard`, `dashboard`, `mission` | palettes borrowed from Open Design's design systems (`bento`, `editorial`, `wired`, `brutalism`, `mission-control`, …) |
 | 2 · editorial + illustrated (2 + 9) | `cartoon`, `realistic`; `newspaper`, `annual`, `museum`, `film`, `data-desk`, `deco`, `glass`, `clay`, `sumi` | the illustrated two are drawn, not photographed; the nine are named design languages (FT salmon, annual report, museum label, film poster, data desk, art deco, mesh glass, claymorphism, sumi-e) |
 | 3 · Open Design tokens (6) | `hud`, `dither`, `verge`, `carbon`, `arc`, `aero` | palettes taken from Open Design's `design-tokens.json` for `hud`, `dithered`, `theverge`, `ibm`, `arc`, `spacex` |
+| 4 · Astryx themes (5) | `butter`, `matcha`, `gothic`, `y2k`, `stone` | Meta's Astryx design system (MIT): palette seeds read from `packages/themes/<name>/palette.config.json` |
 
 Treatments behind them (`Preset.art`):
 
@@ -168,14 +169,14 @@ Default compositions (`Preset.default_template`; `template="auto"` uses it):
 
 | composition | looks |
 |---|---|
-| `infographic` | sections, editorial, newspaper, clay, arc, realistic |
-| `cover` | poster, neon, film, deco, verge, cartoon |
+| `infographic` | sections, editorial, newspaper, clay, arc, stone, realistic |
+| `cover` | poster, neon, film, deco, verge, cartoon, y2k |
 | `key_figure` | terminal, mission, hud, aero |
-| `stat_grid` | bento, dashboard, brutalist, annual, glass |
-| `quote_card` | magazine, kraft, museum, sumi |
+| `stat_grid` | bento, dashboard, brutalist, annual, glass, butter |
+| `quote_card` | magazine, kraft, museum, sumi, gothic |
 | `process` | swiss, blueprint, carbon |
 | `timeline` | retro, chalkboard, dither |
-| `comparison` | risograph, data-desk |
+| `comparison` | risograph, data-desk, matcha |
 
 Quality rules learned by looking at the output (not by taste):
 
@@ -190,6 +191,9 @@ Quality rules learned by looking at the output (not by taste):
 - **Titles wrap balanced, not greedy.** `core.wrap_balanced` narrows the measure until
   the lines are close to equal, so a headline never leaves one word alone.
 - **Figures use tabular numerals** (`tnum`), so columns of numbers line up.
+- **A quote card needs a masthead and evidence.** Without a kicker, a meta line and a
+  rail of the figures the quote rests on, "quiet" reads as "empty" — and a pull quote
+  drawn at 0.30 × canvas height clips its own opening glyph off the top edge.
 - **A look is also a composition.** Without `default_template`, fifteen styles drew
   the same KPI grid; the sheet read as recolours. `template="auto"` gives each look
   the layout its name promises.
