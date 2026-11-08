@@ -279,7 +279,14 @@ const rest = async (path, opts) => {
       : ((STATE.notebook && STATE.notebook.thread) || [])
     return { ok: true, thread: name, messages }
   }
-  if (route === 'thread/clear') return { ok: true, thread: { cleared: 'default' } }
+  if (route === 'thread/clear') {
+    const name = (opts && opts.body && opts.body.thread) || 'default'
+    if (STATE.notebook && STATE.notebook.threads) {
+      STATE.notebook.threads = STATE.notebook.threads.filter((t) => t.name !== name)
+    }
+    if (STATE.notebook && STATE.notebook.thread && name === 'default') STATE.notebook.thread = []
+    return { ok: true, thread: { cleared: name } }
+  }
   if (route === 'export') {
     // stub payload — the page only base64-decodes + blob-downloads it
     return { ok: true, name: 'preview-notebook.zip', bytes: 22, files: 1,

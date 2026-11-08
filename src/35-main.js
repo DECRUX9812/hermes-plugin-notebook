@@ -639,20 +639,23 @@ function Chat({ notebook, kinds, askOpen, onSay, modelReady, onCite, onOpenSourc
               threadCache.set(`${notebook.id}:${name}`, [])
               setThread(name); setThrOpen(false)
             },
-            onClear: async () => {
+            onDelete: async (name) => {
               try {
                 await api('/thread/clear', {
                   method: 'POST',
-                  body: { notebook: notebook.id, thread },
+                  body: { notebook: notebook.id, thread: name },
                   timeoutMs: 30000
                 })
-                const key = `${notebook.id}:${thread}`
-                cacheMsgs(key, [])
-                setMsgs([])
-                setThreads((ts) => ts.filter((t) => t.name !== thread))
+                const key = `${notebook.id}:${name}`
+                threadCache.delete(key)
+                setThreads((ts) => ts.filter((t) => t.name !== name))
+                if (name === thread) {
+                  if (name === 'default') { cacheMsgs(key, []); setMsgs([]) }
+                  else setThread('default')
+                }
                 if (reload) reload(true)
-                setThrOpen(false)
-              } catch (e) { onSay && onSay(`could not clear chat: ${e.message || e}`) }
+                if (onSay) onSay('conversation deleted')
+              } catch (e) { onSay && onSay(`could not delete chat: ${e.message || e}`) }
             }
           })
         : null
@@ -710,24 +713,35 @@ function ScopeDialog({ notebook, current, onClose, onPick }) {
   })
 }
 
-function ThreadDialog({ notebook, threads, current, onClose, onPick, onNew, onClear }) {
+function ThreadDialog({ notebook, threads, current, onClose, onPick, onNew, onDelete }) {
   const list = threads && threads.length ? threads : [{ name: 'default', title: 'Chat', count: 0 }]
   return jsx(Dialog, {
     open: true, onClose, title: 'Conversations', width: 460,
     children: el('div', { style: { display: 'grid', gap: '8px' } },
-      list.map((t) => el('button', {
-        key: t.name, type: 'button',
-        className: 'nb-thrrow' + (t.name === current ? ' is-current' : ''),
-        onClick: () => onPick(t.name),
-        'aria-current': t.name === current ? 'true' : undefined
-      },
-        el('div', { style: { flex: 1, minWidth: 0 } },
-          el('div', { style: { fontSize: '14px', fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' },
-            children: t.title || t.name }),
-          el('div', { className: 'nb-meta', children: `${t.count || 0} messages` })),
-        t.name === current ? jsx(Glyph, { name: 'check', size: 15 }) : null)),
+      list.map((t) => el('div', {
+        key: t.name, className: 'nb-thrwrap',
+        children: [
+          el('button', {
+            type: 'button',
+            className: 'nb-thrrow' + (t.name === current ? ' is-current' : ''),
+            onClick: () => onPick(t.name),
+            'aria-current': t.name === current ? 'true' : undefined,
+            children: [
+              el('div', { style: { flex: 1, minWidth: 0 } },
+                el('div', { style: { fontSize: '14px', fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' },
+                  children: t.title || t.name }),
+                el('div', { className: 'nb-meta', children: `${t.count || 0} messages` })),
+              t.name === current ? jsx(Glyph, { name: 'check', size: 15 }) : null
+            ]
+          }),
+          jsx(IconBtn, {
+            icon: 'trash', size: 13, label: `Delete conversation — ${t.title || t.name}`,
+            onClick: () => onDelete(t.name)
+          })
+        ]
+      })),
       el('div', { style: { display: 'flex', gap: '8px', justifyContent: 'space-between', marginTop: '10px' } },
-        jsx(Btn, { size: 'sm', icon: 'trash', onClick: onClear, children: 'Clear this chat' }),
+        jsx(Btn, { size: 'sm', onClick: () => onDelete(current), children: 'Delete this chat' }),
         jsx(Btn, { size: 'sm', variant: 'primary', icon: 'plus', onClick: onNew, children: 'New chat' })))
   })
 }

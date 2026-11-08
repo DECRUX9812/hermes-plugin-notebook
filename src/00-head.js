@@ -407,6 +407,10 @@ const CSS = `
 .nb-thrrow:hover{background:var(--nb-wash)}
 .nb-thrrow.is-current{border-color:color-mix(in srgb,${T.accent} 40%, transparent);
   background:color-mix(in srgb,${T.accent} 8%, transparent)}
+.nb-thrwrap{display:flex;align-items:center;gap:4px}
+.nb-thrwrap .nb-thrrow{flex:1;min-width:0}
+.nb-thrwrap .nb-icon{opacity:0;transition:opacity .12s ease}
+.nb-thrwrap:hover .nb-icon,.nb-thrwrap:focus-within .nb-icon{opacity:1}
 .nb-emgrid{display:grid;grid-template-columns:repeat(8,1fr);gap:6px}
 .nb-em{aspect-ratio:1;border-radius:10px;border:1px solid var(--nb-hair-soft);
   background:var(--nb-card);font-size:17px;cursor:pointer;display:grid;place-items:center;
