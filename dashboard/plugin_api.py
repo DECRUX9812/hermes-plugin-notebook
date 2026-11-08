@@ -730,6 +730,7 @@ async def ask(payload: Dict[str, Any] = Body(...)) -> Any:
             "kind": src.get("kind", ""),
             "origin": src.get("origin", ""),
             "id": src.get("id", ""),
+            "snippet": src.get("snippet", ""),
         })
     return {
         "ok": True,

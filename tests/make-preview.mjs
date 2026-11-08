@@ -146,7 +146,7 @@ const rest = async (path, opts) => {
         { n: 2, title: 'US roadmap targets fusion deployment by mid 2030s - Reuters', kind: 'url', origin: 'https://www.reuters.com/business/energy/us-roadmap-targets-fusion-deployment-by-mid-2030s--reeii-2026-08-25/', id: 'reuters-us-fusion-roadmap-mid-2030s' },
         { n: 3, title: 'ITER reports \u201csubstantial progress\u201d in assembly and installation work', kind: 'url', origin: 'https://www.ans.org/news/2026-09-09/article-8375/', id: 'ans-iter-assembly-progress' },
         { n: 4, title: 'Two-thirds of ITER tokamak core now in place - ITER Organization', kind: 'url', origin: 'https://www.iter.org/two-thirds-iter-tokamak-core-now-place', id: 'iter-two-thirds-tokamak-core' }
-      ],
+      ].map((c) => ({ ...c, snippet: ((((STATE.notebook && STATE.notebook.sources) || []).find((s) => s.id === c.id) || {}).summary || '').slice(0, 160) })),
       chunks_used: 12, total_chunks: 96, seconds: 4.2
     }
   }

@@ -137,6 +137,7 @@ def retrieve(notebook_id: str, query: str, *, max_chars: int = 28000,
 
     context_parts: list[str] = []
     final_num: dict[str, int] = {}
+    best_chunk: dict[str, str] = {}
     used = 0
 
     if order and scores[order[0]] > 0:
@@ -147,6 +148,8 @@ def retrieve(notebook_id: str, query: str, *, max_chars: int = 28000,
             sid = rec["id"]
             if sid not in final_num:
                 final_num[sid] = len(final_num) + 1
+            if sid not in best_chunk:
+                best_chunk[sid] = ch
             block = f"[S{final_num[sid]} · {rec.get('title')} · {rec.get('kind')}]\n{ch}"
             if used + len(block) > max_chars and context_parts:
                 continue
@@ -160,6 +163,7 @@ def retrieve(notebook_id: str, query: str, *, max_chars: int = 28000,
 
     by_id = {s["id"]: s for s in sources}
     inv = {v: k for k, v in final_num.items()}
+    pair_text = {rec["id"]: text for rec, text in pairs}
     sources_used = []
     for n in sorted(final_num.values()):
         sid = inv[n]
@@ -167,6 +171,9 @@ def retrieve(notebook_id: str, query: str, *, max_chars: int = 28000,
         sources_used.append({
             "n": n, "id": sid, "title": s.get("title"), "kind": s.get("kind"),
             "origin": s.get("origin"), "labels": s.get("labels", []),
+            # the passage this citation was built from — the page highlights
+            # it when the source opens; fallback path cites the head
+            "snippet": (best_chunk.get(sid) or pair_text.get(sid, ""))[:400].strip(),
         })
 
     return {

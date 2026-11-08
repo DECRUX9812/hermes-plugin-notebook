@@ -328,6 +328,7 @@ const CSS = `
 /* ------------------------------------------------------------------- chat */
 .nb-chat{flex:1;min-height:0;display:flex;flex-direction:column}
 .nb-chatscroll{flex:1;min-height:0;display:flex;flex-direction:column;position:relative}
+.nb-hl{background:color-mix(in srgb, ${T.accent} 30%, transparent);color:inherit;border-radius:4px;padding:0 2px}
 .nb-latest{position:absolute;left:50%;bottom:14px;transform:translateX(-50%);z-index:20;display:inline-flex;align-items:center;gap:4px;padding:7px 14px;border-radius:999px;border:1px solid var(--nb-line,#2a2d3d);background:var(--nb-card,#14161f);color:var(--nb-text2,#c6c9d8);font-size:12.5px;font-weight:600;cursor:pointer;box-shadow:0 6px 20px rgba(0,0,0,.35);transition:transform .15s ease,box-shadow .15s ease}
 .nb-latest:hover{transform:translateX(-50%) translateY(-1px);box-shadow:0 8px 24px rgba(0,0,0,.45)}
 .nb-thread{flex:1;min-height:0;overflow:auto;padding:28px 28px 12px;display:flex;flex-direction:column;gap:24px}
@@ -2184,18 +2185,18 @@ function Main({ notebook, kinds, tab, setTab, picked, setPicked, busy, generate,
               onPrevRun: si > 0 ? () => setPicked(sibs[si - 1]) : null,
               onNextRun: si >= 0 && si < sibs.length - 1 ? () => setPicked(sibs[si + 1]) : null,
               runPos: sibs.length > 1 ? `${si + 1} of ${sibs.length}` : '',
-              onCite: (n) => {
-                const src = sources.find((s) => s.n === n)
-                if (src) { setPeek(src); setTab('peek') }
+              onCite: (n, cite) => {
+                const src = sources.find((s) => (cite && cite.id && s.id === cite.id) || s.n === n)
+                if (src) { setPeek({ ...src, citeSnippet: (cite && cite.snippet) || '' }); setTab('peek') }
               }
             })
           })()
         : jsx(Chat, {
             notebook, kinds, askOpen, onSay, modelReady, reload, askScope, setAskScope,
             generate,
-            onCite: (n) => {
-              const src = sources.find((s) => s.n === n)
-              if (src) { setPeek(src); setTab('peek') }
+            onCite: (n, cite) => {
+              const src = sources.find((s) => (cite && cite.id && s.id === cite.id) || s.n === n)
+              if (src) { setPeek({ ...src, citeSnippet: (cite && cite.snippet) || '' }); setTab('peek') }
             },
             onOpenSource,
             onFindSources
@@ -2823,6 +2824,9 @@ function Msg({ msg, onCite, notebook, canRetry, onRetry }) {
   const [citePop, setCitePop] = useState(null)
 
   const citeFor = (n) => (msg.citations || []).find((c) => c.n === n)
+  // hand the whole citation up — its snippet lets the source open at the
+  // exact passage the answer cited
+  const citeClick = (n) => onCite && onCite(n, citeFor(n))
 
   const onMouseOver = (e) => {
     const b = e.target && e.target.closest ? e.target.closest('.nb-inline-cite') : null
@@ -2888,12 +2892,12 @@ function Msg({ msg, onCite, notebook, canRetry, onRetry }) {
                 }
               }) : null),
             el('div', { className: 'nb-bubble' },
-              jsx(Markdown, { text: msg.content, onCite })),
+              jsx(Markdown, { text: msg.content, onCite: citeClick })),
             (msg.citations || []).length
               ? el('div', { style: { display: 'flex', gap: '6px', flexWrap: 'wrap', marginTop: '10px' }, role: 'list', 'aria-label': 'Citations' },
                   msg.citations.map((c) => el('button', {
                     key: `${c.n}-${c.title}`, type: 'button', className: 'nb-chip nb-citechip',
-                    onClick: () => onCite && onCite(c.n),
+                    onClick: () => citeClick(c.n),
                     title: c.origin || c.title,
                     'aria-label': `Citation ${c.n} — ${c.title}`,
                     children: [el('b', { children: `S${c.n}` }), el('span', { children: c.title })]
@@ -2926,14 +2930,54 @@ function SourcePeek({ source, notebook, onClose, onAskAbout, onRefresh, onPrev, 
   const [text, setText] = useState('')
   const [err, setErr] = useState('')
   const [refreshing, setRefreshing] = useState(false)
+  const [hi, setHi] = useState(null)
   useEffect(() => {
     let live = true
     setText('')
+    setHi(null)
     api(`/source_text?${qs({ notebook: notebook.id, id: source.id, chars: 24000 })}`)
       .then((out) => { if (live) setText(out.text || '') })
       .catch((e) => { if (live) setErr(e.message || String(e)) })
     return () => { live = false }
   }, [source.id, notebook.id, source.chars, source.refreshed_at])
+
+  // a citation carries the passage it was built from — find it in the stored
+  // text (whitespace-normalized, since chunks reflow) and mark it
+  const citeSnippet = source.citeSnippet || ''
+  useEffect(() => {
+    setHi(null)
+    const h = String(citeSnippet).replace(/\s+/g, ' ').trim()
+    if (!text || h.length < 20) return undefined
+    const norm = []
+    const map = []
+    let ws = false
+    for (let i = 0; i < text.length; i += 1) {
+      const c = text[i]
+      if (/\s/.test(c)) {
+        if (!ws) { norm.push(' '); map.push(i) }
+        ws = true
+      } else { norm.push(c); map.push(i); ws = false }
+    }
+    const ntext = norm.join('')
+    for (const len of [h.length, 240, 140, 80]) {
+      if (len > h.length) continue
+      const needle = h.slice(0, len)
+      const ni = ntext.indexOf(needle)
+      if (ni < 0) continue
+      const start = map[ni]
+      const end = map[Math.min(ni + needle.length - 1, map.length - 1)] + 1
+      setHi({ start, end })
+      break
+    }
+    return undefined
+  }, [text, citeSnippet])
+
+  useEffect(() => {
+    if (!hi) return undefined
+    const n = document.querySelector('.nb-hl')
+    if (n) n.scrollIntoView({ block: 'center' })
+    return undefined
+  }, [hi])
   return el('div', { className: 'nb-view' },
     el('div', { className: 'nb-view-head' },
       el('span', { className: 'nb-chip', 'data-tone': 'accent', children: `S${source.n}` }),
@@ -2992,7 +3036,11 @@ function SourcePeek({ source, notebook, onClose, onAskAbout, onRefresh, onPrev, 
           ? el('pre', {
               className: 'nb-mono',
               style: { whiteSpace: 'pre-wrap', fontSize: '14.5px', lineHeight: 1.7, color: T.text2, margin: 0 },
-              children: text
+              children: hi
+                ? [text.slice(0, hi.start),
+                   el('mark', { key: 'hl', className: 'nb-hl', children: text.slice(hi.start, hi.end) }),
+                   text.slice(hi.end)]
+                : text
             })
           : el('div', { className: 'nb-hint', children: 'reading…' }))
   )
