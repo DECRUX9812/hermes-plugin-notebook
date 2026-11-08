@@ -164,6 +164,8 @@ function Chat({ notebook, kinds, askOpen, onSay, modelReady, onCite, onOpenSourc
   const [cfgBusy, setCfgBusy] = useState(false)
   const threadRef = useRef(null)
   const boxRef = useRef(null)
+  const stickRef = useRef(true)
+  const [showLatest, setShowLatest] = useState(false)
   const stats = notebook.stats || {}
   const activeCount = stats.active !== undefined ? stats.active : (notebook.sources || []).length
   const cacheKey = `${notebook.id}:${stats.sources || 0}:${activeCount}`
@@ -188,6 +190,8 @@ function Chat({ notebook, kinds, askOpen, onSay, modelReady, onCite, onOpenSourc
 
   // switching conversations: cache hit is instant, otherwise fetch the thread
   useEffect(() => {
+    stickRef.current = true
+    setShowLatest(false)
     const key = `${notebook.id}:${thread}`
     const cached = threadCache.get(key)
     if (cached) { setMsgs(cached); return undefined }
@@ -262,13 +266,25 @@ function Chat({ notebook, kinds, askOpen, onSay, modelReady, onCite, onOpenSourc
 
   useEffect(() => { if (askOpen) { const n = boxRef.current; if (n) n.focus() } }, [askOpen])
 
+  // stick to the newest message only while the reader is already there —
+  // yanking someone back mid-history on every tick is hostile
+  const onThreadScroll = () => {
+    const node = threadRef.current
+    if (!node) return
+    const near = node.scrollHeight - node.scrollTop - node.clientHeight < 90
+    stickRef.current = near
+    setShowLatest(!near)
+  }
+
   useEffect(() => {
     const node = threadRef.current
-    if (node) node.scrollTop = node.scrollHeight
+    if (node && stickRef.current) node.scrollTop = node.scrollHeight
   }, [msgs.length, pending && pending.since])
 
   const send = async (question, opts) => {
     if (pending) return
+    stickRef.current = true
+    setShowLatest(false)
     const retry = !!(opts && opts.retry)
     const t = thread
     const key = `${notebook.id}:${t}`
@@ -340,7 +356,8 @@ function Chat({ notebook, kinds, askOpen, onSay, modelReady, onCite, onOpenSourc
   const thrLabel = (thrMeta && thrMeta.title) || (thread === 'default' ? 'Chat' : 'New chat')
 
   return el('div', { className: 'nb-chat' },
-    el('div', { className: 'nb-thread', ref: threadRef, role: 'log', 'aria-live': 'polite', 'aria-label': 'Conversation' },
+    el('div', { className: 'nb-chatscroll' },
+    el('div', { className: 'nb-thread', ref: threadRef, onScroll: onThreadScroll, role: 'log', 'aria-live': 'polite', 'aria-label': 'Conversation' },
       ov
         ? el('div', { className: 'nb-overview' },
             el('div', { className: 'nb-overview-head' },
@@ -434,6 +451,19 @@ function Chat({ notebook, kinds, askOpen, onSay, modelReady, onCite, onOpenSourc
                 `retrieving passages · ${elapsed}s`)))
         : null
     ),
+    showLatest
+      ? el('button', {
+          type: 'button', className: 'nb-latest',
+          'aria-label': 'Jump to the newest message',
+          onClick: () => {
+            const node = threadRef.current
+            if (node) node.scrollTop = node.scrollHeight
+            stickRef.current = true
+            setShowLatest(false)
+          },
+          children: [jsx(Glyph, { name: 'chevron', size: 13 }), ' latest']
+        })
+      : null),
 
     el('div', { className: 'nb-composer' },
       msgs.length === 0 && !pending
