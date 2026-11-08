@@ -794,19 +794,25 @@ function parseCsv(text) {
 function DataTableView({ text, name }) {
   const rows = useMemo(() => parseCsv(text), [text])
   const [sort, setSort] = useState({ col: -1, dir: 1 })
+  const [q, setQ] = useState('')
   const head = rows[0] || []
-  const body = rows.slice(1)
+  const body = useMemo(() => rows.slice(1), [rows])
+  const filtered = useMemo(() => {
+    const needle = q.trim().toLowerCase()
+    if (!needle) return body
+    return body.filter((r) => r.some((c) => String(c).toLowerCase().includes(needle)))
+  }, [body, q])
   const shown = useMemo(() => {
-    if (sort.col < 0) return body
+    if (sort.col < 0) return filtered
     const i = sort.col
-    return [...body].sort((a, b) => {
+    return [...filtered].sort((a, b) => {
       const x = String(a[i] || ''), y = String(b[i] || '')
       const nx = Number(x.replace(/[^0-9.\-]/g, '')), ny = Number(y.replace(/[^0-9.\-]/g, ''))
       const c = (!Number.isNaN(nx) && !Number.isNaN(ny) && x !== '' && y !== '')
         ? nx - ny : x.localeCompare(y)
       return c * sort.dir
     })
-  }, [body, sort])
+  }, [filtered, sort])
   const exportCsv = () => {
     const blob = new Blob([text || ''], { type: 'text/csv' })
     const url = URL.createObjectURL(blob)
@@ -820,8 +826,9 @@ function DataTableView({ text, name }) {
   }
   return el('div', { className: 'nb-view-body' },
     el('div', { style: { display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '12px' } },
-      el('span', { className: 'nb-meta', children: `${body.length} rows × ${head.length} columns` }),
+      el('span', { className: 'nb-meta', children: q.trim() ? `${filtered.length} of ${body.length} rows × ${head.length} columns` : `${body.length} rows × ${head.length} columns` }),
       el('span', { style: { flex: 1 } }),
+      body.length > 8 ? jsx(SearchField, { value: q, onChange: setQ, placeholder: 'Filter rows', label: 'Filter table rows' }) : null,
       jsx(Btn, { size: 'sm', icon: 'download', onClick: exportCsv, children: 'Export CSV' })),
     el('div', { className: 'nb-dt-wrap' },
       el('table', { className: 'nb-dt' },
