@@ -115,6 +115,24 @@ async function functional(port) {
   const cards = await page.locator('.nb-card').count()
   ok('studio renders all outputs', cards === 13, `${cards} cards`)
 
+  // Discover is its own surface, and it must start empty rather than pretending
+  // it has results: the panel only fills after a real /discover pass.
+  const discoverTab = page.locator('.nb-seg button', { hasText: 'Discover' })
+  if (await discoverTab.count()) {
+    await discoverTab.first().click()
+    await settle(page, 400)
+    const panel = await page.locator('.nb-disc').count()
+    const empty = await page.locator('.nb-disc-empty').count()
+    const input = await page.locator('.nb-input').count()
+    ok('discover surface renders with its own search box', panel === 1 && input === 1,
+       `panel=${panel} input=${input}`)
+    ok('discover starts empty, not with invented results', empty >= 1, `${empty} empty state`)
+    await page.locator('.nb-seg button', { hasText: 'Studio' }).first().click()
+    await settle(page, 300)
+  } else {
+    ok('discover surface renders with its own search box', false, 'no Discover tab')
+  }
+
   // a ready card opens the viewer for its own kind
   const ready = page.locator('.nb-card[data-ready="true"]').first()
   const readyCount = await page.locator('.nb-card[data-ready="true"]').count()

@@ -148,6 +148,7 @@ function App() {
 
   const ops = mode === 'ops'
   const home = mode === 'home'
+  const discoverMode = mode === 'discover'
 
   return el('div', { className: 'nb-root', 'data-mode': mode, 'data-plugin': ID },
     el('style', { dangerouslySetInnerHTML: { __html: CSS } }),
@@ -160,13 +161,16 @@ function App() {
             ? el('b', { children: 'Lab Ops' })
             : home
               ? el('b', { children: 'All notebooks' })
-              : el('span', null, '/ ', el('b', { children: notebook ? notebook.title : 'no notebook' })))
+              : discoverMode
+                ? el('b', { children: 'Discover' })
+                : el('span', null, '/ ', el('b', { children: notebook ? notebook.title : 'no notebook' })))
       ),
       el('div', { className: 'nb-spacer' }),
       jsx(Seg, {
         label: 'Surface', value: mode, onChange: (v) => setMode(v),
         options: [
           { id: 'home', label: 'Home', icon: 'grid' },
+          { id: 'discover', label: 'Discover', icon: 'search' },
           { id: 'studio', label: 'Studio', icon: 'notebook' },
           { id: 'ops', label: 'Lab Ops', icon: 'server' }
         ]
@@ -185,7 +189,12 @@ function App() {
             data, onOpen: openNotebook, onNew: () => setNewNb(true),
             onDelete: deleteNotebook, onRename: renameNotebook
           })
-        : el('div', { className: 'nb-body' },
+        : discoverMode
+          ? jsx(DiscoverPanel, {
+              notebook, onSay: say,
+              reload: () => studio.reload(true)
+            })
+          : el('div', { className: 'nb-body' },
             railOpen
               ? jsx(Rail, {
                   data, notebook,

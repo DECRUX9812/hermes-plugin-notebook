@@ -333,27 +333,29 @@ def add_source(payload: Dict[str, Any] = Body(...)) -> Any:
 
 @router.post("/discover")
 def discover(payload: Dict[str, Any] = Body(...)) -> Any:
-    """NotebookLM-style "describe it": web-search candidate sources for a query
-    (empty query falls back to the notebook's own title + description inside
-    the tool). Nothing is added — the page shows the candidates and the user
-    picks, then POSTs the kept urls to /sources."""
-    from hermes_notebook import tools as tools_mod
-    nb = str(payload.get("notebook") or "")
-    args: Dict[str, Any] = {"notebook": nb}
-    query = str(payload.get("query") or "").strip()
-    if query:
-        args["query"] = query
-    if payload.get("max_results"):
-        args["max_results"] = int(payload["max_results"])
+    """A discovery pass that knows the notebook: plan queries from its gaps, fan
+    out across the search providers, rank with a per-domain cap, and explain each
+    candidate. Nothing is added — the page shows the cards and the person picks,
+    then POSTs the kept urls to /sources.
+    """
+    from hermes_notebook import discover as discover_mod
+    nb_arg = str(payload.get("notebook") or "")
+    try:
+        nb_id = store.resolve_notebook(nb_arg)
+    except Exception as exc:
+        return _fail(str(exc), 404)
     _ensure_model()
     try:
-        out = json.loads(tools_mod.notebook_discover(args))
+        out = discover_mod.discover(
+            nb_id,
+            query=str(payload.get("query") or ""),
+            max_results=max(4, min(30, int(payload.get("max_results") or 12))),
+            per_domain=max(1, min(4, int(payload.get("per_domain") or 2))),
+            plan=bool(payload.get("plan", True)),
+        )
     except Exception as exc:
         return _fail(f"{type(exc).__name__}: {exc}", 500)
-    if not out.get("ok"):
-        return _fail(out.get("error") or "search failed", 422, detail=out)
-    return {"ok": True, "query": out.get("query") or "",
-            "candidates": out.get("candidates") or []}
+    return out
 
 
 @router.post("/sources")

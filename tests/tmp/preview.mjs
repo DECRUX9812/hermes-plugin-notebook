@@ -318,8 +318,14 @@ const CSS = `
 .nb-tab[disabled]{opacity:.45;cursor:default}
 
 /* ------------------------------------------------------------------- chat */
-.nb-chat{flex:1;min-height:0;display:flex;flex-direction:column}
+.nb-chat{flex:1;min-height:0;display:flex;flex-direction:column;position:relative}
+/* A scrolled thread clips its first visible message at the panel edge, which reads
+   as a broken one-line fragment. Fade that edge with an overlay — pointer-events
+   off, so citations under it stay clickable (a mask would eat the clicks). */
+.nb-chat::before{content:'';position:absolute;top:0;left:0;right:0;height:18px;z-index:2;
+  pointer-events:none;background:linear-gradient(to bottom,var(--nb-card),transparent)}
 .nb-thread{flex:1;min-height:0;overflow:auto;padding:28px 28px 12px;display:flex;flex-direction:column;gap:24px}
+.nb-chiprow{display:flex;align-items:center;gap:6px;flex-wrap:wrap;padding:8px 0 6px}
 .nb-msg{max-width:72ch}
 .nb-msg[data-role=assistant]{display:grid;grid-template-columns:30px minmax(0,1fr);gap:14px;align-self:flex-start}
 .nb-msg[data-role=user]{align-self:flex-end;max-width:62ch}
@@ -395,6 +401,8 @@ const CSS = `
 .nb-grid{display:flex;flex-direction:column;gap:10px;padding:12px 14px 26px}
 /* the generator bento: compact 2-col pills, each tinted by its kind colour */
 .nb-gen-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+/* an odd count leaves a lonely pill on the last row — let it take the full width */
+.nb-gen-grid > *:last-child:nth-child(odd){grid-column:1 / -1}
 
 /* each output pill carries its own colour (--kc) */
 .nb-card{--kc:${T.accent};
@@ -655,6 +663,45 @@ const CSS = `
   .nb-body{padding:8px;gap:8px}
   .nb-suggest-grid{grid-template-columns:1fr}
 }
+
+/* ---------------------------------------------------------------- discover */
+.nb-disc{flex:1;min-height:0;overflow:auto;padding:26px 30px 40px;display:flex;flex-direction:column;
+  gap:14px;max-width:1040px;width:100%}
+.nb-disc-head h1{margin:0 0 6px}
+.nb-disc-search{display:flex;gap:10px;align-items:center;margin-top:4px}
+.nb-disc-search .nb-input{flex:1;min-width:0}
+.nb-input{height:44px;padding:0 16px;border-radius:14px;border:1px solid var(--nb-hair);
+  background:var(--nb-card);color:${T.text};font:inherit;font-size:14.5px;outline:0;
+  transition:border-color .15s ease, box-shadow .15s ease}
+.nb-input:focus{border-color:color-mix(in srgb,${T.accent} 55%, transparent);
+  box-shadow:0 0 0 4px color-mix(in srgb,${T.accent} 14%, transparent)}
+.nb-input::placeholder{color:${T.text4}}
+.nb-disc-gaps{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.nb-disc-body{display:flex;flex-direction:column;gap:10px;margin-top:4px}
+.nb-disc-card{display:flex;gap:12px;align-items:flex-start;padding:14px 16px;cursor:pointer;
+  border:1px solid var(--nb-hair-soft);border-radius:16px;background:var(--nb-card);
+  transition:border-color .15s ease, background .15s ease}
+.nb-disc-card:hover{border-color:var(--nb-hair)}
+.nb-disc-card[data-on=true]{border-color:color-mix(in srgb,${T.accent} 50%, transparent);
+  background:color-mix(in srgb,${T.accent} 8%, var(--nb-card))}
+.nb-disc-card input{width:16px;height:16px;margin-top:3px;accent-color:${T.accent};
+  cursor:pointer;flex:0 0 16px}
+.nb-disc-main{display:flex;flex-direction:column;gap:5px;min-width:0;flex:1}
+.nb-disc-top{display:flex;align-items:center;gap:8px;font-size:11.5px}
+.nb-disc-dom{color:${T.accent};font-weight:600;letter-spacing:.01em}
+.nb-disc-title{font-size:14.5px;font-weight:600;line-height:1.35;color:${T.text}}
+.nb-disc-snip{font-size:13px;line-height:1.5;color:${T.text3};
+  display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+.nb-disc-why{display:flex;align-items:center;gap:6px;font-size:12px;color:${T.text2};padding-top:2px}
+.nb-disc-foot{display:flex;align-items:center;gap:12px;position:sticky;bottom:12px;
+  padding:12px 14px;border-radius:16px;border:1px solid var(--nb-hair);
+  background:var(--nb-card);box-shadow:var(--nb-shadow)}
+.nb-disc-meta{display:flex;gap:14px;flex-wrap:wrap;font-size:11.5px;color:${T.text4};padding-top:4px}
+.nb-disc-empty{display:grid;justify-items:center;gap:8px;padding:56px 20px;text-align:center;
+  color:${T.text3};border:1px dashed var(--nb-hair-soft);border-radius:18px}
+.nb-disc-err{color:${T.danger};font-size:13px;padding:10px 14px;border-radius:12px;
+  background:color-mix(in srgb,${T.danger} 12%, transparent)}
+@media (max-width:820px){ .nb-disc{padding:18px 16px 32px} }
 `
 
 /* --------------------------------------------------------------- helpers */
@@ -1312,6 +1359,7 @@ function App() {
 
   const ops = mode === 'ops'
   const home = mode === 'home'
+  const discoverMode = mode === 'discover'
 
   return el('div', { className: 'nb-root', 'data-mode': mode, 'data-plugin': ID },
     el('style', { dangerouslySetInnerHTML: { __html: CSS } }),
@@ -1324,13 +1372,16 @@ function App() {
             ? el('b', { children: 'Lab Ops' })
             : home
               ? el('b', { children: 'All notebooks' })
-              : el('span', null, '/ ', el('b', { children: notebook ? notebook.title : 'no notebook' })))
+              : discoverMode
+                ? el('b', { children: 'Discover' })
+                : el('span', null, '/ ', el('b', { children: notebook ? notebook.title : 'no notebook' })))
       ),
       el('div', { className: 'nb-spacer' }),
       jsx(Seg, {
         label: 'Surface', value: mode, onChange: (v) => setMode(v),
         options: [
           { id: 'home', label: 'Home', icon: 'grid' },
+          { id: 'discover', label: 'Discover', icon: 'search' },
           { id: 'studio', label: 'Studio', icon: 'notebook' },
           { id: 'ops', label: 'Lab Ops', icon: 'server' }
         ]
@@ -1349,7 +1400,12 @@ function App() {
             data, onOpen: openNotebook, onNew: () => setNewNb(true),
             onDelete: deleteNotebook, onRename: renameNotebook
           })
-        : el('div', { className: 'nb-body' },
+        : discoverMode
+          ? jsx(DiscoverPanel, {
+              notebook, onSay: say,
+              reload: () => studio.reload(true)
+            })
+          : el('div', { className: 'nb-body' },
             railOpen
               ? jsx(Rail, {
                   data, notebook,
@@ -2171,7 +2227,7 @@ function Chat({ notebook, askOpen, onSay, modelReady, onCite, onOpenSource, onFi
             }
           }),
           el('span', { className: 'nb-hint', style: { marginLeft: 'auto' },
-            children: modelReady ? '⏎ send · ⇧⏎ newline' : 'model offline — enable the plugin and restart the gateway' }),
+            children: modelReady ? '↵ Send · ⇧↵ New line' : 'model offline — enable the plugin and restart the gateway' }),
           el('button', {
             type: 'button', className: 'nb-sendbtn',
             onClick: () => send(), disabled: !text.trim() || !!pending,
@@ -2450,10 +2506,12 @@ function StudioPanel({ kinds, notebook, busy, generate, filter, setFilter, onOpe
           onOpen: () => { const a = ready[k.id]; if (a) onOpen(a); else generate(k.id) },
           onGenerate: (opts) => generate(k.id, opts)
         })))),
-    el('div', { className: 'nb-pad', style: { paddingTop: '10px', paddingBottom: '4px', borderTop: `1px solid ${T.lineSoft}` } },
-      el('div', { style: { display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' } },
-        el('span', { className: 'nb-meta', children: 'Artifacts' }),
+    el('div', { className: 'nb-pad', style: { paddingTop: '12px', paddingBottom: 0, borderTop: `1px solid ${T.lineSoft}` } },
+      el('div', { style: { display: 'flex', alignItems: 'baseline', gap: '8px' } },
+        el('span', { className: 'nb-meta', children: `Files · ${shownArts.length}` }),
         el('span', { style: { flex: 1 } }),
+        el('span', { className: 'nb-meta', style: { color: T.text4 }, children: 'every run on disk' })),
+      el('div', { className: 'nb-chiprow' },
         FILTERS.map((f) => jsx(Chip, {
           key: f.id, tone: filter === f.id ? 'accent' : undefined,
           pressed: filter === f.id,
@@ -2461,7 +2519,7 @@ function StudioPanel({ kinds, notebook, busy, generate, filter, setFilter, onOpe
           title: `${f.label} artifacts`, children: f.label
         })))),
     el('div', { className: 'nb-scroll', ref: scrollRef, 'data-scrollable': canScroll ? 'true' : 'false' },
-      el('div', { className: 'nb-artlist', style: { padding: '4px 8px 18px' } },
+      el('div', { className: 'nb-artlist', style: { padding: '4px 8px 56px' } },
         shownArts.length === 0
           ? el('div', { className: 'nb-hint', style: { padding: '14px 8px', lineHeight: 1.5 } },
               notebook && notebook.sources && notebook.sources.length
@@ -3080,6 +3138,178 @@ function NewNotebookDialog({ open, onClose, onDone }) {
           children: busy ? 'Creating…' : 'Create notebook' }))
     )
   })
+}
+
+/* ============================================================================
+   Discover — a source scout, not a search box.
+
+   The difference from Google is the input: this panel already has the notebook.
+   It asks the model what the notebook is *missing*, turns those gaps into
+   queries, fans them out across the search providers, ranks the union (with a
+   per-domain cap so six results are six sources, not one blog), and explains
+   every card. Picking one ingests it through the same path as an uploaded file.
+   ============================================================================ */
+
+function DiscoverCard({ c, on, onToggle }) {
+  return el('label', { className: 'nb-disc-card', 'data-on': on ? 'true' : 'false' },
+    el('input', {
+      type: 'checkbox', checked: !!on, onChange: onToggle,
+      'aria-label': `Select ${c.title}`
+    }),
+    el('div', { className: 'nb-disc-main' },
+      el('div', { className: 'nb-disc-top' },
+        el('span', { className: 'nb-disc-dom', children: c.domain }),
+        c.provider && c.provider !== 'web'
+          ? el('span', { className: 'nb-chip', 'data-tone': 'accent', children: c.provider })
+          : null,
+        el('span', {
+          className: 'nb-meta', style: { marginLeft: 'auto' },
+          children: `${Math.round((c.score || 0) * 100)}% fit`
+        })),
+      el('div', { className: 'nb-disc-title', children: c.title }),
+      c.snippet ? el('div', { className: 'nb-disc-snip', children: c.snippet }) : null,
+      el('div', { className: 'nb-disc-why' },
+        jsx(Glyph, { name: 'sparkle', size: 12 }),
+        el('span', { children: c.why || 'new material' }))))
+}
+
+function DiscoverPanel({ notebook, onSay, reload }) {
+  const [q, setQ] = useState('')
+  const [busy, setBusy] = useState(false)
+  const [res, setRes] = useState(null)
+  const [picked, setPicked] = useState({})
+  const [adding, setAdding] = useState(false)
+  const [err, setErr] = useState('')
+
+  const nbId = notebook && notebook.id
+  const candidates = (res && res.candidates) || []
+  const chosen = candidates.filter((c) => picked[c.canonical || c.url])
+
+  const toggle = (c) => {
+    const key = c.canonical || c.url
+    setPicked((p) => ({ ...p, [key]: !p[key] }))
+  }
+
+  const run = async (query) => {
+    if (!nbId || busy) return
+    setBusy(true)
+    setErr('')
+    setPicked({})
+    try {
+      const out = await api('/discover', {
+        method: 'POST',
+        body: { notebook: nbId, query: (query != null ? query : q) || '', max_results: 12 },
+        timeoutMs: 180000
+      })
+      setRes(out)
+    } catch (e) {
+      setErr(String(e.message || e))
+      if (onSay) onSay(`discover failed: ${e.message || e}`)
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  const addChosen = async () => {
+    if (!chosen.length || adding) return
+    setAdding(true)
+    try {
+      const out = await api('/sources', {
+        method: 'POST',
+        body: { notebook: nbId, urls: chosen.map((c) => c.url) },
+        timeoutMs: 300000
+      })
+      const landed = ((out && out.results) || []).filter((r) => r.ok).length
+      if (onSay) onSay(`${landed} of ${chosen.length} sources added`)
+      setPicked({})
+      if (reload) await reload()
+      await run(res && res.query)
+    } catch (e) {
+      if (onSay) onSay(`adding failed: ${e.message || e}`)
+    } finally {
+      setAdding(false)
+    }
+  }
+
+  const emptyState = () => {
+    if (busy && !candidates.length) {
+      return el('div', { className: 'nb-disc-empty' },
+        el('span', { className: 'nb-dot', style: { background: T.accent } }),
+        el('div', { children: 'planning queries and searching…' }))
+    }
+    if (res && !candidates.length) {
+      return el('div', { className: 'nb-disc-empty' },
+        el('div', { children: 'No new sources came back.' }),
+        el('div', {
+          className: 'nb-hint',
+          children: `${res.searched || 0} results seen — already here, noise, or over the per-domain cap.`
+        }))
+    }
+    if (res) return null
+    return el('div', { className: 'nb-disc-empty' },
+      jsx(Glyph, { name: 'globe', size: 26 }),
+      el('div', { children: 'Nothing scouted yet.' }),
+      el('div', {
+        className: 'nb-hint',
+        children: 'Press Search — it asks the model what this notebook lacks, then looks for it.'
+      }))
+  }
+
+  return el('div', { className: 'nb-disc' },
+    el('div', { className: 'nb-disc-head' },
+      el('h1', { className: 'nb-h1', children: 'Discover sources' }),
+      el('p', {
+        className: 'nb-sub',
+        children: 'It reads this notebook first, then looks for what is missing — not just what matches your words.'
+      })),
+
+    el('div', { className: 'nb-disc-search' },
+      el('input', {
+        className: 'nb-input', value: q, onChange: (e) => setQ(e.target.value),
+        placeholder: 'Describe what you want — or leave it blank and it will hunt the gaps',
+        'aria-label': 'Discovery query',
+        onKeyDown: (e) => { if (e.key === 'Enter') run() }
+      }),
+      jsx(Btn, {
+        variant: 'primary', icon: 'search', onClick: () => run(), disabled: busy || !nbId,
+        children: busy ? 'Scouting…' : 'Search'
+      })),
+
+    ((res && res.gaps) || []).length
+      ? el('div', { className: 'nb-disc-gaps' },
+          el('span', { className: 'nb-meta', children: 'Gaps it found' }),
+          (res.gaps || []).map((g) => jsx(Chip, {
+            key: g, onClick: () => { setQ(g); run(g) },
+            title: 'Search for this gap', children: g
+          })))
+      : null,
+
+    err ? el('div', { className: 'nb-disc-err', children: err }) : null,
+
+    el('div', { className: 'nb-disc-body' },
+      emptyState(),
+      candidates.map((c) => {
+        const key = c.canonical || c.url
+        return jsx(DiscoverCard, { key, c, on: !!picked[key], onToggle: () => toggle(c) }, key)
+      })),
+
+    chosen.length
+      ? el('div', { className: 'nb-disc-foot' },
+          jsx(Btn, {
+            variant: 'primary', icon: 'plus', onClick: addChosen, disabled: adding,
+            children: adding ? 'Adding…' : `Add ${chosen.length} source${chosen.length === 1 ? '' : 's'}`
+          }),
+          el('span', { className: 'nb-hint', children: 'each one is extracted, deduped and labelled' }))
+      : null,
+
+    res
+      ? el('div', { className: 'nb-disc-meta' },
+          el('span', { children: `${res.searched || 0} results → ${candidates.length} kept` }),
+          el('span', { children: `providers: ${(res.providers || ['web']).join(' · ')}` }),
+          ((res.queries) || []).length
+            ? el('span', { children: `queries: ${res.queries.slice(0, 3).join(' | ')}` })
+            : null)
+      : null)
 }
 
 /* ------------------------------------------------------------------ viewers

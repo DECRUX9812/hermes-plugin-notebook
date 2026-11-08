@@ -663,6 +663,45 @@ const CSS = `
   .nb-body{padding:8px;gap:8px}
   .nb-suggest-grid{grid-template-columns:1fr}
 }
+
+/* ---------------------------------------------------------------- discover */
+.nb-disc{flex:1;min-height:0;overflow:auto;padding:26px 30px 40px;display:flex;flex-direction:column;
+  gap:14px;max-width:1040px;width:100%}
+.nb-disc-head h1{margin:0 0 6px}
+.nb-disc-search{display:flex;gap:10px;align-items:center;margin-top:4px}
+.nb-disc-search .nb-input{flex:1;min-width:0}
+.nb-input{height:44px;padding:0 16px;border-radius:14px;border:1px solid var(--nb-hair);
+  background:var(--nb-card);color:${T.text};font:inherit;font-size:14.5px;outline:0;
+  transition:border-color .15s ease, box-shadow .15s ease}
+.nb-input:focus{border-color:color-mix(in srgb,${T.accent} 55%, transparent);
+  box-shadow:0 0 0 4px color-mix(in srgb,${T.accent} 14%, transparent)}
+.nb-input::placeholder{color:${T.text4}}
+.nb-disc-gaps{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.nb-disc-body{display:flex;flex-direction:column;gap:10px;margin-top:4px}
+.nb-disc-card{display:flex;gap:12px;align-items:flex-start;padding:14px 16px;cursor:pointer;
+  border:1px solid var(--nb-hair-soft);border-radius:16px;background:var(--nb-card);
+  transition:border-color .15s ease, background .15s ease}
+.nb-disc-card:hover{border-color:var(--nb-hair)}
+.nb-disc-card[data-on=true]{border-color:color-mix(in srgb,${T.accent} 50%, transparent);
+  background:color-mix(in srgb,${T.accent} 8%, var(--nb-card))}
+.nb-disc-card input{width:16px;height:16px;margin-top:3px;accent-color:${T.accent};
+  cursor:pointer;flex:0 0 16px}
+.nb-disc-main{display:flex;flex-direction:column;gap:5px;min-width:0;flex:1}
+.nb-disc-top{display:flex;align-items:center;gap:8px;font-size:11.5px}
+.nb-disc-dom{color:${T.accent};font-weight:600;letter-spacing:.01em}
+.nb-disc-title{font-size:14.5px;font-weight:600;line-height:1.35;color:${T.text}}
+.nb-disc-snip{font-size:13px;line-height:1.5;color:${T.text3};
+  display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+.nb-disc-why{display:flex;align-items:center;gap:6px;font-size:12px;color:${T.text2};padding-top:2px}
+.nb-disc-foot{display:flex;align-items:center;gap:12px;position:sticky;bottom:12px;
+  padding:12px 14px;border-radius:16px;border:1px solid var(--nb-hair);
+  background:var(--nb-card);box-shadow:var(--nb-shadow)}
+.nb-disc-meta{display:flex;gap:14px;flex-wrap:wrap;font-size:11.5px;color:${T.text4};padding-top:4px}
+.nb-disc-empty{display:grid;justify-items:center;gap:8px;padding:56px 20px;text-align:center;
+  color:${T.text3};border:1px dashed var(--nb-hair-soft);border-radius:18px}
+.nb-disc-err{color:${T.danger};font-size:13px;padding:10px 14px;border-radius:12px;
+  background:color-mix(in srgb,${T.danger} 12%, transparent)}
+@media (max-width:820px){ .nb-disc{padding:18px 16px 32px} }
 `
 
 /* --------------------------------------------------------------- helpers */
