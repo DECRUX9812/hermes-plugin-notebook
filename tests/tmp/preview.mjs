@@ -164,6 +164,7 @@ const CSS = `
 .nb-body > .nb-col{background:var(--nb-card);border:1px solid var(--nb-hair-soft);
   border-radius:24px;overflow:hidden}
 .nb-rail{flex:0 0 var(--nb-rail)}
+.nb-rail[data-drop="true"]{outline:2px dashed ${T.accent};outline-offset:-6px;border-radius:24px}
 .nb-main-col{flex:1 1 auto}
 .nb-studio{flex:0 0 var(--nb-studio)}
 .nb-fade{position:absolute;left:0;right:0;bottom:0;height:44px;pointer-events:none;
@@ -328,6 +329,7 @@ const CSS = `
 /* ------------------------------------------------------------------- chat */
 .nb-chat{flex:1;min-height:0;display:flex;flex-direction:column}
 .nb-chatscroll{flex:1;min-height:0;display:flex;flex-direction:column;position:relative}
+.nb-hl{background:color-mix(in srgb, ${T.accent} 30%, transparent);color:inherit;border-radius:4px;padding:0 2px}
 .nb-latest{position:absolute;left:50%;bottom:14px;transform:translateX(-50%);z-index:20;display:inline-flex;align-items:center;gap:4px;padding:7px 14px;border-radius:999px;border:1px solid var(--nb-line,#2a2d3d);background:var(--nb-card,#14161f);color:var(--nb-text2,#c6c9d8);font-size:12.5px;font-weight:600;cursor:pointer;box-shadow:0 6px 20px rgba(0,0,0,.35);transition:transform .15s ease,box-shadow .15s ease}
 .nb-latest:hover{transform:translateX(-50%) translateY(-1px);box-shadow:0 8px 24px rgba(0,0,0,.45)}
 .nb-thread{flex:1;min-height:0;overflow:auto;padding:28px 28px 12px;display:flex;flex-direction:column;gap:24px}
@@ -407,6 +409,10 @@ const CSS = `
 .nb-thrrow:hover{background:var(--nb-wash)}
 .nb-thrrow.is-current{border-color:color-mix(in srgb,${T.accent} 40%, transparent);
   background:color-mix(in srgb,${T.accent} 8%, transparent)}
+.nb-thrwrap{display:flex;align-items:center;gap:4px}
+.nb-thrwrap .nb-thrrow{flex:1;min-width:0}
+.nb-thrwrap .nb-icon{opacity:0;transition:opacity .12s ease}
+.nb-thrwrap:hover .nb-icon,.nb-thrwrap:focus-within .nb-icon{opacity:1}
 .nb-emgrid{display:grid;grid-template-columns:repeat(8,1fr);gap:6px}
 .nb-em{aspect-ratio:1;border-radius:10px;border:1px solid var(--nb-hair-soft);
   background:var(--nb-card);font-size:17px;cursor:pointer;display:grid;place-items:center;
@@ -808,7 +814,8 @@ const P = {
   more: 'M5 12h.01M12 12h.01M19 12h.01',
   pin: 'M9 4h6l-1 6 3 3v2H7v-2l3-3-1-6Z',
   sliders: 'M4 7h9m4 0h3M4 17h3m4 0h9M13 4v6m-6 4v6',
-  pencil: 'M4 20h4L19.5 8.5a2.12 2.12 0 0 0-3-3L5 17v3Zm9.5-11.5 2 2'
+  pencil: 'M4 20h4L19.5 8.5a2.12 2.12 0 0 0-3-3L5 17v3Zm9.5-11.5 2 2',
+  shuffle: 'M16 3h5v5M4 20l17-17M21 16v5h-5M15 15l6 6M4 4l5 5'
 }
 
 function Glyph({ name, size = 16, stroke = 1.7 }) {
@@ -965,7 +972,7 @@ function Dialog({ open, onClose, title, children, width = 520 }) {
  * shipping them as raw text in a "polished" viewer is the difference between a
  * product and a debug pane — but a full markdown library is not importable here.
  */
-const INLINE = /(\*\*[^*]+\*\*|__[^_\n]+__|`[^`]+`|\*[^*\n]+\*|_[^_\n]+_|\[S\d+\]|\[[^\]]+\]\([^)]+\))/g
+const INLINE = /(\*\*[^*]+\*\*|__[^_\n]+__|~~[^~\n]+~~|`[^`]+`|\*[^*\n]+\*|_[^_\n]+_|\[S\d+\]|\[[^\]]+\]\([^)]+\))/g
 
 function inlineNodes(text, keyBase, onCite) {
   const out = []
@@ -981,6 +988,8 @@ function inlineNodes(text, keyBase, onCite) {
       out.push(el('strong', { children: tok.slice(2, -2) }, k))
     } else if (tok.startsWith('`')) {
       out.push(el('code', { children: tok.slice(1, -1) }, k))
+    } else if (tok.startsWith('~~')) {
+      out.push(el('del', { children: tok.slice(2, -2) }, k))
     } else if (tok.startsWith('*') || tok.startsWith('_')) {
       out.push(el('em', { children: tok.slice(1, -1) }, k))
     } else if (/^\[S\d+\]$/.test(tok)) {
@@ -1210,6 +1219,13 @@ function latestByKind(artifacts) {
   return map
 }
 
+const OPT_LABEL = { focus: 'focus', count_hint: 'amount', format: 'format', length: 'length', language: 'language', style: 'style' }
+/** "focus: fusion economics · format: brief" — what a tailored run asked for. */
+const optsSummary = (opts) => Object.keys(opts || {})
+  .filter((k) => opts[k])
+  .map((k) => `${OPT_LABEL[k] || k}: ${String(opts[k]).slice(0, 48)}`)
+  .join(' · ')
+
 /* ------------------------------------------------------------------ shell */
 
 function App() {
@@ -1230,6 +1246,14 @@ function App() {
   const [studioOpen, setStudioOpen] = useState(() => persist.get('studio', '1') !== '0')
   const [opsStats, setOpsStats] = useState(null)
   const [searchOpen, setSearchOpen] = useState(false)
+
+  // palette/deep links can ask for a surface: ?surface=ops opens the lab deck
+  useEffect(() => {
+    try {
+      const want = new URLSearchParams(window.location.search).get('surface')
+      if (want === 'ops' || want === 'studio' || want === 'home') setMode(want)
+    } catch { /* no location in this host */ }
+  }, [])
 
   const say = useCallback((msg) => {
     setNote(msg)
@@ -1310,6 +1334,26 @@ function App() {
   const openSource = useCallback((s) => { setPeek(s); setTab('peek') }, [])
   const openAddSource = useCallback((opts) => setSrcDialog(opts || { mode: 'find' }), [])
 
+  // drag files onto the sources rail → same ingest path as the upload picker
+  const dropSources = useCallback(async (files) => {
+    if (!nb || !files || !files.length) return
+    let added = 0, skipped = 0
+    for (const f of files) {
+      try {
+        let body = null
+        if (f.path) body = { notebook: nb, path: f.path, title: f.name }
+        else if (f.size && f.size <= 1500000) body = { notebook: nb, text: await f.text(), title: f.name }
+        if (!body) { skipped += 1; continue }
+        await api('/source', { method: 'POST', body, timeoutMs: 120000 })
+        added += 1
+      } catch { skipped += 1 }
+    }
+    if (added) await studio.reload(true)
+    if (added && !skipped) say(`added ${added} source${added === 1 ? '' : 's'} from dropped files`)
+    else if (added) say(`added ${added} source${added === 1 ? '' : 's'} — ${skipped} file${skipped === 1 ? '' : 's'} skipped (too large or unreadable)`)
+    else say('dropped files could not be read — use Add source for paths or large files')
+  }, [nb, studio, say])
+
   // NotebookLM's per-source checkbox: the /source_state reply carries the fresh
   // notebook payload — merge it over the current state instead of a full reload.
   const toggleSource = useCallback(async (s) => {
@@ -1379,6 +1423,18 @@ function App() {
       say('artifact deleted')
     } catch (e) { say(`could not delete artifact: ${e.message || e}`) }
   }, [nb, studio, say, picked])
+
+  // viewer-side edits (rename) change the run row — re-resolve `picked` from
+  // fresh state so the open artifact doesn't keep showing stale metadata
+  const refreshArtifact = useCallback(async () => {
+    const fresh = await studio.reload(true)
+    const arts = fresh && fresh.notebook && fresh.notebook.artifacts
+    if (!arts) return
+    if (picked) {
+      const hit = arts.find((a) => a.key === picked.key)
+      setPicked(hit || null)
+    }
+  }, [studio, picked])
 
   const refreshSource = useCallback(async (s) => {
     if (!nb || !s || !s.id) return
@@ -1517,7 +1573,7 @@ function App() {
                   onToggleSource: toggleSource, onToggleAll: toggleAllSources,
                   onDeleteSource: deleteSource,
                   onLabel: labelSources, onCollapse: () => setRailOpen(false),
-                  onGoHome: () => setMode('home'), onSay: say,
+                  onGoHome: () => setMode('home'), onSay: say, onDropFiles: dropSources,
                   loading: studio.loading, error: studio.error, reload: studio.reload
                 })
               : jsx(PanelToggles, { side: 'left', onShow: () => setRailOpen(true) }),
@@ -1527,6 +1583,7 @@ function App() {
               reload: studio.reload, modelReady: data && data.model_ready,
               error: studio.error, loading: studio.loading,
               peek, setPeek, onOpenSource: openSource, onRefreshSource: refreshSource,
+              refreshArtifact,
               onAddSource: openAddSource, onNewNotebook: () => setNewNb(true),
               onFindSources: (seed) => openAddSource({ mode: 'find', seed: seed || '' })
             }),
@@ -1554,7 +1611,8 @@ function App() {
       open: searchOpen, onClose: () => setSearchOpen(false), notebook,
       onPick: (hit) => {
         const src = ((notebook && notebook.sources) || []).find((s) => s.id === hit.source_id)
-        if (src) openSource(src)
+        // carry the matched passage so the peek highlights it, like a citation
+        if (src) { setPeek({ ...src, citeSnippet: hit.snippet || '' }); setTab('peek') }
         else say('that source is no longer in the notebook')
       }
     }),
@@ -1747,11 +1805,12 @@ function PanelToggles({ side, onShow }) {
 /* -------------------------------------------------------------------- rail */
 
 function Rail({ data, notebook, onAddSource, onOpenSource, onToggleSource,
-               onToggleAll, onDeleteSource, onLabel, onCollapse, onGoHome, onSay, loading, error, reload }) {
+               onToggleAll, onDeleteSource, onLabel, onCollapse, onGoHome, onSay, onDropFiles, loading, error, reload }) {
   const sources = (notebook && notebook.sources) || []
   const labels = (notebook && notebook.labels) || []
   const [q, setQ] = useState('')
   const [srcFilter, setSrcFilter] = useState('all')
+  const [dragOver, setDragOver] = useState(false)
   const [closed, setClosed] = useState({})
 
   const shown = useMemo(() => {
@@ -1824,7 +1883,22 @@ function Rail({ data, notebook, onAddSource, onOpenSource, onToggleSource,
     )
   }
 
-  return el('aside', { className: 'nb-col nb-rail', 'aria-label': 'Sources' },
+  return el('aside', {
+    className: 'nb-col nb-rail', 'aria-label': 'Sources',
+    'data-drop': dragOver ? 'true' : 'false',
+    onDragOver: (e) => {
+      const types = e.dataTransfer && e.dataTransfer.types
+      if (types && Array.prototype.indexOf.call(types, 'Files') >= 0) {
+        e.preventDefault(); setDragOver(true)
+      }
+    },
+    onDragLeave: () => setDragOver(false),
+    onDrop: (e) => {
+      e.preventDefault(); setDragOver(false)
+      const files = e.dataTransfer && e.dataTransfer.files
+      if (files && files.length && onDropFiles) onDropFiles(Array.from(files))
+    }
+  },
     el('div', { className: 'nb-pane-head' },
       el('span', { className: 'nb-pane-title', children: 'Sources' }),
       el('span', { className: 'nb-meta', children: `${activeCount}/${sources.length}` }),
@@ -1930,7 +2004,21 @@ function Rail({ data, notebook, onAddSource, onOpenSource, onToggleSource,
                     )
                   }))
       )
-    )
+    ),
+    dragOver
+      ? el('div', {
+          style: {
+            position: 'absolute', inset: '12px', zIndex: 5, borderRadius: '18px',
+            border: `2px dashed ${T.accent}`, background: 'color-mix(in srgb, #0a0b10 78%, transparent)',
+            display: 'flex', flexDirection: 'column', gap: '8px', alignItems: 'center', justifyContent: 'center',
+            color: T.text, fontSize: '14.5px', fontWeight: 600, pointerEvents: 'none'
+          },
+          children: [
+            jsx(Glyph, { name: 'plus', size: 22 }),
+            'Drop files to add them as sources'
+          ]
+        })
+      : null
   )
 }
 
@@ -2038,7 +2126,8 @@ const setPickedCite = (n) => { pickedCite = n }
 
 function Main({ notebook, kinds, tab, setTab, picked, setPicked, busy, generate, onAsk,
                 askOpen, onSay, reload, modelReady, error, loading,
-                peek, setPeek, onOpenSource, onRefreshSource, onAddSource, onNewNotebook, onFindSources }) {
+                peek, setPeek, onOpenSource, onRefreshSource, onAddSource, onNewNotebook, onFindSources,
+                refreshArtifact }) {
   const sources = (notebook && notebook.sources) || []
   const [askScope, setAskScope] = useState(null)   // chat scoped to one source
 
@@ -2107,7 +2196,11 @@ function Main({ notebook, kinds, tab, setTab, picked, setPicked, busy, generate,
         el('div', { className: 'nb-hero-main' },
           el('h1', { className: 'nb-h1', children: notebook.title }),
           el('p', { className: 'nb-sub', children:
-            `${sources.length} source${sources.length === 1 ? '' : 's'} · ${activeCount} active · ${stats.labels || 0} topics · updated ${ago(notebook.updated_at) || 'recently'}` })),
+            `${sources.length} source${sources.length === 1 ? '' : 's'} · ${activeCount} active · ${stats.labels || 0} topics · updated ${ago(notebook.updated_at) || 'recently'}` }),
+          notebook.description
+            ? el('p', { className: 'nb-sub', style: { marginTop: '4px', color: T.text3, fontStyle: 'italic' },
+                children: notebook.description })
+            : null),
         el('div', { className: 'nb-hero-side' },
           el('span', {
             className: 'nb-chip', 'data-tone': modelReady ? 'ok' : 'warn',
@@ -2134,29 +2227,43 @@ function Main({ notebook, kinds, tab, setTab, picked, setPicked, busy, generate,
     ),
 
     tab === 'peek' && peek
-      ? jsx(SourcePeek, {
-          source: peek, notebook,
-          onClose: () => { setPeek(null); setTab('chat') },
-          onAskAbout: (s) => { setAskScope({ ids: [s.id], title: s.title }); setTab('chat') },
-          onRefresh: onRefreshSource ? () => onRefreshSource(peek) : null
-        })
-      : tab === 'view' && picked
-        ? jsx(Viewer, {
-            artifact: picked, notebook, onSearch: () => {},
-            regenerating: !!(busy && busy[picked.kind]),
-            onRegenerate: () => generate(picked.kind),
-            onChanged: () => reload && reload(true),
-            onCite: (n) => {
-              const src = sources.find((s) => s.n === n)
-              if (src) { setPeek(src); setTab('peek') }
-            }
+      ? (() => {
+          const pi = sources.findIndex((s) => s.id === peek.id)
+          return jsx(SourcePeek, {
+            source: peek, notebook,
+            onClose: () => { setPeek(null); setTab('chat') },
+            onAskAbout: (s) => { setAskScope({ ids: [s.id], title: s.title }); setTab('chat') },
+            onRefresh: onRefreshSource ? () => onRefreshSource(peek) : null,
+            onPrev: pi > 0 ? () => setPeek(sources[pi - 1]) : null,
+            onNext: pi >= 0 && pi < sources.length - 1 ? () => setPeek(sources[pi + 1]) : null
           })
+        })()
+      : tab === 'view' && picked
+        ? (() => {
+            // sibling runs of the same kind, oldest first — ‹ › flips versions
+            const sibs = (notebook.artifacts || []).filter((a) => a.kind === picked.kind)
+              .slice().sort((a, b) => String(a.modified).localeCompare(String(b.modified)))
+            const si = sibs.findIndex((a) => a.key === picked.key)
+            return jsx(Viewer, {
+              artifact: picked, notebook,
+              regenerating: !!(busy && busy[picked.kind]),
+              onRegenerate: () => generate(picked.kind, picked.opts || {}),
+              onChanged: refreshArtifact || (() => reload && reload(true)),
+              onPrevRun: si > 0 ? () => setPicked(sibs[si - 1]) : null,
+              onNextRun: si >= 0 && si < sibs.length - 1 ? () => setPicked(sibs[si + 1]) : null,
+              runPos: sibs.length > 1 ? `${si + 1} of ${sibs.length}` : '',
+              onCite: (n, cite) => {
+                const src = sources.find((s) => (cite && cite.id && s.id === cite.id) || s.n === n)
+                if (src) { setPeek({ ...src, citeSnippet: (cite && cite.snippet) || '' }); setTab('peek') }
+              }
+            })
+          })()
         : jsx(Chat, {
             notebook, kinds, askOpen, onSay, modelReady, reload, askScope, setAskScope,
             generate,
-            onCite: (n) => {
-              const src = sources.find((s) => s.n === n)
-              if (src) { setPeek(src); setTab('peek') }
+            onCite: (n, cite) => {
+              const src = sources.find((s) => (cite && cite.id && s.id === cite.id) || s.n === n)
+              if (src) { setPeek({ ...src, citeSnippet: (cite && cite.snippet) || '' }); setTab('peek') }
             },
             onOpenSource,
             onFindSources
@@ -2194,6 +2301,7 @@ function Chat({ notebook, kinds, askOpen, onSay, modelReady, onCite, onOpenSourc
   const [ovErr, setOvErr] = useState(false)
   const [ovRetry, setOvRetry] = useState(0)
   const [sugg, setSugg] = useState(null)
+  const [suggErr, setSuggErr] = useState(false)
   const [cfgOpen, setCfgOpen] = useState(false)
   const [scopeOpen, setScopeOpen] = useState(false)
   const [cfg, setCfg] = useState({})
@@ -2246,16 +2354,16 @@ function Chat({ notebook, kinds, askOpen, onSay, modelReady, onCite, onOpenSourc
         cacheMsgs(key, mapped)
         setMsgs(mapped)
       })
-      .catch(() => {})
+      .catch(() => { if (live && onSay) onSay('could not load that conversation — try again') })
     return () => { live = false }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [notebook.id, thread])
 
   useEffect(() => {
     const cached = ovCache.get(notebook.id)
-    if (cached && cached.key === cacheKey) { setOv(cached.ov || ''); setSugg(cached.sugg || null); setOvErr(false); return undefined }
+    if (cached && cached.key === cacheKey) { setOv(cached.ov || ''); setSugg(cached.sugg || null); setOvErr(false); setSuggErr(false); return undefined }
     let live = true
-    setOv(''); setSugg(null); setOvErr(false)
+    setOv(''); setSugg(null); setOvErr(false); setSuggErr(false)
     api('/overview', { method: 'POST', body: { notebook: notebook.id }, timeoutMs: 120000 })
       .then((o) => {
         if (!live) return
@@ -2271,10 +2379,11 @@ function Chat({ notebook, kinds, askOpen, onSay, modelReady, onCite, onOpenSourc
         if (!live) return
         const s = o.suggestions || null
         setSugg(s)
+        setSuggErr(!s)
         const c = ovCache.get(notebook.id) || { key: cacheKey }
         ovCache.set(notebook.id, { key: cacheKey, ov: c.ov || '', sugg: s })
       })
-      .catch(() => {})
+      .catch(() => { if (live) setSuggErr(true) })
     return () => { live = false }
   }, [notebook.id, cacheKey, ovRetry])
 
@@ -2470,6 +2579,14 @@ function Chat({ notebook, kinds, askOpen, onSay, modelReady, onCite, onOpenSourc
                     })
                   }))
               : null)
+        : null,
+      msgs.length === 0 && !pending && !sugg && suggErr
+        ? el('div', { className: 'nb-gaprow', style: { marginTop: ov ? '18px' : '0' } },
+            el('span', { className: 'nb-hint', children: 'suggestions could not be generated — the model may be busy.' }),
+            jsx(Btn, {
+              size: 'sm', icon: 'refresh', children: 'Retry',
+              onClick: () => { ovCache.delete(notebook.id); setSuggErr(false); setOvRetry((n) => n + 1) }
+            }))
         : null,
       msgs.map((m, i) => jsx(Msg, {
         msg: m, onCite, onOpenSource, notebook,
@@ -2670,20 +2787,23 @@ function Chat({ notebook, kinds, askOpen, onSay, modelReady, onCite, onOpenSourc
               threadCache.set(`${notebook.id}:${name}`, [])
               setThread(name); setThrOpen(false)
             },
-            onClear: async () => {
+            onDelete: async (name) => {
               try {
                 await api('/thread/clear', {
                   method: 'POST',
-                  body: { notebook: notebook.id, thread },
+                  body: { notebook: notebook.id, thread: name },
                   timeoutMs: 30000
                 })
-                const key = `${notebook.id}:${thread}`
-                cacheMsgs(key, [])
-                setMsgs([])
-                setThreads((ts) => ts.filter((t) => t.name !== thread))
+                const key = `${notebook.id}:${name}`
+                threadCache.delete(key)
+                setThreads((ts) => ts.filter((t) => t.name !== name))
+                if (name === thread) {
+                  if (name === 'default') { cacheMsgs(key, []); setMsgs([]) }
+                  else setThread('default')
+                }
                 if (reload) reload(true)
-                setThrOpen(false)
-              } catch (e) { onSay && onSay(`could not clear chat: ${e.message || e}`) }
+                if (onSay) onSay('conversation deleted')
+              } catch (e) { onSay && onSay(`could not delete chat: ${e.message || e}`) }
             }
           })
         : null
@@ -2741,24 +2861,35 @@ function ScopeDialog({ notebook, current, onClose, onPick }) {
   })
 }
 
-function ThreadDialog({ notebook, threads, current, onClose, onPick, onNew, onClear }) {
+function ThreadDialog({ notebook, threads, current, onClose, onPick, onNew, onDelete }) {
   const list = threads && threads.length ? threads : [{ name: 'default', title: 'Chat', count: 0 }]
   return jsx(Dialog, {
     open: true, onClose, title: 'Conversations', width: 460,
     children: el('div', { style: { display: 'grid', gap: '8px' } },
-      list.map((t) => el('button', {
-        key: t.name, type: 'button',
-        className: 'nb-thrrow' + (t.name === current ? ' is-current' : ''),
-        onClick: () => onPick(t.name),
-        'aria-current': t.name === current ? 'true' : undefined
-      },
-        el('div', { style: { flex: 1, minWidth: 0 } },
-          el('div', { style: { fontSize: '14px', fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' },
-            children: t.title || t.name }),
-          el('div', { className: 'nb-meta', children: `${t.count || 0} messages` })),
-        t.name === current ? jsx(Glyph, { name: 'check', size: 15 }) : null)),
+      list.map((t) => el('div', {
+        key: t.name, className: 'nb-thrwrap',
+        children: [
+          el('button', {
+            type: 'button',
+            className: 'nb-thrrow' + (t.name === current ? ' is-current' : ''),
+            onClick: () => onPick(t.name),
+            'aria-current': t.name === current ? 'true' : undefined,
+            children: [
+              el('div', { style: { flex: 1, minWidth: 0 } },
+                el('div', { style: { fontSize: '14px', fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' },
+                  children: t.title || t.name }),
+                el('div', { className: 'nb-meta', children: `${t.count || 0} messages` })),
+              t.name === current ? jsx(Glyph, { name: 'check', size: 15 }) : null
+            ]
+          }),
+          jsx(IconBtn, {
+            icon: 'trash', size: 13, label: `Delete conversation — ${t.title || t.name}`,
+            onClick: () => onDelete(t.name)
+          })
+        ]
+      })),
       el('div', { style: { display: 'flex', gap: '8px', justifyContent: 'space-between', marginTop: '10px' } },
-        jsx(Btn, { size: 'sm', icon: 'trash', onClick: onClear, children: 'Clear this chat' }),
+        jsx(Btn, { size: 'sm', onClick: () => onDelete(current), children: 'Delete this chat' }),
         jsx(Btn, { size: 'sm', variant: 'primary', icon: 'plus', onClick: onNew, children: 'New chat' })))
   })
 }
@@ -2770,15 +2901,22 @@ function Msg({ msg, onCite, notebook, canRetry, onRetry }) {
   const [citePop, setCitePop] = useState(null)
 
   const citeFor = (n) => (msg.citations || []).find((c) => c.n === n)
+  // hand the whole citation up — its snippet lets the source open at the
+  // exact passage the answer cited
+  const citeClick = (n) => onCite && onCite(n, citeFor(n))
 
   const onMouseOver = (e) => {
-    const b = e.target && e.target.closest ? e.target.closest('.nb-inline-cite') : null
+    const b = e.target && e.target.closest ? e.target.closest('.nb-inline-cite, .nb-citechip') : null
     if (!b || !notebook) return
     const n = Number(b.getAttribute('data-n'))
     const c = citeFor(n)
     if (!c) return
     const r = b.getBoundingClientRect()
-    setCitePop({ n, x: r.left, y: r.bottom + 8, title: c.title, kind: c.kind, id: c.id, text: null, loading: true })
+    // citations carry the passage they were built from — show it instantly;
+    // older messages without snippets fall back to the source's head
+    const snippet = c.snippet ? String(c.snippet).replace(/\s+/g, ' ').trim().slice(0, 420) : ''
+    setCitePop({ n, x: r.left, y: r.bottom + 8, title: c.title, kind: c.kind, id: c.id, text: snippet || null, loading: !snippet })
+    if (snippet) return
     const key = `${notebook.id}:${c.id || n}`
     if (CITE_TEXT_CACHE.has(key)) {
       setCitePop((p) => (p && p.n === n ? { ...p, text: CITE_TEXT_CACHE.get(key), loading: false } : p))
@@ -2797,7 +2935,7 @@ function Msg({ msg, onCite, notebook, canRetry, onRetry }) {
       })
   }
   const onMouseOut = (e) => {
-    const b = e.target && e.target.closest ? e.target.closest('.nb-inline-cite') : null
+    const b = e.target && e.target.closest ? e.target.closest('.nb-inline-cite, .nb-citechip') : null
     if (b) setCitePop(null)
   }
 
@@ -2835,12 +2973,13 @@ function Msg({ msg, onCite, notebook, canRetry, onRetry }) {
                 }
               }) : null),
             el('div', { className: 'nb-bubble' },
-              jsx(Markdown, { text: msg.content, onCite })),
+              jsx(Markdown, { text: msg.content, onCite: citeClick })),
             (msg.citations || []).length
               ? el('div', { style: { display: 'flex', gap: '6px', flexWrap: 'wrap', marginTop: '10px' }, role: 'list', 'aria-label': 'Citations' },
                   msg.citations.map((c) => el('button', {
                     key: `${c.n}-${c.title}`, type: 'button', className: 'nb-chip nb-citechip',
-                    onClick: () => onCite && onCite(c.n),
+                    'data-n': c.n,
+                    onClick: () => citeClick(c.n),
                     title: c.origin || c.title,
                     'aria-label': `Citation ${c.n} — ${c.title}`,
                     children: [el('b', { children: `S${c.n}` }), el('span', { children: c.title })]
@@ -2869,18 +3008,58 @@ function Msg({ msg, onCite, notebook, canRetry, onRetry }) {
 
 /* ---------------------------------------------------------------- peek */
 
-function SourcePeek({ source, notebook, onClose, onAskAbout, onRefresh }) {
+function SourcePeek({ source, notebook, onClose, onAskAbout, onRefresh, onPrev, onNext }) {
   const [text, setText] = useState('')
   const [err, setErr] = useState('')
   const [refreshing, setRefreshing] = useState(false)
+  const [hi, setHi] = useState(null)
   useEffect(() => {
     let live = true
     setText('')
+    setHi(null)
     api(`/source_text?${qs({ notebook: notebook.id, id: source.id, chars: 24000 })}`)
       .then((out) => { if (live) setText(out.text || '') })
       .catch((e) => { if (live) setErr(e.message || String(e)) })
     return () => { live = false }
   }, [source.id, notebook.id, source.chars, source.refreshed_at])
+
+  // a citation carries the passage it was built from — find it in the stored
+  // text (whitespace-normalized, since chunks reflow) and mark it
+  const citeSnippet = source.citeSnippet || ''
+  useEffect(() => {
+    setHi(null)
+    const h = String(citeSnippet).replace(/\s+/g, ' ').trim()
+    if (!text || h.length < 20) return undefined
+    const norm = []
+    const map = []
+    let ws = false
+    for (let i = 0; i < text.length; i += 1) {
+      const c = text[i]
+      if (/\s/.test(c)) {
+        if (!ws) { norm.push(' '); map.push(i) }
+        ws = true
+      } else { norm.push(c); map.push(i); ws = false }
+    }
+    const ntext = norm.join('')
+    for (const len of [h.length, 240, 140, 80]) {
+      if (len > h.length) continue
+      const needle = h.slice(0, len)
+      const ni = ntext.indexOf(needle)
+      if (ni < 0) continue
+      const start = map[ni]
+      const end = map[Math.min(ni + needle.length - 1, map.length - 1)] + 1
+      setHi({ start, end })
+      break
+    }
+    return undefined
+  }, [text, citeSnippet])
+
+  useEffect(() => {
+    if (!hi) return undefined
+    const n = document.querySelector('.nb-hl')
+    if (n) n.scrollIntoView({ block: 'center' })
+    return undefined
+  }, [hi])
   return el('div', { className: 'nb-view' },
     el('div', { className: 'nb-view-head' },
       el('span', { className: 'nb-chip', 'data-tone': 'accent', children: `S${source.n}` }),
@@ -2909,6 +3088,8 @@ function SourcePeek({ source, notebook, onClose, onAskAbout, onRefresh }) {
             }
           })
         : null,
+      onPrev ? jsx(IconBtn, { icon: 'arrowLeft', label: `Previous source — S${source.n - 1}`, onClick: onPrev }) : null,
+      onNext ? jsx(IconBtn, { icon: 'arrowRight', label: `Next source — S${source.n + 1}`, onClick: onNext }) : null,
       jsx(IconBtn, { icon: 'close', label: 'Close source', onClick: onClose })
     ),
     el('div', { className: 'nb-view-body' },
@@ -2937,7 +3118,11 @@ function SourcePeek({ source, notebook, onClose, onAskAbout, onRefresh }) {
           ? el('pre', {
               className: 'nb-mono',
               style: { whiteSpace: 'pre-wrap', fontSize: '14.5px', lineHeight: 1.7, color: T.text2, margin: 0 },
-              children: text
+              children: hi
+                ? [text.slice(0, hi.start),
+                   el('mark', { key: 'hl', className: 'nb-hl', children: text.slice(hi.start, hi.end) }),
+                   text.slice(hi.end)]
+                : text
             })
           : el('div', { className: 'nb-hint', children: 'reading…' }))
   )
@@ -3008,7 +3193,7 @@ function StudioPanel({ kinds, notebook, busy, generate, filter, setFilter, onOpe
                 'data-kind': a.kind,
                 onClick: () => onOpen(a),
                 'aria-label': `Open ${a.title || a.label || a.kind}`,
-                title: a.title || a.primary || a.label,
+                title: `${a.title || a.primary || a.label}${optsSummary(a.opts) ? ` — ${optsSummary(a.opts)}` : ''}`,
                 children: [
                   el('span', { className: 'nb-art-ico', 'aria-hidden': 'true' },
                     i < 12 ? jsx(ArtThumb, { run: a, nbId: notebook && notebook.id })
@@ -3016,7 +3201,7 @@ function StudioPanel({ kinds, notebook, busy, generate, filter, setFilter, onOpe
                   el('span', { className: 'nb-art-main' },
                     el('span', { className: 'nb-art-title', children: a.title || a.label || a.kind }),
                     el('span', { className: 'nb-art-sub',
-                      children: `${nfmt(a.bytes)} · ${ago(a.modified)}` }))
+                      children: `${nfmt(a.bytes)} · ${ago(a.modified)}${a.opts && Object.keys(a.opts).length ? ' · tailored' : ''}` }))
                 ]
               }, a.key || a.primary || i),
               onDelete ? jsx(IconBtn, {
@@ -3042,6 +3227,13 @@ function GenPill({ kind, art, started, nbId, onOpen, onGenerate }) {
     const t = setInterval(() => force((n) => n + 1), 1000)
     return () => clearInterval(t)
   }, [started])
+  // prefill the customize popover with the knobs the latest run actually used
+  useEffect(() => {
+    if (art && art.opts && Object.keys(art.opts).length && !Object.keys(opts).length) {
+      setOpts({ ...art.opts })
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [art && art.key])
   const secs = started ? Math.max(0, Math.round((Date.now() - started) / 1000)) : 0
   const state = started ? `writing · ${secs}s` : art ? `ready · ${ago(art.modified)}` : 'Generate'
   const pick = (id, v) => setOpts((o) => ({ ...o, [id]: v }))
@@ -3724,7 +3916,7 @@ function useFile(notebookId, name) {
   return st
 }
 
-function Viewer({ artifact, notebook, onCite, onRegenerate, regenerating, onChanged }) {
+function Viewer({ artifact, notebook, onCite, onRegenerate, regenerating, onChanged, onPrevRun, onNextRun, runPos }) {
   const [renOpen, setRenOpen] = useState(false)
   const [renVal, setRenVal] = useState('')
   const [renBusy, setRenBusy] = useState(false)
@@ -3761,13 +3953,13 @@ function Viewer({ artifact, notebook, onCite, onRegenerate, regenerating, onChan
   else if (artifact.kind === 'video_overview') {
     body = jsx(VideoView, { src: primary.url, json: asJson.json, text: asTxt.text })
   } else if (artifact.kind === 'audio_overview') {
-    body = jsx(AudioView, { src: primary.url, json: asJson.json, text: asTxt.text })
+    body = jsx(AudioView, { src: primary.url, json: asJson.json, text: asTxt.text, notebook, onChanged })
   } else if (artifact.kind === 'mind_map') {
     body = jsx(MindMapView, { data: asJson.json, text: primary.text })
   } else if (artifact.kind === 'flashcards') {
-    body = jsx(FlashcardsView, { data: asJson.json, text: primary.text, key: artifact.key })
+    body = jsx(FlashcardsView, { data: asJson.json, text: primary.text, key: artifact.key, deckId: artifact.key })
   } else if (artifact.kind === 'quiz') {
-    body = jsx(QuizView, { data: asJson.json, text: primary.text })
+    body = jsx(QuizView, { data: asJson.json, text: primary.text, deckId: artifact.key })
   } else if (artifact.kind === 'slides') {
     body = jsx(SlidesView, { data: asJson.json, text: primary.text, htmlUrl: primary.url && artifact.ext === 'html' ? primary.url : '' })
   } else if (artifact.kind === 'infographic') {
@@ -3787,7 +3979,7 @@ function Viewer({ artifact, notebook, onCite, onRegenerate, regenerating, onChan
       el('div', { style: { flex: 1, minWidth: 0 } },
         el('div', { className: 'nb-view-title', children: artifact.title || (asJson.json && (asJson.json.title || asJson.json.topic)) || prettyFile(artifact.primary) }),
         el('div', { style: { fontSize: '12.5px', color: T.text4 },
-          children: `${artifact.files.length} file${artifact.files.length === 1 ? '' : 's'} · ${Math.max(1, Math.round(artifact.bytes / 1024))} KB · ${ago(artifact.modified)}` })),
+          children: `${artifact.files.length} file${artifact.files.length === 1 ? '' : 's'} · ${Math.max(1, Math.round(artifact.bytes / 1024))} KB · ${ago(artifact.modified)}${optsSummary(artifact.opts) ? ` · ${optsSummary(artifact.opts)}` : ''}` })),
       primary.text
         ? jsx(IconBtn, {
             icon: 'copy', label: 'Copy artifact text',
@@ -3798,6 +3990,9 @@ function Viewer({ artifact, notebook, onCite, onRegenerate, regenerating, onChan
         icon: 'download', label: `Download ${artifact.label}`,
         onClick: () => downloading(primary.url, artifact.primary)
       }),
+      onPrevRun ? jsx(IconBtn, { icon: 'arrowLeft', label: 'Older version', onClick: onPrevRun }) : null,
+      onNextRun ? jsx(IconBtn, { icon: 'arrowRight', label: 'Newer version', onClick: onNextRun }) : null,
+      runPos ? el('span', { className: 'nb-meta', style: { fontSize: '12px' }, children: runPos }) : null,
       onRegenerate ? jsx(IconBtn, {
         icon: 'refresh', label: `Regenerate ${artifact.label}`,
         active: !!regenerating, disabled: !!regenerating,
@@ -3841,11 +4036,26 @@ const prettyFile = (name) => {
 
 function VideoView({ src, json, text }) {
   const segs = (json && (json.segments || json.beats || json.scenes)) || []
+  const videoRef = useRef(null)
+  const [t, setT] = useState(0)
+  // timed segments (newer scripts) make chapters seekable + highlight the beat
+  const timed = segs.length > 0 && segs.every((s) => s && typeof s.start === 'number')
+  const activeSeg = timed
+    ? segs.reduce((acc, s, i) => (s.start <= t ? i : acc), -1)
+    : -1
+  const seekSeg = (i) => {
+    const v = videoRef.current
+    const seg = segs[i]
+    if (v && seg) { v.currentTime = seg.start; setT(seg.start) }
+  }
   return el('div', { className: 'nb-view-body' },
     el('div', { className: 'nb-stage' },
       el('div', { className: 'nb-screen' },
         src
-          ? el('video', { src, controls: true, playsInline: true, preload: 'metadata' })
+          ? el('video', {
+              ref: videoRef, src, controls: true, playsInline: true, preload: 'metadata',
+              onTimeUpdate: (e) => setT(e.currentTarget.currentTime)
+            })
           : el('div', { className: 'nb-hint', children: 'the video file did not load' })),
       el('div', { style: { display: 'flex', gap: '8px', alignItems: 'center' } },
         el('span', { className: 'nb-chip', 'data-tone': 'ok', children: 'mp4 · h264' }),
@@ -3854,26 +4064,45 @@ function VideoView({ src, json, text }) {
         el('span', { className: 'nb-hint', children: segs.length ? `${segs.length} beats` : 'narrated slideshow' })),
       segs.length
         ? el('ol', { className: 'nb-timeline', 'aria-label': 'Video chapters' },
-            segs.map((s, i) => el('li', { className: 'nb-tl', key: `s${i}` },
-              el('span', { className: 'nb-tl-when', children: `BEAT ${i + 1}` }),
-              el('span', { className: 'nb-tl-what' },
-                el('b', { children: s.headline || s.title || s.label || '' }),
-                s.sub || s.subline ? el('span', { style: { color: T.text3 }, children: ` — ${s.sub || s.subline}` }) : null,
-                s.text || s.narration
-                  ? el('span', { style: { display: 'block', color: T.text3, marginTop: '3px', fontSize: '14px' }, children: s.text || s.narration })
-                  : null))))
+            segs.map((s, i) => el('li', {
+              className: 'nb-tl', key: `s${i}`,
+              role: timed ? 'button' : undefined,
+              tabIndex: timed ? 0 : undefined,
+              'aria-label': timed ? `Play from ${fmtTime(s.start)}` : undefined,
+              onClick: timed ? () => seekSeg(i) : undefined,
+              onKeyDown: timed ? (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); seekSeg(i) } } : undefined,
+              style: timed ? { cursor: 'pointer' } : undefined,
+              children: [
+                el('span', { className: 'nb-tl-when',
+                  style: timed && i === activeSeg ? { color: T.accent } : undefined,
+                  children: timed ? fmtTime(s.start) : `BEAT ${i + 1}` }),
+                el('span', { className: 'nb-tl-what',
+                  style: timed && i === activeSeg ? { color: T.text } : undefined,
+                  children: [
+                    el('b', { children: s.headline || s.title || s.label || '' }),
+                    s.sub || s.subline ? el('span', { style: { color: T.text3 }, children: ` — ${s.sub || s.subline}` }) : null,
+                    s.text || s.narration
+                      ? el('span', { style: { display: 'block', color: T.text3, marginTop: '3px', fontSize: '14px' }, children: s.text || s.narration })
+                      : null] })
+              ]
+            })))
         : (text ? el('pre', { className: 'nb-mono', style: { whiteSpace: 'pre-wrap', color: T.text3, fontSize: '13.5px' }, children: text }) : null))
   )
 }
 
 /* --------------------------------------------------------------- audio */
 
-function AudioView({ src, json, text }) {
+function AudioView({ src, json, text, notebook, onChanged }) {
   const audioRef = useRef(null)
   const [playing, setPlaying] = useState(false)
   const [t, setT] = useState(0)
   const [dur, setDur] = useState(0)
   const [rate, setRate] = useState(1)
+  // script stage: edit the generated dialogue, then re-voice it — a new run
+  const [editing, setEditing] = useState(false)
+  const [draft, setDraft] = useState(null)
+  const [rendering, setRendering] = useState(false)
+  const [renderErr, setRenderErr] = useState('')
   const speakers = new Set(((json && json.segments) || []).map((s) => s && s.speaker).filter(Boolean))
   const hostLabel = speakers.size > 1 ? 'TWO HOSTS' : speakers.size === 1 ? 'ONE NARRATOR' : 'AUDIO'
   // segments carry start/end once audio.py stamps them — old artifacts don't
@@ -3942,6 +4171,132 @@ function AudioView({ src, json, text }) {
 
   const progress = dur ? t / dur : 0
 
+  const scriptSegs = (json && Array.isArray(json.segments)) ? json.segments : []
+  const canEditScript = !!(notebook && notebook.id && scriptSegs.length && !editing)
+
+  const startEdit = () => {
+    const segs = scriptSegs
+      .map(s => ({ speaker: s.speaker === 'host_b' ? 'host_b' : 'host_a', text: String(s.text || '') }))
+      .filter(s => s.text.trim())
+    if (!segs.length) return
+    setDraft({ title: (json && json.title) || 'Audio Overview', segments: segs })
+    setEditing(true)
+    setRenderErr('')
+  }
+  const patchSeg = (i, patch) =>
+    setDraft(d => ({ ...d, segments: d.segments.map((s, j) => (j === i ? { ...s, ...patch } : s)) }))
+  const delSeg = (i) =>
+    setDraft(d => ({ ...d, segments: d.segments.filter((_, j) => j !== i) }))
+  const addSeg = () =>
+    setDraft(d => {
+      const last = d.segments[d.segments.length - 1]
+      const speaker = last ? (last.speaker === 'host_a' ? 'host_b' : 'host_a') : 'host_a'
+      return { ...d, segments: [...d.segments, { speaker, text: '' }] }
+    })
+  const renderScript = async () => {
+    if (!notebook || !draft) return
+    setRendering(true)
+    setRenderErr('')
+    try {
+      await api('/audio_render', {
+        method: 'POST', timeoutMs: 600000,
+        body: { notebook: notebook.id, script: { ...draft, voices: (json && json.voices) || {} } }
+      })
+      setEditing(false)
+      if (onChanged) onChanged()
+    } catch (e) {
+      setRenderErr(String((e && e.message) || e))
+    } finally {
+      setRendering(false)
+    }
+  }
+
+  const scriptEditor = editing && draft
+    ? el('div', { className: 'nb-doc', style: { maxWidth: '100%' } },
+        el('div', {
+          className: 'nb-meta',
+          style: { marginBottom: '10px', display: 'flex', alignItems: 'center', gap: '8px' }
+        },
+          'Script — edit lines, then re-voice',
+          el('span', { style: { flex: 1 } }),
+          el('button', {
+            type: 'button', className: 'nb-chip', 'data-click': 'true',
+            disabled: rendering,
+            onClick: () => setEditing(false),
+            children: 'Cancel'
+          }),
+          el('button', {
+            type: 'button', className: 'nb-btn', 'data-variant': 'primary',
+            disabled: rendering || !draft.segments.some(s => s.text.trim()),
+            onClick: renderScript,
+            children: rendering ? 'Rendering…' : 'Render audio'
+          })),
+        el('input', {
+          type: 'text', value: draft.title,
+          'aria-label': 'Episode title',
+          style: {
+            width: '100%', boxSizing: 'border-box', marginBottom: '10px',
+            background: 'rgba(255,255,255,.06)', border: `1px solid ${T.lineSoft}`,
+            borderRadius: '10px', color: T.text, padding: '8px 12px', fontSize: '14px'
+          },
+          onChange: (e) => setDraft(d => ({ ...d, title: e.target.value }))
+        }),
+        draft.segments.map((s, i) => el('div', {
+          key: `seg${i}`,
+          style: {
+            display: 'grid', gridTemplateColumns: '34px 1fr 30px', gap: '8px',
+            alignItems: 'start', padding: '8px 0',
+            borderTop: i === 0 ? 'none' : `1px solid ${T.lineSoft}`
+          }
+        },
+          jsx('button', {
+            type: 'button',
+            'aria-label': `Speaker ${s.speaker === 'host_a' ? 'A' : 'B'} — click to switch`,
+            title: `Speaker ${s.speaker === 'host_a' ? 'A' : 'B'} — click to switch`,
+            onClick: () => patchSeg(i, { speaker: s.speaker === 'host_a' ? 'host_b' : 'host_a' }),
+            style: {
+              width: '30px', height: '30px', borderRadius: '8px', cursor: 'pointer',
+              border: `1px solid ${T.lineSoft}`, fontSize: '12px', fontWeight: 700,
+              background: s.speaker === 'host_a'
+                ? `color-mix(in srgb, ${T.accent} 18%, transparent)` : `color-mix(in srgb, ${T.purple} 18%, transparent)`,
+              color: s.speaker === 'host_a' ? T.accent : T.purple
+            },
+            children: s.speaker === 'host_a' ? 'A' : 'B'
+          }),
+          el('textarea', {
+            value: s.text, rows: Math.min(4, Math.max(2, Math.ceil(s.text.length / 70))),
+            'aria-label': `Segment ${i + 1} text`,
+            onChange: (e) => patchSeg(i, { text: e.target.value }),
+            style: {
+              width: '100%', boxSizing: 'border-box', resize: 'vertical',
+              background: 'rgba(255,255,255,.05)', border: `1px solid ${T.lineSoft}`,
+              borderRadius: '10px', color: T.text, padding: '8px 10px',
+              fontSize: '13.5px', lineHeight: 1.5, fontFamily: 'inherit'
+            }
+          }),
+          el('button', {
+            type: 'button', className: 'nb-icon', 'aria-label': `Delete segment ${i + 1}`,
+            onClick: () => delSeg(i),
+            children: jsx(Glyph, { name: 'trash', size: 13 })
+          }))),
+        el('button', {
+          type: 'button', className: 'nb-chip', 'data-click': 'true',
+          style: { marginTop: '10px' },
+          onClick: addSeg,
+          children: '+ Add segment'
+        }),
+        renderErr
+          ? el('div', {
+              style: {
+                marginTop: '10px', fontSize: '13px', color: T.danger,
+                background: `color-mix(in srgb, ${T.danger} 10%, transparent)`,
+                borderRadius: '10px', padding: '8px 12px'
+              },
+              children: renderErr
+            })
+          : null)
+    : null
+
   return el('div', { className: 'nb-view-body' },
     el('div', { className: 'nb-stage' },
       el('div', { className: 'nb-screen nb-screen-audio', style: { aspectRatio: 'auto' } },
@@ -3998,7 +4353,16 @@ function AudioView({ src, json, text }) {
               setRate(next)
             },
             children: `${rate}×`
-          })),
+          }),
+          canEditScript
+            ? el('button', {
+                type: 'button', className: 'nb-chip', 'data-click': 'true',
+                'aria-label': 'Edit script', title: 'Edit script, then re-voice',
+                style: { background: 'rgba(255,255,255,.12)', color: '#cfd3e0', borderColor: 'transparent', cursor: 'pointer' },
+                onClick: startEdit,
+                children: 'edit script'
+              })
+            : null),
         el('audio', {
           ref: audioRef, src: src || undefined, preload: 'metadata',
           onTimeUpdate: (e) => setT(e.currentTarget.currentTime),
@@ -4006,9 +4370,20 @@ function AudioView({ src, json, text }) {
           onEnded: () => setPlaying(false),
           style: { display: 'none' }
         })),
-      lines.length
+      scriptEditor
+        ? scriptEditor
+        : lines.length
         ? el('div', { className: 'nb-doc', style: { maxWidth: '100%' } },
-            el('div', { className: 'nb-meta', style: { marginBottom: '10px' }, children: 'Transcript' }),
+            el('div', { className: 'nb-meta', style: { marginBottom: '10px', display: 'flex', alignItems: 'center', gap: '8px' } },
+              'Transcript',
+              canEditScript
+                ? el('button', {
+                    type: 'button', className: 'nb-chip', 'data-click': 'true',
+                    style: { marginLeft: 'auto', fontSize: '11.5px' },
+                    onClick: startEdit,
+                    children: 'edit script → re-voice'
+                  })
+                : null),
             lines.map((l, i) => jsx(TranscriptLine, {
               line: l, first: i === 0,
               active: segsTimed && l.seg === activeSeg,
@@ -4040,7 +4415,7 @@ function TranscriptLine({ line, first, active, seekable, segStart, onSeek }) {
     onClick: seekable ? onSeek : undefined,
     onKeyDown: seekable ? (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onSeek() } } : undefined,
     style: {
-      display: 'grid', gridTemplateColumns: '26px 1fr', gap: '10px',
+      display: 'grid', gridTemplateColumns: seekable ? '26px 1fr 44px' : '26px 1fr', gap: '10px',
       padding: '7px 10px', margin: '0 -10px', borderRadius: '8px',
       borderTop: first ? 'none' : `1px solid ${T.lineSoft}`,
       cursor: seekable ? 'pointer' : undefined,
@@ -4055,7 +4430,17 @@ function TranscriptLine({ line, first, active, seekable, segStart, onSeek }) {
     },
     children: line.who || '·'
   }),
-  jsx('span', { style: { fontSize: '15px', lineHeight: 1.55, color: T.text2 }, children: line.text }))
+  jsx('span', { style: { fontSize: '15px', lineHeight: 1.55, color: T.text2 }, children: line.text }),
+  seekable
+    ? jsx('span', {
+        style: {
+          fontSize: '11px', color: T.text4, textAlign: 'right',
+          fontFamily: 'var(--ui-font-mono, ui-monospace, monospace)',
+          paddingTop: '3px', fontVariantNumeric: 'tabular-nums'
+        },
+        children: fmtTime(segStart)
+      })
+    : null)
 }
 
 const fmtTime = (s) => {
@@ -4221,24 +4606,38 @@ function parseMindMapMd(text) {
 
 /* ------------------------------------------------------------ flashcards */
 
-function FlashcardsView({ data, text }) {
+function FlashcardsView({ data, text, deckId }) {
   const cards = (data && data.cards) || []
   const [i, setI] = useState(0)
   const [flipped, setFlipped] = useState(false)
-  const [known, setKnown] = useState(() => persist.get('known:cards', {}) || {})
+  // keyed per artifact — a second deck must not inherit the first's marks
+  const storeKey = `known:cards:${deckId || 'default'}`
+  const [known, setKnown] = useState(() => persist.get(storeKey, {}) || {})
+  // order holds original card indices when shuffled — `known` keys stay stable
+  const [order, setOrder] = useState(null)
+  const seq = order || cards.map((_, ci) => ci)
 
-  useEffect(() => { setI(0); setFlipped(false) }, [cards.length])
+  useEffect(() => { setI(0); setFlipped(false); setOrder(null) }, [cards.length])
   if (!cards.length) {
     return el('div', { className: 'nb-view-body' }, el('div', { className: 'nb-doc' }, jsx(Markdown, { text })))
   }
-  const card = cards[Math.min(i, cards.length - 1)]
+  const cardKey = seq[Math.min(i, seq.length - 1)]
+  const card = cards[cardKey]
   const mark = (val) => {
-    const next = { ...known, [i]: val }
-    setKnown(next); persist.set('known:cards', next)
+    const next = { ...known, [cardKey]: val }
+    setKnown(next); persist.set(storeKey, next)
     setFlipped(false)
-    setI((n) => Math.min(cards.length - 1, n + 1))
+    setI((n) => Math.min(seq.length - 1, n + 1))
   }
   const knownCount = Object.values(known).filter(Boolean).length
+  const reshuffle = () => {
+    const idx = cards.map((_, ci) => ci)
+    for (let k = idx.length - 1; k > 0; k -= 1) {
+      const j = Math.floor(Math.random() * (k + 1))
+      ;[idx[k], idx[j]] = [idx[j], idx[k]]
+    }
+    setOrder(idx); setI(0); setFlipped(false)
+  }
 
   return el('div', { className: 'nb-view-body' },
     el('div', { className: 'nb-deck' },
@@ -4248,8 +4647,12 @@ function FlashcardsView({ data, text }) {
         jsx('span', { className: 'nb-hint', children: `card ${i + 1} of ${cards.length}` }),
         el('span', { style: { flex: 1 } }),
         jsx(Btn, {
+          size: 'sm', icon: 'shuffle', children: 'Shuffle',
+          onClick: reshuffle, disabled: cards.length < 2
+        }),
+        jsx(Btn, {
           size: 'sm', icon: 'refresh', children: 'Restart',
-          onClick: () => { setI(0); setFlipped(false); setKnown({}); persist.set('known:cards', {}) }
+          onClick: () => { setI(0); setFlipped(false); setOrder(null); setKnown({}); persist.set(storeKey, {}) }
         })),
       jsx('button', {
         type: 'button', className: 'nb-flip', 'data-flipped': flipped ? 'true' : 'false',
@@ -4280,19 +4683,27 @@ function FlashcardsView({ data, text }) {
           ? jsx(Btn, { variant: 'primary', icon: 'check', onClick: () => mark(true), children: 'Got it' })
           : null,
         jsx(Btn, {
-          icon: 'arrowRight', disabled: i === cards.length - 1, children: 'Next',
-          onClick: () => { setFlipped(false); setI((n) => Math.min(cards.length - 1, n + 1)) }
+          icon: 'arrowRight', disabled: i === seq.length - 1, children: 'Next',
+          onClick: () => { setFlipped(false); setI((n) => Math.min(seq.length - 1, n + 1)) }
         })),
       el('div', { className: 'nb-bar-track', style: { maxWidth: '100%' } },
-        el('div', { className: 'nb-bar-fill', style: { width: `${((i + 1) / cards.length) * 100}%` } })))
+        el('div', { className: 'nb-bar-fill', style: { width: `${((i + 1) / seq.length) * 100}%` } })))
   )
 }
 
 /* ------------------------------------------------------------------ quiz */
 
-function QuizView({ data, text }) {
+function QuizView({ data, text, deckId }) {
   const questions = (data && (data.questions || data.items)) || []
-  const [picked, setPicked] = useState({})
+  // answers persist per artifact — revisiting the deck keeps your score
+  const storeKey = `quiz:picked:${deckId || 'default'}`
+  const [picked, setPicked] = useState(() => persist.get(storeKey, {}) || {})
+  const setAns = (qi, c) => setPicked((p) => {
+    const next = { ...p, [qi]: c }
+    persist.set(storeKey, next)
+    return next
+  })
+  const reset = () => { setPicked({}); persist.set(storeKey, {}) }
   if (!questions.length) {
     return el('div', { className: 'nb-view-body' }, el('div', { className: 'nb-doc' }, jsx(Markdown, { text })))
   }
@@ -4301,7 +4712,7 @@ function QuizView({ data, text }) {
     if (chosen === undefined) return acc
     return acc + (normAnswer(chosen) === normAnswer(q.answer) ? 1 : 0)
   }, 0)
-  const answered = Object.keys(picked).length
+  const answered = questions.reduce((n, _q, qi) => n + (picked[qi] !== undefined ? 1 : 0), 0)
   return el('div', { className: 'nb-view-body' },
     el('div', { style: { maxWidth: '76ch' } },
       el('div', { style: { display: 'flex', gap: '10px', alignItems: 'center', marginBottom: '14px' } },
@@ -4309,7 +4720,7 @@ function QuizView({ data, text }) {
           children: `${answered}/${questions.length} answered` }),
         answered ? el('span', { className: 'nb-chip', children: `${score} correct` }) : null,
         el('span', { style: { flex: 1 } }),
-        answered ? jsx(Btn, { size: 'sm', icon: 'refresh', onClick: () => setPicked({}), children: 'Reset' }) : null),
+        answered ? jsx(Btn, { size: 'sm', icon: 'refresh', onClick: reset, children: 'Reset' }) : null),
       questions.map((q, qi) => {
         const chosen = picked[qi]
         const done = chosen !== undefined
@@ -4327,7 +4738,7 @@ function QuizView({ data, text }) {
             const isRight = normAnswer(c) === normAnswer(q.answer)
             const tone = !done ? T.card : isRight ? `color-mix(in srgb, ${T.ok} 16%, transparent)` : isChosen ? `color-mix(in srgb, ${T.danger} 14%, transparent)` : T.card
             return el('button', {
-              type: 'button', disabled: done, onClick: () => setPicked((p) => ({ ...p, [qi]: c })),
+              type: 'button', disabled: done, onClick: () => setAns(qi, c),
               'aria-pressed': isChosen,
               style: {
                 minHeight: '38px', textAlign: 'left', padding: '8px 12px', borderRadius: '9px',
@@ -4355,15 +4766,29 @@ function SlidesView({ data, htmlUrl }) {
   const deck = data || {}
   const slides = deck.slides || []
   const [i, setI] = useState(0)
+  const [fs, setFs] = useState(false)
+  const screenRef = useRef(null)
   const go = useCallback((d) => setI((n) => Math.min(slides.length - 1, Math.max(0, n + d))), [slides.length])
   useEffect(() => {
     const onKey = (e) => {
       if (e.key === 'ArrowRight') { go(1); }
       else if (e.key === 'ArrowLeft') { go(-1) }
+      else if (e.key === 'Escape' && document.fullscreenElement) document.exitFullscreen()
     }
     document.addEventListener('keydown', onKey)
     return () => document.removeEventListener('keydown', onKey)
   }, [go])
+  useEffect(() => {
+    const onFs = () => setFs(!!document.fullscreenElement)
+    document.addEventListener('fullscreenchange', onFs)
+    return () => document.removeEventListener('fullscreenchange', onFs)
+  }, [])
+  const toggleFs = () => {
+    const el = screenRef.current
+    if (!el || !el.requestFullscreen) return
+    if (document.fullscreenElement) document.exitFullscreen()
+    else el.requestFullscreen()
+  }
 
   const openDeck = htmlUrl
     ? () => (host.openLink ? host.openLink(htmlUrl) : window.open(htmlUrl, '_blank'))
@@ -4378,8 +4803,9 @@ function SlidesView({ data, htmlUrl }) {
   return el('div', { className: 'nb-view-body' },
     el('div', { className: 'nb-stage' },
       el('div', {
+        ref: screenRef,
         className: 'nb-screen', role: 'group', 'aria-label': `Slide ${i + 1} of ${slides.length}`,
-        style: { aspectRatio: '16/9', padding: '34px 40px', placeItems: 'stretch',
+        style: { aspectRatio: fs ? 'auto' : '16/9', width: fs ? '100%' : undefined, height: fs ? '100%' : undefined, padding: '34px 40px', placeItems: 'stretch',
           background: `linear-gradient(150deg, color-mix(in srgb, ${T.accent} 18%, #0a0b10), #08090d)`,
           cursor: 'pointer', display: 'flex', flexDirection: 'column' },
         onClick: (e) => {
@@ -4392,6 +4818,13 @@ function SlidesView({ data, htmlUrl }) {
           children: deck.title || 'Deck' }),
         el('span', { style: { flex: 1 } }),
         el('span', { className: 'nb-mono', style: { fontSize: '12px', color: '#9aa0b5' }, children: `${i + 1}/${slides.length}` }),
+        el('button', {
+          type: 'button', className: 'nb-chip', 'data-click': 'true',
+          'aria-label': fs ? 'Exit fullscreen' : 'Present fullscreen', title: fs ? 'Exit fullscreen' : 'Present fullscreen',
+          style: { background: 'rgba(255,255,255,.1)', color: '#cfd3e0', borderColor: 'transparent', cursor: 'pointer' },
+          onClick: (e) => { e.stopPropagation(); toggleFs() },
+          children: fs ? 'exit' : 'present'
+        }),
         openDeck
           ? el('button', {
               type: 'button', className: 'nb-chip', 'data-click': 'true',
@@ -4482,19 +4915,25 @@ function parseCsv(text) {
 function DataTableView({ text, name }) {
   const rows = useMemo(() => parseCsv(text), [text])
   const [sort, setSort] = useState({ col: -1, dir: 1 })
+  const [q, setQ] = useState('')
   const head = rows[0] || []
-  const body = rows.slice(1)
+  const body = useMemo(() => rows.slice(1), [rows])
+  const filtered = useMemo(() => {
+    const needle = q.trim().toLowerCase()
+    if (!needle) return body
+    return body.filter((r) => r.some((c) => String(c).toLowerCase().includes(needle)))
+  }, [body, q])
   const shown = useMemo(() => {
-    if (sort.col < 0) return body
+    if (sort.col < 0) return filtered
     const i = sort.col
-    return [...body].sort((a, b) => {
+    return [...filtered].sort((a, b) => {
       const x = String(a[i] || ''), y = String(b[i] || '')
       const nx = Number(x.replace(/[^0-9.\-]/g, '')), ny = Number(y.replace(/[^0-9.\-]/g, ''))
       const c = (!Number.isNaN(nx) && !Number.isNaN(ny) && x !== '' && y !== '')
         ? nx - ny : x.localeCompare(y)
       return c * sort.dir
     })
-  }, [body, sort])
+  }, [filtered, sort])
   const exportCsv = () => {
     const blob = new Blob([text || ''], { type: 'text/csv' })
     const url = URL.createObjectURL(blob)
@@ -4508,8 +4947,9 @@ function DataTableView({ text, name }) {
   }
   return el('div', { className: 'nb-view-body' },
     el('div', { style: { display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '12px' } },
-      el('span', { className: 'nb-meta', children: `${body.length} rows × ${head.length} columns` }),
+      el('span', { className: 'nb-meta', children: q.trim() ? `${filtered.length} of ${body.length} rows × ${head.length} columns` : `${body.length} rows × ${head.length} columns` }),
       el('span', { style: { flex: 1 } }),
+      body.length > 8 ? jsx(SearchField, { value: q, onChange: setQ, placeholder: 'Filter rows', label: 'Filter table rows' }) : null,
       jsx(Btn, { size: 'sm', icon: 'download', onClick: exportCsv, children: 'Export CSV' })),
     el('div', { className: 'nb-dt-wrap' },
       el('table', { className: 'nb-dt' },
@@ -5150,7 +5590,8 @@ function SettingsPage() {
 }
 
 const KINDS_FALLBACK = ['video_overview', 'audio_overview', 'summary', 'briefing_doc',
-  'study_guide', 'faq', 'timeline', 'mind_map', 'flashcards', 'quiz', 'slides', 'infographic']
+  'study_guide', 'faq', 'timeline', 'mind_map', 'flashcards', 'quiz', 'slides',
+  'infographic', 'data_table']
 
 /** The agent can write `::notebook{name="Fusion 2026"}` in a reply. */
 function NotebookDirective({ attrs }) {

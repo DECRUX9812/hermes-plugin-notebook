@@ -64,7 +64,7 @@ const rest = async (path, opts) => {
         { n: 2, title: 'US roadmap targets fusion deployment by mid 2030s - Reuters', kind: 'url', origin: 'https://www.reuters.com/business/energy/us-roadmap-targets-fusion-deployment-by-mid-2030s--reeii-2026-08-25/', id: 'reuters-us-fusion-roadmap-mid-2030s' },
         { n: 3, title: 'ITER reports “substantial progress” in assembly and installation work', kind: 'url', origin: 'https://www.ans.org/news/2026-09-09/article-8375/', id: 'ans-iter-assembly-progress' },
         { n: 4, title: 'Two-thirds of ITER tokamak core now in place - ITER Organization', kind: 'url', origin: 'https://www.iter.org/two-thirds-iter-tokamak-core-now-place', id: 'iter-two-thirds-tokamak-core' }
-      ],
+      ].map((c) => ({ ...c, snippet: ((((STATE.notebook && STATE.notebook.sources) || []).find((s) => s.id === c.id) || {}).summary || '').slice(0, 160) })),
       chunks_used: 12, total_chunks: 96, seconds: 4.2
     }
   }
@@ -197,7 +197,14 @@ const rest = async (path, opts) => {
       : ((STATE.notebook && STATE.notebook.thread) || [])
     return { ok: true, thread: name, messages }
   }
-  if (route === 'thread/clear') return { ok: true, thread: { cleared: 'default' } }
+  if (route === 'thread/clear') {
+    const name = (opts && opts.body && opts.body.thread) || 'default'
+    if (STATE.notebook && STATE.notebook.threads) {
+      STATE.notebook.threads = STATE.notebook.threads.filter((t) => t.name !== name)
+    }
+    if (STATE.notebook && STATE.notebook.thread && name === 'default') STATE.notebook.thread = []
+    return { ok: true, thread: { cleared: name } }
+  }
   if (route === 'export') {
     // stub payload — the page only base64-decodes + blob-downloads it
     return { ok: true, name: 'preview-notebook.zip', bytes: 22, files: 1,

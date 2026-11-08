@@ -3953,7 +3953,7 @@ function Viewer({ artifact, notebook, onCite, onRegenerate, regenerating, onChan
   else if (artifact.kind === 'video_overview') {
     body = jsx(VideoView, { src: primary.url, json: asJson.json, text: asTxt.text })
   } else if (artifact.kind === 'audio_overview') {
-    body = jsx(AudioView, { src: primary.url, json: asJson.json, text: asTxt.text })
+    body = jsx(AudioView, { src: primary.url, json: asJson.json, text: asTxt.text, notebook, onChanged })
   } else if (artifact.kind === 'mind_map') {
     body = jsx(MindMapView, { data: asJson.json, text: primary.text })
   } else if (artifact.kind === 'flashcards') {
@@ -4092,12 +4092,17 @@ function VideoView({ src, json, text }) {
 
 /* --------------------------------------------------------------- audio */
 
-function AudioView({ src, json, text }) {
+function AudioView({ src, json, text, notebook, onChanged }) {
   const audioRef = useRef(null)
   const [playing, setPlaying] = useState(false)
   const [t, setT] = useState(0)
   const [dur, setDur] = useState(0)
   const [rate, setRate] = useState(1)
+  // script stage: edit the generated dialogue, then re-voice it — a new run
+  const [editing, setEditing] = useState(false)
+  const [draft, setDraft] = useState(null)
+  const [rendering, setRendering] = useState(false)
+  const [renderErr, setRenderErr] = useState('')
   const speakers = new Set(((json && json.segments) || []).map((s) => s && s.speaker).filter(Boolean))
   const hostLabel = speakers.size > 1 ? 'TWO HOSTS' : speakers.size === 1 ? 'ONE NARRATOR' : 'AUDIO'
   // segments carry start/end once audio.py stamps them — old artifacts don't
@@ -4166,6 +4171,132 @@ function AudioView({ src, json, text }) {
 
   const progress = dur ? t / dur : 0
 
+  const scriptSegs = (json && Array.isArray(json.segments)) ? json.segments : []
+  const canEditScript = !!(notebook && notebook.id && scriptSegs.length && !editing)
+
+  const startEdit = () => {
+    const segs = scriptSegs
+      .map(s => ({ speaker: s.speaker === 'host_b' ? 'host_b' : 'host_a', text: String(s.text || '') }))
+      .filter(s => s.text.trim())
+    if (!segs.length) return
+    setDraft({ title: (json && json.title) || 'Audio Overview', segments: segs })
+    setEditing(true)
+    setRenderErr('')
+  }
+  const patchSeg = (i, patch) =>
+    setDraft(d => ({ ...d, segments: d.segments.map((s, j) => (j === i ? { ...s, ...patch } : s)) }))
+  const delSeg = (i) =>
+    setDraft(d => ({ ...d, segments: d.segments.filter((_, j) => j !== i) }))
+  const addSeg = () =>
+    setDraft(d => {
+      const last = d.segments[d.segments.length - 1]
+      const speaker = last ? (last.speaker === 'host_a' ? 'host_b' : 'host_a') : 'host_a'
+      return { ...d, segments: [...d.segments, { speaker, text: '' }] }
+    })
+  const renderScript = async () => {
+    if (!notebook || !draft) return
+    setRendering(true)
+    setRenderErr('')
+    try {
+      await api('/audio_render', {
+        method: 'POST', timeoutMs: 600000,
+        body: { notebook: notebook.id, script: { ...draft, voices: (json && json.voices) || {} } }
+      })
+      setEditing(false)
+      if (onChanged) onChanged()
+    } catch (e) {
+      setRenderErr(String((e && e.message) || e))
+    } finally {
+      setRendering(false)
+    }
+  }
+
+  const scriptEditor = editing && draft
+    ? el('div', { className: 'nb-doc', style: { maxWidth: '100%' } },
+        el('div', {
+          className: 'nb-meta',
+          style: { marginBottom: '10px', display: 'flex', alignItems: 'center', gap: '8px' }
+        },
+          'Script — edit lines, then re-voice',
+          el('span', { style: { flex: 1 } }),
+          el('button', {
+            type: 'button', className: 'nb-chip', 'data-click': 'true',
+            disabled: rendering,
+            onClick: () => setEditing(false),
+            children: 'Cancel'
+          }),
+          el('button', {
+            type: 'button', className: 'nb-btn', 'data-variant': 'primary',
+            disabled: rendering || !draft.segments.some(s => s.text.trim()),
+            onClick: renderScript,
+            children: rendering ? 'Rendering…' : 'Render audio'
+          })),
+        el('input', {
+          type: 'text', value: draft.title,
+          'aria-label': 'Episode title',
+          style: {
+            width: '100%', boxSizing: 'border-box', marginBottom: '10px',
+            background: 'rgba(255,255,255,.06)', border: `1px solid ${T.lineSoft}`,
+            borderRadius: '10px', color: T.text, padding: '8px 12px', fontSize: '14px'
+          },
+          onChange: (e) => setDraft(d => ({ ...d, title: e.target.value }))
+        }),
+        draft.segments.map((s, i) => el('div', {
+          key: `seg${i}`,
+          style: {
+            display: 'grid', gridTemplateColumns: '34px 1fr 30px', gap: '8px',
+            alignItems: 'start', padding: '8px 0',
+            borderTop: i === 0 ? 'none' : `1px solid ${T.lineSoft}`
+          }
+        },
+          jsx('button', {
+            type: 'button',
+            'aria-label': `Speaker ${s.speaker === 'host_a' ? 'A' : 'B'} — click to switch`,
+            title: `Speaker ${s.speaker === 'host_a' ? 'A' : 'B'} — click to switch`,
+            onClick: () => patchSeg(i, { speaker: s.speaker === 'host_a' ? 'host_b' : 'host_a' }),
+            style: {
+              width: '30px', height: '30px', borderRadius: '8px', cursor: 'pointer',
+              border: `1px solid ${T.lineSoft}`, fontSize: '12px', fontWeight: 700,
+              background: s.speaker === 'host_a'
+                ? `color-mix(in srgb, ${T.accent} 18%, transparent)` : `color-mix(in srgb, ${T.purple} 18%, transparent)`,
+              color: s.speaker === 'host_a' ? T.accent : T.purple
+            },
+            children: s.speaker === 'host_a' ? 'A' : 'B'
+          }),
+          el('textarea', {
+            value: s.text, rows: Math.min(4, Math.max(2, Math.ceil(s.text.length / 70))),
+            'aria-label': `Segment ${i + 1} text`,
+            onChange: (e) => patchSeg(i, { text: e.target.value }),
+            style: {
+              width: '100%', boxSizing: 'border-box', resize: 'vertical',
+              background: 'rgba(255,255,255,.05)', border: `1px solid ${T.lineSoft}`,
+              borderRadius: '10px', color: T.text, padding: '8px 10px',
+              fontSize: '13.5px', lineHeight: 1.5, fontFamily: 'inherit'
+            }
+          }),
+          el('button', {
+            type: 'button', className: 'nb-icon', 'aria-label': `Delete segment ${i + 1}`,
+            onClick: () => delSeg(i),
+            children: jsx(Glyph, { name: 'trash', size: 13 })
+          }))),
+        el('button', {
+          type: 'button', className: 'nb-chip', 'data-click': 'true',
+          style: { marginTop: '10px' },
+          onClick: addSeg,
+          children: '+ Add segment'
+        }),
+        renderErr
+          ? el('div', {
+              style: {
+                marginTop: '10px', fontSize: '13px', color: T.danger,
+                background: `color-mix(in srgb, ${T.danger} 10%, transparent)`,
+                borderRadius: '10px', padding: '8px 12px'
+              },
+              children: renderErr
+            })
+          : null)
+    : null
+
   return el('div', { className: 'nb-view-body' },
     el('div', { className: 'nb-stage' },
       el('div', { className: 'nb-screen nb-screen-audio', style: { aspectRatio: 'auto' } },
@@ -4222,7 +4353,16 @@ function AudioView({ src, json, text }) {
               setRate(next)
             },
             children: `${rate}×`
-          })),
+          }),
+          canEditScript
+            ? el('button', {
+                type: 'button', className: 'nb-chip', 'data-click': 'true',
+                'aria-label': 'Edit script', title: 'Edit script, then re-voice',
+                style: { background: 'rgba(255,255,255,.12)', color: '#cfd3e0', borderColor: 'transparent', cursor: 'pointer' },
+                onClick: startEdit,
+                children: 'edit script'
+              })
+            : null),
         el('audio', {
           ref: audioRef, src: src || undefined, preload: 'metadata',
           onTimeUpdate: (e) => setT(e.currentTarget.currentTime),
@@ -4230,9 +4370,20 @@ function AudioView({ src, json, text }) {
           onEnded: () => setPlaying(false),
           style: { display: 'none' }
         })),
-      lines.length
+      scriptEditor
+        ? scriptEditor
+        : lines.length
         ? el('div', { className: 'nb-doc', style: { maxWidth: '100%' } },
-            el('div', { className: 'nb-meta', style: { marginBottom: '10px' }, children: 'Transcript' }),
+            el('div', { className: 'nb-meta', style: { marginBottom: '10px', display: 'flex', alignItems: 'center', gap: '8px' } },
+              'Transcript',
+              canEditScript
+                ? el('button', {
+                    type: 'button', className: 'nb-chip', 'data-click': 'true',
+                    style: { marginLeft: 'auto', fontSize: '11.5px' },
+                    onClick: startEdit,
+                    children: 'edit script → re-voice'
+                  })
+                : null),
             lines.map((l, i) => jsx(TranscriptLine, {
               line: l, first: i === 0,
               active: segsTimed && l.seg === activeSeg,

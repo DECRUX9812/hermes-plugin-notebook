@@ -88,10 +88,12 @@ def _norm_speaker(raw: Any, index: int, last: str) -> str:
     return "host_b" if last == "host_a" else "host_a"
 
 
-def _write_script(notebook_id: str, script: dict, *, single_narrator: bool = False) -> tuple[list[dict], str]:
+def _write_script(notebook_id: str, script: dict, *, single_narrator: bool = False,
+                  enforce_alternation: bool = True) -> tuple[list[dict], str]:
     """Normalize model output into [{speaker,text}] with sane alternation.
     single_narrator (the 'brief' format) forces every turn to host_a — the
-    model is told to comply, this is the enforcement."""
+    model is told to comply, this is the enforcement. enforce_alternation=False
+    is for user-edited scripts: their speaker choices are intentional."""
     segs = []
     last = ""
     for i, raw in enumerate(script.get("segments") or []):
@@ -102,7 +104,8 @@ def _write_script(notebook_id: str, script: dict, *, single_narrator: bool = Fal
             continue
         sp = "host_a" if single_narrator else _norm_speaker(raw.get("speaker"), i, last)
         # avoid 3+ consecutive turns by the same host: nudge label
-        if not single_narrator and len(segs) >= 2 and segs[-1]["speaker"] == sp == segs[-2]["speaker"]:
+        if (enforce_alternation and not single_narrator
+                and len(segs) >= 2 and segs[-1]["speaker"] == sp == segs[-2]["speaker"]):
             sp = "host_b" if sp == "host_a" else "host_a"
         segs.append({"speaker": sp, "text": text})
         last = sp
@@ -256,9 +259,36 @@ async def make_audio_overview(notebook: str, *, length: Optional[str] = None,
     if parsed is None:
         raise RuntimeError("model did not return a valid podcast script JSON")
     segs, ep_title = _write_script(nb_id, parsed, single_narrator=(fmt == "brief"))
+    return await _render_episode(nb_id, segs, ep_title, meta,
+                                 length=length, language=language)
 
-    voice_a = str(runtime.config("audio_voice_host_a", default="en-US-AndrewNeural"))
-    voice_b = str(runtime.config("audio_voice_host_b", default="en-US-EmmaNeural"))
+
+async def render_audio_script(notebook, script: dict) -> dict:
+    """Re-voice an edited podcast script — the Studio's editable script stage.
+    Same pipeline as generation minus the model call: normalize → TTS →
+    concat → sidecars, as a NEW timestamped run (version flip reaches it)."""
+    nb_id = store.resolve_notebook(notebook)
+    meta = store.get_meta(nb_id)
+    script = script if isinstance(script, dict) else {}
+    segs, ep_title = _write_script(nb_id, script, enforce_alternation=False)
+    voices = script.get("voices") if isinstance(script.get("voices"), dict) else {}
+    return await _render_episode(
+        nb_id, segs, ep_title, meta, length="custom",
+        voice_a=str(voices.get("host_a") or "") or None,
+        voice_b=str(voices.get("host_b") or "") or None,
+    )
+
+
+async def _render_episode(nb_id: str, segs: list[dict], ep_title: str, meta: dict, *,
+                          length: str, language: str = "",
+                          voice_a: Optional[str] = None,
+                          voice_b: Optional[str] = None) -> dict:
+    """TTS every segment, concat, and write the episode artifacts — shared by
+    model-generated scripts and user-edited ones."""
+    if voice_a is None:
+        voice_a = str(runtime.config("audio_voice_host_a", default="en-US-AndrewNeural"))
+    if voice_b is None:
+        voice_b = str(runtime.config("audio_voice_host_b", default="en-US-EmmaNeural"))
     # a requested language swaps in matching neural voices — but only where the
     # operator hasn't pinned a custom voice in config (defaults get replaced)
     lang_pair = voices.pair_for(language)

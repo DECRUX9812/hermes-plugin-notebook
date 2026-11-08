@@ -843,6 +843,28 @@ async def generate(payload: Dict[str, Any] = Body(...)) -> Any:
             "stats": payload_state["stats"]}
 
 
+@router.post("/audio_render")
+async def audio_render(payload: Dict[str, Any] = Body(...)) -> Any:
+    """Re-voice an edited podcast script — the Studio's script stage. Takes the
+    script JSON shape the audio sidecar already stores ({title, segments:
+    [{speaker, text}], voices?}) and runs the same TTS pipeline as generation,
+    minus the model call. Output lands as a new timestamped run."""
+    nb_arg = str(payload.get("notebook") or "")
+    try:
+        nb_id = store.resolve_notebook(nb_arg)
+    except Exception as exc:
+        return _fail(str(exc), 404)
+    from hermes_notebook import audio
+    script = payload.get("script") if isinstance(payload.get("script"), dict) else payload
+    started = time.time()
+    try:
+        out = await audio.render_audio_script(nb_id, script)
+    except Exception as exc:
+        return _fail(f"{type(exc).__name__}: {exc}", 500)
+    return {"ok": True, "result": out,
+            "seconds": round(time.time() - started, 1)}
+
+
 @router.post("/video_notes")
 async def video_notes(payload: Dict[str, Any] = Body(...)) -> Any:
     """Producer notes for a video overview — headlines + narration BEFORE any
