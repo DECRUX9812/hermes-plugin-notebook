@@ -31,8 +31,8 @@ const persist = {
   }
 }
 
-/** One poll of `/state`; `nb` scopes it to a notebook. */
-function useStudio(nb) {
+/** One poll of `/state`; `nb` scopes it to a notebook, `thread` to a conversation. */
+function useStudio(nb, thread) {
   const [data, setData] = useState(null)
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(true)
@@ -40,7 +40,7 @@ function useStudio(nb) {
   const load = useCallback(async (silent) => {
     if (!silent) setLoading(true)
     try {
-      const next = await api(`/state${nb ? `?${qs({ notebook: nb })}` : ''}`)
+      const next = await api(`/state${nb ? `?${qs({ notebook: nb, thread: thread || "" })}` : ''}`)
       if (!alive.current) return next
       setData(next)
       setError('')
@@ -51,7 +51,7 @@ function useStudio(nb) {
     } finally {
       if (alive.current) setLoading(false)
     }
-  }, [nb])
+  }, [nb, thread])
   useEffect(() => {
     alive.current = true
     load(false)

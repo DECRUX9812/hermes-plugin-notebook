@@ -52,7 +52,7 @@ def _now() -> float:
 
 def _iso(ts: float) -> str:
     import datetime
-    return datetime.datetime.fromtimestamp(ts, datetime.timezone.utc).isoformat(timespec="seconds")
+    return datetime.datetime.fromtimestamp(ts, datetime.timezone.utc).isoformat(timespec="microseconds")
 
 
 # ---------------------------------------------------------------- notebooks
@@ -370,34 +370,191 @@ def artifact_path(notebook_id: str, filename: str) -> Path:
 
 
 # --------------------------------------------------------------- chat threads
+#
+# A notebook holds many named conversations, which is the thing people miss most
+# when they compare this with a single-thread chat product: a research notebook is
+# usually several lines of enquiry at once ("pricing", "history", "what changed in
+# 2026"), and each line needs its own memory.
+#
+# On disk: threads/<slug>.json -> {"title", "created", "updated", "messages": [...]}.
+# An older file that is a bare list of messages is still readable — the format grew
+# a header, it did not change shape underneath existing notebooks.
 
-_THREAD_CAP = 24  # messages kept per thread (user+assistant pairs)
+_THREAD_CAP = 40          # messages kept per thread (user+assistant pairs)
+_THREADS_MAX = 40         # threads a notebook may hold
+DEFAULT_THREAD = "default"
+
+
+def _thread_dir(notebook_id: str) -> Path:
+    return _nb_dir(notebook_id) / "threads"
 
 
 def _thread_path(notebook_id: str, name: str) -> Path:
-    safe = runtime.slugify(name or "default", 60)
-    return _nb_dir(notebook_id) / "threads" / f"{safe}.json"
+    safe = runtime.slugify(name or DEFAULT_THREAD, 60)
+    return _thread_dir(notebook_id) / f"{safe}.json"
 
 
-def get_thread(notebook_id: str, name: str = "default") -> list[dict]:
-    return _read_json(_thread_path(notebook_id, name), [])
+def _thread_name_of(path: Path) -> str:
+    return path.stem
+
+
+def _read_thread_file(path: Path) -> dict:
+    """(title, created, updated, messages) for one thread file, legacy or current."""
+    raw = _read_json(path, [])
+    if isinstance(raw, dict):
+        msgs = raw.get("messages") if isinstance(raw.get("messages"), list) else []
+        return {"title": str(raw.get("title") or "").strip(),
+                "created": str(raw.get("created") or ""),
+                "updated": str(raw.get("updated") or raw.get("created") or ""),
+                "messages": [m for m in msgs if isinstance(m, dict)]}
+    if isinstance(raw, list):
+        msgs = [m for m in raw if isinstance(m, dict)]
+        first_user = next((str(m.get("content") or "") for m in msgs
+                           if m.get("role") == "user"), "")
+        return {"title": _title_from(first_user), "created": "", "updated": "",
+                "messages": msgs}
+    return {"title": "", "created": "", "updated": "", "messages": []}
+
+
+def _title_from(text: str, limit: int = 64) -> str:
+    """A readable thread title from its first question — no model call, no surprises."""
+    clean = " ".join(str(text or "").split())
+    if not clean:
+        return ""
+    if len(clean) <= limit:
+        return clean
+    cut = clean[:limit].rsplit(" ", 1)[0].rstrip(" ,.;:-")
+    return (cut or clean[:limit]) + "…"
+
+
+def _write_thread_file(path: Path, doc: dict) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    _write_json(path, {"title": doc.get("title") or "", "created": doc.get("created") or "",
+                       "updated": doc.get("updated") or _iso(_now()),
+                       "messages": list(doc.get("messages") or [])[-_THREAD_CAP:]})
+
+
+def thread_exists(notebook_id: str, name: str) -> bool:
+    return _thread_path(notebook_id, name).exists()
+
+
+def get_thread(notebook_id: str, name: str = DEFAULT_THREAD) -> list[dict]:
+    """Messages only — the shape the tools and older callers expect."""
+    return _read_thread_file(_thread_path(notebook_id, name))["messages"]
+
+
+def read_thread(notebook_id: str, name: str = DEFAULT_THREAD) -> dict:
+    """One thread with its header: {name, title, created, updated, messages}."""
+    nb_id = resolve_notebook(notebook_id)
+    path = _thread_path(nb_id, name)
+    doc = _read_thread_file(path)
+    doc["name"] = _thread_name_of(path)
+    doc["messages"] = doc["messages"][-_THREAD_CAP:]
+    if not doc["title"]:
+        doc["title"] = _title_from(next((str(m.get("content") or "") for m in doc["messages"]
+                                         if m.get("role") == "user"), "")) or "New chat"
+    return doc
 
 
 def append_thread(notebook_id: str, name: str, role: str, content: str) -> list[dict]:
-    """Append one message; returns the trimmed thread."""
+    """Append one message; titles the thread from its first question. Returns messages."""
     nb_id = resolve_notebook(notebook_id)
-    msgs = get_thread(nb_id, name)
-    msgs.append({"role": role, "content": content[:8000], "ts": _iso(_now())})
-    msgs = msgs[-_THREAD_CAP:]
-    _write_json(_thread_path(nb_id, name), msgs)
-    return msgs
+    path = _thread_path(nb_id, name)
+    doc = _read_thread_file(path)
+    if not doc["created"]:
+        doc["created"] = _iso(_now())
+    msgs = doc["messages"]
+    msgs.append({"role": role, "content": str(content)[:8000], "ts": _iso(_now())})
+    doc["messages"] = msgs[-_THREAD_CAP:]
+    doc["updated"] = _iso(_now())
+    if role == "user" and not doc["title"]:
+        doc["title"] = _title_from(content)
+    _write_thread_file(path, doc)
+    return doc["messages"]
 
 
-def clear_thread(notebook_id: str, name: str = "default") -> dict:
+def list_threads(notebook_id: str) -> list[dict]:
+    """Every thread in the notebook, most recently used first."""
     nb_id = resolve_notebook(notebook_id)
-    p = _thread_path(nb_id, name)
-    if p.exists():
-        p.unlink()
+    d = _thread_dir(nb_id)
+    out: list[dict] = []
+    if d.is_dir():
+        for path in sorted(d.glob("*.json")):
+            try:
+                doc = _read_thread_file(path)
+            except Exception:
+                continue
+            msgs = doc["messages"]
+            out.append({
+                "name": _thread_name_of(path),
+                "title": doc["title"] or _title_from(next(
+                    (str(m.get("content") or "") for m in msgs
+                     if m.get("role") == "user"), "")) or "New chat",
+                "created": doc["created"],
+                "updated": doc["updated"] or (msgs[-1].get("ts") if msgs else ""),
+                "messages": len(msgs),
+                "preview": next((str(m.get("content") or "")[:160] for m in reversed(msgs)
+                                 if m.get("role") == "assistant"), ""),
+            })
+    # most recently used first; ties fall back to creation, then name, so the order
+    # is stable rather than whatever the filesystem returned
+    out.sort(key=lambda t: (t.get("updated") or "", t.get("created") or "", t.get("name") or ""),
+             reverse=True)
+    return out
+
+
+def create_thread(notebook_id: str, title: str = "", name: str = "") -> dict:
+    """A new, empty thread. The name is a stable id; the title is what people read."""
+    nb_id = resolve_notebook(notebook_id)
+    existing = {t["name"] for t in list_threads(nb_id)}
+    if len(existing) >= _THREADS_MAX:
+        raise ValueError(f"this notebook already has {len(existing)} threads — "
+                         f"delete one before starting another")
+    base = runtime.slugify(name or "chat", 40) or "chat"
+    candidate, n = base, 2
+    while candidate in existing or candidate == "":
+        candidate = f"{base}-{n}"
+        n += 1
+    doc = {"title": str(title or "").strip()[:80], "created": _iso(_now()),
+           "updated": _iso(_now()), "messages": []}
+    _write_thread_file(_thread_path(nb_id, candidate), doc)
+    return {"name": candidate, "title": doc["title"] or "New chat", "messages": 0,
+            "created": doc["created"], "updated": doc["updated"]}
+
+
+def rename_thread(notebook_id: str, name: str, title: str) -> dict:
+    nb_id = resolve_notebook(notebook_id)
+    path = _thread_path(nb_id, name)
+    if not path.exists():
+        raise ValueError(f"no thread named {name!r} in this notebook")
+    doc = _read_thread_file(path)
+    doc["title"] = str(title or "").strip()[:80]
+    doc["updated"] = _iso(_now())
+    _write_thread_file(path, doc)
+    return {"name": _thread_name_of(path), "title": doc["title"]}
+
+
+def delete_thread(notebook_id: str, name: str) -> dict:
+    nb_id = resolve_notebook(notebook_id)
+    path = _thread_path(nb_id, name)
+    if not path.exists():
+        raise ValueError(f"no thread named {name!r} in this notebook")
+    path.unlink()
+    remaining = list_threads(nb_id)
+    return {"deleted": _thread_name_of(path),
+            "next": remaining[0]["name"] if remaining else ""}
+
+
+def clear_thread(notebook_id: str, name: str = DEFAULT_THREAD) -> dict:
+    """Empty a thread but keep it (and its title) — "clear this chat", not "delete it"."""
+    nb_id = resolve_notebook(notebook_id)
+    path = _thread_path(nb_id, name)
+    if path.exists():
+        doc = _read_thread_file(path)
+        doc["messages"] = []
+        doc["updated"] = _iso(_now())
+        _write_thread_file(path, doc)
+        return {"cleared": _thread_name_of(path)}
     return {"cleared": name}
 
 

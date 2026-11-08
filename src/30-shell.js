@@ -3,7 +3,15 @@
 function App() {
   const [mode, setMode] = useState(() => persist.get('mode', 'home'))
   const [nb, setNb] = useState(() => persist.get('notebook', ''))
-  const studio = useStudio(nb)
+  // Which conversation is open, remembered per notebook so a reload lands people
+  // back in the thread they were reading.
+  const [threadName, setThreadName] = useState(() => persist.get('thread', ''))
+  const studio = useStudio(nb, threadName)
+  useEffect(() => {
+    if (!nb) return
+    const saved = persist.get(`thread.${nb}`, '')
+    setThreadName(saved || '')
+  }, [nb])
   const [picked, setPicked] = useState(null)       // artifact run selected in the viewer
   const [tab, setTab] = useState('chat')
   const [busy, setBusy] = useState({})             // kind -> startedAt (ms)
@@ -119,6 +127,56 @@ function App() {
     } catch (e) { say(`could not update sources: ${e.message || e}`) }
   }, [nb, notebook, studio, say])
 
+  // ---------------------------------------------------------------- threads
+  const openThread = useCallback((name) => {
+    setThreadName(name)
+    if (nb) persist.set(`thread.${nb}`, name)
+  }, [nb])
+
+  const newThread = useCallback(async (title) => {
+    if (!nb) return
+    try {
+      const out = await api('/thread/new', {
+        method: 'POST',
+        body: { notebook: nb, title: title || '' },
+        timeoutMs: 30000
+      })
+      const name = out && out.thread ? out.thread.name : ''
+      if (name) openThread(name)
+      await studio.reload(true)
+      say('new conversation started')
+    } catch (e) { say(`could not start a conversation: ${e.message || e}`) }
+  }, [nb, openThread, studio, say])
+
+  const renameThread = useCallback(async (name, title) => {
+    if (!nb) return
+    try {
+      await api('/thread/rename', {
+        method: 'POST', body: { notebook: nb, thread: name, title }, timeoutMs: 30000
+      })
+      await studio.reload(true)
+    } catch (e) { say(`could not rename: ${e.message || e}`) }
+  }, [nb, studio, say])
+
+  const deleteThread = useCallback(async (name) => {
+    if (!nb) return
+    try {
+      const out = await api('/thread/delete', {
+        method: 'POST', body: { notebook: nb, thread: name, confirm: true }, timeoutMs: 30000
+      })
+      if (out && out.next) openThread(out.next)
+      await studio.reload(true)
+      say('conversation deleted')
+    } catch (e) { say(`could not delete: ${e.message || e}`) }
+  }, [nb, openThread, studio, say])
+
+  const threads = {
+    name: threadName || (notebook && notebook.thread_name) || 'default',
+    title: (notebook && notebook.thread_title) || 'Conversation',
+    list: (notebook && notebook.threads) || [],
+    onOpen: openThread, onNew: newThread, onRename: renameThread, onDelete: deleteThread
+  }
+
   const deleteNotebook = useCallback(async (id) => {
     try {
       await api('/notebook/delete', {
@@ -203,7 +261,8 @@ function App() {
               error: studio.error, loading: studio.loading,
               peek, setPeek, onOpenSource: openSource,
               onAddSource: openAddSource, onNewNotebook: () => setNewNb(true),
-              onFindSources: (seed) => openAddSource({ mode: 'find', seed: seed || '' })
+              onFindSources: (seed) => openAddSource({ mode: 'find', seed: seed || '' }),
+              threads
             }),
             studioOpen
               ? jsx(StudioPanel, {

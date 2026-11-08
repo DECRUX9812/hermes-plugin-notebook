@@ -1,5 +1,5 @@
 name: hermes-notebook
-version: 1.3.0
+version: 1.4.0
 manifest_version: 2
 api_version: 1
 description: >-
@@ -12,7 +12,8 @@ description: >-
   Lab Ops surface that measures a fleet over audited ssh and drives a
   terminal, services, files and VM snapshots. Agent half: gather sources
   (files, PDFs, Office docs, web pages, YouTube, pasted text, images, notes),
-  ask questions answered only from those sources, search, auto-label, generate
+  ask questions answered only from those sources (in any number of separate
+  conversations per notebook), search, auto-label, generate
   artifacts, produce audio/video overviews, discover and refresh sources, and
   export notebooks.
 author: Ritesh Patel
@@ -29,6 +30,7 @@ provides_tools:
   - notebook_audio
   - notebook_video
   - notebook_suggest
+  - notebook_threads
   - notebook_search
   - notebook_note
   - notebook_refresh

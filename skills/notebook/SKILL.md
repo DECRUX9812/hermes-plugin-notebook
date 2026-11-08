@@ -25,7 +25,7 @@ Don't use for: general web research with no fixed source set (use `web_search`/`
 
 ## Prerequisites
 
-- The `hermes-notebook` plugin enabled (`hermes plugins list`). Its tools: `notebook_list`, `notebook_create`, `notebook_add_source`, `notebook_ask`, `notebook_search`, `notebook_note`, `notebook_refresh`, `notebook_delete_source`, `notebook_update`, `notebook_export`, `notebook_discover`, `notebook_generate`, `notebook_audio`, `notebook_video`, `notebook_suggest`, `notebook_delete`.
+- The `hermes-notebook` plugin enabled (`hermes plugins list`). Its tools: `notebook_list`, `notebook_create`, `notebook_add_source`, `notebook_ask`, `notebook_threads`, `notebook_search`, `notebook_note`, `notebook_refresh`, `notebook_delete_source`, `notebook_update`, `notebook_export`, `notebook_discover`, `notebook_generate`, `notebook_audio`, `notebook_video`, `notebook_suggest`, `notebook_delete`.
 - Audio/video overviews need `ffmpeg` on PATH; edge-tts voices need network.
 - YouTube sources need the `youtube-transcript-api` dependency (installed with the plugin).
 
@@ -35,7 +35,7 @@ Everything goes through the notebook tools — there is no shell pipeline. Typic
 
 1. `notebook_create` (or reuse an existing one from `notebook_list`).
 2. `notebook_add_source` once per source — `path=`, `url=` (articles, docs, YouTube), or `text=` for pasted content. Each source is auto-labeled with topic tags and a one-line summary; report those labels to the user.
-3. `notebook_ask` for questions — answers come back with `[S1]`-style citations mapped to source titles. Pass `thread=` for follow-ups so the conversation has memory.
+3. `notebook_ask` for questions — answers come back with `[S1]`-style citations mapped to source titles. Pass `thread=` so the conversation has memory; use a **different thread per line of enquiry** (they do not share history). `notebook_threads` lists / starts / renames / deletes them.
 4. `notebook_search` for "where does X say Y" lookups; `notebook_note` to pin user annotations as searchable sources.
 5. `notebook_discover` when the user wants more sources on a topic — it returns candidates, then confirm before `notebook_add_source`.
 6. `notebook_generate` for artifacts — `summary`, `briefing_doc`, `study_guide`, `faq`, `timeline`, `mind_map`, `flashcards` (md or `format=csv` for Anki), `quiz`, `slides` (HTML deck), `infographic` (PNG in 16 bundled styles — pass `style=`; see the `notebook-infographics` skill), `data_table` (CSV).

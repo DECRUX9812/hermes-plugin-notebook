@@ -318,7 +318,38 @@ const CSS = `
 .nb-tab[disabled]{opacity:.45;cursor:default}
 
 /* ------------------------------------------------------------------- chat */
-.nb-chat{flex:1;min-height:0;display:flex;flex-direction:column}
+.nb-chat{flex:1;min-height:0;display:flex;flex-direction:column;position:relative}
+/* conversation bar: the open thread is the page's subject, so it gets the top row */
+.nb-chatbar{display:flex;align-items:center;gap:8px;padding:10px 16px 8px;
+  border-bottom:1px solid ${T.lineSoft};flex-wrap:nowrap}
+.nb-threadpick{display:flex;align-items:center;gap:8px;min-width:0;max-width:min(56ch,72%);
+  min-height:34px;padding:4px 8px;border-radius:10px;border:1px solid transparent;
+  background:transparent;color:${T.text};font:inherit;font-size:14px;font-weight:600;
+  cursor:pointer}
+.nb-threadpick:hover{background:${T.inset};border-color:${T.lineSoft}}
+.nb-threadpick:focus-visible{outline:2px solid ${T.accent};outline-offset:1px}
+.nb-threadpick svg{color:${T.text4};flex:0 0 auto}
+.nb-threadpick-title{min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.nb-newthread{display:flex;gap:8px;align-items:center}
+.nb-newthread .nb-genopt-text{flex:1;min-width:0}
+.nb-threadlist{display:flex;flex-direction:column;gap:6px;max-height:min(48vh,380px);
+  overflow:auto;overscroll-behavior:contain}
+.nb-threadrow{display:flex;align-items:center;gap:6px;padding:2px;border-radius:12px;
+  border:1px solid ${T.lineSoft};background:${T.card}}
+.nb-threadrow[data-on="true"]{border-color:${T.accent};
+  background:color-mix(in srgb,${T.accent} 9%,transparent)}
+.nb-threadrow-main{flex:1;min-width:0;display:flex;flex-direction:column;gap:3px;
+  align-items:flex-start;text-align:left;background:transparent;border:0;cursor:pointer;
+  padding:8px 10px;border-radius:10px;color:${T.text};font:inherit;min-height:48px}
+.nb-threadrow-main:hover{background:${T.inset}}
+.nb-threadrow-main:focus-visible{outline:2px solid ${T.accent};outline-offset:-2px}
+.nb-threadrow-title{display:block;font-size:14px;font-weight:600;max-width:100%;
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.nb-threadrow-meta{display:block;font-size:11.5px;color:${T.text4};line-height:1.2}
+.nb-threadrow-acts{display:flex;align-items:center;gap:4px;padding-right:6px}
+.nb-threadrow-acts .nb-btn{height:32px}
+.nb-threadrow-edit{display:flex;gap:6px;align-items:center;padding-right:8px;flex:1}
+.nb-threadrow-edit .nb-genopt-text{flex:1;min-width:0}
 .nb-thread{flex:1;min-height:0;overflow:auto;padding:28px 28px 12px;display:flex;flex-direction:column;gap:24px}
 .nb-msg{max-width:72ch}
 .nb-msg[data-role=assistant]{display:grid;grid-template-columns:30px minmax(0,1fr);gap:14px;align-self:flex-start}

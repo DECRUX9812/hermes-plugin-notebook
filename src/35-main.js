@@ -2,7 +2,8 @@
 
 function Main({ notebook, kinds, tab, setTab, picked, setPicked, busy, generate, onAsk,
                 askOpen, onSay, reload, modelReady, error, loading,
-                peek, setPeek, onOpenSource, onAddSource, onNewNotebook, onFindSources }) {
+                peek, setPeek, onOpenSource, onAddSource, onNewNotebook, onFindSources,
+                threads }) {
   const sources = (notebook && notebook.sources) || []
   const [askScope, setAskScope] = useState(null)   // chat scoped to one source
 
@@ -91,7 +92,7 @@ function Main({ notebook, kinds, tab, setTab, picked, setPicked, busy, generate,
             if (src) { setPeek(src); setTab('peek') }
           } })
         : jsx(Chat, {
-            notebook, askOpen, onSay, modelReady, reload, askScope, setAskScope,
+            notebook, askOpen, onSay, modelReady, reload, askScope, setAskScope, threads,
             onCite: (n) => {
               const src = sources.find((s) => s.n === n)
               if (src) { setPeek(src); setTab('peek') }
@@ -114,7 +115,7 @@ const SUGGEST = [
    cached for the session — tab switches must not re-bill the model. */
 const ovCache = new Map()
 
-function Chat({ notebook, askOpen, onSay, modelReady, onCite, onOpenSource, onFindSources, reload, askScope, setAskScope }) {
+function Chat({ notebook, askOpen, onSay, modelReady, onCite, onOpenSource, onFindSources, reload, askScope, setAskScope, threads }) {
   const [msgs, setMsgs] = useState(() => (notebook.thread || []).map((m, i) => ({ ...m, k: `t${i}` })))
   const [text, setText] = useState('')
   const [pending, setPending] = useState(null)
@@ -123,6 +124,7 @@ function Chat({ notebook, askOpen, onSay, modelReady, onCite, onOpenSource, onFi
   const [cfgOpen, setCfgOpen] = useState(false)
   const [cfg, setCfg] = useState({})
   const [cfgBusy, setCfgBusy] = useState(false)
+  const [threadsOpen, setThreadsOpen] = useState(false)
   const threadRef = useRef(null)
   const boxRef = useRef(null)
   const stats = notebook.stats || {}
@@ -204,7 +206,8 @@ function Chat({ notebook, askOpen, onSay, modelReady, onCite, onOpenSource, onFi
       const out = await api('/ask', {
         method: 'POST',
         body: {
-          notebook: notebook.id, question: q, thread: 'default',
+          notebook: notebook.id, question: q,
+          thread: (threads && threads.name) || notebook.thread_name || 'default',
           ...(askScope ? { source_ids: [askScope.id] } : {})
         },
         timeoutMs: 180000
@@ -232,7 +235,27 @@ function Chat({ notebook, askOpen, onSay, modelReady, onCite, onOpenSource, onFi
 
   const elapsed = pending ? Math.round(((pending.now || Date.now()) - pending.since) / 1000) : 0
 
+  const threadName = (threads && threads.title) || notebook.thread_title || 'Conversation'
+  const threadCount = (notebook.thread || []).length
   return el('div', { className: 'nb-chat' },
+    el('div', { className: 'nb-chatbar' },
+      el('button', {
+        type: 'button', className: 'nb-threadpick', onClick: () => setThreadsOpen(true),
+        'aria-haspopup': 'dialog', 'aria-label': `Conversations — ${threadName}`,
+        title: 'Switch, rename or start a conversation',
+        children: [
+          jsx(Glyph, { name: 'summary', size: 15 }),
+          el('span', { className: 'nb-threadpick-title', children: threadName }),
+          threadCount ? el('span', { className: 'nb-chip', children: `${threadCount}` }) : null,
+          jsx(Glyph, { name: 'chevron', size: 14 })
+        ]
+      }),
+      el('span', { style: { flex: 1 } }),
+      jsx(Btn, {
+        size: 'sm', icon: 'plus', disabled: !threads || !!pending,
+        onClick: () => threads && threads.onNew(),
+        children: 'New chat'
+      })),
     el('div', { className: 'nb-thread', ref: threadRef, role: 'log', 'aria-live': 'polite', 'aria-label': 'Conversation' },
       ov
         ? el('div', { className: 'nb-overview' },
@@ -244,7 +267,7 @@ function Chat({ notebook, askOpen, onSay, modelReady, onCite, onOpenSource, onFi
               jsx(Btn, { size: 'sm', icon: 'pin', onClick: saveNote, children: 'Save to note' })
             ),
             el('div', { className: 'nb-overview-body' },
-              jsx(Markdown, { text: ov })))
+              jsx(Markdown, { text: ov, onCite })))
         : null,
       msgs.length === 0 && !pending
         ? el('div', { style: { margin: msgs.length || ov ? '0' : 'auto', textAlign: 'center', maxWidth: '54ch' } },
@@ -413,6 +436,17 @@ function Chat({ notebook, askOpen, onSay, modelReady, onCite, onOpenSource, onFi
                   children: 'Save'
                 })))
             })
+        : null,
+      threadsOpen && threads
+        ? jsx(ThreadsDialog, {
+            open: true, threads: threads.list || [], active: threads.name,
+            busy: !!pending,
+            onClose: () => setThreadsOpen(false),
+            onOpen: (name) => { threads.onOpen(name); setThreadsOpen(false) },
+            onNew: (title) => { threads.onNew(title); setThreadsOpen(false) },
+            onRename: (name, title) => threads.onRename(name, title),
+            onDelete: (name) => threads.onDelete(name)
+          })
         : null
     )
   )
@@ -820,6 +854,102 @@ function GenPill({ kind, art, started, nbId, onOpen, onGenerate }) {
       : null
   )
 }
+
+/* ----------------------------------------------------------------- threads
+ * A notebook is usually several lines of enquiry at once. The picker in the chat
+ * header lists them, opens one, renames it, or starts a clean one — each thread
+ * keeps its own memory, so "pricing" does not drag the history of "history" along.
+ */
+function ThreadsDialog({ open, threads, active, busy, onClose, onOpen, onNew, onRename, onDelete }) {
+  const [title, setTitle] = useState('')
+  const [editing, setEditing] = useState('')
+  const [draft, setDraft] = useState('')
+  const [confirming, setConfirming] = useState('')
+  const list = threads || []
+
+  const commitRename = (name) => {
+    const next = draft.trim()
+    setEditing('')
+    if (next) onRename(name, next)
+  }
+
+  return jsx(Dialog, {
+    open: true, title: 'Conversations', width: 620, onClose,
+    children: el('div', { style: { display: 'grid', gap: '14px' } },
+      el('div', { className: 'nb-newthread' },
+        el('input', {
+          className: 'nb-genopt-text', type: 'text', autoFocus: true,
+          placeholder: 'Name a new conversation (optional)',
+          'aria-label': 'New conversation name',
+          value: title,
+          onChange: (e) => setTitle(e.target.value),
+          onKeyDown: (e) => { if (e.key === 'Enter') { onNew(title); setTitle('') } }
+        }),
+        jsx(Btn, {
+          size: 'sm', variant: 'primary', icon: 'plus', disabled: busy,
+          onClick: () => { onNew(title); setTitle('') },
+          children: 'Start'
+        })),
+      el('div', { className: 'nb-threadlist', role: 'list', 'aria-label': 'Conversations' },
+        list.length === 0
+          ? el('div', { className: 'nb-hint', style: { padding: '10px 4px' },
+              children: 'No conversations yet — the first question starts one.' })
+          : list.map((t) => {
+              const on = t.name === active
+              const isEditing = editing === t.name
+              return el('div', {
+                key: t.name, className: 'nb-threadrow', role: 'listitem',
+                'data-on': on ? 'true' : 'false'
+              },
+              el('button', {
+                type: 'button', className: 'nb-threadrow-main',
+                disabled: isEditing,
+                onClick: () => onOpen(t.name),
+                'aria-current': on ? 'true' : undefined,
+                'aria-label': `Open conversation ${t.title}`,
+                children: [
+                  el('span', { className: 'nb-threadrow-title', children: t.title }),
+                  el('span', { className: 'nb-threadrow-meta',
+                    children: `${t.messages || 0} message${t.messages === 1 ? '' : 's'}`
+                             + (t.updated ? ` · ${ago(t.updated)}` : '') })
+                ]
+              }),
+              isEditing
+                ? el('div', { className: 'nb-threadrow-edit' },
+                    el('input', {
+                      className: 'nb-genopt-text', type: 'text', autoFocus: true,
+                      'aria-label': `Rename ${t.title}`,
+                      value: draft,
+                      onChange: (e) => setDraft(e.target.value),
+                      onKeyDown: (e) => {
+                        if (e.key === 'Enter') commitRename(t.name)
+                        if (e.key === 'Escape') setEditing('')
+                      }
+                    }),
+                    jsx(Btn, { size: 'sm', onClick: () => commitRename(t.name), children: 'Save' }))
+                : el('div', { className: 'nb-threadrow-acts' },
+                    jsx(Btn, {
+                      size: 'sm', icon: 'note', label: `Rename ${t.title}`,
+                      children: 'Rename',
+                      onClick: () => { setEditing(t.name); setDraft(t.title); setConfirming('') }
+                    }),
+                    confirming === t.name
+                      ? jsx(Btn, {
+                          size: 'sm', className: 'nb-danger', label: `Confirm delete ${t.title}`,
+                          onClick: () => { setConfirming(''); onDelete(t.name) },
+                          children: 'Really delete'
+                        })
+                      : jsx(Btn, {
+                          size: 'sm', icon: 'close', label: `Delete ${t.title}`,
+                          children: 'Delete',
+                          onClick: () => setConfirming(t.name)
+                        })))
+            })),
+      el('div', { className: 'nb-hint',
+        children: 'Each conversation keeps its own history; answers still cite the same sources.' }))
+  })
+}
+
 
 /* ------------------------------------------------------------- art thumbs
  * Cheap previews inside the 40px artifact tile: infographic fetches its png

@@ -180,4 +180,5 @@ def test_generate_accepts_new_kinds_in_schema():
     kinds = schemas.NOTEBOOK_GENERATE["parameters"]["properties"]["kind"]["enum"]
     assert "slides" in kinds and "infographic" in kinds
     names = {s["name"] for s in schemas.ALL}
-    assert len(names) == 16
+    assert len(names) == 17
+    assert "notebook_threads" in names

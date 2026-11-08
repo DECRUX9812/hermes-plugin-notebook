@@ -71,7 +71,7 @@ control, a file browser and Proxmox VM snapshots for the selected host.
 | NotebookLM feature | Hermes Notebook |
 |---|---|
 | Sources (files, PDFs, Office docs, web, YouTube) | `notebook_add_source` — path / URL / pasted text / images (vision-described) |
-| Chat with sources + citations | `notebook_ask` — BM25 retrieval, `[S1]`-style citations, optional `thread=` chat history |
+| Chat with sources + citations | `notebook_ask` — BM25 retrieval, `[S1]`-style citations, **many named conversations per notebook** (`thread=`), each with its own memory |
 | Auto-labeling / source chips | Every source gets 2–5 topic labels + a one-line summary on ingest; duplicates detected by content hash |
 | Source search | `notebook_search` — ranked full-text hits with snippets across all sources and notes |
 | User notes | `notebook_note` — your annotations become first-class searchable sources |
@@ -84,6 +84,24 @@ control, a file browser and Proxmox VM snapshots for the selected host.
 | Notebook management | `notebook_update` rename/describe, `notebook_export` whole notebook as zip |
 | — desktop surface — | `/notebook` route, sidebar row, three palette commands, status-bar chip, `::notebook{name="…"}` transcript directive, settings page |
 | — Hermes extras — | `/notebook` slash command, `hermes notebook` CLI, bundled skill, auxiliary task slot, per-notebook persistent storage |
+
+## Conversations
+
+A notebook holds **many chat threads**, not one. Each keeps its own memory and its
+own title, so "pricing", "history" and "what changed in 2026" can be explored in
+parallel without one line of enquiry dragging the history of another into the
+answer. Every thread still cites the same sources.
+
+![Conversations](assets/threads.png)
+
+| | |
+|---|---|
+| In the page | the chat bar shows the open conversation; the title opens a dialog to switch, rename, start (`New chat`) or delete one |
+| New threads | titled automatically from their first question, or named up front |
+| Agent tools | `notebook_threads` — `list`, `new`, `rename`, `delete` (delete needs `confirm=true`) |
+| API | `GET /threads`, `POST /thread/new`, `POST /thread/rename`, `POST /thread/delete`, `GET /state?notebook=&thread=` |
+| Storage | `threads/<name>.json` per notebook — title, created, updated, messages; older message-list files still load |
+| Limits | 40 threads per notebook, 40 messages per thread (the oldest roll off) |
 
 ## Graphics library
 

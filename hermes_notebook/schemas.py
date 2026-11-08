@@ -108,6 +108,27 @@ NOTEBOOK_GENERATE = {
     }, "required": ["kind"]},
 }
 
+NOTEBOOK_THREADS = {
+    "name": "notebook_threads",
+    "description": (
+        "Manage the CONVERSATIONS inside one notebook (separate chat threads, each "
+        "with its own memory). Use for 'start a new chat about pricing', 'what "
+        "threads do I have', 'rename that conversation', 'delete it'. Deleting needs "
+        "confirm=true."
+    ),
+    "parameters": {"type": "object", "properties": {
+        "notebook": _NB,
+        "action": {"type": "string", "enum": ["list", "new", "rename", "delete"],
+                   "description": "list (default), new, rename or delete"},
+        "thread": {"type": "string",
+                   "description": "thread name (required for rename/delete); names are stable ids, titles are what people read"},
+        "title": {"type": "string",
+                  "description": "title for a new or renamed thread; a new thread without one is titled by its first question"},
+        "confirm": {"type": "boolean",
+                    "description": "required true when action=delete"},
+    }, "required": ["action"]},
+}
+
 NOTEBOOK_AUDIO = {
     "name": "notebook_audio",
     "description": (
@@ -274,6 +295,7 @@ NOTEBOOK_DELETE = {
 ALL = [
     NOTEBOOK_LIST, NOTEBOOK_CREATE, NOTEBOOK_ADD_SOURCE, NOTEBOOK_ASK,
     NOTEBOOK_GENERATE, NOTEBOOK_AUDIO, NOTEBOOK_VIDEO, NOTEBOOK_SUGGEST,
+    NOTEBOOK_THREADS,
     NOTEBOOK_SEARCH, NOTEBOOK_NOTE, NOTEBOOK_REFRESH, NOTEBOOK_DELETE_SOURCE,
     NOTEBOOK_UPDATE, NOTEBOOK_EXPORT, NOTEBOOK_DISCOVER, NOTEBOOK_DELETE,
 ]

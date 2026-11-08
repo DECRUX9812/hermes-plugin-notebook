@@ -133,6 +133,12 @@ TEXT_EXT = {"md", "txt", "json", "csv", "srt", "vtt"}
 
 # ------------------------------------------------------------------ helpers
 
+def _q(value: Any) -> str:
+    """A query argument as text. FastAPI hands the default `Query(...)` object when a
+    route is called directly (tests, dump scripts), which has no `.strip()`."""
+    return value.strip() if isinstance(value, str) else ""
+
+
 def _fail(message: str, status: int = 400, **extra: Any) -> JSONResponse:
     return JSONResponse(status_code=status, content={"ok": False, "error": message, **extra})
 
@@ -225,7 +231,7 @@ def _source_row(source: Dict[str, Any], index: int, active: bool = True) -> Dict
     }
 
 
-def _notebook_payload(notebook_id: str) -> Dict[str, Any]:
+def _notebook_payload(notebook_id: str, thread: str = "") -> Dict[str, Any]:
     meta = store.get_meta(notebook_id)
     disabled = store.disabled_sources(notebook_id)
     sources = [_source_row(s, i, s.get("id") not in disabled)
@@ -237,7 +243,12 @@ def _notebook_payload(notebook_id: str) -> Dict[str, Any]:
     labels = [{"label": k, "count": v}
               for k, v in sorted(label_counts.items(), key=lambda kv: (-kv[1], kv[0]))]
     arts = _collect_artifacts(notebook_id)
-    thread = store.get_thread(notebook_id, "default")[-24:]
+    threads = store.list_threads(notebook_id)
+    wanted = _q(thread)
+    names = {t["name"] for t in threads}
+    active = wanted if wanted in names else (threads[0]["name"] if threads else store.DEFAULT_THREAD)
+    open_thread = store.read_thread(notebook_id, active)
+    msgs = open_thread["messages"][-24:]
     return {
         "id": meta.get("id", notebook_id),
         "title": meta.get("title") or notebook_id,
@@ -247,7 +258,10 @@ def _notebook_payload(notebook_id: str) -> Dict[str, Any]:
         "sources": sources,
         "artifacts": arts,
         "labels": labels,
-        "thread": thread,
+        "thread": msgs,
+        "thread_name": open_thread["name"],
+        "thread_title": open_thread["title"],
+        "threads": threads,
         "stats": {
             "sources": len(sources),
             "chars": sum(s["chars"] for s in sources),
@@ -352,18 +366,19 @@ def _style_thumb(data: Dict[str, Any], title: str, style_id: str) -> str:
 
 
 @router.get("/state")
-def state(notebook: str = Query("", description="notebook id, title or slug")) -> Any:
+def state(notebook: str = Query("", description="notebook id, title or slug"),
+          thread: str = Query("", description="thread name to open (default: most recent)")) -> Any:
     try:
         notebooks = store.list_notebooks()
     except Exception as exc:
         return _fail(f"cannot read the notebook root: {exc}", 500)
     active = None
-    wanted = (notebook or "").strip()
+    wanted = _q(notebook)
     try:
         if wanted:
-            active = _notebook_payload(store.resolve_notebook(wanted))
+            active = _notebook_payload(store.resolve_notebook(wanted), thread)
         elif notebooks:
-            active = _notebook_payload(notebooks[0]["id"])
+            active = _notebook_payload(notebooks[0]["id"], thread)
     except Exception as exc:
         return _fail(str(exc), 404)
     cards = []
@@ -664,7 +679,8 @@ async def ask(payload: Dict[str, Any] = Body(...)) -> Any:
 
     def _run() -> Dict[str, Any]:
         from hermes_notebook import tools as tools_mod
-        args = {"notebook": nb_id, "question": question, "thread": "default"}
+        args = {"notebook": nb_id, "question": question,
+                "thread": str(payload.get("thread") or store.DEFAULT_THREAD)}
         ids = payload.get("source_ids")
         if isinstance(ids, list) and ids:
             args["source_ids"] = [str(x) for x in ids][:12]
@@ -697,6 +713,7 @@ async def ask(payload: Dict[str, Any] = Body(...)) -> Any:
         "total_chunks": out.get("total_chunks"),
         "seconds": round(time.time() - started, 1),
         "thread": out.get("thread"),
+        "thread_name": str(payload.get("thread") or store.DEFAULT_THREAD),
     }
 
 
@@ -838,6 +855,62 @@ async def label(payload: Dict[str, Any] = Body(...)) -> Any:
     except Exception as exc:
         return _fail(f"{type(exc).__name__}: {exc}", 500)
     return {"ok": True, **out, "state": _notebook_payload(nb_id)}
+
+
+@router.get("/threads")
+def threads(notebook: str = Query("", description="notebook id, title or slug")) -> Any:
+    """Every conversation in a notebook, most recently used first."""
+    try:
+        nb_id = store.resolve_notebook(notebook)
+    except Exception as exc:
+        return _fail(str(exc), 404)
+    rows = store.list_threads(nb_id)
+    return {"ok": True, "threads": rows, "count": len(rows),
+            "default": rows[0]["name"] if rows else ""}
+
+
+@router.post("/thread/new")
+def new_thread(payload: Dict[str, Any] = Body(...)) -> Any:
+    """Start a conversation. Its memory is separate from every other thread."""
+    try:
+        nb_id = store.resolve_notebook(str(payload.get("notebook") or ""))
+    except Exception as exc:
+        return _fail(str(exc), 404)
+    try:
+        created = store.create_thread(nb_id, title=str(payload.get("title") or ""),
+                                      name=str(payload.get("name") or ""))
+    except Exception as exc:
+        return _fail(str(exc), 400)
+    return {"ok": True, "thread": created, "threads": store.list_threads(nb_id)}
+
+
+@router.post("/thread/rename")
+def rename_thread(payload: Dict[str, Any] = Body(...)) -> Any:
+    try:
+        nb_id = store.resolve_notebook(str(payload.get("notebook") or ""))
+    except Exception as exc:
+        return _fail(str(exc), 404)
+    try:
+        out = store.rename_thread(nb_id, str(payload.get("thread") or ""),
+                                  str(payload.get("title") or ""))
+    except Exception as exc:
+        return _fail(str(exc), 400)
+    return {"ok": True, "thread": out, "threads": store.list_threads(nb_id)}
+
+
+@router.post("/thread/delete")
+def delete_thread(payload: Dict[str, Any] = Body(...)) -> Any:
+    if not payload.get("confirm"):
+        return _fail("deleting a conversation needs confirm=true", 400)
+    try:
+        nb_id = store.resolve_notebook(str(payload.get("notebook") or ""))
+    except Exception as exc:
+        return _fail(str(exc), 404)
+    try:
+        out = store.delete_thread(nb_id, str(payload.get("thread") or ""))
+    except Exception as exc:
+        return _fail(str(exc), 400)
+    return {"ok": True, **out, "threads": store.list_threads(nb_id)}
 
 
 @router.post("/thread/clear")

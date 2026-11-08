@@ -1,6 +1,6 @@
 {
  "ok": true,
- "generated_at": "2026-11-08T05:34:01Z",
+ "generated_at": "2026-11-08T15:55:32Z",
  "model_ready": false,
  "notebooks": [
   {
@@ -514,6 +514,18 @@
     "role": "assistant",
     "content": "Reuters (25 Aug 2026) reports the US government launched a strategy to catalyse early-stage fusion plants by the mid-2030s, and that success hinges on more federal funding. Developers point to unsolved engineering: neutron-resistant structural materials, tritium separation and reprocessing, and components that survive constant high-energy neutron flux. Robb Hughes of Realta Fusion framed it as \"The plan isn't the problem. We all agree on the plan. The X factor is the funding.\" The roadmap leans on existing DOE programmes such as Milestone-Based Fusion Development and INFUSE. Treat the timeline as policy intent, not a committed delivery date.",
     "ts": "2026-11-07T16:36:51+00:00"
+   }
+  ],
+  "thread_name": "default",
+  "thread_title": "Where does ITER's machine assembly actually stand?",
+  "threads": [
+   {
+    "name": "default",
+    "title": "Where does ITER's machine assembly actually stand?",
+    "created": "",
+    "updated": "2026-11-07T16:36:51+00:00",
+    "messages": 4,
+    "preview": "Reuters (25 Aug 2026) reports the US government launched a strategy to catalyse early-stage fusion plants by the mid-2030s, and that success hinges on more fede"
    }
   ],
   "stats": {

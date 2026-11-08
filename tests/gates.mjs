@@ -144,7 +144,9 @@ async function functional(port) {
   const cites = await page.locator('.nb-inline-cite').count()
   ok('answer carries inline citations', cites > 0, `${cites} markers`)
 
-  const citeBtn = page.locator('.nb-inline-cite').first()
+  // citations inside an ANSWER — the overview block has its own markers, and
+  // testing "a citation opens its source" against those tests the wrong element
+  const citeBtn = page.locator('.nb-msg .nb-inline-cite').first()
   if (cites) {
     await citeBtn.click()
     await settle(page, 500)
