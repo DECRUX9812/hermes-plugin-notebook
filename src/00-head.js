@@ -23,7 +23,7 @@
  * stages and the terminal stay dark in both themes, like a player.
  */
 import * as SDK from '@hermes/plugin-sdk'
-import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import React, { useCallback, useEffect, useMemo, useReducer, useRef, useState } from 'react'
 import { jsx, jsxs } from 'react/jsx-runtime'
 
 /* Namespace import, then local constants with the host's own strings as the

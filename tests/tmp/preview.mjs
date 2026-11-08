@@ -23,7 +23,7 @@
  * stages and the terminal stay dark in both themes, like a player.
  */
 import * as SDK from '@hermes/plugin-sdk'
-import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import React, { useCallback, useEffect, useMemo, useReducer, useRef, useState } from 'react'
 import { jsx, jsxs } from 'react/jsx-runtime'
 
 /* Namespace import, then local constants with the host's own strings as the
@@ -1329,26 +1329,127 @@ const optsSummary = (opts) => Object.keys(opts || {})
   .map((k) => `${OPT_LABEL[k] || k}: ${String(opts[k]).slice(0, 48)}`)
   .join(' · ')
 
+/* ------------------------------------------------------------- state machines
+ *
+ * The app's de-facto state machines, made explicit. Before this module the
+ * same invariants were enforced by convention across scattered useState
+ * setters — legal-looking calls could produce impossible screens (a "view"
+ * tab with no artifact, two modal dialogs stacked, a peek tab with no
+ * source). Each machine below is a pure transition table: state + event →
+ * next state (return null/undefined to reject the event). React binds them
+ * with useReducer in 30-shell.js; nothing here touches the DOM, so the
+ * tables are unit-testable in plain node (tests/machine.test.mjs).
+ *
+ * ATLAS — every implicit machine found in the app, and its disposition:
+ *
+ *   M1  center view      tab{chat,view,peek} × picked artifact × peeked
+ *                        source — three useStates that had to agree.
+ *                        → VIEW_FSM (migrated; was the spine, most drift risk)
+ *   M2  overlays         srcDialog / newNb / renNb / searchOpen — four
+ *                        independent dialog flags, no exclusivity.
+ *                        → OVERLAY_FSM (migrated; fixes latent stacked modals)
+ *   M3  chat thread      thread/msgs/pending + overview{idle,loading,ready,
+ *                        error} + suggestions lifecycle — component-local,
+ *                        consistent today; migrate if it grows transitions.
+ *   M4  generation       busy{kind→startedAt} per studio card + reload
+ *                        polling — implicit but single-direction.
+ *   M5  add-source dlg   mode{url,text,find,note} × cands/sel/adding/added —
+ *                        nested machine inside one dialog; self-contained.
+ *   M6  audio player     playing/t/dur/rate × editing/draft/rendering —
+ *                        viewer-local, orthogonal substates.
+ *   M7  ops panels       per-panel state{idle,busy,done,error} — repeated
+ *                        shape, already honest about failures.
+ *   M8  viewer chrome    zoom/pan, slide index, quiz index, table sort —
+ *                        pure UI state, no cross-component invariants.
+ *
+ * Decision: migrate only the spine (M1+M2) where illegal combinations were
+ * representable and transitions were copy-pasted. The rest are local,
+ * consistent, and cheap — the pattern is here when they need it.
+ */
+
+/* createMachine(spec) → { initial, step(state, event) }
+ * spec.transitions[event.type] is (state, event) => nextState | null.
+ * Returning null/undefined rejects the event: state passes through
+ * unchanged, so guards live inside the table where they can be read. */
+export function createMachine(spec) {
+  return {
+    initial: spec.initial,
+    step(state, event) {
+      const fn = spec.transitions[event && event.type]
+      if (!fn) return state
+      const next = fn(state, event)
+      return next == null ? state : next
+    }
+  }
+}
+
+/* M1 — center view. `tab` is the visible pane; `artifact` and `source` are
+ * per-room selections that persist while another tab is showing (switching
+ * Chat → Viewer → Chat must not lose the open artifact). Illegal combos
+ * self-heal: clearing the selection under its own tab falls back to chat,
+ * and tab switches are guarded by the selection they require. */
+export const VIEW_FSM = createMachine({
+  initial: { tab: 'chat', artifact: null, source: null },
+  transitions: {
+    TAB_CHAT: (s) => ({ ...s, tab: 'chat' }),
+    TAB_VIEW: (s) => (s.artifact ? { ...s, tab: 'view' } : s),
+    TAB_PEEK: (s) => (s.source ? { ...s, tab: 'peek' } : s),
+    OPEN_ARTIFACT: (s, e) => ({ tab: 'view', artifact: e.artifact, source: s.source }),
+    OPEN_SOURCE: (s, e) => ({ tab: 'peek', artifact: s.artifact, source: e.source }),
+    STEP_ARTIFACT: (s, e) => ({
+      ...s, artifact: e.artifact,
+      tab: s.tab === 'view' && !e.artifact ? 'chat' : s.tab
+    }),
+    STEP_SOURCE: (s, e) => ({
+      ...s, source: e.source,
+      tab: s.tab === 'peek' && !e.source ? 'chat' : s.tab
+    }),
+    RESET_VIEW: () => ({ tab: 'chat', artifact: null, source: null })
+  }
+})
+
+/* M2 — modal overlays. Exactly one dialog may exist at a time, enforced by
+ * construction: every OPEN_* replaces the whole overlay state. OPEN_SEARCH
+ * is the exception — it is a passive global shortcut (Ctrl+K), so it is
+ * guarded to 'none' rather than allowed to silently discard a half-typed
+ * add-source draft. CLOSE always wins. */
+export const OVERLAY_FSM = createMachine({
+  initial: { name: 'none' },
+  transitions: {
+    OPEN_ADDSRC: (s, e) => ({ name: 'addsrc', mode: e.mode, seed: e.seed }),
+    OPEN_NEWNB: () => ({ name: 'newnb' }),
+    OPEN_RENAME: (s, e) => ({ name: 'rename', notebook: e.notebook }),
+    OPEN_SEARCH: (s) => (s.name === 'none' ? { name: 'search' } : s),
+    CLOSE: () => ({ name: 'none' })
+  }
+})
+
 /* ------------------------------------------------------------------ shell */
 
 function App() {
   const [mode, setMode] = useState(() => persist.get('mode', 'home'))
   const [nb, setNb] = useState(() => persist.get('notebook', ''))
   const studio = useStudio(nb)
-  const [picked, setPicked] = useState(null)       // artifact run selected in the viewer
-  const [tab, setTab] = useState('chat')
   const [busy, setBusy] = useState({})             // kind -> startedAt (ms)
   const [note, setNote] = useState('')
   const [askOpen, setAskOpen] = useState(0)        // bump to focus the composer
-  const [srcDialog, setSrcDialog] = useState(null) // {mode?, seed?} | null
-  const [newNb, setNewNb] = useState(false)
-  const [renNb, setRenNb] = useState(null)          // notebook open in the settings dialog
   const [filter, setFilter] = useState('all')
-  const [peek, setPeek] = useState(null)           // source lifted so the rail can open it
   const [railOpen, setRailOpen] = useState(() => persist.get('rail', '1') !== '0')
   const [studioOpen, setStudioOpen] = useState(() => persist.get('studio', '1') !== '0')
   const [opsStats, setOpsStats] = useState(null)
-  const [searchOpen, setSearchOpen] = useState(false)
+
+  // M1/M2 — the spine runs on explicit machines (src/25-machine.js): the
+  // center view and the modal overlays are transition tables now, so illegal
+  // combinations (view tab with no artifact, stacked dialogs) can't exist.
+  const [view, viewSend] = useReducer(VIEW_FSM.step, VIEW_FSM.initial)
+  const [overlay, overlaySend] = useReducer(OVERLAY_FSM.step, OVERLAY_FSM.initial)
+  const { tab, artifact: picked, source: peek } = view
+  // Legacy setter-shaped adapters keep every downstream prop identical.
+  const setTab = useCallback((t) => viewSend({
+    type: t === 'view' ? 'TAB_VIEW' : t === 'peek' ? 'TAB_PEEK' : 'TAB_CHAT'
+  }), [])
+  const setPicked = useCallback((a) => viewSend({ type: 'STEP_ARTIFACT', artifact: a }), [])
+  const setPeek = useCallback((s) => viewSend({ type: 'STEP_SOURCE', source: s }), [])
 
   // palette/deep links can ask for a surface: ?surface=ops opens the lab deck
   useEffect(() => {
@@ -1377,7 +1478,7 @@ function App() {
   useEffect(() => {
     const onKey = (e) => {
       if ((e.metaKey || e.ctrlKey) && String(e.key).toLowerCase() === 'k') {
-        if (mode === 'studio' && notebook) { e.preventDefault(); setSearchOpen(true) }
+        if (mode === 'studio' && notebook) { e.preventDefault(); overlaySend({ type: 'OPEN_SEARCH' }) }
       }
     }
     document.addEventListener('keydown', onKey)
@@ -1435,7 +1536,11 @@ function App() {
   }, [nb, studio, say])
 
   const openSource = useCallback((s) => { setPeek(s); setTab('peek') }, [])
-  const openAddSource = useCallback((opts) => setSrcDialog(opts || { mode: 'find' }), [])
+  const openAddSource = useCallback((opts) => overlaySend({
+    type: 'OPEN_ADDSRC',
+    mode: (opts && opts.mode) || 'find',
+    seed: opts && opts.seed
+  }), [])
 
   // drag files onto the sources rail → same ingest path as the upload picker
   const dropSources = useCallback(async (files) => {
@@ -1621,14 +1726,14 @@ function App() {
       await studio.reload(true)
       say(`copied as “${(out.notebook && out.notebook.title) || 'new notebook'}”`)
       if (openIt && out.notebook && out.notebook.id) {
-        setNb(out.notebook.id); setPicked(null); setPeek(null); setTab('chat'); setMode('studio')
+        setNb(out.notebook.id); viewSend({ type: 'RESET_VIEW' }); setMode('studio')
       }
       return out.notebook
     } catch (e) { say(`copy failed: ${e.message || e}`); return null }
   }, [studio, say])
 
   const openNotebook = useCallback((id) => {
-    setNb(id); setPicked(null); setPeek(null); setTab('chat'); setMode('studio')
+    setNb(id); viewSend({ type: 'RESET_VIEW' }); setMode('studio')
   }, [])
 
   const ops = mode === 'ops'
@@ -1657,7 +1762,7 @@ function App() {
               : el('span', null, '/ ', notebook
                   ? el('button', {
                       type: 'button', className: 'nb-crumbedit',
-                      onClick: () => setRenNb(notebook),
+                      onClick: () => overlaySend({ type: 'OPEN_RENAME', notebook }),
                       title: 'Notebook settings — rename, describe, pick an icon',
                       children: notebook.title
                     })
@@ -1678,7 +1783,7 @@ function App() {
           disabled: !notebook, children: 'Add source'
         }) : null,
         mode === 'studio' && notebook ? jsx(IconBtn, {
-          icon: 'search', label: 'Search notebook (Ctrl+K)', onClick: () => setSearchOpen(true)
+          icon: 'search', label: 'Search notebook (Ctrl+K)', onClick: () => overlaySend({ type: 'OPEN_SEARCH' })
         }) : null,
         mode === 'studio' && notebook ? jsx(IconBtn, {
           icon: 'download', label: 'Export notebook (.zip)', onClick: exportNotebook
@@ -1689,7 +1794,7 @@ function App() {
       ? jsx(OpsDeck, { onSay: say, onStats: setOpsStats })
       : home
         ? jsx(HomeDashboard, {
-            data, onOpen: openNotebook, onNew: () => setNewNb(true),
+            data, onOpen: openNotebook, onNew: () => overlaySend({ type: 'OPEN_NEWNB' }),
             onDelete: deleteNotebook, onRename: renameNotebook,
             onDuplicate: (id) => duplicateNotebook(id, false)
           })
@@ -1713,7 +1818,7 @@ function App() {
               error: studio.error, loading: studio.loading,
               peek, setPeek, onOpenSource: openSource, onRefreshSource: refreshSource,
               refreshArtifact,
-              onAddSource: openAddSource, onNewNotebook: () => setNewNb(true),
+              onAddSource: openAddSource, onNewNotebook: () => overlaySend({ type: 'OPEN_NEWNB' }),
               onFindSources: (seed) => openAddSource({ mode: 'find', seed: seed || '' })
             }),
             studioOpen
@@ -1730,14 +1835,14 @@ function App() {
     jsx(StatusBar, { mode, notebook, data, note, opsStats }),
 
     jsx(AddSourceDialog, {
-      open: !!srcDialog, onClose: () => setSrcDialog(null), notebook,
-      initialMode: srcDialog && srcDialog.mode,
-      seedQuery: srcDialog && srcDialog.seed,
-      noteOnly: !!(srcDialog && srcDialog.mode === 'note'),
-      onDone: async (msg) => { setSrcDialog(null); await studio.reload(true); if (msg) say(msg) }
+      open: overlay.name === 'addsrc', onClose: () => overlaySend({ type: 'CLOSE' }), notebook,
+      initialMode: overlay.name === 'addsrc' ? overlay.mode : undefined,
+      seedQuery: overlay.name === 'addsrc' ? overlay.seed : undefined,
+      noteOnly: overlay.name === 'addsrc' && overlay.mode === 'note',
+      onDone: async (msg) => { overlaySend({ type: 'CLOSE' }); await studio.reload(true); if (msg) say(msg) }
     }),
     jsx(SearchDialog, {
-      open: searchOpen, onClose: () => setSearchOpen(false), notebook,
+      open: overlay.name === 'search', onClose: () => overlaySend({ type: 'CLOSE' }), notebook,
       onPick: (hit) => {
         const src = ((notebook && notebook.sources) || []).find((s) => s.id === hit.source_id)
         // carry the matched passage so the peek highlights it, like a citation
@@ -1746,13 +1851,24 @@ function App() {
       }
     }),
     jsx(NewNotebookDialog, {
-      open: newNb, onClose: () => setNewNb(false),
-      onDone: async (id) => { setNewNb(false); if (id) { setNb(id); setPicked(null) } }
+      open: overlay.name === 'newnb', onClose: () => overlaySend({ type: 'CLOSE' }),
+      onDone: async (id) => {
+        overlaySend({ type: 'CLOSE' })
+        if (id) { setNb(id); viewSend({ type: 'RESET_VIEW' }) }
+      }
     }),
-    renNb ? jsx(RenameDialog, {
-      notebook: renNb, onClose: () => setRenNb(null),
-      onDone: async (title, desc, emoji) => { setRenNb(null); await renameNotebook(renNb.id, title, desc, emoji) },
-      onDuplicate: async () => { const id = renNb.id; setRenNb(null); await duplicateNotebook(id, true) }
+    overlay.name === 'rename' ? jsx(RenameDialog, {
+      notebook: overlay.notebook, onClose: () => overlaySend({ type: 'CLOSE' }),
+      onDone: async (title, desc, emoji) => {
+        const id = overlay.notebook.id
+        overlaySend({ type: 'CLOSE' })
+        await renameNotebook(id, title, desc, emoji)
+      },
+      onDuplicate: async () => {
+        const id = overlay.notebook.id
+        overlaySend({ type: 'CLOSE' })
+        await duplicateNotebook(id, true)
+      }
     }) : null
   )
 }

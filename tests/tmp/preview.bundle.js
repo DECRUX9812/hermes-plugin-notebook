@@ -16002,24 +16002,67 @@ function latestByKind(artifacts) {
 }
 var OPT_LABEL = { focus: "focus", count_hint: "amount", format: "format", length: "length", language: "language", style: "style" };
 var optsSummary = (opts) => Object.keys(opts || {}).filter((k) => opts[k]).map((k) => `${OPT_LABEL[k] || k}: ${String(opts[k]).slice(0, 48)}`).join(" \xB7 ");
+function createMachine(spec) {
+  return {
+    initial: spec.initial,
+    step(state, event) {
+      const fn = spec.transitions[event && event.type];
+      if (!fn) return state;
+      const next = fn(state, event);
+      return next == null ? state : next;
+    }
+  };
+}
+var VIEW_FSM = createMachine({
+  initial: { tab: "chat", artifact: null, source: null },
+  transitions: {
+    TAB_CHAT: (s) => ({ ...s, tab: "chat" }),
+    TAB_VIEW: (s) => s.artifact ? { ...s, tab: "view" } : s,
+    TAB_PEEK: (s) => s.source ? { ...s, tab: "peek" } : s,
+    OPEN_ARTIFACT: (s, e) => ({ tab: "view", artifact: e.artifact, source: s.source }),
+    OPEN_SOURCE: (s, e) => ({ tab: "peek", artifact: s.artifact, source: e.source }),
+    STEP_ARTIFACT: (s, e) => ({
+      ...s,
+      artifact: e.artifact,
+      tab: s.tab === "view" && !e.artifact ? "chat" : s.tab
+    }),
+    STEP_SOURCE: (s, e) => ({
+      ...s,
+      source: e.source,
+      tab: s.tab === "peek" && !e.source ? "chat" : s.tab
+    }),
+    RESET_VIEW: () => ({ tab: "chat", artifact: null, source: null })
+  }
+});
+var OVERLAY_FSM = createMachine({
+  initial: { name: "none" },
+  transitions: {
+    OPEN_ADDSRC: (s, e) => ({ name: "addsrc", mode: e.mode, seed: e.seed }),
+    OPEN_NEWNB: () => ({ name: "newnb" }),
+    OPEN_RENAME: (s, e) => ({ name: "rename", notebook: e.notebook }),
+    OPEN_SEARCH: (s) => s.name === "none" ? { name: "search" } : s,
+    CLOSE: () => ({ name: "none" })
+  }
+});
 function App() {
   const [mode2, setMode] = (0, import_react.useState)(() => persist.get("mode", "home"));
   const [nb, setNb] = (0, import_react.useState)(() => persist.get("notebook", ""));
   const studio = useStudio(nb);
-  const [picked, setPicked] = (0, import_react.useState)(null);
-  const [tab, setTab] = (0, import_react.useState)("chat");
   const [busy, setBusy] = (0, import_react.useState)({});
   const [note, setNote] = (0, import_react.useState)("");
   const [askOpen, setAskOpen] = (0, import_react.useState)(0);
-  const [srcDialog, setSrcDialog] = (0, import_react.useState)(null);
-  const [newNb, setNewNb] = (0, import_react.useState)(false);
-  const [renNb, setRenNb] = (0, import_react.useState)(null);
   const [filter, setFilter] = (0, import_react.useState)("all");
-  const [peek, setPeek] = (0, import_react.useState)(null);
   const [railOpen, setRailOpen] = (0, import_react.useState)(() => persist.get("rail", "1") !== "0");
   const [studioOpen, setStudioOpen] = (0, import_react.useState)(() => persist.get("studio", "1") !== "0");
   const [opsStats, setOpsStats] = (0, import_react.useState)(null);
-  const [searchOpen, setSearchOpen] = (0, import_react.useState)(false);
+  const [view, viewSend] = (0, import_react.useReducer)(VIEW_FSM.step, VIEW_FSM.initial);
+  const [overlay, overlaySend] = (0, import_react.useReducer)(OVERLAY_FSM.step, OVERLAY_FSM.initial);
+  const { tab, artifact: picked, source: peek } = view;
+  const setTab = (0, import_react.useCallback)((t) => viewSend({
+    type: t === "view" ? "TAB_VIEW" : t === "peek" ? "TAB_PEEK" : "TAB_CHAT"
+  }), []);
+  const setPicked = (0, import_react.useCallback)((a) => viewSend({ type: "STEP_ARTIFACT", artifact: a }), []);
+  const setPeek = (0, import_react.useCallback)((s) => viewSend({ type: "STEP_SOURCE", source: s }), []);
   (0, import_react.useEffect)(() => {
     try {
       const want = new URLSearchParams(window.location.search).get("surface");
@@ -16052,7 +16095,7 @@ function App() {
       if ((e.metaKey || e.ctrlKey) && String(e.key).toLowerCase() === "k") {
         if (mode2 === "studio" && notebook) {
           e.preventDefault();
-          setSearchOpen(true);
+          overlaySend({ type: "OPEN_SEARCH" });
         }
       }
     };
@@ -16113,7 +16156,11 @@ function App() {
     setPeek(s);
     setTab("peek");
   }, []);
-  const openAddSource = (0, import_react.useCallback)((opts) => setSrcDialog(opts || { mode: "find" }), []);
+  const openAddSource = (0, import_react.useCallback)((opts) => overlaySend({
+    type: "OPEN_ADDSRC",
+    mode: opts && opts.mode || "find",
+    seed: opts && opts.seed
+  }), []);
   const dropSources = (0, import_react.useCallback)(async (files) => {
     if (!nb || !files || !files.length) return;
     let added = 0, skipped = 0;
@@ -16308,9 +16355,7 @@ function App() {
       say(`copied as \u201C${out.notebook && out.notebook.title || "new notebook"}\u201D`);
       if (openIt && out.notebook && out.notebook.id) {
         setNb(out.notebook.id);
-        setPicked(null);
-        setPeek(null);
-        setTab("chat");
+        viewSend({ type: "RESET_VIEW" });
         setMode("studio");
       }
       return out.notebook;
@@ -16321,9 +16366,7 @@ function App() {
   }, [studio, say]);
   const openNotebook = (0, import_react.useCallback)((id) => {
     setNb(id);
-    setPicked(null);
-    setPeek(null);
-    setTab("chat");
+    viewSend({ type: "RESET_VIEW" });
     setMode("studio");
   }, []);
   const ops = mode2 === "ops";
@@ -16360,7 +16403,7 @@ function App() {
           ops ? el("b", { children: "Lab Ops" }) : home ? el("b", { children: "All notebooks" }) : el("span", null, "/ ", notebook ? el("button", {
             type: "button",
             className: "nb-crumbedit",
-            onClick: () => setRenNb(notebook),
+            onClick: () => overlaySend({ type: "OPEN_RENAME", notebook }),
             title: "Notebook settings \u2014 rename, describe, pick an icon",
             children: notebook.title
           }) : el("b", { children: "no notebook" }))
@@ -16390,7 +16433,7 @@ function App() {
         mode2 === "studio" && notebook ? (0, import_jsx_runtime.jsx)(IconBtn, {
           icon: "search",
           label: "Search notebook (Ctrl+K)",
-          onClick: () => setSearchOpen(true)
+          onClick: () => overlaySend({ type: "OPEN_SEARCH" })
         }) : null,
         mode2 === "studio" && notebook ? (0, import_jsx_runtime.jsx)(IconBtn, {
           icon: "download",
@@ -16402,7 +16445,7 @@ function App() {
     ops ? (0, import_jsx_runtime.jsx)(OpsDeck, { onSay: say, onStats: setOpsStats }) : home ? (0, import_jsx_runtime.jsx)(HomeDashboard, {
       data,
       onOpen: openNotebook,
-      onNew: () => setNewNb(true),
+      onNew: () => overlaySend({ type: "OPEN_NEWNB" }),
       onDelete: deleteNotebook,
       onRename: renameNotebook,
       onDuplicate: (id) => duplicateNotebook(id, false)
@@ -16449,7 +16492,7 @@ function App() {
         onRefreshSource: refreshSource,
         refreshArtifact,
         onAddSource: openAddSource,
-        onNewNotebook: () => setNewNb(true),
+        onNewNotebook: () => overlaySend({ type: "OPEN_NEWNB" }),
         onFindSources: (seed) => openAddSource({ mode: "find", seed: seed || "" })
       }),
       studioOpen ? (0, import_jsx_runtime.jsx)(StudioPanel, {
@@ -16470,21 +16513,21 @@ function App() {
     ),
     (0, import_jsx_runtime.jsx)(StatusBar, { mode: mode2, notebook, data, note, opsStats }),
     (0, import_jsx_runtime.jsx)(AddSourceDialog, {
-      open: !!srcDialog,
-      onClose: () => setSrcDialog(null),
+      open: overlay.name === "addsrc",
+      onClose: () => overlaySend({ type: "CLOSE" }),
       notebook,
-      initialMode: srcDialog && srcDialog.mode,
-      seedQuery: srcDialog && srcDialog.seed,
-      noteOnly: !!(srcDialog && srcDialog.mode === "note"),
+      initialMode: overlay.name === "addsrc" ? overlay.mode : void 0,
+      seedQuery: overlay.name === "addsrc" ? overlay.seed : void 0,
+      noteOnly: overlay.name === "addsrc" && overlay.mode === "note",
       onDone: async (msg) => {
-        setSrcDialog(null);
+        overlaySend({ type: "CLOSE" });
         await studio.reload(true);
         if (msg) say(msg);
       }
     }),
     (0, import_jsx_runtime.jsx)(SearchDialog, {
-      open: searchOpen,
-      onClose: () => setSearchOpen(false),
+      open: overlay.name === "search",
+      onClose: () => overlaySend({ type: "CLOSE" }),
       notebook,
       onPick: (hit) => {
         const src = (notebook && notebook.sources || []).find((s) => s.id === hit.source_id);
@@ -16495,26 +16538,27 @@ function App() {
       }
     }),
     (0, import_jsx_runtime.jsx)(NewNotebookDialog, {
-      open: newNb,
-      onClose: () => setNewNb(false),
+      open: overlay.name === "newnb",
+      onClose: () => overlaySend({ type: "CLOSE" }),
       onDone: async (id) => {
-        setNewNb(false);
+        overlaySend({ type: "CLOSE" });
         if (id) {
           setNb(id);
-          setPicked(null);
+          viewSend({ type: "RESET_VIEW" });
         }
       }
     }),
-    renNb ? (0, import_jsx_runtime.jsx)(RenameDialog, {
-      notebook: renNb,
-      onClose: () => setRenNb(null),
+    overlay.name === "rename" ? (0, import_jsx_runtime.jsx)(RenameDialog, {
+      notebook: overlay.notebook,
+      onClose: () => overlaySend({ type: "CLOSE" }),
       onDone: async (title, desc, emoji) => {
-        setRenNb(null);
-        await renameNotebook(renNb.id, title, desc, emoji);
+        const id = overlay.notebook.id;
+        overlaySend({ type: "CLOSE" });
+        await renameNotebook(id, title, desc, emoji);
       },
       onDuplicate: async () => {
-        const id = renNb.id;
-        setRenNb(null);
+        const id = overlay.notebook.id;
+        overlaySend({ type: "CLOSE" });
         await duplicateNotebook(id, true);
       }
     }) : null
