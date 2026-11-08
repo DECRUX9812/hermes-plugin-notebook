@@ -15401,6 +15401,61 @@ function Glyph({ name, size = 16, stroke = 1.7 }) {
     children: el("path", { d })
   });
 }
+function _sigHash(str) {
+  let h = 2166136261;
+  const s = String(str || "notebook");
+  for (let i = 0; i < s.length; i += 1) {
+    h ^= s.charCodeAt(i);
+    h = Math.imul(h, 16777619);
+  }
+  return h >>> 0;
+}
+function _sigRnd(seed) {
+  let a = seed >>> 0;
+  return () => {
+    a = a + 1831565813 | 0;
+    let t = Math.imul(a ^ a >>> 15, 1 | a);
+    t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t;
+    return ((t ^ t >>> 14) >>> 0) / 4294967296;
+  };
+}
+function Sigil({ seed, size = 44 }) {
+  const rnd = _sigRnd(_sigHash(seed));
+  const hue = Math.floor(rnd() * 360);
+  const out = [];
+  for (let i = 0; i < 3; i += 1) {
+    const y1 = 10 + rnd() * 30;
+    const y2 = 10 + rnd() * 30;
+    const cx2 = 10 + rnd() * 28;
+    const h2 = (hue + i * 47 + Math.floor(rnd() * 36)) % 360;
+    out.push(el("path", {
+      key: `r${i}`,
+      d: `M -6 ${y1.toFixed(1)} C ${cx2.toFixed(1)} ${(y1 - 16 - rnd() * 12).toFixed(1)}, ${(54 - cx2).toFixed(1)} ${(y2 + 16 + rnd() * 12).toFixed(1)}, 54 ${y2.toFixed(1)}`,
+      fill: "none",
+      stroke: `hsl(${h2} 72% 66% / ${(0.45 + rnd() * 0.35).toFixed(2)})`,
+      strokeWidth: (1.4 + rnd() * 2.4).toFixed(2),
+      strokeLinecap: "round"
+    }));
+  }
+  for (let i = 0; i < 2; i += 1) {
+    out.push(el("circle", {
+      key: `n${i}`,
+      cx: (8 + rnd() * 32).toFixed(1),
+      cy: (8 + rnd() * 32).toFixed(1),
+      r: (1.5 + rnd() * 2.6).toFixed(2),
+      fill: `hsl(${(hue + 150 + i * 70) % 360} 70% 72% / 0.85)`
+    }));
+  }
+  return el("svg", {
+    width: size,
+    height: size,
+    viewBox: "-6 -6 60 60",
+    "aria-hidden": "true",
+    focusable: "false",
+    style: { display: "block" },
+    children: out
+  });
+}
 function Btn({ children, icon, variant, size, onClick, disabled, title, type = "button", className, style, ...rest2 }) {
   return el("button", {
     type,
@@ -16454,7 +16509,7 @@ function HomeDashboard({ data, onOpen, onNew, onDelete, onRename, onDuplicate })
             el("span", {
               className: "nb-feature-emoji",
               "aria-hidden": "true",
-              children: emojiFor(n.id, n.emoji)
+              children: n.emoji && String(n.emoji).trim() ? emojiFor(n.id, n.emoji) : (0, import_jsx_runtime.jsx)(Sigil, { seed: n.id, size: 40 })
             }),
             el("span", { className: "nb-feature-title", children: n.title }),
             el("span", {
@@ -16500,7 +16555,7 @@ function HomeDashboard({ data, onOpen, onNew, onDelete, onRename, onDuplicate })
               el("span", {
                 className: "nb-nbcard-emoji",
                 "aria-hidden": "true",
-                children: emojiFor(n.id, n.emoji)
+                children: n.emoji && String(n.emoji).trim() ? emojiFor(n.id, n.emoji) : (0, import_jsx_runtime.jsx)(Sigil, { seed: n.id, size: 46 })
               }),
               el("span", { className: "nb-nbcard-title", children: n.title }),
               el("span", {
@@ -16599,7 +16654,7 @@ function RenameDialog({ notebook, onClose, onDone, onDuplicate }) {
           onClick: () => setEmoji(""),
           title: "Auto icon",
           "aria-pressed": !emoji,
-          children: emojiFor(notebook.id)
+          children: (0, import_jsx_runtime.jsx)(Sigil, { seed: notebook.id, size: 30 })
         }),
         NB_EMOJI.map((e) => el("button", {
           key: e,

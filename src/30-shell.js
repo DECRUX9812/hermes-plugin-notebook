@@ -453,7 +453,9 @@ function HomeDashboard({ data, onOpen, onNew, onDelete, onRename, onDuplicate })
               'aria-label': `Open notebook ${n.title}`,
               children: [
                 el('span', { className: 'nb-feature-emoji', 'aria-hidden': 'true',
-                  children: emojiFor(n.id, n.emoji) }),
+                  children: (n.emoji && String(n.emoji).trim())
+                    ? emojiFor(n.id, n.emoji)
+                    : jsx(Sigil, { seed: n.id, size: 40 }) }),
                 el('span', { className: 'nb-feature-title', children: n.title }),
                 el('span', { className: 'nb-feature-meta',
                   children: `${dshort(n.updated_at)} · ${n.sources} source${n.sources === 1 ? '' : 's'} · ${n.artifacts} artifact${n.artifacts === 1 ? '' : 's'}${n.threads ? ` · ${n.threads} chat${n.threads === 1 ? '' : 's'}` : ''}` })
@@ -486,7 +488,9 @@ function HomeDashboard({ data, onOpen, onNew, onDelete, onRename, onDuplicate })
                 'aria-label': `Open notebook ${n.title}`,
                 children: [
                   el('span', { className: 'nb-nbcard-emoji', 'aria-hidden': 'true',
-                    children: emojiFor(n.id, n.emoji) }),
+                    children: (n.emoji && String(n.emoji).trim())
+                      ? emojiFor(n.id, n.emoji)
+                      : jsx(Sigil, { seed: n.id, size: 46 }) }),
                   el('span', { className: 'nb-nbcard-title', children: n.title }),
                   el('span', { className: 'nb-nbcard-meta',
                     children: `${dshort(n.updated_at)} · ${n.sources} source${n.sources === 1 ? '' : 's'}${n.threads ? ` · ${n.threads} chat${n.threads === 1 ? '' : 's'}` : ''}` })
@@ -540,7 +544,7 @@ function RenameDialog({ notebook, onClose, onDone, onDuplicate }) {
         el('button', {
           type: 'button', className: 'nb-em' + (emoji ? '' : ' is-on'),
           onClick: () => setEmoji(''), title: 'Auto icon', 'aria-pressed': !emoji,
-          children: emojiFor(notebook.id)
+          children: jsx(Sigil, { seed: notebook.id, size: 30 })
         }),
         NB_EMOJI.map((e) => el('button', {
           key: e, type: 'button',
