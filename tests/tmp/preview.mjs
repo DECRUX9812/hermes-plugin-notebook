@@ -443,9 +443,11 @@ const CSS = `
   display:flex;align-items:center;gap:10px;width:100%;padding:11px 12px;
   border:1px solid var(--nb-hair-soft);border-radius:14px;
   background:var(--nb-card);cursor:pointer;text-align:left;color:${T.text};
-  transition:background .13s ease,border-color .13s ease,transform .13s ease}
+  transition:background .13s ease,border-color .13s ease,transform .13s ease,
+    box-shadow .18s ease}
 .nb-card:hover{background:var(--nb-wash-2);border-color:color-mix(in srgb,var(--kc) 42%, var(--nb-hair));
-  transform:translateY(-1px)}
+  transform:translateY(-1px);
+  box-shadow:0 8px 26px -10px color-mix(in srgb,var(--kc) 45%, transparent)}
 .nb-card[data-ready=true]{border-color:color-mix(in srgb,var(--kc) 30%, var(--nb-hair-soft))}
 .nb-card[data-busy=true]{border-color:color-mix(in srgb,var(--kc) 50%, transparent);
   background:color-mix(in srgb,var(--kc) 6%, var(--nb-card))}
@@ -3193,6 +3195,7 @@ function SourcePeek({ source, notebook, onClose, onAskAbout, onRefresh, onPrev, 
   return el('div', { className: 'nb-view' },
     el('div', { className: 'nb-view-head' },
       el('span', { className: 'nb-chip', 'data-tone': 'accent', children: `S${source.n}` }),
+      jsx(Sigil, { seed: source.id || source.title, size: 26 }),
       el('div', { style: { flex: 1, minWidth: 0 } },
         el('div', { className: 'nb-view-title', children: source.title }),
         el('div', { style: { fontSize: '12.5px', color: T.text4, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' },

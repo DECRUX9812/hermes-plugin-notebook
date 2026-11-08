@@ -443,9 +443,11 @@ const CSS = `
   display:flex;align-items:center;gap:10px;width:100%;padding:11px 12px;
   border:1px solid var(--nb-hair-soft);border-radius:14px;
   background:var(--nb-card);cursor:pointer;text-align:left;color:${T.text};
-  transition:background .13s ease,border-color .13s ease,transform .13s ease}
+  transition:background .13s ease,border-color .13s ease,transform .13s ease,
+    box-shadow .18s ease}
 .nb-card:hover{background:var(--nb-wash-2);border-color:color-mix(in srgb,var(--kc) 42%, var(--nb-hair));
-  transform:translateY(-1px)}
+  transform:translateY(-1px);
+  box-shadow:0 8px 26px -10px color-mix(in srgb,var(--kc) 45%, transparent)}
 .nb-card[data-ready=true]{border-color:color-mix(in srgb,var(--kc) 30%, var(--nb-hair-soft))}
 .nb-card[data-busy=true]{border-color:color-mix(in srgb,var(--kc) 50%, transparent);
   background:color-mix(in srgb,var(--kc) 6%, var(--nb-card))}
