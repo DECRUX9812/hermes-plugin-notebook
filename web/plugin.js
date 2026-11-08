@@ -1245,6 +1245,14 @@ function App() {
   const [opsStats, setOpsStats] = useState(null)
   const [searchOpen, setSearchOpen] = useState(false)
 
+  // palette/deep links can ask for a surface: ?surface=ops opens the lab deck
+  useEffect(() => {
+    try {
+      const want = new URLSearchParams(window.location.search).get('surface')
+      if (want === 'ops' || want === 'studio' || want === 'home') setMode(want)
+    } catch { /* no location in this host */ }
+  }, [])
+
   const say = useCallback((msg) => {
     setNote(msg)
     const t = setTimeout(() => setNote(''), 6000)
@@ -5429,7 +5437,8 @@ function SettingsPage() {
 }
 
 const KINDS_FALLBACK = ['video_overview', 'audio_overview', 'summary', 'briefing_doc',
-  'study_guide', 'faq', 'timeline', 'mind_map', 'flashcards', 'quiz', 'slides', 'infographic']
+  'study_guide', 'faq', 'timeline', 'mind_map', 'flashcards', 'quiz', 'slides',
+  'infographic', 'data_table']
 
 /** The agent can write `::notebook{name="Fusion 2026"}` in a reply. */
 function NotebookDirective({ attrs }) {

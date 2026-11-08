@@ -19,6 +19,14 @@ function App() {
   const [opsStats, setOpsStats] = useState(null)
   const [searchOpen, setSearchOpen] = useState(false)
 
+  // palette/deep links can ask for a surface: ?surface=ops opens the lab deck
+  useEffect(() => {
+    try {
+      const want = new URLSearchParams(window.location.search).get('surface')
+      if (want === 'ops' || want === 'studio' || want === 'home') setMode(want)
+    } catch { /* no location in this host */ }
+  }, [])
+
   const say = useCallback((msg) => {
     setNote(msg)
     const t = setTimeout(() => setNote(''), 6000)
