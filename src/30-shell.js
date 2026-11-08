@@ -12,20 +12,26 @@ function App() {
     const saved = persist.get(`thread.${nb}`, '')
     setThreadName(saved || '')
   }, [nb])
-  const [picked, setPicked] = useState(null)       // artifact run selected in the viewer
-  const [tab, setTab] = useState('chat')
   const [busy, setBusy] = useState({})             // kind -> startedAt (ms)
   const [note, setNote] = useState('')
   const [askOpen, setAskOpen] = useState(0)        // bump to focus the composer
-  const [srcDialog, setSrcDialog] = useState(null) // {mode?, seed?} | null
-  const [newNb, setNewNb] = useState(false)
-  const [renNb, setRenNb] = useState(null)          // notebook open in the settings dialog
   const [filter, setFilter] = useState('all')
-  const [peek, setPeek] = useState(null)           // source lifted so the rail can open it
   const [railOpen, setRailOpen] = useState(() => persist.get('rail', '1') !== '0')
   const [studioOpen, setStudioOpen] = useState(() => persist.get('studio', '1') !== '0')
   const [opsStats, setOpsStats] = useState(null)
-  const [searchOpen, setSearchOpen] = useState(false)
+
+  // M1/M2 — the spine runs on explicit machines (src/25-machine.js): the
+  // center view and the modal overlays are transition tables now, so illegal
+  // combinations (view tab with no artifact, stacked dialogs) can't exist.
+  const [view, viewSend] = useReducer(VIEW_FSM.step, VIEW_FSM.initial)
+  const [overlay, overlaySend] = useReducer(OVERLAY_FSM.step, OVERLAY_FSM.initial)
+  const { tab, artifact: picked, source: peek } = view
+  // Legacy setter-shaped adapters keep every downstream prop identical.
+  const setTab = useCallback((t) => viewSend({
+    type: t === 'view' ? 'TAB_VIEW' : t === 'peek' ? 'TAB_PEEK' : 'TAB_CHAT'
+  }), [])
+  const setPicked = useCallback((a) => viewSend({ type: 'STEP_ARTIFACT', artifact: a }), [])
+  const setPeek = useCallback((s) => viewSend({ type: 'STEP_SOURCE', source: s }), [])
 
   // palette/deep links can ask for a surface: ?surface=ops opens the lab deck
   useEffect(() => {
@@ -54,7 +60,7 @@ function App() {
   useEffect(() => {
     const onKey = (e) => {
       if ((e.metaKey || e.ctrlKey) && String(e.key).toLowerCase() === 'k') {
-        if (mode === 'studio' && notebook) { e.preventDefault(); setSearchOpen(true) }
+        if (mode === 'studio' && notebook) { e.preventDefault(); overlaySend({ type: 'OPEN_SEARCH' }) }
       }
     }
     document.addEventListener('keydown', onKey)
@@ -118,7 +124,11 @@ function App() {
   }, [nb, studio, say])
 
   const openSource = useCallback((s) => { setPeek(s); setTab('peek') }, [])
-  const openAddSource = useCallback((opts) => setSrcDialog(opts || { mode: 'find' }), [])
+  const openAddSource = useCallback((opts) => overlaySend({
+    type: 'OPEN_ADDSRC',
+    mode: (opts && opts.mode) || 'find',
+    seed: opts && opts.seed
+  }), [])
 
   // drag files onto the sources rail → same ingest path as the upload picker
   const dropSources = useCallback(async (files) => {
@@ -354,22 +364,31 @@ function App() {
       await studio.reload(true)
       say(`copied as “${(out.notebook && out.notebook.title) || 'new notebook'}”`)
       if (openIt && out.notebook && out.notebook.id) {
-        setNb(out.notebook.id); setPicked(null); setPeek(null); setTab('chat'); setMode('studio')
+        setNb(out.notebook.id); viewSend({ type: 'RESET_VIEW' }); setMode('studio')
       }
       return out.notebook
     } catch (e) { say(`copy failed: ${e.message || e}`); return null }
   }, [studio, say])
 
   const openNotebook = useCallback((id) => {
-    setNb(id); setPicked(null); setPeek(null); setTab('chat'); setMode('studio')
+    setNb(id); viewSend({ type: 'RESET_VIEW' }); setMode('studio')
   }, [])
 
   const ops = mode === 'ops'
   const home = mode === 'home'
   const discoverMode = mode === 'discover'
 
-  return el('div', { className: 'nb-root', 'data-mode': mode, 'data-plugin': ID },
+  return el('div', {
+    className: 'nb-root', 'data-mode': mode, 'data-plugin': ID,
+    // the room takes on the notebook's colour — its sigil hue becomes the
+    // ambient field behind every panel; home keeps a fixed violet
+    style: { '--nb-hue': sigHue(notebook ? notebook.id : 'hermes-home') }
+  },
     el('style', { dangerouslySetInnerHTML: { __html: CSS } }),
+    el('div', { className: 'nb-aurora', 'aria-hidden': 'true' },
+      el('i', { className: 'nb-blob' }),
+      el('i', { className: 'nb-blob' }),
+      el('i', { className: 'nb-blob' })),
     el('header', { className: 'nb-bar' },
       el('div', { className: 'nb-brand' },
         el('span', { className: 'nb-mark' }, jsx(Glyph, { name: 'notebook', size: 15 })),
@@ -382,13 +401,13 @@ function App() {
               : discoverMode
                 ? el('b', { children: 'Discover' })
                 : el('span', null, '/ ', notebook
-                    ? el('button', {
-                        type: 'button', className: 'nb-crumbedit',
-                        onClick: () => setRenNb(notebook),
-                        title: 'Notebook settings — rename, describe, pick an icon',
-                        children: notebook.title
-                      })
-                    : el('b', { children: 'no notebook' })))
+                  ? el('button', {
+                      type: 'button', className: 'nb-crumbedit',
+                      onClick: () => overlaySend({ type: 'OPEN_RENAME', notebook }),
+                      title: 'Notebook settings — rename, describe, pick an icon',
+                      children: notebook.title
+                    })
+                  : el('b', { children: 'no notebook' })))
       ),
       el('div', { className: 'nb-spacer' }),
       jsx(Seg, {
@@ -406,7 +425,7 @@ function App() {
           disabled: !notebook, children: 'Add source'
         }) : null,
         mode === 'studio' && notebook ? jsx(IconBtn, {
-          icon: 'search', label: 'Search notebook (Ctrl+K)', onClick: () => setSearchOpen(true)
+          icon: 'search', label: 'Search notebook (Ctrl+K)', onClick: () => overlaySend({ type: 'OPEN_SEARCH' })
         }) : null,
         mode === 'studio' && notebook ? jsx(IconBtn, {
           icon: 'download', label: 'Export notebook (.zip)', onClick: exportNotebook
@@ -417,7 +436,7 @@ function App() {
       ? jsx(OpsDeck, { onSay: say, onStats: setOpsStats })
       : home
         ? jsx(HomeDashboard, {
-            data, onOpen: openNotebook, onNew: () => setNewNb(true),
+            data, onOpen: openNotebook, onNew: () => overlaySend({ type: 'OPEN_NEWNB' }),
             onDelete: deleteNotebook, onRename: renameNotebook,
             onDuplicate: (id) => duplicateNotebook(id, false)
           })
@@ -446,9 +465,8 @@ function App() {
               error: studio.error, loading: studio.loading,
               peek, setPeek, onOpenSource: openSource, onRefreshSource: refreshSource,
               refreshArtifact,
-              onAddSource: openAddSource, onNewNotebook: () => setNewNb(true),
-              onFindSources: (seed) => openAddSource({ mode: 'find', seed: seed || '' }),
-              threads
+              onAddSource: openAddSource, onNewNotebook: () => overlaySend({ type: 'OPEN_NEWNB' }),
+              onFindSources: (seed) => openAddSource({ mode: 'find', seed: seed || '' })
             }),
             studioOpen
               ? jsx(StudioPanel, {
@@ -464,14 +482,14 @@ function App() {
     jsx(StatusBar, { mode, notebook, data, note, opsStats }),
 
     jsx(AddSourceDialog, {
-      open: !!srcDialog, onClose: () => setSrcDialog(null), notebook,
-      initialMode: srcDialog && srcDialog.mode,
-      seedQuery: srcDialog && srcDialog.seed,
-      noteOnly: !!(srcDialog && srcDialog.mode === 'note'),
-      onDone: async (msg) => { setSrcDialog(null); await studio.reload(true); if (msg) say(msg) }
+      open: overlay.name === 'addsrc', onClose: () => overlaySend({ type: 'CLOSE' }), notebook,
+      initialMode: overlay.name === 'addsrc' ? overlay.mode : undefined,
+      seedQuery: overlay.name === 'addsrc' ? overlay.seed : undefined,
+      noteOnly: overlay.name === 'addsrc' && overlay.mode === 'note',
+      onDone: async (msg) => { overlaySend({ type: 'CLOSE' }); await studio.reload(true); if (msg) say(msg) }
     }),
     jsx(SearchDialog, {
-      open: searchOpen, onClose: () => setSearchOpen(false), notebook,
+      open: overlay.name === 'search', onClose: () => overlaySend({ type: 'CLOSE' }), notebook,
       onPick: (hit) => {
         const src = ((notebook && notebook.sources) || []).find((s) => s.id === hit.source_id)
         // carry the matched passage so the peek highlights it, like a citation
@@ -480,13 +498,24 @@ function App() {
       }
     }),
     jsx(NewNotebookDialog, {
-      open: newNb, onClose: () => setNewNb(false),
-      onDone: async (id) => { setNewNb(false); if (id) { setNb(id); setPicked(null) } }
+      open: overlay.name === 'newnb', onClose: () => overlaySend({ type: 'CLOSE' }),
+      onDone: async (id) => {
+        overlaySend({ type: 'CLOSE' })
+        if (id) { setNb(id); viewSend({ type: 'RESET_VIEW' }) }
+      }
     }),
-    renNb ? jsx(RenameDialog, {
-      notebook: renNb, onClose: () => setRenNb(null),
-      onDone: async (title, desc, emoji) => { setRenNb(null); await renameNotebook(renNb.id, title, desc, emoji) },
-      onDuplicate: async () => { const id = renNb.id; setRenNb(null); await duplicateNotebook(id, true) }
+    overlay.name === 'rename' ? jsx(RenameDialog, {
+      notebook: overlay.notebook, onClose: () => overlaySend({ type: 'CLOSE' }),
+      onDone: async (title, desc, emoji) => {
+        const id = overlay.notebook.id
+        overlaySend({ type: 'CLOSE' })
+        await renameNotebook(id, title, desc, emoji)
+      },
+      onDuplicate: async () => {
+        const id = overlay.notebook.id
+        overlaySend({ type: 'CLOSE' })
+        await duplicateNotebook(id, true)
+      }
     }) : null
   )
 }
@@ -522,7 +551,7 @@ function HomeDashboard({ data, onOpen, onNew, onDelete, onRename, onDuplicate })
         ? el('div', { className: 'nb-feature-row', role: 'list', 'aria-label': 'Featured notebooks' },
             featured.map((n, i) => el('button', {
               key: n.id, type: 'button', role: 'listitem', className: 'nb-feature',
-              style: { '--kc': hues[i % hues.length] },
+              style: { '--kc': hues[i % hues.length], animationDelay: `${i * 60}ms` },
               onClick: () => onOpen(n.id),
               'aria-label': `Open notebook ${n.title}`,
               children: [
@@ -555,7 +584,8 @@ function HomeDashboard({ data, onOpen, onNew, onDelete, onRename, onDuplicate })
                     jsx(Btn, { variant: 'primary', icon: 'plus', onClick: onNew, children: 'New notebook' }))
                 : null))
         : el('div', { className: 'nb-home-grid', role: 'list' },
-            shown.map((n) => el('div', { key: n.id, className: 'nb-nbcard-wrap', role: 'listitem' },
+            shown.map((n, i) => el('div', { key: n.id, className: 'nb-nbcard-wrap', role: 'listitem',
+              style: { animationDelay: `${Math.min(i, 11) * 45}ms` } },
               el('button', {
                 type: 'button', className: 'nb-nbcard',
                 onClick: () => onOpen(n.id),

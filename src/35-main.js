@@ -68,7 +68,10 @@ function Main({ notebook, kinds, tab, setTab, picked, setPicked, busy, generate,
   return el('main', { className: 'nb-col nb-main-col' },
     el('div', { className: 'nb-main-head' },
       el('div', { className: 'nb-hero' },
-        el('span', { className: 'nb-hero-emoji', 'aria-hidden': 'true', children: emojiFor(notebook.id, notebook.emoji) }),
+        el('span', { className: 'nb-hero-emoji', 'aria-hidden': 'true',
+          children: (notebook.emoji && String(notebook.emoji).trim())
+            ? emojiFor(notebook.id, notebook.emoji)
+            : jsx(Sigil, { seed: notebook.id, size: 52, draw: true }) }),
         el('div', { className: 'nb-hero-main' },
           el('h1', { className: 'nb-h1', children: notebook.title }),
           el('p', { className: 'nb-sub', children:
@@ -1014,6 +1017,7 @@ function SourcePeek({ source, notebook, onClose, onAskAbout, onRefresh, onPrev, 
   return el('div', { className: 'nb-view' },
     el('div', { className: 'nb-view-head' },
       el('span', { className: 'nb-chip', 'data-tone': 'accent', children: `S${source.n}` }),
+      jsx(Sigil, { seed: source.id || source.title, size: 26 }),
       el('div', { style: { flex: 1, minWidth: 0 } },
         el('div', { className: 'nb-view-title', children: source.title }),
         el('div', { style: { fontSize: '12.5px', color: T.text4, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' },
@@ -1109,6 +1113,7 @@ function StudioPanel({ kinds, notebook, busy, generate, filter, setFilter, onOpe
       el('span', {
         className: 'nb-chip',
         'data-tone': Object.keys(ready).length ? 'ok' : undefined,
+        title: `${Object.keys(ready).length} of ${kinds.length} outputs generated`,
         children: `${Object.keys(ready).length}/${kinds.length}`
       }),
       jsx(IconBtn, { icon: 'arrowRight', label: 'Hide studio panel', onClick: onCollapse })
@@ -1121,20 +1126,25 @@ function StudioPanel({ kinds, notebook, busy, generate, filter, setFilter, onOpe
           onOpen: () => { const a = ready[k.id]; if (a) onOpen(a); else generate(k.id) },
           onGenerate: (opts) => generate(k.id, opts)
         })))),
-    el('div', { className: 'nb-pad', style: { paddingTop: '12px', paddingBottom: 0, borderTop: `1px solid ${T.lineSoft}` } },
-      el('div', { style: { display: 'flex', alignItems: 'baseline', gap: '8px' } },
-        el('span', { className: 'nb-meta', children: `Files · ${shownArts.length}` }),
-        el('span', { style: { flex: 1 } }),
-        el('span', { className: 'nb-meta', style: { color: T.text4 }, children: 'every run on disk' })),
+    el('div', { className: 'nb-files-head' },
+      el('span', { className: 'nb-files-title', children: 'Files' }),
+      el('span', { className: 'nb-files-count', children: shownArts.length }),
+      el('span', { style: { flex: 1 } }),
+      onAddNote
+        ? jsx(Btn, {
+            size: 'sm', icon: 'note', onClick: onAddNote, disabled: !notebook,
+            title: 'Pin a note as a first-class, searchable source', children: 'Add note'
+          })
+        : null),
       el('div', { className: 'nb-chiprow' },
         FILTERS.map((f) => jsx(Chip, {
           key: f.id, tone: filter === f.id ? 'accent' : undefined,
           pressed: filter === f.id,
           onClick: () => setFilter(f.id),
           title: `${f.label} artifacts`, children: f.label
-        })))),
+        }))),
     el('div', { className: 'nb-scroll', ref: scrollRef, 'data-scrollable': canScroll ? 'true' : 'false' },
-      el('div', { className: 'nb-artlist', style: { padding: '4px 8px 56px' } },
+      el('div', { className: 'nb-artlist', style: { padding: '2px 8px 18px' } },
         shownArts.length === 0
           ? el('div', { className: 'nb-hint', style: { padding: '14px 8px', lineHeight: 1.5 } },
               notebook && notebook.sources && notebook.sources.length
@@ -1162,9 +1172,7 @@ function StudioPanel({ kinds, notebook, busy, generate, filter, setFilter, onOpe
                 label: `Delete ${a.label || a.kind} artifact`,
                 onClick: () => onDelete(a)
               }) : null)))),
-    canScroll ? jsx('div', { className: 'nb-fade', 'aria-hidden': 'true' }) : null,
-    el('div', { className: 'nb-pad', style: { borderTop: `1px solid ${T.lineSoft}`, display: 'flex', justifyContent: 'center', paddingTop: '10px', paddingBottom: '12px' } },
-      jsx(Btn, { icon: 'note', onClick: onAddNote, disabled: !notebook, children: 'Add note' }))
+    canScroll ? jsx('div', { className: 'nb-fade', 'aria-hidden': 'true' }) : null
   )
 }
 
@@ -1188,6 +1196,10 @@ function GenPill({ kind, art, started, nbId, onOpen, onGenerate }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [art && art.key])
   const secs = started ? Math.max(0, Math.round((Date.now() - started) / 1000)) : 0
+  const made = art && art.modified ? new Date(art.modified).getTime() : 0
+  // Green means "made in this sitting", not "exists" — otherwise thirteen ready
+  // chips shout louder than the one status that matters (grounded/model ready).
+  const fresh = made && (Date.now() - made) < 12 * 3600 * 1000
   const state = started ? `writing · ${secs}s` : art ? `ready · ${ago(art.modified)}` : 'Generate'
   const pick = (id, v) => setOpts((o) => ({ ...o, [id]: v }))
   return el('div', { className: 'nb-gen', 'data-kind': kind.id },
@@ -1195,6 +1207,8 @@ function GenPill({ kind, art, started, nbId, onOpen, onGenerate }) {
       type: 'button', className: 'nb-card',
       'data-kind': kind.id,
       'data-ready': art ? 'true' : 'false', 'data-busy': started ? 'true' : 'false',
+      'data-fresh': fresh ? 'true' : undefined,
+      'data-wide': kind.id === 'data_table' ? 'true' : undefined, 
       onClick: started ? undefined : (art ? onOpen : () => onGenerate(opts)),
       'aria-label': `${kind.label} — ${state}. ${art ? 'Open it' : 'Generate it'}`,
       title: art ? `${kind.label} · ${art.primary}` : `Generate ${kind.label}`,
@@ -1203,10 +1217,13 @@ function GenPill({ kind, art, started, nbId, onOpen, onGenerate }) {
           jsx(Glyph, { name: KIND_ICON[kind.id] || 'doc', size: 15 })),
         el('span', { className: 'nb-card-main' },
           el('span', { className: 'nb-card-name', children: kind.label }),
+          kind.id === 'data_table'
+            ? el('span', { className: 'nb-card-sub', children: kind.blurb || 'structured rows' })
+            : null,
           el('span', { className: 'nb-card-state' },
             el('span', {
               className: 'nb-dot',
-              style: { background: started ? 'var(--kc)' : art ? T.ok : undefined }
+              style: { background: started ? 'var(--kc)' : undefined }
             }),
             started ? `${secs}s` : art ? ago(art.modified) : 'generate'),
           started

@@ -23,7 +23,7 @@
  * stages and the terminal stay dark in both themes, like a player.
  */
 import * as SDK from '@hermes/plugin-sdk'
-import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import React, { useCallback, useEffect, useMemo, useReducer, useRef, useState } from 'react'
 import { jsx, jsxs } from 'react/jsx-runtime'
 
 /* Namespace import, then local constants with the host's own strings as the
@@ -82,31 +82,57 @@ const CSS = `
   --nb-card: ${T.card};
   --nb-shadow: 0 1px 2px rgba(8,10,18,.05), 0 14px 34px -20px rgba(8,10,18,.30);
   --nb-shadow-lift: 0 2px 6px rgba(8,10,18,.07), 0 20px 44px -18px rgba(8,10,18,.38);
+  /* motion — Astryx cadence: fast for hovers, medium for entrances, standard
+     curve decelerates, exit accelerates */
+  --nb-ease: cubic-bezier(.24,1,.4,1);
+  --nb-ease-exit: cubic-bezier(.3,0,.6,.6);
+  --nb-dur-fast: .175s; --nb-dur-med: .41s; --nb-dur-slow: .975s;
+  /* radius — one semantic scale instead of ad-hoc pixels: inner detail 8,
+     element 12, box 16, panel 24, pill. A control's radius says how big it is. */
+  --nb-r-in: 8px; --nb-r-el: 12px; --nb-r-box: 16px; --nb-r-panel: 24px; --nb-r-pill: 99px;
+  /* type — metadata 12, label 12.5, UI 13, body 16; reading copy gets its own
+     line-height so long answers never look set solid. */
+  --nb-fs-meta: 12px; --nb-fs-label: 12.5px; --nb-fs-ui: 13px; --nb-fs-body: 16px;
+  --nb-lh-body: 1.62;
+  --nb-meta-ink: color-mix(in srgb, ${T.text} 64%, transparent);
   --nb-media: linear-gradient(155deg,#20243a 0%,#12151f 100%);
   display:flex; flex-direction:column; height:100%; min-height:0;
   color:${T.text}; font-size:16px; line-height:1.5;
   font-variant-numeric: tabular-nums;
+  position:relative;
 }
+/* ambient generative field — each notebook's sigil hue bleeds into the room */
+.nb-aurora{position:absolute;inset:0;z-index:0;overflow:hidden;pointer-events:none}
+.nb-blob{position:absolute;border-radius:50%;filter:blur(90px);opacity:.15;
+  background:radial-gradient(circle,hsl(var(--nb-hue, 265) 80% 60% / .9),transparent 70%);
+  width:52vmax;height:52vmax;top:-16%;left:-10%;
+  animation:nb-drift 26s ease-in-out infinite alternate}
+.nb-blob:nth-child(2){background:radial-gradient(circle,hsl(calc(var(--nb-hue, 265) + 70) 80% 60% / .8),transparent 70%);
+  width:44vmax;height:44vmax;top:-10%;right:-8%;animation-duration:32s;animation-delay:-9s}
+.nb-blob:nth-child(3){background:radial-gradient(circle,hsl(calc(var(--nb-hue, 265) + 165) 75% 58% / .7),transparent 70%);
+  width:40vmax;height:40vmax;bottom:-16%;left:-6%;animation-duration:38s;animation-delay:-17s}
+@keyframes nb-drift{from{transform:translate3d(-3%,-2%,0) scale(1)}to{transform:translate3d(4%,3%,0) scale(1.08)}}
+.nb-bar,.nb-body,.nb-home,.nb-ops{position:relative;z-index:1}
 .nb-root *{box-sizing:border-box}
-.nb-root :focus-visible{outline:2px solid ${T.accent}; outline-offset:2px; border-radius:8px}
+.nb-root :focus-visible{outline:2px solid ${T.accent}; outline-offset:3px}
 .nb-mono{font-family:var(--ui-font-mono,ui-monospace,SFMono-Regular,Menlo,monospace);font-variant-ligatures:none}
 .nb-num{font-family:var(--ui-font-mono,ui-monospace,SFMono-Regular,Menlo,monospace);font-variant-numeric:tabular-nums}
 
 /* quiet section label — small and calm, never telemetry */
-.nb-meta{font-size:12px;letter-spacing:0;text-transform:none;color:${T.text3};font-weight:600}
+.nb-meta{font-size:var(--nb-fs-meta);letter-spacing:0;text-transform:none;color:var(--nb-meta-ink);font-weight:600}
 .nb-hint{font-size:11.5px;color:${T.text3};letter-spacing:.01em;line-height:1.5}
 
 /* ------------------------------------------------------------------ app bar */
 .nb-bar{display:flex;align-items:center;gap:14px;height:56px;flex:0 0 56px;
   padding:0 18px;border-bottom:1px solid var(--nb-hair-soft)}
 .nb-brand{display:flex;align-items:center;gap:11px;min-width:0}
-.nb-mark{width:27px;height:27px;display:grid;place-items:center;flex:0 0 auto;border-radius:9px;
+.nb-mark{width:27px;height:27px;display:grid;place-items:center;flex:0 0 auto;border-radius:var(--nb-r-in);
   background:color-mix(in srgb,${T.accent} 15%, transparent);color:${T.accent}}
 .nb-brandname{font-size:14.5px;font-weight:700;letter-spacing:-.01em;color:${T.text}}
 .nb-crumb{font-size:12.5px;color:${T.text3};white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:42ch}
 .nb-crumb b{color:${T.text2};font-weight:600}
 .nb-crumbedit{background:transparent;border:0;padding:0 8px;margin:0 -8px;font:inherit;
-  color:${T.text2};font-weight:600;cursor:pointer;border-radius:8px;
+  color:${T.text2};font-weight:600;cursor:pointer;border-radius:var(--nb-r-in);
   display:inline-flex;align-items:center;min-height:32px;max-width:42ch;
   overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .nb-crumbedit:hover{color:${T.text};background:var(--nb-wash-2)}
@@ -115,10 +141,10 @@ const CSS = `
 
 /* ---------------------------------------------------------------- controls */
 .nb-btn{display:inline-flex;align-items:center;justify-content:center;gap:8px;
-  min-height:36px;padding:0 18px;border-radius:99px;cursor:pointer;
+  min-height:36px;padding:0 18px;border-radius:var(--nb-r-pill);cursor:pointer;
   font-size:13px;font-weight:600;letter-spacing:0;text-transform:none;font-family:inherit;
   border:1px solid var(--nb-hair);background:var(--nb-wash);color:${T.text};
-  transition:background .14s ease,border-color .14s ease,box-shadow .14s ease,transform .1s ease}
+  transition:background var(--nb-dur-fast) var(--nb-ease),border-color var(--nb-dur-fast) var(--nb-ease),box-shadow var(--nb-dur-fast) var(--nb-ease),transform var(--nb-dur-fast) var(--nb-ease)}
 .nb-btn:hover{background:var(--nb-wash-2);border-color:color-mix(in srgb,${T.text} 22%, transparent)}
 .nb-btn:active{transform:translateY(1px)}
 .nb-btn[disabled]{opacity:.45;cursor:not-allowed}
@@ -128,26 +154,26 @@ const CSS = `
 .nb-btn[data-variant=primary][disabled]{background:var(--nb-wash);border-color:var(--nb-hair);color:${T.text3};box-shadow:none}
 .nb-btn[data-variant=ghost]{background:transparent;border-color:transparent;color:${T.text2}}
 .nb-btn[data-variant=ghost]:hover{background:var(--nb-wash-2);color:${T.text}}
-.nb-btn[data-size=sm]{min-height:32px;padding:0 12px;font-size:12.5px;border-radius:9px}
-.nb-icon{width:36px;height:36px;min-height:36px;padding:0;border-radius:99px;display:grid;place-items:center;
+.nb-btn[data-size=sm]{min-height:32px;padding:0 12px;font-size:12.5px;border-radius:var(--nb-r-in)}
+.nb-icon{width:36px;height:36px;min-height:36px;padding:0;border-radius:var(--nb-r-pill);display:grid;place-items:center;
   cursor:pointer;border:1px solid transparent;background:transparent;color:${T.text3};
-  transition:background .13s ease,color .13s ease,border-color .13s ease}
+  transition:background var(--nb-dur-fast) var(--nb-ease),color var(--nb-dur-fast) var(--nb-ease),border-color var(--nb-dur-fast) var(--nb-ease)}
 .nb-icon:hover{background:var(--nb-wash-2);color:${T.text}}
 .nb-icon[data-active=true]{background:color-mix(in srgb,${T.accent} 14%, transparent);color:${T.accent}}
 
 /* segmented control — a pill track with a lifted thumb */
-.nb-seg{display:inline-flex;gap:2px;padding:3px;border-radius:13px;
+.nb-seg{display:inline-flex;gap:2px;padding:3px;border-radius:var(--nb-r-el);
   border:1px solid var(--nb-hair);background:var(--nb-wash)}
 .nb-seg[data-fill="true"]{display:flex;width:100%}
 .nb-seg[data-fill="true"] > button{flex:1;justify-content:center}
-.nb-seg > button{min-height:32px;padding:0 14px;border:0;border-radius:10px;background:transparent;
+.nb-seg > button{min-height:32px;padding:0 14px;border:0;border-radius:var(--nb-r-in);background:transparent;
   color:${T.text3};cursor:pointer;font-family:inherit;font-size:12.5px;font-weight:600;letter-spacing:0;
   display:inline-flex;align-items:center;justify-content:center;gap:7px;
-  transition:background .13s ease,color .13s ease,box-shadow .13s ease}
+  transition:background var(--nb-dur-fast) var(--nb-ease),color var(--nb-dur-fast) var(--nb-ease),box-shadow var(--nb-dur-fast) var(--nb-ease)}
 .nb-seg > button:hover{color:${T.text};background:color-mix(in srgb,${T.text} 6%, transparent)}
 .nb-seg > button[aria-selected=true]{background:${T.card};color:${T.text};box-shadow:var(--nb-shadow)}
 
-.nb-field{display:flex;align-items:center;gap:9px;height:38px;padding:0 12px;border-radius:12px;
+.nb-field{display:flex;align-items:center;gap:9px;height:38px;padding:0 12px;border-radius:var(--nb-r-el);
   border:1px solid var(--nb-hair);background:var(--nb-wash);color:${T.text3}}
 .nb-field:focus-within{border-color:color-mix(in srgb,${T.accent} 55%, transparent);
   box-shadow:0 0 0 3px color-mix(in srgb,${T.accent} 16%, transparent)}
@@ -162,9 +188,9 @@ const CSS = `
   padding:12px}
 .nb-col{min-width:0;min-height:0;display:flex;flex-direction:column;position:relative}
 .nb-body > .nb-col{background:var(--nb-card);border:1px solid var(--nb-hair-soft);
-  border-radius:24px;overflow:hidden}
+  border-radius:var(--nb-r-panel);overflow:hidden}
 .nb-rail{flex:0 0 var(--nb-rail)}
-.nb-rail[data-drop="true"]{outline:2px dashed ${T.accent};outline-offset:-6px;border-radius:24px}
+.nb-rail[data-drop="true"]{outline:2px dashed ${T.accent};outline-offset:-6px;border-radius:var(--nb-r-panel)}
 .nb-main-col{flex:1 1 auto}
 .nb-studio{flex:0 0 var(--nb-studio)}
 .nb-fade{position:absolute;left:0;right:0;bottom:0;height:44px;pointer-events:none;
@@ -172,70 +198,72 @@ const CSS = `
 .nb-pane-head{display:flex;align-items:center;gap:8px;height:52px;flex:0 0 52px;padding:0 18px}
 .nb-pane-title{font-size:15px;font-weight:650;letter-spacing:-.01em;color:${T.text}}
 .nb-pane-head .nb-meta{flex:1}
-.nb-scroll{flex:1;min-height:0;overflow:auto;overscroll-behavior:contain;scrollbar-width:thin}
+.nb-scroll{flex:1;min-height:0;overflow:auto;overscroll-behavior:contain;scrollbar-width:thin;
+  scrollbar-color:color-mix(in srgb,${T.text} 22%,transparent) transparent}
+.nb-root ::selection{background:color-mix(in srgb,${T.accent} 32%,transparent)}
 .nb-pad{padding:12px 14px}
 
 /* ------------------------------------------------------------------- rail */
 .nb-nbrow{display:flex;align-items:center;gap:12px;width:100%;
-  text-align:left;cursor:pointer;border:0;border-radius:13px;background:transparent;
-  padding:9px 10px;color:${T.text};transition:background .12s ease}
+  text-align:left;cursor:pointer;border:0;border-radius:var(--nb-r-el);background:transparent;
+  padding:9px 10px;color:${T.text};transition:background var(--nb-dur-fast) var(--nb-ease)}
 .nb-nbrow:hover{background:var(--nb-wash-2)}
 .nb-nbrow[aria-current=true]{background:color-mix(in srgb,${T.accent} 11%, transparent)}
 .nb-nbtitle{font-size:13.5px;font-weight:600;line-height:1.32;color:${T.text2};letter-spacing:-.005em;
   overflow:hidden;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical}
 .nb-nbrow[aria-current=true] .nb-nbtitle{color:${T.text}}
 .nb-nbsub{font-size:11.5px;color:${T.text3};margin-top:2px;display:block}
-.nb-avatar{width:36px;height:36px;flex:0 0 auto;display:grid;place-items:center;border-radius:11px;
+.nb-avatar{width:36px;height:36px;flex:0 0 auto;display:grid;place-items:center;border-radius:var(--nb-r-el);
   background:var(--nb-wash-2);color:${T.text2};font-size:13px;font-weight:700}
 .nb-nbrow[aria-current=true] .nb-avatar{background:color-mix(in srgb,${T.accent} 20%, transparent);color:${T.accent}}
 
-.nb-src{display:flex;align-items:center;gap:4px;width:100%;border-radius:13px;
-  padding:5px 8px 5px 5px;position:relative;transition:background .12s ease}
+.nb-src{display:flex;align-items:center;gap:4px;width:100%;border-radius:var(--nb-r-el);
+  padding:5px 8px 5px 5px;position:relative;transition:background var(--nb-dur-fast) var(--nb-ease)}
 .nb-src:hover{background:var(--nb-wash-2)}
 .nb-src[data-on=true]{background:color-mix(in srgb,${T.accent} 10%, transparent)}
 .nb-src[data-off=true]{opacity:.55}
 .nb-src-open{flex:1;min-width:0;display:grid;grid-template-columns:36px minmax(0,1fr);gap:11px;
-  align-items:center;text-align:left;background:transparent;border:0;padding:4px;border-radius:11px;
+  align-items:center;text-align:left;background:transparent;border:0;padding:4px;border-radius:var(--nb-r-el);
   color:${T.text};cursor:pointer;font-family:inherit}
-.nb-src-ico{position:relative;width:36px;height:36px;border-radius:11px;display:grid;place-items:center;
+.nb-src-ico{position:relative;width:36px;height:36px;border-radius:var(--nb-r-el);display:grid;place-items:center;
   background:var(--nb-wash-2);color:${T.text2};flex:0 0 auto}
 .nb-src[data-on=true] .nb-src-ico{background:color-mix(in srgb,${T.accent} 18%, transparent);color:${T.accent}}
 /* the citation number rides the icon's corner, like a source badge */
 .nb-cite{position:absolute;right:-6px;bottom:-6px;min-width:18px;height:18px;padding:0 5px;
-  border-radius:99px;display:grid;place-items:center;background:${T.accent};color:#0d0e15;
+  border-radius:var(--nb-r-pill);display:grid;place-items:center;background:${T.accent};color:#0d0e15;
   font-size:10px;font-weight:700;
   box-shadow:0 1px 4px rgba(8,10,18,.4)}
 .nb-src-title{font-size:13px;font-weight:600;line-height:1.35;color:${T.text};
   overflow:hidden;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical}
 .nb-src-meta{display:flex;align-items:center;gap:6px;margin-top:5px;flex-wrap:wrap}
 /* NotebookLM's per-source checkbox: a rounded box at the row's right edge */
-.nb-srccheck{width:32px;height:32px;flex:0 0 auto;border-radius:10px;cursor:pointer;
+.nb-srccheck{width:32px;height:32px;flex:0 0 auto;border-radius:var(--nb-r-in);cursor:pointer;
   border:1.5px solid var(--nb-hair);background:transparent;color:#0d0e15;
-  display:grid;place-items:center;padding:0;transition:all .13s ease}
+  display:grid;place-items:center;padding:0;transition:all var(--nb-dur-fast) var(--nb-ease)}
 .nb-srccheck:hover{border-color:color-mix(in srgb,${T.accent} 55%, transparent)}
 .nb-srccheck[aria-checked=true]{background:${T.accent};border-color:${T.accent}}
 .nb-selall{display:flex;align-items:center;gap:9px;padding:2px 6px}
-.nb-selall .nb-srccheck{width:32px;height:32px;border-radius:10px}
+.nb-selall .nb-srccheck{width:32px;height:32px;border-radius:var(--nb-r-in)}
 .nb-src-del{position:absolute;right:44px;top:50%;transform:translateY(-50%);
-  opacity:0;transition:opacity .12s ease}
+  opacity:0;transition:opacity var(--nb-dur-fast) var(--nb-ease)}
 .nb-src:hover .nb-src-del,.nb-src-del:focus-visible{opacity:1}
 .nb-srcgroup{display:flex;align-items:center;gap:8px;width:100%;text-align:left;
-  padding:9px 10px;border:0;border-radius:11px;background:transparent;color:${T.text3};
+  padding:9px 10px;border:0;border-radius:var(--nb-r-el);background:transparent;color:${T.text3};
   font-size:12px;font-weight:650;letter-spacing:.01em;cursor:pointer;font-family:inherit}
 .nb-srcgroup:hover{background:var(--nb-wash-2);color:${T.text2}}
-.nb-srcgroup svg{transition:transform .15s ease}
+.nb-srcgroup svg{transition:transform var(--nb-dur-fast) var(--nb-ease)}
 .nb-srcgroup[data-closed=true] svg{transform:rotate(-90deg)}
 .nb-srcgroup em{margin-left:auto;font-style:normal;font-weight:500;color:${T.text4};font-size:11px}
 .nb-srcgroup-list{display:flex;flex-direction:column;gap:2px;padding-left:14px}
 
 /* the web-research box inside the sources panel */
-.nb-finder{margin:0 14px 10px;border-radius:16px;border:1px solid var(--nb-hair-soft);
+.nb-finder{margin:0 14px 10px;border-radius:var(--nb-r-box);border:1px solid var(--nb-hair-soft);
   background:var(--nb-wash);padding:10px}
 .nb-finder-row{display:flex;align-items:center;gap:8px}
 .nb-finder-row input{flex:1;min-width:0;height:34px;border:0;outline:0;background:transparent;
   color:${T.text};font-size:13px;font-family:inherit}
 .nb-finder-row input::placeholder{color:${T.text4}}
-.nb-finder-go{width:32px;height:32px;flex:0 0 auto;border-radius:99px;border:0;cursor:pointer;
+.nb-finder-go{width:32px;height:32px;flex:0 0 auto;border-radius:var(--nb-r-pill);border:0;cursor:pointer;
   background:${T.accent};color:#0d0e15;display:grid;place-items:center;padding:0}
 .nb-addsrc{width:100%;justify-content:flex-start}
 .nb-paneltog{flex:0 0 44px;display:flex;flex-direction:column;align-items:center;
@@ -244,7 +272,7 @@ const CSS = `
 .nb-fcand[disabled]{cursor:default}
 .nb-fcand[disabled]:not([data-added=true]){opacity:.55}
 .nb-fcand{display:flex;align-items:center;gap:10px;width:100%;text-align:left;
-  padding:9px 10px;border-radius:12px;border:0;background:transparent;color:${T.text};
+  padding:9px 10px;border-radius:var(--nb-r-el);border:0;background:transparent;color:${T.text};
   cursor:pointer;font-family:inherit}
 .nb-fcand:hover{background:var(--nb-wash-2)}
 .nb-fcand-main{flex:1;min-width:0}
@@ -252,7 +280,7 @@ const CSS = `
   overflow:hidden;white-space:nowrap;text-overflow:ellipsis}
 .nb-fcand-sub{display:block;font-size:11px;color:${T.text3};margin-top:2px;
   overflow:hidden;white-space:nowrap;text-overflow:ellipsis}
-.nb-fcand-add{width:28px;height:28px;flex:0 0 auto;border-radius:99px;cursor:pointer;
+.nb-fcand-add{width:28px;height:28px;flex:0 0 auto;border-radius:var(--nb-r-pill);cursor:pointer;
   border:1.5px solid var(--nb-hair);background:transparent;color:${T.text2};
   display:grid;place-items:center;padding:0}
 .nb-fcand-add:hover{border-color:${T.accent};color:${T.accent}}
@@ -260,18 +288,18 @@ const CSS = `
   border-color:color-mix(in srgb,${T.ok} 50%, transparent);color:${T.ok};cursor:default}
 
 /* chips are soft pills; clickable ones are full 32px targets */
-.nb-chip{display:inline-flex;align-items:center;gap:5px;height:22px;padding:0 9px;border-radius:99px;
+.nb-chip{display:inline-flex;align-items:center;gap:5px;height:22px;padding:0 9px;border-radius:var(--nb-r-pill);
   font-size:11px;font-weight:600;letter-spacing:.01em;color:${T.text3};
   background:var(--nb-wash-2);border:1px solid transparent;white-space:nowrap;font-family:inherit}
 .nb-chip[data-tone=accent]{color:${T.accent};background:color-mix(in srgb,${T.accent} 13%, transparent)}
 .nb-chip[data-tone=ok]{color:${T.ok};background:color-mix(in srgb,${T.ok} 13%, transparent)}
 .nb-chip[data-tone=warn]{color:${T.warn};background:color-mix(in srgb,${T.warn} 14%, transparent)}
 .nb-chip[data-tone=danger]{color:${T.danger};background:color-mix(in srgb,${T.danger} 13%, transparent)}
-.nb-citechip{height:32px;min-height:32px;padding:0 7px 0 9px;border-radius:99px;gap:7px;
+.nb-citechip{height:32px;min-height:32px;padding:0 7px 0 9px;border-radius:var(--nb-r-pill);gap:7px;
   background:var(--nb-card);border-color:var(--nb-hair);color:${T.text2};font-size:12px;font-weight:500}
 .nb-citechip:hover{border-color:color-mix(in srgb,${T.accent} 50%, transparent)}
 .nb-citechip b{font-family:var(--ui-font-mono,ui-monospace,monospace);color:${T.accent};font-weight:700;
-  font-size:10.5px;background:color-mix(in srgb,${T.accent} 14%, transparent);border-radius:99px;
+  font-size:10.5px;background:color-mix(in srgb,${T.accent} 14%, transparent);border-radius:var(--nb-r-pill);
   padding:3px 7px;flex:0 0 auto}
 .nb-citechip span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0;max-width:300px}
 .nb-chip[data-click=true]{cursor:pointer;min-height:32px;height:32px;padding:0 13px;font-size:12px;
@@ -284,12 +312,12 @@ const CSS = `
 /* discover candidates — the "find for me" picker inside the add-source sheet */
 .nb-cand-list{display:flex;flex-direction:column;gap:8px;max-height:308px;overflow:auto;padding:2px}
 .nb-cand{display:flex;gap:11px;align-items:flex-start;width:100%;text-align:left;
-  padding:11px 12px;border-radius:13px;border:1px solid var(--nb-hair-soft);
+  padding:11px 12px;border-radius:var(--nb-r-el);border:1px solid var(--nb-hair-soft);
   background:var(--nb-card);cursor:pointer;font-family:inherit;color:inherit}
 .nb-cand:hover{border-color:color-mix(in srgb,${T.text} 20%, transparent);background:var(--nb-wash-2)}
 .nb-cand[data-on=true]{border-color:color-mix(in srgb,${T.accent} 45%, transparent);
   background:color-mix(in srgb,${T.accent} 8%, transparent)}
-.nb-cand-check{width:20px;height:20px;flex:0 0 auto;margin-top:2px;border-radius:7px;
+.nb-cand-check{width:20px;height:20px;flex:0 0 auto;margin-top:2px;border-radius:var(--nb-r-in);
   border:1.5px solid var(--nb-hair);display:grid;place-items:center;color:#0d0e15}
 .nb-cand[data-on=true] .nb-cand-check{background:${T.accent};border-color:${T.accent}}
 .nb-cand-title{display:block;font-size:13.5px;font-weight:600;line-height:1.35;color:${T.text}}
@@ -303,7 +331,7 @@ const CSS = `
 .nb-main-head{padding:24px 30px 0;border-bottom:1px solid var(--nb-hair-soft);flex:0 0 auto;position:relative}
 .nb-hero{display:flex;align-items:flex-start;gap:16px;margin-bottom:16px}
 .nb-hero-emoji{width:52px;height:52px;flex:0 0 auto;display:grid;place-items:center;font-size:30px;
-  border-radius:16px;background:var(--nb-wash-2);border:1px solid var(--nb-hair-soft)}
+  border-radius:var(--nb-r-box);background:var(--nb-wash-2);border:1px solid var(--nb-hair-soft)}
 .nb-hero-main{min-width:0;flex:1}
 .nb-hero-main .nb-h1{margin-bottom:6px}
 .nb-h1{font-size:27px;font-weight:700;letter-spacing:-.025em;line-height:1.15;margin:0;max-width:30ch;
@@ -312,28 +340,27 @@ const CSS = `
 .nb-hero-side{display:flex;align-items:center;gap:8px;flex:0 0 auto;padding-top:6px}
 /* ops host-measurement strip (Lab Ops only) */
 .nb-strip{display:flex;align-items:stretch;gap:8px;margin:14px 0 0;flex-wrap:wrap}
-.nb-cell{flex:1;min-width:90px;padding:10px 14px 11px;border-radius:12px;
+.nb-cell{flex:1;min-width:90px;padding:10px 14px 11px;border-radius:var(--nb-r-el);
   border:1px solid var(--nb-hair-soft);background:var(--nb-wash)}
 .nb-cell b{display:block;font-size:17px;font-weight:650;letter-spacing:-.02em;
   line-height:1.1;font-variant-numeric:tabular-nums}
 .nb-cell span{display:block;font-size:11px;color:${T.text3};margin-top:6px;font-weight:600}
 .nb-tabs{display:flex;gap:4px;align-items:flex-end;margin:16px 0 0;position:relative;bottom:-1px}
 .nb-tab{min-height:38px;padding:0 14px 11px;border:0;border-bottom:2px solid transparent;
-  border-radius:10px 10px 0 0;background:transparent;color:${T.text2};font-size:13.5px;
+  border-radius:var(--nb-r-el) 10px 0 0;background:transparent;color:${T.text2};font-size:13.5px;
   font-weight:600;cursor:pointer;display:inline-flex;align-items:center;gap:7px;letter-spacing:0;
-  font-family:inherit;transition:background .12s ease,color .12s ease}
+  font-family:inherit;transition:background var(--nb-dur-fast) var(--nb-ease),color var(--nb-dur-fast) var(--nb-ease)}
 .nb-tab:hover{color:${T.text};background:var(--nb-wash)}
 .nb-tab[aria-selected=true]{color:${T.text};border-bottom-color:${T.accent};background:var(--nb-wash)}
 .nb-tab[disabled]{opacity:.45;cursor:default}
 
 /* ------------------------------------------------------------------- chat */
 .nb-chat{flex:1;min-height:0;display:flex;flex-direction:column;position:relative}
-<<<<<<< HEAD
 /* conversation bar: the open thread is the page's subject, so it gets the top row */
 .nb-chatbar{display:flex;align-items:center;gap:8px;padding:10px 16px 8px;
   border-bottom:1px solid ${T.lineSoft};flex-wrap:nowrap}
 .nb-threadpick{display:flex;align-items:center;gap:8px;min-width:0;max-width:min(56ch,72%);
-  min-height:34px;padding:4px 8px;border-radius:10px;border:1px solid transparent;
+  min-height:34px;padding:4px 8px;border-radius:var(--nb-r-el);border:1px solid transparent;
   background:transparent;color:${T.text};font:inherit;font-size:14px;font-weight:600;
   cursor:pointer}
 .nb-threadpick:hover{background:${T.inset};border-color:${T.lineSoft}}
@@ -344,13 +371,13 @@ const CSS = `
 .nb-newthread .nb-genopt-text{flex:1;min-width:0}
 .nb-threadlist{display:flex;flex-direction:column;gap:6px;max-height:min(48vh,380px);
   overflow:auto;overscroll-behavior:contain}
-.nb-threadrow{display:flex;align-items:center;gap:6px;padding:2px;border-radius:12px;
+.nb-threadrow{display:flex;align-items:center;gap:6px;padding:2px;border-radius:var(--nb-r-el);
   border:1px solid ${T.lineSoft};background:${T.card}}
 .nb-threadrow[data-on="true"]{border-color:${T.accent};
   background:color-mix(in srgb,${T.accent} 9%,transparent)}
 .nb-threadrow-main{flex:1;min-width:0;display:flex;flex-direction:column;gap:3px;
   align-items:flex-start;text-align:left;background:transparent;border:0;cursor:pointer;
-  padding:8px 10px;border-radius:10px;color:${T.text};font:inherit;min-height:48px}
+  padding:8px 10px;border-radius:var(--nb-r-el);color:${T.text};font:inherit;min-height:48px}
 .nb-threadrow-main:hover{background:${T.inset}}
 .nb-threadrow-main:focus-visible{outline:2px solid ${T.accent};outline-offset:-2px}
 .nb-threadrow-title{display:block;font-size:14px;font-weight:600;max-width:100%;
@@ -360,31 +387,52 @@ const CSS = `
 .nb-threadrow-acts .nb-btn{height:32px}
 .nb-threadrow-edit{display:flex;gap:6px;align-items:center;padding-right:8px;flex:1}
 .nb-threadrow-edit .nb-genopt-text{flex:1;min-width:0}
-=======
 /* A scrolled thread clips its first visible message at the panel edge, which reads
    as a broken one-line fragment. Fade that edge with an overlay — pointer-events
    off, so citations under it stay clickable (a mask would eat the clicks). */
 .nb-chat::before{content:'';position:absolute;top:0;left:0;right:0;height:18px;z-index:2;
   pointer-events:none;background:linear-gradient(to bottom,var(--nb-card),transparent)}
 .nb-chatscroll{flex:1;min-height:0;display:flex;flex-direction:column;position:relative}
-.nb-hl{background:color-mix(in srgb, ${T.accent} 30%, transparent);color:inherit;border-radius:4px;padding:0 2px}
-.nb-latest{position:absolute;left:50%;bottom:14px;transform:translateX(-50%);z-index:20;display:inline-flex;align-items:center;gap:4px;padding:7px 14px;border-radius:999px;border:1px solid var(--nb-line,#2a2d3d);background:var(--nb-card,#14161f);color:var(--nb-text2,#c6c9d8);font-size:12.5px;font-weight:600;cursor:pointer;box-shadow:0 6px 20px rgba(0,0,0,.35);transition:transform .15s ease,box-shadow .15s ease}
+.nb-hl{background:color-mix(in srgb, ${T.accent} 30%, transparent);color:inherit;border-radius:var(--nb-r-in);padding:0 2px}
+.nb-latest{position:absolute;left:50%;bottom:14px;transform:translateX(-50%);z-index:20;display:inline-flex;align-items:center;gap:4px;padding:7px 14px;border-radius:var(--nb-r-pill);border:1px solid var(--nb-line,#2a2d3d);background:var(--nb-card,#14161f);color:var(--nb-text2,#c6c9d8);font-size:12.5px;font-weight:600;cursor:pointer;box-shadow:0 6px 20px rgba(0,0,0,.35);transition:transform var(--nb-dur-fast) var(--nb-ease),box-shadow var(--nb-dur-fast) var(--nb-ease)}
 .nb-latest:hover{transform:translateX(-50%) translateY(-1px);box-shadow:0 8px 24px rgba(0,0,0,.45)}
->>>>>>> origin/main
 .nb-thread{flex:1;min-height:0;overflow:auto;padding:28px 28px 12px;display:flex;flex-direction:column;gap:24px}
 .nb-chiprow{display:flex;align-items:center;gap:6px;flex-wrap:wrap;padding:8px 0 6px}
-.nb-msg{max-width:72ch}
+.nb-msg{max-width:72ch;animation:nb-msg-in var(--nb-dur-fast) var(--nb-ease) both}
+@keyframes nb-msg-in{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:none}}
+/* generative marks breathe — a slow 1.5% drift so sigils feel alive, not pasted */
+.nb-hero-emoji svg,.nb-nbcard-emoji svg,.nb-feature-emoji svg{animation:nb-sigil-float 9s ease-in-out infinite}
+@keyframes nb-sigil-float{0%,100%{transform:translateY(0) rotate(0deg)}50%{transform:translateY(-2px) rotate(1.2deg)}}
+/* home cards arrive in a stagger — the directory assembles itself */
+.nb-nbcard-wrap,.nb-feature{animation:nb-card-in var(--nb-dur-med) var(--nb-ease) both}
+@keyframes nb-card-in{from{opacity:0;transform:translateY(12px) scale(.985)}to{opacity:1;transform:none}}
+/* sigil inscription — ribbons draw themselves in sequence, nodes pop after */
+.nb-sigil-draw path{stroke-dasharray:1;stroke-dashoffset:1;animation:nb-draw .9s cubic-bezier(.45,.05,.3,1) forwards}
+.nb-sigil-draw path:nth-child(2){animation-delay:.18s}
+.nb-sigil-draw path:nth-child(3){animation-delay:.36s}
+.nb-sigil-draw circle{opacity:0;animation:nb-pop .45s cubic-bezier(.2,.9,.3,1.4) forwards}
+.nb-sigil-draw circle:nth-child(4){animation-delay:.75s}
+.nb-sigil-draw circle:nth-child(5){animation-delay:.9s}
+@keyframes nb-draw{to{stroke-dashoffset:0}}
+@keyframes nb-pop{from{opacity:0;transform:scale(.4)}to{opacity:1;transform:scale(1)}}
+.nb-sigil-draw{transform-origin:center;animation:nb-sigil-settle 1.1s var(--nb-ease) both}
+@keyframes nb-sigil-settle{from{opacity:0;transform:scale(.92)}to{opacity:1;transform:scale(1)}}
+@media (prefers-reduced-motion:reduce){
+  .nb-msg,.nb-nbcard-wrap,.nb-feature,.nb-hero-emoji svg,.nb-nbcard-emoji svg,.nb-feature-emoji svg,.nb-blob,.nb-sigil-draw{animation:none!important}
+  .nb-sigil-draw path{stroke-dashoffset:0!important}
+  .nb-sigil-draw circle{opacity:1!important;transform:none!important}
+}
 .nb-msg[data-role=assistant]{display:grid;grid-template-columns:30px minmax(0,1fr);gap:14px;align-self:flex-start}
 .nb-msg[data-role=user]{align-self:flex-end;max-width:62ch}
 .nb-msg-body{min-width:0}
 .nb-msg[data-role=user] .nb-bubble{background:var(--nb-wash-2);border:1px solid var(--nb-hair-soft);
-  border-radius:18px;padding:11px 17px;font-size:15px;line-height:1.55;color:${T.text}}
+  border-radius:var(--nb-r-box);padding:11px 17px;font-size:15px;line-height:1.55;color:${T.text}}
 .nb-msg[data-role=assistant] .nb-bubble{font-size:16px;line-height:1.66;color:${T.text}}
 .nb-msg[data-role=assistant] .nb-avatar{width:30px;height:30px;margin-top:2px}
-.nb-avatar{width:36px;height:36px;flex:0 0 auto;display:grid;place-items:center;border-radius:11px;
+.nb-avatar{width:36px;height:36px;flex:0 0 auto;display:grid;place-items:center;border-radius:var(--nb-r-el);
   background:var(--nb-wash-2);color:${T.text2};font-size:13px;font-weight:700}
 .nb-nbrow[aria-current=true] .nb-avatar{background:color-mix(in srgb,${T.accent} 20%, transparent);color:${T.accent}}
-.nb-msg .nb-avatar{width:30px;height:30px;border-radius:99px;
+.nb-msg .nb-avatar{width:30px;height:30px;border-radius:var(--nb-r-pill);
   background:color-mix(in srgb,${T.accent} 16%, transparent);color:${T.accent};font-size:11px;letter-spacing:.02em}
 .nb-who{font-size:11.5px;letter-spacing:.02em;color:${T.text3};font-weight:600;margin-bottom:8px}
 .nb-msg[data-role=user] .nb-who{color:${T.text4}}
@@ -396,36 +444,36 @@ const CSS = `
 .nb-md li{margin:5px 0}
 .nb-md li::marker{color:${T.accent}}
 .nb-md code{font-family:var(--ui-font-mono,ui-monospace,monospace);font-size:12.5px;
-  background:var(--nb-wash-2);padding:1.5px 6px;border-radius:6px}
+  background:var(--nb-wash-2);padding:1.5px 6px;border-radius:var(--nb-r-in)}
 .nb-md strong{font-weight:650;color:${T.text}}
-.nb-md blockquote{margin:12px 0;padding:10px 16px;border-radius:12px;color:${T.text2};
+.nb-md blockquote{margin:12px 0;padding:10px 16px;border-radius:var(--nb-r-el);color:${T.text2};
   background:var(--nb-wash);border-left:3px solid color-mix(in srgb,${T.accent} 55%, transparent)}
 /* inline citations are quiet accent pills with the source number */
 .nb-inline-cite{display:inline-flex;align-items:center;min-height:20px;padding:0 8px;margin:0 2px;
-  border-radius:99px;border:1px solid color-mix(in srgb,${T.accent} 30%, transparent);
+  border-radius:var(--nb-r-pill);border:1px solid color-mix(in srgb,${T.accent} 30%, transparent);
   background:color-mix(in srgb,${T.accent} 10%, transparent);
   font-size:11px;font-weight:700;letter-spacing:.01em;
   color:${T.accent};cursor:pointer;vertical-align:1px;line-height:1}
 .nb-inline-cite:hover{background:color-mix(in srgb,${T.accent} 20%, transparent)}
 .nb-composer{flex:0 0 auto;padding:14px 30px 20px}
 .nb-askbox{display:flex;flex-direction:column;gap:10px;border:1px solid var(--nb-hair);
-  border-radius:26px;background:var(--nb-card);padding:14px 16px;box-shadow:var(--nb-shadow);
-  transition:border-color .15s ease,box-shadow .15s ease}
+  border-radius:var(--nb-r-panel);background:var(--nb-card);padding:14px 16px;box-shadow:var(--nb-shadow);
+  transition:border-color var(--nb-dur-fast) var(--nb-ease),box-shadow var(--nb-dur-fast) var(--nb-ease)}
 .nb-askbox:focus-within{border-color:color-mix(in srgb,${T.accent} 55%, transparent);
   box-shadow:0 0 0 4px color-mix(in srgb,${T.accent} 15%, transparent), var(--nb-shadow)}
 .nb-askbox textarea{width:100%;min-height:44px;max-height:150px;resize:none;border:0;outline:0;
   background:transparent;color:${T.text};font-size:15px;line-height:1.5;font-family:inherit}
 .nb-askbox textarea::placeholder{color:${T.text3}}
 .nb-askfoot{display:flex;align-items:center;gap:8px}
-.nb-sendbtn{width:38px;height:38px;flex:0 0 auto;border-radius:99px;border:0;cursor:pointer;
+.nb-sendbtn{width:38px;height:38px;flex:0 0 auto;border-radius:var(--nb-r-pill);border:0;cursor:pointer;
   background:${T.accent};color:#0d0e15;display:grid;place-items:center;padding:0;
-  transition:opacity .13s ease,transform .1s ease}
+  transition:opacity var(--nb-dur-fast) var(--nb-ease),transform var(--nb-dur-fast) var(--nb-ease)}
 .nb-sendbtn:hover{transform:scale(1.05)}
 .nb-sendbtn[disabled]{opacity:.4;cursor:not-allowed;transform:none}
 .nb-disclaimer{font-size:11px;color:${T.text3};text-align:center;margin-top:9px}
 
 /* ------------------------------------------------- overview + suggestions */
-.nb-overview{border:1px solid var(--nb-hair-soft);border-radius:18px;background:var(--nb-card);
+.nb-overview{border:1px solid var(--nb-hair-soft);border-radius:var(--nb-r-box);background:var(--nb-card);
   padding:18px 20px;display:grid;gap:10px}
 .nb-overview-head{display:flex;align-items:center;gap:8px}
 .nb-overview-head .nb-meta{flex:1}
@@ -433,10 +481,10 @@ const CSS = `
 .nb-overview-body .nb-md strong{color:${T.text}}
 .nb-suggest-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px}
 .nb-suggest{display:flex;flex-direction:column;justify-content:space-between;gap:10px;
-  min-height:104px;text-align:left;padding:14px;border-radius:16px;cursor:pointer;
+  min-height:104px;text-align:left;padding:14px;border-radius:var(--nb-r-box);cursor:pointer;
   border:1px solid var(--nb-hair-soft);background:var(--nb-card);color:${T.text};
-  font-family:inherit;font-size:13px;line-height:1.45;transition:border-color .14s ease,
-  background .14s ease,transform .14s ease}
+  font-family:inherit;font-size:13px;line-height:1.45;transition:border-color var(--nb-dur-fast) var(--nb-ease),
+  background var(--nb-dur-fast) var(--nb-ease),transform var(--nb-dur-fast) var(--nb-ease)}
 .nb-suggest:hover{border-color:color-mix(in srgb,${T.accent} 45%, transparent);
   background:var(--nb-wash-2);transform:translateY(-1px)}
 .nb-suggest-q{font-weight:550}
@@ -444,16 +492,16 @@ const CSS = `
 .nb-gaprow{display:flex;gap:6px;flex-wrap:wrap;align-items:center}
 .nb-gaprow .nb-chip[data-click=true]{border-style:dashed}
 .nb-thrrow{display:flex;align-items:center;gap:10px;width:100%;text-align:left;
-  padding:10px 12px;border-radius:12px;cursor:pointer;font-family:inherit;
+  padding:10px 12px;border-radius:var(--nb-r-el);cursor:pointer;font-family:inherit;
   border:1px solid transparent;background:transparent;color:${T.text}}
 .nb-thrrow:hover{background:var(--nb-wash)}
 .nb-thrrow.is-current{border-color:color-mix(in srgb,${T.accent} 40%, transparent);
   background:color-mix(in srgb,${T.accent} 8%, transparent)}
-.nb-thrwrap{display:flex;align-items:center;gap:4px;padding:1px;border-radius:12px}
+.nb-thrwrap{display:flex;align-items:center;gap:4px;padding:1px;border-radius:var(--nb-r-el)}
 .nb-thrwrap .nb-thrrow{flex:1;min-width:0}
 /* rename/delete are actions on a conversation, not hover trivia — keep them visible
    and let hover only raise their weight */
-.nb-thrwrap .nb-icon{opacity:.7;transition:opacity .12s ease}
+.nb-thrwrap .nb-icon{opacity:.7;transition:opacity var(--nb-dur-fast) var(--nb-ease)}
 .nb-thrwrap:hover .nb-icon,.nb-thrwrap:focus-within .nb-icon{opacity:1}
 .nb-thrwrap[data-on="true"]{background:color-mix(in srgb,${T.accent} 8%,transparent)}
 .nb-thrlist{display:flex;flex-direction:column;gap:6px;max-height:min(46vh,360px);
@@ -465,9 +513,9 @@ const CSS = `
 .nb-danger{color:${T.danger} !important;
   border-color:color-mix(in srgb,${T.danger} 45%,transparent) !important}
 .nb-emgrid{display:grid;grid-template-columns:repeat(8,1fr);gap:6px}
-.nb-em{aspect-ratio:1;border-radius:10px;border:1px solid var(--nb-hair-soft);
+.nb-em{aspect-ratio:1;border-radius:var(--nb-r-in);border:1px solid var(--nb-hair-soft);
   background:var(--nb-card);font-size:17px;cursor:pointer;display:grid;place-items:center;
-  transition:border-color .12s ease,background .12s ease}
+  transition:border-color var(--nb-dur-fast) var(--nb-ease),background var(--nb-dur-fast) var(--nb-ease)}
 .nb-em:hover{border-color:color-mix(in srgb,${T.accent} 45%, transparent)}
 .nb-em.is-on{border-color:${T.accent};background:color-mix(in srgb,${T.accent} 12%, transparent)}
 
@@ -481,15 +529,17 @@ const CSS = `
 /* each output pill carries its own colour (--kc) */
 .nb-card{--kc:${T.accent};
   display:flex;align-items:center;gap:10px;width:100%;padding:11px 12px;
-  border:1px solid var(--nb-hair-soft);border-radius:14px;
+  border:1px solid var(--nb-hair-soft);border-radius:var(--nb-r-box);
   background:var(--nb-card);cursor:pointer;text-align:left;color:${T.text};
-  transition:background .13s ease,border-color .13s ease,transform .13s ease}
+  transition:background var(--nb-dur-fast) var(--nb-ease),border-color var(--nb-dur-fast) var(--nb-ease),transform var(--nb-dur-fast) var(--nb-ease),
+    box-shadow var(--nb-dur-fast) var(--nb-ease)}
 .nb-card:hover{background:var(--nb-wash-2);border-color:color-mix(in srgb,var(--kc) 42%, var(--nb-hair));
-  transform:translateY(-1px)}
+  transform:translateY(-1px);
+  box-shadow:0 8px 26px -10px color-mix(in srgb,var(--kc) 45%, transparent)}
 .nb-card[data-ready=true]{border-color:color-mix(in srgb,var(--kc) 30%, var(--nb-hair-soft))}
 .nb-card[data-busy=true]{border-color:color-mix(in srgb,var(--kc) 50%, transparent);
   background:color-mix(in srgb,var(--kc) 6%, var(--nb-card))}
-.nb-card-ico{width:32px;height:32px;flex:0 0 auto;border-radius:10px;display:grid;place-items:center;
+.nb-card-ico{width:32px;height:32px;flex:0 0 auto;border-radius:var(--nb-r-in);display:grid;place-items:center;
   background:color-mix(in srgb,var(--kc) 14%, transparent);color:var(--kc)}
 .nb-card[data-kind=video_overview],.nb-art[data-kind=video_overview]{--kc:#81c995}
 .nb-card[data-kind=audio_overview],.nb-art[data-kind=audio_overview]{--kc:#a8c7fa}
@@ -511,23 +561,51 @@ const CSS = `
   overflow:hidden;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical}
 .nb-card-foot{display:flex;align-items:center;gap:8px;margin-top:auto;padding-top:5px}
 .nb-card-state{display:inline-flex;align-items:center;gap:6px;white-space:nowrap;
-  font-size:10.5px;font-weight:600;color:${T.text3}}
-.nb-card[data-ready=true] .nb-card-state{color:${T.ok};background:color-mix(in srgb,${T.ok} 13%, transparent)}
+  font-size:var(--nb-fs-meta);font-weight:600;color:var(--nb-meta-ink)}
+/* "ready · 1d ago" on every card used to paint green chips down the rail — status
+   noise competing with the one meaningful green (grounded/model ready). Ready is
+   neutral; only something made in this sitting gets the green. */
+/* an ungenerated card's state is the affordance — give it the shape of one */
+.nb-card[data-ready=false] .nb-card-state{color:${T.accent};font-weight:650;
+  padding:3px 9px;border-radius:var(--nb-r-pill);border:1px solid color-mix(in srgb,${T.accent} 38%, transparent);
+  background:color-mix(in srgb,${T.accent} 9%, transparent)}
+.nb-card[data-ready=false]:hover .nb-card-state{color:${T.text}}
+.nb-card[data-ready=true] .nb-card-state{color:var(--nb-meta-ink);background:transparent}
+.nb-card[data-fresh=true] .nb-card-state{color:${T.ok};background:color-mix(in srgb,${T.ok} 11%, transparent)}
 .nb-card[data-busy=true] .nb-card-state{color:var(--kc);background:color-mix(in srgb,var(--kc) 13%, transparent)}
-.nb-dot{width:6px;height:6px;border-radius:99px;background:${T.text4};display:inline-block;flex:0 0 auto}
-.nb-card[data-ready=true] .nb-dot{background:${T.ok}}
+.nb-dot{width:6px;height:6px;border-radius:var(--nb-r-pill);background:${T.text4};display:inline-block;flex:0 0 auto}
+.nb-card[data-ready=true] .nb-dot{background:${T.text4}}
+.nb-card[data-fresh=true] .nb-dot{background:${T.ok}}
 .nb-card[data-busy=true] .nb-dot{background:var(--kc);animation:nb-pulse 1.2s ease-in-out infinite}
-.nb-bar-track{height:4px;margin-top:2px;background:var(--nb-wash-2);border-radius:99px;overflow:hidden;display:block;flex:1;max-width:120px}
-.nb-bar-fill{height:100%;background:var(--kc);border-radius:99px;transition:width .4s ease}
+.nb-bar-track{height:4px;margin-top:2px;background:var(--nb-wash-2);border-radius:var(--nb-r-pill);overflow:hidden;display:block;flex:1;max-width:120px}
+.nb-bar-fill{height:100%;background:var(--kc);border-radius:var(--nb-r-pill);transition:width var(--nb-dur-med) var(--nb-ease)}
 @keyframes nb-pulse{0%,100%{opacity:1}50%{opacity:.35}}
 
 /* the generated-artifacts list: tinted icon tile + title + meta */
+/* the rail has two models — outputs above, runs on disk below — so the second
+   one gets its own labelled band instead of a second unlabelled card list */
+.nb-files-head{display:flex;align-items:center;gap:8px;padding:12px 14px 4px;
+  border-top:1px solid ${T.lineSoft};margin-top:10px}
+.nb-files-title{font-size:var(--nb-fs-label);font-weight:650;letter-spacing:.01em;color:${T.text2}}
+.nb-files-count{display:inline-grid;place-items:center;min-width:20px;height:20px;padding:0 6px;
+  border-radius:var(--nb-r-pill);background:var(--nb-wash-2);color:var(--nb-meta-ink);
+  font-size:var(--nb-fs-meta);font-weight:650}
+/* the full-width pill carries what it makes, so a deliberate wide row never
+   reads as an empty one */
+.nb-card-sub{display:block;font-size:var(--nb-fs-meta);color:${T.text4};margin-top:2px;
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.nb-card[data-wide=true]{padding-right:14px}
+.nb-card[data-wide=true] .nb-card-main{display:grid;grid-template-columns:minmax(0,1fr) auto;
+  align-items:center;column-gap:10px}
+.nb-card[data-wide=true] .nb-card-name{grid-column:1}
+.nb-card[data-wide=true] .nb-card-sub{grid-column:1}
+.nb-card[data-wide=true] .nb-card-state{grid-column:2;grid-row:1 / span 2}
 .nb-artlist{display:flex;flex-direction:column;gap:4px}
 .nb-art{display:flex;align-items:center;gap:11px;width:100%;text-align:left;
-  padding:8px 10px;border-radius:13px;border:0;background:transparent;color:${T.text};
-  cursor:pointer;font-family:inherit;transition:background .12s ease}
+  padding:8px 10px;border-radius:var(--nb-r-el);border:0;background:transparent;color:${T.text};
+  cursor:pointer;font-family:inherit;transition:background var(--nb-dur-fast) var(--nb-ease)}
 .nb-art:hover{background:var(--nb-wash-2)}
-.nb-art-ico{width:40px;height:40px;flex:0 0 auto;border-radius:12px;position:relative;overflow:hidden;
+.nb-art-ico{width:40px;height:40px;flex:0 0 auto;border-radius:var(--nb-r-el);position:relative;overflow:hidden;
   display:grid;place-items:center;
   background:color-mix(in srgb,var(--kc) 13%, transparent);
   color:color-mix(in srgb,var(--kc) 70%, ${T.text});
@@ -536,18 +614,18 @@ const CSS = `
 .nb-art-main{flex:1;min-width:0}
 .nb-art-title{display:block;font-size:13px;font-weight:600;line-height:1.3;color:${T.text};
   overflow:hidden;white-space:nowrap;text-overflow:ellipsis}
-.nb-art-sub{display:block;font-size:11px;color:${T.text3};margin-top:2px;
+.nb-art-sub{display:block;font-size:11.5px;color:var(--nb-meta-ink);margin-top:2px;
   overflow:hidden;white-space:nowrap;text-overflow:ellipsis}
 .nb-artrow{position:relative}
 .nb-art-del{position:absolute;right:8px;top:50%;transform:translateY(-50%);
-  opacity:0;transition:opacity .12s ease}
+  opacity:0;transition:opacity var(--nb-dur-fast) var(--nb-ease)}
 .nb-artrow:hover .nb-art-del,.nb-art-del:focus-visible{opacity:1}
 .nb-artrow:hover .nb-art{padding-right:36px}
 
 /* thumb content inside the artifact icon tile */
 .nb-art-ico .nb-thumb-img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;display:block}
 .nb-art-ico .nb-thumb-wave{display:flex;align-items:center;gap:1.5px;height:70%;width:80%}
-.nb-art-ico .nb-thumb-wave i{flex:1 1 0;min-width:1.5px;border-radius:99px;background:var(--kc);opacity:.8}
+.nb-art-ico .nb-thumb-wave i{flex:1 1 0;min-width:1.5px;border-radius:var(--nb-r-pill);background:var(--kc);opacity:.8}
 
 /* ----------------------------------------------------------------- viewer */
 .nb-view{flex:1;min-height:0;display:flex;flex-direction:column}
@@ -565,40 +643,40 @@ const CSS = `
 .nb-doc ul,.nb-doc ol{padding-left:22px;margin:0 0 12px}
 .nb-doc li{margin:5px 0}
 .nb-doc table{border-collapse:separate;border-spacing:0;width:100%;font-size:14px;margin:14px 0;
-  border:1px solid var(--nb-hair-soft);border-radius:12px;overflow:hidden}
+  border:1px solid var(--nb-hair-soft);border-radius:var(--nb-r-el);overflow:hidden}
 .nb-doc th,.nb-doc td{border-bottom:1px solid var(--nb-hair-soft);padding:9px 12px;text-align:left}
 .nb-doc td+td,.nb-doc th+th{border-left:1px solid var(--nb-hair-soft)}
 .nb-doc tr:last-child td{border-bottom:0}
 .nb-doc th{background:var(--nb-wash-2);font-size:11px;letter-spacing:.05em;text-transform:uppercase;
   font-weight:700;color:${T.text2}}
-.nb-doc pre{background:var(--nb-wash);border:1px solid var(--nb-hair-soft);border-radius:12px;
+.nb-doc pre{background:var(--nb-wash);border:1px solid var(--nb-hair-soft);border-radius:var(--nb-r-el);
   padding:14px;overflow:auto;font-size:13px}
 
 /* -------------------------------------------------------------- stage/media */
 .nb-stage{display:flex;flex-direction:column;gap:16px}
-.nb-screen{position:relative;overflow:hidden;border-radius:18px;border:1px solid var(--nb-hair);
+.nb-screen{position:relative;overflow:hidden;border-radius:var(--nb-r-box);border:1px solid var(--nb-hair);
   background:var(--nb-media);aspect-ratio:16/9;display:grid;place-items:center;box-shadow:var(--nb-shadow)}
 .nb-screen video,.nb-screen iframe{width:100%;height:100%;border:0;display:block;background:#000}
 .nb-screen-audio{aspect-ratio:auto;padding:22px;display:flex;flex-direction:column;gap:16px;
   place-items:stretch;width:100%}
 .nb-wave{display:flex;align-items:center;gap:2.5px;height:72px;width:100%}
-.nb-wave i{flex:1 1 0;min-width:2px;height:100%;border-radius:99px;background:rgba(235,238,245,.42)}
+.nb-wave i{flex:1 1 0;min-width:2px;height:100%;border-radius:var(--nb-r-pill);background:rgba(235,238,245,.42)}
 .nb-wave i[data-past=true]{background:${T.accent};opacity:1}
 .nb-ctrl{display:flex;align-items:center;gap:10px}
 .nb-timeline{display:flex;flex-direction:column;gap:0;margin:0;padding:0;list-style:none;position:relative}
 .nb-timeline::before{content:'';position:absolute;left:7px;top:10px;bottom:10px;width:2px;
-  border-radius:2px;background:var(--nb-hair-soft)}
+  border-radius:var(--nb-r-in);background:var(--nb-hair-soft)}
 .nb-tl{display:grid;grid-template-columns:110px 1fr;gap:16px;padding:13px 0 13px 24px;
   border-top:1px solid var(--nb-hair-soft);position:relative}
 .nb-tl:first-child{border-top:0}
-.nb-tl::before{content:'';position:absolute;left:2px;top:20px;width:11px;height:11px;border-radius:99px;
+.nb-tl::before{content:'';position:absolute;left:2px;top:20px;width:11px;height:11px;border-radius:var(--nb-r-pill);
   background:${T.accent};box-shadow:0 0 0 3px color-mix(in srgb,${T.accent} 18%, transparent)}
 .nb-tl-when{font-family:var(--ui-font-mono,ui-monospace,monospace);font-size:10.5px;font-weight:700;
   color:${T.accent};letter-spacing:.06em;text-transform:uppercase;padding-top:3px}
 .nb-tl-what{font-size:15px;color:${T.text2}}
 
 /* ---------------------------------------------------------------- mind map */
-.nb-map{width:100%;height:100%;min-height:340px;display:block;cursor:grab;border-radius:16px;
+.nb-map{width:100%;height:100%;min-height:340px;display:block;cursor:grab;border-radius:var(--nb-r-box);
   border:1px solid var(--nb-hair-soft);
   background:radial-gradient(circle at 50% 45%, color-mix(in srgb,${T.accent} 9%, transparent), transparent 62%), var(--nb-card)}
 .nb-map:active{cursor:grabbing}
@@ -609,7 +687,7 @@ const CSS = `
 .nb-flip-inner{position:relative;width:100%;min-height:310px;transition:transform .5s cubic-bezier(.2,.7,.2,1);
   transform-style:preserve-3d}
 .nb-flip[data-flipped=true] .nb-flip-inner{transform:rotateY(180deg)}
-.nb-face{position:absolute;inset:0;backface-visibility:hidden;border-radius:20px;
+.nb-face{position:absolute;inset:0;backface-visibility:hidden;border-radius:var(--nb-r-box);
   border:1px solid var(--nb-hair);background:var(--nb-card);box-shadow:var(--nb-shadow);
   padding:30px;display:flex;flex-direction:column;justify-content:center;gap:12px;
   font-size:19px;line-height:1.5}
@@ -621,20 +699,20 @@ const CSS = `
 /* -------------------------------------------------------------------- ops */
 .nb-fleet{display:flex;flex-direction:column;gap:8px;padding:8px 0}
 .nb-frow{display:grid;grid-template-columns:10px minmax(0,1fr) auto;align-items:center;gap:12px;
-  padding:11px 14px;border:1px solid var(--nb-hair-soft);border-radius:13px;background:var(--nb-card);
+  padding:11px 14px;border:1px solid var(--nb-hair-soft);border-radius:var(--nb-r-el);background:var(--nb-card);
   cursor:pointer;text-align:left;color:${T.text};min-height:54px;
-  transition:border-color .13s ease,box-shadow .13s ease,transform .13s ease}
+  transition:border-color var(--nb-dur-fast) var(--nb-ease),box-shadow var(--nb-dur-fast) var(--nb-ease),transform var(--nb-dur-fast) var(--nb-ease)}
 .nb-frow:hover{border-color:color-mix(in srgb,${T.text} 20%, transparent);box-shadow:var(--nb-shadow)}
 .nb-frow[aria-current=true]{border-color:color-mix(in srgb,${T.accent} 55%, transparent);
   background:color-mix(in srgb,${T.accent} 9%, var(--nb-card))}
 .nb-fname{font-size:14px;font-weight:600;line-height:1.25}
 .nb-frole{font-size:10.5px;color:${T.text3};text-transform:uppercase;letter-spacing:.06em;font-weight:600}
 .nb-term{font-family:var(--ui-font-mono,ui-monospace,monospace);font-size:13px;line-height:1.55;flex:1 1 auto;
-  background:#101320;color:#c9cede;border-radius:14px;padding:16px;min-height:130px;max-height:none;overflow:auto;
+  background:#101320;color:#c9cede;border-radius:var(--nb-r-box);padding:16px;min-height:130px;max-height:none;overflow:auto;
   white-space:pre-wrap;word-break:break-word;border:1px solid rgba(255,255,255,.09);
   box-shadow:inset 0 1px 0 rgba(255,255,255,.05)}
 .nb-term-in{display:flex;gap:8px;align-items:center;margin-top:10px}
-.nb-term-in input{flex:1;height:38px;border-radius:11px;border:1px solid var(--nb-hair);
+.nb-term-in input{flex:1;height:38px;border-radius:var(--nb-r-el);border:1px solid var(--nb-hair);
   background:var(--nb-wash);color:${T.text};padding:0 13px;font-size:13.5px;
   font-family:var(--ui-font-mono,ui-monospace,monospace);outline:0}
 .nb-term-in input:focus{border-color:color-mix(in srgb,${T.accent} 55%, transparent)}
@@ -644,7 +722,7 @@ const CSS = `
   border-top:1px solid var(--nb-hair-soft);background:transparent;
   font-size:11.5px;color:${T.text3}}
 .nb-status b{color:${T.text2};font-weight:600}
-.nb-sdot{width:8px;height:8px;border-radius:99px;display:inline-block;margin-right:8px;vertical-align:middle}
+.nb-sdot{width:8px;height:8px;border-radius:var(--nb-r-pill);display:inline-block;margin-right:8px;vertical-align:middle}
 .nb-void{display:grid;place-items:center;height:100%;padding:40px;text-align:center;color:${T.text3}}
 .nb-void h3{color:${T.text};font-size:21px;margin:0 0 10px;letter-spacing:-.02em;font-weight:700}
 .nb-void p{margin:0;max-width:48ch;font-size:14px;line-height:1.62}
@@ -658,15 +736,15 @@ const CSS = `
 .nb-home-search{width:260px;margin-left:auto}
 .nb-feature-row{display:flex;gap:14px;overflow-x:auto;padding:2px 2px 12px;margin-bottom:26px;
   scrollbar-width:thin}
-.nb-feature{flex:0 0 290px;height:170px;border-radius:20px;padding:18px;position:relative;
+.nb-feature{flex:0 0 290px;height:170px;border-radius:var(--nb-r-box);padding:18px;position:relative;
   overflow:hidden;display:flex;flex-direction:column;justify-content:space-between;
   text-align:left;cursor:pointer;color:${T.text};font-family:inherit;
   border:1px solid var(--nb-hair-soft);
   background:linear-gradient(135deg, color-mix(in srgb,var(--kc) 30%, var(--nb-card)), var(--nb-card) 72%);
-  transition:transform .15s ease,box-shadow .15s ease}
+  transition:transform var(--nb-dur-fast) var(--nb-ease),box-shadow var(--nb-dur-fast) var(--nb-ease)}
 .nb-feature:hover{transform:translateY(-2px);box-shadow:var(--nb-shadow-lift)}
 .nb-feature::after{content:'';position:absolute;right:-46px;bottom:-58px;width:190px;height:190px;
-  border-radius:99px;background:color-mix(in srgb,var(--kc) 22%, transparent);pointer-events:none}
+  border-radius:var(--nb-r-pill);background:color-mix(in srgb,var(--kc) 22%, transparent);pointer-events:none}
 .nb-feature-emoji{font-size:30px;line-height:1}
 .nb-feature-title{font-size:15.5px;font-weight:650;line-height:1.3;max-width:24ch;position:relative}
 .nb-feature-meta{font-size:11.5px;color:${T.text3};position:relative}
@@ -674,11 +752,11 @@ const CSS = `
 .nb-home-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(215px,1fr));gap:13px;
   align-content:start}
 .nb-nbcard-wrap{position:relative;height:170px}
-.nb-nbcard{height:100%;position:relative;border-radius:18px;padding:16px;display:flex;
+.nb-nbcard{height:100%;position:relative;border-radius:var(--nb-r-box);padding:16px;display:flex;
   flex-direction:column;justify-content:space-between;text-align:left;cursor:pointer;
   color:${T.text};font-family:inherit;
   border:1px solid var(--nb-hair-soft);background:var(--nb-card);
-  transition:border-color .14s ease,transform .14s ease,box-shadow .14s ease}
+  transition:border-color var(--nb-dur-fast) var(--nb-ease),transform var(--nb-dur-fast) var(--nb-ease),box-shadow var(--nb-dur-fast) var(--nb-ease)}
 .nb-nbcard:hover{border-color:color-mix(in srgb,${T.accent} 42%, var(--nb-hair));
   transform:translateY(-2px);box-shadow:var(--nb-shadow-lift)}
 .nb-nbcard-emoji{font-size:32px;line-height:1}
@@ -690,10 +768,10 @@ const CSS = `
 /* generator options popover + citation hover card + data table */
 .nb-gen{position:relative}
 .nb-gen-cfg{position:absolute;top:4px;right:4px;width:32px;height:32px;opacity:0;
-  transition:opacity .15s}
+  transition:opacity var(--nb-dur-fast) var(--nb-ease)}
 .nb-gen:hover .nb-gen-cfg,.nb-gen-cfg[data-active="true"]{opacity:1}
 .nb-genpop{position:absolute;top:calc(100% + 6px);left:0;right:0;z-index:30;
-  background:${T.card};border:1px solid ${T.line};border-radius:14px;
+  background:${T.card};border:1px solid ${T.line};border-radius:var(--nb-r-box);
   /* The theme's card surface is translucent by design (it sits on a panel). A
      popover floats over other cards instead, so it frosts what is behind it —
      otherwise the card titles underneath read through the labels. */
@@ -709,7 +787,7 @@ const CSS = `
   text-transform:uppercase;letter-spacing:.06em}
 .nb-genopt .nb-seg{width:100%}
 .nb-genopt .nb-seg button{flex:1;justify-content:center}
-.nb-genopt-text{width:100%;height:32px;padding:0 10px;border-radius:9px;font-size:13px;
+.nb-genopt-text{width:100%;height:32px;padding:0 10px;border-radius:var(--nb-r-in);font-size:13px;
   border:1px solid ${T.line};background:${T.inset};color:${T.text};outline:none}
 .nb-genopt-text:focus{border-color:color-mix(in srgb,${T.accent} 55%,transparent)}
 /* the infographic look picker: sixteen styles do not fit a segmented control or an
@@ -719,7 +797,7 @@ const CSS = `
   max-height:min(64vh,492px);overflow:auto;overscroll-behavior:contain;padding:2px;margin:0 -2px;
   scrollbar-width:thin}
 .nb-styleopt{display:flex;flex-direction:column;align-items:stretch;gap:0;min-width:0;
-  padding:0;border-radius:11px;border:1px solid ${T.lineSoft};background:${T.card};
+  padding:0;border-radius:var(--nb-r-el);border:1px solid ${T.lineSoft};background:${T.card};
   cursor:pointer;overflow:hidden;color:${T.text2};font-family:inherit}
 .nb-styleopt:hover{border-color:color-mix(in srgb,${T.accent} 45%,${T.lineSoft})}
 .nb-styleopt[data-on="true"]{border-color:${T.accent};box-shadow:0 0 0 1px ${T.accent} inset}
@@ -741,7 +819,7 @@ const CSS = `
 
 
 .nb-citepop{position:fixed;z-index:80;width:320px;max-width:calc(100vw - 32px);
-  background:${T.card};border:1px solid ${T.line};border-radius:14px;
+  background:${T.card};border:1px solid ${T.line};border-radius:var(--nb-r-box);
   box-shadow:var(--nb-shadow-lift);padding:12px 14px;pointer-events:none}
 .nb-citepop-head{display:flex;align-items:center;gap:8px;font-size:12.5px;
   color:${T.text3};margin-bottom:6px;flex-wrap:wrap}
@@ -749,14 +827,14 @@ const CSS = `
 .nb-citepop-body{font-size:13px;line-height:1.55;color:${T.text2};
   display:-webkit-box;-webkit-line-clamp:5;-webkit-box-orient:vertical;overflow:hidden}
 
-.nb-scope-check{flex:none;width:18px;height:18px;border-radius:6px;
+.nb-scope-check{flex:none;width:18px;height:18px;border-radius:var(--nb-r-in);
   border:1.5px solid ${T.line};display:grid;place-items:center;font-size:11px;
-  color:#fff;transition:all .12s}
+  color:#fff;transition:all var(--nb-dur-fast) var(--nb-ease)}
 .nb-scope-check.on{background:${T.accent};border-color:${T.accent}}
 
 .nb-search-hit{display:block;width:100%;text-align:left;background:transparent;
-  border:1px solid ${T.line};border-radius:12px;padding:10px 12px;cursor:pointer;
-  color:${T.text};font:inherit;transition:border-color .12s,background .12s}
+  border:1px solid ${T.line};border-radius:var(--nb-r-el);padding:10px 12px;cursor:pointer;
+  color:${T.text};font:inherit;transition:border-color var(--nb-dur-fast) var(--nb-ease),background var(--nb-dur-fast) var(--nb-ease)}
 .nb-search-hit:hover{border-color:color-mix(in srgb,${T.accent} 45%,transparent);
   background:color-mix(in srgb,${T.accent} 6%,transparent)}
 .nb-search-hit-head{display:flex;align-items:center;gap:8px;font-size:13.5px;
@@ -766,9 +844,9 @@ const CSS = `
 .nb-search-hit-snip{font-size:13px;line-height:1.5;color:${T.text3};
   display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden}
 .nb-search-hit mark{background:color-mix(in srgb,${T.accent} 30%,transparent);
-  color:${T.text};border-radius:3px;padding:0 1px}
+  color:${T.text};border-radius:var(--nb-r-in);padding:0 1px}
 
-.nb-dt-wrap{overflow:auto;border:1px solid ${T.line};border-radius:14px;
+.nb-dt-wrap{overflow:auto;border:1px solid ${T.line};border-radius:var(--nb-r-box);
   background:${T.card}}
 .nb-dt{border-collapse:collapse;width:100%;font-size:13px;min-width:520px}
 .nb-dt th{position:sticky;top:0;background:${T.inset};text-align:left;
@@ -805,7 +883,7 @@ const CSS = `
 .nb-disc-head h1{margin:0 0 6px}
 .nb-disc-search{display:flex;gap:10px;align-items:center;margin-top:4px}
 .nb-disc-search .nb-input{flex:1;min-width:0}
-.nb-input{height:44px;padding:0 16px;border-radius:14px;border:1px solid var(--nb-hair);
+.nb-input{height:44px;padding:0 16px;border-radius:var(--nb-r-box);border:1px solid var(--nb-hair);
   background:var(--nb-card);color:${T.text};font:inherit;font-size:14.5px;outline:0;
   transition:border-color .15s ease, box-shadow .15s ease}
 .nb-input:focus{border-color:color-mix(in srgb,${T.accent} 55%, transparent);
@@ -814,7 +892,7 @@ const CSS = `
 .nb-disc-gaps{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
 .nb-disc-body{display:flex;flex-direction:column;gap:10px;margin-top:4px}
 .nb-disc-card{display:flex;gap:12px;align-items:flex-start;padding:14px 16px;cursor:pointer;
-  border:1px solid var(--nb-hair-soft);border-radius:16px;background:var(--nb-card);
+  border:1px solid var(--nb-hair-soft);border-radius:var(--nb-r-box);background:var(--nb-card);
   transition:border-color .15s ease, background .15s ease}
 .nb-disc-card:hover{border-color:var(--nb-hair)}
 .nb-disc-card[data-on=true]{border-color:color-mix(in srgb,${T.accent} 50%, transparent);
@@ -829,12 +907,12 @@ const CSS = `
   display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
 .nb-disc-why{display:flex;align-items:center;gap:6px;font-size:12px;color:${T.text2};padding-top:2px}
 .nb-disc-foot{display:flex;align-items:center;gap:12px;position:sticky;bottom:12px;
-  padding:12px 14px;border-radius:16px;border:1px solid var(--nb-hair);
+  padding:12px 14px;border-radius:var(--nb-r-box);border:1px solid var(--nb-hair);
   background:var(--nb-card);box-shadow:var(--nb-shadow)}
 .nb-disc-meta{display:flex;gap:14px;flex-wrap:wrap;font-size:11.5px;color:${T.text4};padding-top:4px}
 .nb-disc-empty{display:grid;justify-items:center;gap:8px;padding:56px 20px;text-align:center;
-  color:${T.text3};border:1px dashed var(--nb-hair-soft);border-radius:18px}
-.nb-disc-err{color:${T.danger};font-size:13px;padding:10px 14px;border-radius:12px;
+  color:${T.text3};border:1px dashed var(--nb-hair-soft);border-radius:var(--nb-r-box)}
+.nb-disc-err{color:${T.danger};font-size:13px;padding:10px 14px;border-radius:var(--nb-r-el);
   background:color-mix(in srgb,${T.danger} 12%, transparent)}
 @media (max-width:820px){ .nb-disc{padding:18px 16px 32px} }
 `

@@ -38,7 +38,7 @@ by being *true*: counts that exist, states that happened, failures that are
 shown with a retry rather than swallowed.
 
 Interactive things are **pills and cards** (`#202124`, hover `#28292c`,
-2xl radius, 150ms transitions) — they invite touch, not inspection. Destructive
+`--nb-dur-fast` transitions) — they invite touch, not inspection. Destructive
 or rare actions are icons that reveal themselves on hover, never billboarded.
 
 ## The laws
@@ -73,9 +73,24 @@ or rare actions are icons that reveal themselves on hover, never billboarded.
 | Secondary | `#9aa0a6` |
 | Accent | `T.accent` (theme) — used sparingly for the one primary action |
 | Danger | `T.danger` — errors and destructive confirms only |
+| Radius | inner `8px` · element `12px` · container `16px` · panel `24px` · pill `99px` |
+| Motion | `--nb-ease` `cubic-bezier(.24,1,.4,1)` · fast `.175s` · medium `.41s` · exit `cubic-bezier(.3,0,.6,.6)` |
+| Focus | `2px` accent outline, `3px` offset — radius is never rewritten |
+| Type | meta `12px` · label `12.5px` · UI `13px` · body `16px` · reading line-height `1.62` |
+| Contrast | small text rides `--nb-meta-ink` (64% of primary) — measured ≥ 4.5:1, not eyeballed |
+| Status colour | one green per view: `grounded`/`model ready`. "Ready" is neutral; green means *made in this sitting* |
+| Rail banding | outputs (grid) and runs-on-disk (Files band) are separate bands, each with its own header — never one long list of cards |
 
-Type: geometric sans (Plus Jakarta Sans / Inter register). Mono is allowed
+Radius and motion follow the Astryx cadence (Meta's design system): a 4dp
+spacing base, semantic radius steps nested inner→container, and a standard
+curve that decelerates into place while exits accelerate away. Type: geometric
+sans (Plus Jakarta Sans / Inter register). Mono is allowed
 *only* inside citation tags and code — never for chrome or counters.
+
+The numbers above are enforced by `tests/design.test.mjs`: it renders the page,
+walks every card/button/chip radius and fails on anything off the scale, then
+composites each small label over its real background and fails under 4.5:1.
+Design that cannot be measured drifts.
 
 ## How to use this document
 
