@@ -408,11 +408,16 @@ def get_thread(notebook_id: str, name: str = "default") -> list[dict]:
     return _read_json(_thread_path(notebook_id, name), [])
 
 
-def append_thread(notebook_id: str, name: str, role: str, content: str) -> list[dict]:
-    """Append one message; returns the trimmed thread."""
+def append_thread(notebook_id: str, name: str, role: str, content: str,
+                  extra: dict | None = None) -> list[dict]:
+    """Append one message; returns the trimmed thread. ``extra`` carries
+    per-message payload like an assistant answer's citations."""
     nb_id = resolve_notebook(notebook_id)
     msgs = get_thread(nb_id, name)
-    msgs.append({"role": role, "content": content[:8000], "ts": _iso(_now())})
+    msg = {"role": role, "content": content[:8000], "ts": _iso(_now())}
+    if extra:
+        msg.update(extra)
+    msgs.append(msg)
     msgs = msgs[-_THREAD_CAP:]
     _write_json(_thread_path(nb_id, name), msgs)
     return msgs

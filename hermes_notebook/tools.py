@@ -260,7 +260,15 @@ def notebook_ask(args: dict, **kw) -> str:
     )
     if thread_name:
         store.append_thread(nb_id, thread_name, "user", question)
-        store.append_thread(nb_id, thread_name, "assistant", answer)
+        # persist the citation rows so reloaded threads keep chips, hover
+        # passages and click-to-source — same shape /ask returns live
+        cites = [{
+            "n": src.get("n", i), "title": src.get("title") or "source",
+            "kind": src.get("kind", ""), "origin": src.get("origin", ""),
+            "id": src.get("id", ""), "snippet": src.get("snippet", ""),
+        } for i, src in enumerate(result["sources_used"], 1)]
+        store.append_thread(nb_id, thread_name, "assistant", answer,
+                            extra={"citations": cites} if cites else None)
     return runtime.ok(
         notebook=nb_id, question=question, answer=answer,
         thread=thread_name,
