@@ -53,3 +53,6 @@ check('both memories survive chat', v.artifact.key === 'a3' && v.source.id === '
 v = step(VIEW_FSM, v, { type: 'RESET_VIEW' })
 check('RESET_VIEW clears all', v.tab === 'chat' && !v.artifact && !v.source)
 
+
+console.log(`\n${pass} passed, ${fail} failed`)
+process.exit(fail ? 1 : 0)
