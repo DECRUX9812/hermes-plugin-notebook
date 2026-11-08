@@ -3056,6 +3056,13 @@ function GenPill({ kind, art, started, nbId, onOpen, onGenerate }) {
     const t = setInterval(() => force((n) => n + 1), 1000)
     return () => clearInterval(t)
   }, [started])
+  // prefill the customize popover with the knobs the latest run actually used
+  useEffect(() => {
+    if (art && art.opts && Object.keys(art.opts).length && !Object.keys(opts).length) {
+      setOpts({ ...art.opts })
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [art && art.key])
   const secs = started ? Math.max(0, Math.round((Date.now() - started) / 1000)) : 0
   const state = started ? `writing · ${secs}s` : art ? `ready · ${ago(art.modified)}` : 'Generate'
   const pick = (id, v) => setOpts((o) => ({ ...o, [id]: v }))
