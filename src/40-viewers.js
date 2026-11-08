@@ -703,15 +703,29 @@ function SlidesView({ data, htmlUrl }) {
   const deck = data || {}
   const slides = deck.slides || []
   const [i, setI] = useState(0)
+  const [fs, setFs] = useState(false)
+  const screenRef = useRef(null)
   const go = useCallback((d) => setI((n) => Math.min(slides.length - 1, Math.max(0, n + d))), [slides.length])
   useEffect(() => {
     const onKey = (e) => {
       if (e.key === 'ArrowRight') { go(1); }
       else if (e.key === 'ArrowLeft') { go(-1) }
+      else if (e.key === 'Escape' && document.fullscreenElement) document.exitFullscreen()
     }
     document.addEventListener('keydown', onKey)
     return () => document.removeEventListener('keydown', onKey)
   }, [go])
+  useEffect(() => {
+    const onFs = () => setFs(!!document.fullscreenElement)
+    document.addEventListener('fullscreenchange', onFs)
+    return () => document.removeEventListener('fullscreenchange', onFs)
+  }, [])
+  const toggleFs = () => {
+    const el = screenRef.current
+    if (!el || !el.requestFullscreen) return
+    if (document.fullscreenElement) document.exitFullscreen()
+    else el.requestFullscreen()
+  }
 
   const openDeck = htmlUrl
     ? () => (host.openLink ? host.openLink(htmlUrl) : window.open(htmlUrl, '_blank'))
@@ -726,8 +740,9 @@ function SlidesView({ data, htmlUrl }) {
   return el('div', { className: 'nb-view-body' },
     el('div', { className: 'nb-stage' },
       el('div', {
+        ref: screenRef,
         className: 'nb-screen', role: 'group', 'aria-label': `Slide ${i + 1} of ${slides.length}`,
-        style: { aspectRatio: '16/9', padding: '34px 40px', placeItems: 'stretch',
+        style: { aspectRatio: fs ? 'auto' : '16/9', width: fs ? '100%' : undefined, height: fs ? '100%' : undefined, padding: '34px 40px', placeItems: 'stretch',
           background: `linear-gradient(150deg, color-mix(in srgb, ${T.accent} 18%, #0a0b10), #08090d)`,
           cursor: 'pointer', display: 'flex', flexDirection: 'column' },
         onClick: (e) => {
@@ -740,6 +755,13 @@ function SlidesView({ data, htmlUrl }) {
           children: deck.title || 'Deck' }),
         el('span', { style: { flex: 1 } }),
         el('span', { className: 'nb-mono', style: { fontSize: '12px', color: '#9aa0b5' }, children: `${i + 1}/${slides.length}` }),
+        el('button', {
+          type: 'button', className: 'nb-chip', 'data-click': 'true',
+          'aria-label': fs ? 'Exit fullscreen' : 'Present fullscreen', title: fs ? 'Exit fullscreen' : 'Present fullscreen',
+          style: { background: 'rgba(255,255,255,.1)', color: '#cfd3e0', borderColor: 'transparent', cursor: 'pointer' },
+          onClick: (e) => { e.stopPropagation(); toggleFs() },
+          children: fs ? 'exit' : 'present'
+        }),
         openDeck
           ? el('button', {
               type: 'button', className: 'nb-chip', 'data-click': 'true',
