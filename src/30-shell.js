@@ -168,6 +168,18 @@ function App() {
     } catch (e) { say(`could not delete artifact: ${e.message || e}`) }
   }, [nb, studio, say, picked])
 
+  // viewer-side edits (rename) change the run row — re-resolve `picked` from
+  // fresh state so the open artifact doesn't keep showing stale metadata
+  const refreshArtifact = useCallback(async () => {
+    const fresh = await studio.reload(true)
+    const arts = fresh && fresh.notebook && fresh.notebook.artifacts
+    if (!arts) return
+    if (picked) {
+      const hit = arts.find((a) => a.key === picked.key)
+      setPicked(hit || null)
+    }
+  }, [studio, picked])
+
   const refreshSource = useCallback(async (s) => {
     if (!nb || !s || !s.id) return
     try {
@@ -315,6 +327,7 @@ function App() {
               reload: studio.reload, modelReady: data && data.model_ready,
               error: studio.error, loading: studio.loading,
               peek, setPeek, onOpenSource: openSource, onRefreshSource: refreshSource,
+              refreshArtifact,
               onAddSource: openAddSource, onNewNotebook: () => setNewNb(true),
               onFindSources: (seed) => openAddSource({ mode: 'find', seed: seed || '' })
             }),

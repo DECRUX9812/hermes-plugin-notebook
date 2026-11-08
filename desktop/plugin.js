@@ -1391,6 +1391,18 @@ function App() {
     } catch (e) { say(`could not delete artifact: ${e.message || e}`) }
   }, [nb, studio, say, picked])
 
+  // viewer-side edits (rename) change the run row — re-resolve `picked` from
+  // fresh state so the open artifact doesn't keep showing stale metadata
+  const refreshArtifact = useCallback(async () => {
+    const fresh = await studio.reload(true)
+    const arts = fresh && fresh.notebook && fresh.notebook.artifacts
+    if (!arts) return
+    if (picked) {
+      const hit = arts.find((a) => a.key === picked.key)
+      setPicked(hit || null)
+    }
+  }, [studio, picked])
+
   const refreshSource = useCallback(async (s) => {
     if (!nb || !s || !s.id) return
     try {
@@ -1538,6 +1550,7 @@ function App() {
               reload: studio.reload, modelReady: data && data.model_ready,
               error: studio.error, loading: studio.loading,
               peek, setPeek, onOpenSource: openSource, onRefreshSource: refreshSource,
+              refreshArtifact,
               onAddSource: openAddSource, onNewNotebook: () => setNewNb(true),
               onFindSources: (seed) => openAddSource({ mode: 'find', seed: seed || '' })
             }),
@@ -2049,7 +2062,8 @@ const setPickedCite = (n) => { pickedCite = n }
 
 function Main({ notebook, kinds, tab, setTab, picked, setPicked, busy, generate, onAsk,
                 askOpen, onSay, reload, modelReady, error, loading,
-                peek, setPeek, onOpenSource, onRefreshSource, onAddSource, onNewNotebook, onFindSources }) {
+                peek, setPeek, onOpenSource, onRefreshSource, onAddSource, onNewNotebook, onFindSources,
+                refreshArtifact }) {
   const sources = (notebook && notebook.sources) || []
   const [askScope, setAskScope] = useState(null)   // chat scoped to one source
 
@@ -2166,7 +2180,7 @@ function Main({ notebook, kinds, tab, setTab, picked, setPicked, busy, generate,
               artifact: picked, notebook,
               regenerating: !!(busy && busy[picked.kind]),
               onRegenerate: () => generate(picked.kind, picked.opts || {}),
-              onChanged: () => reload && reload(true),
+              onChanged: refreshArtifact || (() => reload && reload(true)),
               onPrevRun: si > 0 ? () => setPicked(sibs[si - 1]) : null,
               onNextRun: si >= 0 && si < sibs.length - 1 ? () => setPicked(sibs[si + 1]) : null,
               runPos: sibs.length > 1 ? `${si + 1} of ${sibs.length}` : '',

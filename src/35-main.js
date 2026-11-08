@@ -2,7 +2,8 @@
 
 function Main({ notebook, kinds, tab, setTab, picked, setPicked, busy, generate, onAsk,
                 askOpen, onSay, reload, modelReady, error, loading,
-                peek, setPeek, onOpenSource, onRefreshSource, onAddSource, onNewNotebook, onFindSources }) {
+                peek, setPeek, onOpenSource, onRefreshSource, onAddSource, onNewNotebook, onFindSources,
+                refreshArtifact }) {
   const sources = (notebook && notebook.sources) || []
   const [askScope, setAskScope] = useState(null)   // chat scoped to one source
 
@@ -119,7 +120,7 @@ function Main({ notebook, kinds, tab, setTab, picked, setPicked, busy, generate,
               artifact: picked, notebook,
               regenerating: !!(busy && busy[picked.kind]),
               onRegenerate: () => generate(picked.kind, picked.opts || {}),
-              onChanged: () => reload && reload(true),
+              onChanged: refreshArtifact || (() => reload && reload(true)),
               onPrevRun: si > 0 ? () => setPicked(sibs[si - 1]) : null,
               onNextRun: si >= 0 && si < sibs.length - 1 ? () => setPicked(sibs[si + 1]) : null,
               runPos: sibs.length > 1 ? `${si + 1} of ${sibs.length}` : '',
