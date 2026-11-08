@@ -285,10 +285,46 @@ def notebook_generate(args: dict, **kw) -> str:
         args.get("kind") or "",
         focus=args.get("focus") or "",
         count_hint=args.get("count_hint") or "",
-        fmt=args.get("format") or "md",
+        # `format` is the flashcards csv switch; `template` is the graphic layout
+        fmt=args.get("format") or (args.get("template") if args.get("kind") == "infographic" else "") or "md",
         style=args.get("style") or "",
+        options={"orientation": args.get("orientation") or "landscape",
+                 "detail": args.get("detail") or "standard"},
     )
     return runtime.ok(**out)
+
+
+def notebook_threads(args: dict, **kw) -> str:
+    """Conversations inside one notebook: list, start, rename, delete.
+
+    A notebook is usually several lines of enquiry at once; each thread keeps its
+    own memory, so an answer in "pricing" is not polluted by "history".
+    """
+    action = str(args.get("action") or "list").strip().lower()
+    nb = store.resolve_notebook(args.get("notebook") or "")
+    if action == "list":
+        rows = store.list_threads(nb)
+        return runtime.ok(notebook=nb, threads=rows, count=len(rows),
+                          default=rows[0]["name"] if rows else "")
+    if action == "new":
+        created = store.create_thread(nb, title=str(args.get("title") or ""),
+                                      name=str(args.get("name") or ""))
+        return runtime.ok(notebook=nb, thread=created, threads=store.list_threads(nb))
+    if action == "rename":
+        name = str(args.get("thread") or "").strip()
+        if not name:
+            raise ValueError("rename needs the thread name")
+        out = store.rename_thread(nb, name, str(args.get("title") or ""))
+        return runtime.ok(notebook=nb, thread=out, threads=store.list_threads(nb))
+    if action == "delete":
+        name = str(args.get("thread") or "").strip()
+        if not name:
+            raise ValueError("delete needs the thread name")
+        if not args.get("confirm"):
+            raise ValueError("deleting a conversation is destructive — pass confirm=true")
+        out = store.delete_thread(nb, name)
+        return runtime.ok(notebook=nb, **out, threads=store.list_threads(nb))
+    raise ValueError(f"unknown action {action!r} — list, new, rename or delete")
 
 
 async def notebook_video(args: dict, **kw) -> str:
@@ -378,6 +414,7 @@ HANDLERS = {
     "notebook_ask": notebook_ask,
     "notebook_generate": notebook_generate,
     "notebook_audio": notebook_audio,
+    "notebook_threads": notebook_threads,
     "notebook_video": notebook_video,
     "notebook_suggest": notebook_suggest,
     "notebook_search": notebook_search,

@@ -62,6 +62,12 @@ def main() -> None:
     if nb.get("id"):
         print(f"artifacts copied: {copy_artifacts(nb['id'])} → {ART}")
 
+    # The style picker's thumbnails come from the same route the page calls, so the
+    # harness renders real previews instead of a placeholder.
+    styles = plugin_api.infographic_styles(previews=1, notebook=nb.get("id") or "")
+    (TMP / "styles.json").write_text(json.dumps(styles), encoding="utf-8")
+    print(f"styles: {styles.get('count')} looks · {len(styles.get('previews') or {})} previews")
+
     fleet_path = TMP / "ops-fleet.json"
     if args.refresh_ops or not fleet_path.exists():
         fleet = ops_api.fleet()

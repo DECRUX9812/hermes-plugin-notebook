@@ -71,13 +71,13 @@ control, a file browser and Proxmox VM snapshots for the selected host.
 | NotebookLM feature | Hermes Notebook |
 |---|---|
 | Sources (files, PDFs, Office docs, web, YouTube) | `notebook_add_source` — path / URL / pasted text / images (vision-described) |
-| Chat with sources + citations | `notebook_ask` — BM25 retrieval, `[S1]`-style citations, optional `thread=` chat history |
+| Chat with sources + citations | `notebook_ask` — BM25 retrieval, `[S1]`-style citations, **many named conversations per notebook** (`thread=`), each with its own memory |
 | Auto-labeling / source chips | Every source gets 2–5 topic labels + a one-line summary on ingest; duplicates detected by content hash |
 | Source search | `notebook_search` — ranked full-text hits with snippets across all sources and notes |
 | User notes | `notebook_note` — your annotations become first-class searchable sources |
 | Source lifecycle | `notebook_refresh` re-fetches url/file sources, `notebook_delete_source` removes one |
 | Suggestions | `notebook_suggest` — questions worth asking, artifacts worth making, source gaps (optional `kinds` filter) |
-| Artifacts | `notebook_generate` — summary, briefing doc, study guide, FAQ, timeline, **mind map**, flashcards (md or Anki CSV), quiz, **slide deck** (self-contained HTML), **infographic** (PNG) |
+| Artifacts | `notebook_generate` — summary, briefing doc, study guide, FAQ, timeline, **mind map**, flashcards (md or Anki CSV), quiz, **slide deck** (self-contained HTML), **infographic** (SVG: 18 looks × 9 layouts), data table (CSV) |
 | Audio Overview | `notebook_audio` — two-host conversational podcast (edge-tts voices + ffmpeg), with transcript |
 | Video Overview | `notebook_video` — cinematic narrated mp4, `style=cinematic|explainer`, Pillow cards + ffmpeg |
 | Web discovery | `notebook_discover` — web_search for candidate sources to add |
@@ -85,7 +85,62 @@ control, a file browser and Proxmox VM snapshots for the selected host.
 | — desktop surface — | `/notebook` route, sidebar row, three palette commands, status-bar chip, `::notebook{name="…"}` transcript directive, settings page |
 | — Hermes extras — | `/notebook` slash command, `hermes notebook` CLI, bundled skill, auxiliary task slot, per-notebook persistent storage |
 
-## Install
+## Conversations
+
+A notebook holds **many chat threads**, not one. Each keeps its own memory and its
+own title, so "pricing", "history" and "what changed in 2026" can be explored in
+parallel without one line of enquiry dragging the history of another into the
+answer. Every thread still cites the same sources.
+
+![Conversations](assets/threads.png)
+
+| | |
+|---|---|
+| In the page | the chat bar shows the open conversation; the title opens a dialog to switch, rename, start (`New chat`) or delete one |
+| New threads | titled automatically from their first question, or named up front |
+| Agent tools | `notebook_threads` — `list`, `new`, `rename`, `delete` (delete needs `confirm=true`) |
+| API | `GET /threads`, `POST /thread/new`, `POST /thread/rename`, `POST /thread/delete`, `GET /state?notebook=&thread=` |
+| Storage | `threads/<name>.json` per notebook — title, created, updated, messages; older message-list files still load |
+| Limits | 40 threads per notebook, 40 messages per thread (the oldest roll off) |
+
+## Graphics library
+
+Every visual artifact is drawn by a reusable library, not one-off code:
+**18 looks × 9 templates × 3 shapes × 3 detail levels**, composed from primitives and
+emitted as SVG (5–15 KB, crisp at any zoom, real text, accessible).
+
+![18 looks](assets/infographic-styles.png)
+![templates](assets/graphics-templates.png)
+
+```python
+from hermes_notebook import gfx
+
+gfx.render(graphic, template="key_figure", preset="realistic",
+           orientation="portrait", detail="detailed")
+gfx.write_svg("cover.svg", graphic, template="cover", preset="cartoon")
+gfx.to_png(graphic, "poster.png", preset="blueprint", scale=2)   # needs a browser
+```
+
+```python
+notebook_generate(notebook="fusion-2026", kind="infographic",
+                  style="blueprint", template="comparison",
+                  orientation="landscape", detail="standard")
+```
+
+| | |
+|---|---|
+| Looks | 16 type-led presets (`sections`, `editorial`, `swiss`, `magazine`, `bento`, `blueprint`, `terminal`, `neon`, `brutalist`, `retro`, `risograph`, `kraft`, `chalkboard`, `dashboard`, `mission`, `poster`) + **`cartoon`** and **`realistic`** illustrated treatments |
+| Layouts | `infographic`, `key_figure`, `stat_grid`, `timeline`, `comparison`, `process`, `quote_card`, `cover`, `illustration` |
+| Knobs | shape (landscape / square / portrait), detail (concise / standard / detailed), theme overrides |
+| Fidelity | exact text and numbers — the SVG carries the strings; no model re-typesets them |
+| Fallbacks | alt text + `<title>`/`<desc>`, Pillow raster when no browser, unknown style/template degrades to the default |
+
+Architecture, API, the NotebookLM comparison, edge-case table and test strategy:
+[`docs/GRAPHICS-LIBRARY.md`](docs/GRAPHICS-LIBRARY.md).
+Choosing a look: [`skills/notebook-infographics`](skills/notebook-infographics/SKILL.md).
+Regenerate the sheets: `python3 tools/make_graphics_sheet.py --templates --examples`.
+
+## Install## Install
 
 ```bash
 hermes plugins install DECRUX9812/hermes-plugin-notebook

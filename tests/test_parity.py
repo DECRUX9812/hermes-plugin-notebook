@@ -171,8 +171,8 @@ def test_infographic_render():
     data = {"title": "Stats", "takeaway": "big picture",
             "stats": [{"value": "1789", "label": "revolution"}],
             "quotes": [{"text": "a fact", "source": "Doc"}]}
-    img = artifacts._render_infographic(data, "T")
-    assert img.size == (1200, 900)
+    svg = artifacts._render_infographic(data, "T")
+    assert 'viewBox="0 0 1200 900"' in svg and "1789" in svg
 
 
 def test_generate_accepts_new_kinds_in_schema():
@@ -180,4 +180,5 @@ def test_generate_accepts_new_kinds_in_schema():
     kinds = schemas.NOTEBOOK_GENERATE["parameters"]["properties"]["kind"]["enum"]
     assert "slides" in kinds and "infographic" in kinds
     names = {s["name"] for s in schemas.ALL}
-    assert len(names) == 16
+    assert len(names) == 17
+    assert "notebook_threads" in names

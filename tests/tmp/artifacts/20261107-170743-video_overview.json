@@ -8,44 +8,32 @@
     {
       "text": "Does commercial fusion arrive on the mid-2030s schedule? Six documents: a CRS briefing for Congress, the DOE roadmap as reported by Reuters, two ITER releases, the IAEA outlook and the reference article.",
       "headline": "Six sources, one question",
-      "palette": "indigo",
-      "start": 0.0,
-      "end": 28.0
+      "palette": "indigo"
     },
     {
       "text": "Fusion energy sciences got seven hundred ninety million dollars in fiscal 2025. In the twelve months to July 2026, private companies raised four point four eight billion. Cumulative private investment since 2021 is fourteen point two four billion.",
       "headline": "$790M public. $4.48B private.",
-      "palette": "ember",
-      "start": 28.0,
-      "end": 56.0
+      "palette": "ember"
     },
     {
       "text": "The Congressional Research Service counts nearly nine billion for 2021 to 2025. The Fusion Industry Association counts fourteen point two four. Same direction, different populations.",
       "headline": "Two trackers, two totals",
-      "palette": "mono",
-      "start": 56.0,
-      "end": 84.0
+      "palette": "mono"
     },
     {
       "text": "The sixth of nine tokamak sector modules went into the pit on 28 July 2026: eleven hundred tonnes, a thirty-hour lift, six months ahead of plan. The ninth module is scheduled for 2027.",
       "headline": "ITER: two-thirds assembled",
-      "palette": "forest",
-      "start": 84.0,
-      "end": 112.0
+      "palette": "forest"
     },
     {
       "text": "Neutron-resistant structural materials. A tritium breeding blanket that works at plant flux. A supply chain qualified to build either. None of these is a physics question with a date attached.",
       "headline": "Three gaps no schedule closes",
-      "palette": "indigo",
-      "start": 112.0,
-      "end": 140.0
+      "palette": "indigo"
     },
     {
       "text": "Levelised cost. The CRS is explicit that no defensible figure exists yet. Industry says the programme needs more than a billion dollars a year for a decade; Congress appropriated seven hundred ninety million.",
       "headline": "The number nobody will defend",
-      "palette": "ember",
-      "start": 140.0,
-      "end": 168.0
+      "palette": "ember"
     }
   ]
 }

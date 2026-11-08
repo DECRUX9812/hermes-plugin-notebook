@@ -658,16 +658,38 @@ function Chat({ notebook, kinds, askOpen, onSay, modelReady, onCite, onOpenSourc
             notebook, threads, current: thread,
             onClose: () => setThrOpen(false),
             onPick: (name) => { setThread(name); setThrOpen(false) },
-            onNew: () => {
-              const name = `chat-${Date.now().toString(36)}`
-              threadCache.set(`${notebook.id}:${name}`, [])
-              setThread(name); setThrOpen(false)
+            onNew: async (title) => {
+              try {
+                const out = await api('/thread/new', {
+                  method: 'POST',
+                  body: { notebook: notebook.id, title: title || '' },
+                  timeoutMs: 30000
+                })
+                const name = (out && out.thread && out.thread.name) || `chat-${Date.now().toString(36)}`
+                threadCache.set(`${notebook.id}:${name}`, [])
+                setThreads((ts) => [{ name, title: (out && out.thread && out.thread.title) || 'New chat',
+                                      count: 0, updated: '' }, ...ts])
+                setThread(name); setThrOpen(false)
+              } catch (e) { onSay && onSay(`could not start a chat: ${e.message || e}`) }
+            },
+            onRename: async (name, title) => {
+              try {
+                const out = await api('/thread/rename', {
+                  method: 'POST',
+                  body: { notebook: notebook.id, thread: name, title },
+                  timeoutMs: 30000
+                })
+                const fresh = (out && out.thread) || {}
+                setThreads((ts) => ts.map((t) => (t.name === name
+                  ? { ...t, title: fresh.title || title } : t)))
+                if (reload) reload(true)
+              } catch (e) { onSay && onSay(`could not rename: ${e.message || e}`) }
             },
             onDelete: async (name) => {
               try {
-                await api('/thread/clear', {
+                await api('/thread/delete', {
                   method: 'POST',
-                  body: { notebook: notebook.id, thread: name },
+                  body: { notebook: notebook.id, thread: name, confirm: true },
                   timeoutMs: 30000
                 })
                 const key = `${notebook.id}:${name}`
@@ -737,36 +759,89 @@ function ScopeDialog({ notebook, current, onClose, onPick }) {
   })
 }
 
-function ThreadDialog({ notebook, threads, current, onClose, onPick, onNew, onDelete }) {
+function ThreadDialog({ notebook, threads, current, onClose, onPick, onNew, onDelete, onRename }) {
   const list = threads && threads.length ? threads : [{ name: 'default', title: 'Chat', count: 0 }]
+  const [title, setTitle] = useState('')
+  const [editing, setEditing] = useState('')
+  const [draft, setDraft] = useState('')
+  const [confirming, setConfirming] = useState('')
+
+  const commit = (name) => {
+    const next = draft.trim()
+    setEditing('')
+    if (next && onRename) onRename(name, next)
+  }
+
   return jsx(Dialog, {
-    open: true, onClose, title: 'Conversations', width: 460,
-    children: el('div', { style: { display: 'grid', gap: '8px' } },
-      list.map((t) => el('div', {
-        key: t.name, className: 'nb-thrwrap',
-        children: [
-          el('button', {
-            type: 'button',
-            className: 'nb-thrrow' + (t.name === current ? ' is-current' : ''),
-            onClick: () => onPick(t.name),
-            'aria-current': t.name === current ? 'true' : undefined,
-            children: [
-              el('div', { style: { flex: 1, minWidth: 0 } },
-                el('div', { style: { fontSize: '14px', fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' },
-                  children: t.title || t.name }),
-                el('div', { className: 'nb-meta', children: `${t.count || 0} messages` })),
-              t.name === current ? jsx(Glyph, { name: 'check', size: 15 }) : null
-            ]
-          }),
-          jsx(IconBtn, {
-            icon: 'trash', size: 13, label: `Delete conversation — ${t.title || t.name}`,
-            onClick: () => onDelete(t.name)
-          })
-        ]
-      })),
-      el('div', { style: { display: 'flex', gap: '8px', justifyContent: 'space-between', marginTop: '10px' } },
-        jsx(Btn, { size: 'sm', onClick: () => onDelete(current), children: 'Delete this chat' }),
-        jsx(Btn, { size: 'sm', variant: 'primary', icon: 'plus', onClick: onNew, children: 'New chat' })))
+    open: true, onClose, title: 'Conversations', width: 560,
+    children: el('div', { style: { display: 'grid', gap: '12px' } },
+      el('div', { className: 'nb-newthread' },
+        el('input', {
+          className: 'nb-genopt-text', type: 'text',
+          placeholder: 'Name a new conversation (optional)',
+          'aria-label': 'New conversation name',
+          value: title,
+          onChange: (e) => setTitle(e.target.value),
+          onKeyDown: (e) => { if (e.key === 'Enter') { onNew(title); setTitle('') } }
+        }),
+        jsx(Btn, {
+          size: 'sm', variant: 'primary', icon: 'plus',
+          onClick: () => { onNew(title); setTitle('') },
+          children: 'Start'
+        })),
+      el('div', { className: 'nb-thrlist', role: 'list', 'aria-label': 'Conversations' },
+        list.map((t) => {
+          const on = t.name === current
+          const isEditing = editing === t.name
+          return el('div', { key: t.name, className: 'nb-thrwrap', role: 'listitem',
+                             'data-on': on ? 'true' : 'false' },
+            isEditing
+              ? el('div', { className: 'nb-thredit' },
+                  el('input', {
+                    className: 'nb-genopt-text', type: 'text', autoFocus: true,
+                    'aria-label': `Rename ${t.title || t.name}`,
+                    value: draft,
+                    onChange: (e) => setDraft(e.target.value),
+                    onKeyDown: (e) => {
+                      if (e.key === 'Enter') commit(t.name)
+                      if (e.key === 'Escape') setEditing('')
+                    }
+                  }),
+                  jsx(Btn, { size: 'sm', onClick: () => commit(t.name), children: 'Save' }))
+              : el('div', { style: { display: 'flex', alignItems: 'center', flex: 1, minWidth: 0 } },
+                  el('button', {
+                    type: 'button',
+                    className: 'nb-thrrow' + (on ? ' is-current' : ''),
+                    onClick: () => onPick(t.name),
+                    'aria-current': on ? 'true' : undefined,
+                    children: [
+                      el('div', { style: { flex: 1, minWidth: 0 } },
+                        el('div', { style: { fontSize: '14px', fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' },
+                          children: t.title || t.name }),
+                        el('div', { className: 'nb-meta',
+                          children: `${t.count || t.messages || 0} messages`
+                                   + (t.updated ? ` · ${ago(t.updated)}` : '') })),
+                      on ? jsx(Glyph, { name: 'check', size: 15 }) : null
+                    ]
+                  }),
+                  jsx(IconBtn, {
+                    icon: 'note', size: 13, label: `Rename conversation — ${t.title || t.name}`,
+                    onClick: () => { setEditing(t.name); setDraft(t.title || ''); setConfirming('') }
+                  }),
+                  confirming === t.name
+                    ? jsx(Btn, {
+                        size: 'sm', className: 'nb-danger',
+                        label: `Confirm delete — ${t.title || t.name}`,
+                        onClick: () => { setConfirming(''); onDelete(t.name) },
+                        children: 'Really delete'
+                      })
+                    : jsx(IconBtn, {
+                        icon: 'trash', size: 13, label: `Delete conversation — ${t.title || t.name}`,
+                        onClick: () => setConfirming(t.name)
+                      })))
+        })),
+      el('div', { className: 'nb-hint',
+        children: 'Each conversation keeps its own history; answers still cite the same sources.' }))
   })
 }
 

@@ -328,6 +328,39 @@ const CSS = `
 
 /* ------------------------------------------------------------------- chat */
 .nb-chat{flex:1;min-height:0;display:flex;flex-direction:column;position:relative}
+<<<<<<< HEAD
+/* conversation bar: the open thread is the page's subject, so it gets the top row */
+.nb-chatbar{display:flex;align-items:center;gap:8px;padding:10px 16px 8px;
+  border-bottom:1px solid ${T.lineSoft};flex-wrap:nowrap}
+.nb-threadpick{display:flex;align-items:center;gap:8px;min-width:0;max-width:min(56ch,72%);
+  min-height:34px;padding:4px 8px;border-radius:10px;border:1px solid transparent;
+  background:transparent;color:${T.text};font:inherit;font-size:14px;font-weight:600;
+  cursor:pointer}
+.nb-threadpick:hover{background:${T.inset};border-color:${T.lineSoft}}
+.nb-threadpick:focus-visible{outline:2px solid ${T.accent};outline-offset:1px}
+.nb-threadpick svg{color:${T.text4};flex:0 0 auto}
+.nb-threadpick-title{min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.nb-newthread{display:flex;gap:8px;align-items:center}
+.nb-newthread .nb-genopt-text{flex:1;min-width:0}
+.nb-threadlist{display:flex;flex-direction:column;gap:6px;max-height:min(48vh,380px);
+  overflow:auto;overscroll-behavior:contain}
+.nb-threadrow{display:flex;align-items:center;gap:6px;padding:2px;border-radius:12px;
+  border:1px solid ${T.lineSoft};background:${T.card}}
+.nb-threadrow[data-on="true"]{border-color:${T.accent};
+  background:color-mix(in srgb,${T.accent} 9%,transparent)}
+.nb-threadrow-main{flex:1;min-width:0;display:flex;flex-direction:column;gap:3px;
+  align-items:flex-start;text-align:left;background:transparent;border:0;cursor:pointer;
+  padding:8px 10px;border-radius:10px;color:${T.text};font:inherit;min-height:48px}
+.nb-threadrow-main:hover{background:${T.inset}}
+.nb-threadrow-main:focus-visible{outline:2px solid ${T.accent};outline-offset:-2px}
+.nb-threadrow-title{display:block;font-size:14px;font-weight:600;max-width:100%;
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.nb-threadrow-meta{display:block;font-size:11.5px;color:${T.text4};line-height:1.2}
+.nb-threadrow-acts{display:flex;align-items:center;gap:4px;padding-right:6px}
+.nb-threadrow-acts .nb-btn{height:32px}
+.nb-threadrow-edit{display:flex;gap:6px;align-items:center;padding-right:8px;flex:1}
+.nb-threadrow-edit .nb-genopt-text{flex:1;min-width:0}
+=======
 /* A scrolled thread clips its first visible message at the panel edge, which reads
    as a broken one-line fragment. Fade that edge with an overlay — pointer-events
    off, so citations under it stay clickable (a mask would eat the clicks). */
@@ -337,6 +370,7 @@ const CSS = `
 .nb-hl{background:color-mix(in srgb, ${T.accent} 30%, transparent);color:inherit;border-radius:4px;padding:0 2px}
 .nb-latest{position:absolute;left:50%;bottom:14px;transform:translateX(-50%);z-index:20;display:inline-flex;align-items:center;gap:4px;padding:7px 14px;border-radius:999px;border:1px solid var(--nb-line,#2a2d3d);background:var(--nb-card,#14161f);color:var(--nb-text2,#c6c9d8);font-size:12.5px;font-weight:600;cursor:pointer;box-shadow:0 6px 20px rgba(0,0,0,.35);transition:transform .15s ease,box-shadow .15s ease}
 .nb-latest:hover{transform:translateX(-50%) translateY(-1px);box-shadow:0 8px 24px rgba(0,0,0,.45)}
+>>>>>>> origin/main
 .nb-thread{flex:1;min-height:0;overflow:auto;padding:28px 28px 12px;display:flex;flex-direction:column;gap:24px}
 .nb-chiprow{display:flex;align-items:center;gap:6px;flex-wrap:wrap;padding:8px 0 6px}
 .nb-msg{max-width:72ch}
@@ -415,10 +449,21 @@ const CSS = `
 .nb-thrrow:hover{background:var(--nb-wash)}
 .nb-thrrow.is-current{border-color:color-mix(in srgb,${T.accent} 40%, transparent);
   background:color-mix(in srgb,${T.accent} 8%, transparent)}
-.nb-thrwrap{display:flex;align-items:center;gap:4px}
+.nb-thrwrap{display:flex;align-items:center;gap:4px;padding:1px;border-radius:12px}
 .nb-thrwrap .nb-thrrow{flex:1;min-width:0}
-.nb-thrwrap .nb-icon{opacity:0;transition:opacity .12s ease}
+/* rename/delete are actions on a conversation, not hover trivia — keep them visible
+   and let hover only raise their weight */
+.nb-thrwrap .nb-icon{opacity:.7;transition:opacity .12s ease}
 .nb-thrwrap:hover .nb-icon,.nb-thrwrap:focus-within .nb-icon{opacity:1}
+.nb-thrwrap[data-on="true"]{background:color-mix(in srgb,${T.accent} 8%,transparent)}
+.nb-thrlist{display:flex;flex-direction:column;gap:6px;max-height:min(46vh,360px);
+  overflow:auto;overscroll-behavior:contain;padding:2px;margin:0 -2px}
+.nb-thredit{display:flex;gap:6px;align-items:center;width:100%;padding:2px 4px}
+.nb-thredit .nb-genopt-text{flex:1;min-width:0}
+.nb-newthread{display:flex;gap:8px;align-items:center}
+.nb-newthread .nb-genopt-text{flex:1;min-width:0}
+.nb-danger{color:${T.danger} !important;
+  border-color:color-mix(in srgb,${T.danger} 45%,transparent) !important}
 .nb-emgrid{display:grid;grid-template-columns:repeat(8,1fr);gap:6px}
 .nb-em{aspect-ratio:1;border-radius:10px;border:1px solid var(--nb-hair-soft);
   background:var(--nb-card);font-size:17px;cursor:pointer;display:grid;place-items:center;
@@ -657,6 +702,33 @@ const CSS = `
 .nb-genopt-text{width:100%;height:32px;padding:0 10px;border-radius:9px;font-size:13px;
   border:1px solid ${T.line};background:${T.inset};color:${T.text};outline:none}
 .nb-genopt-text:focus{border-color:color-mix(in srgb,${T.accent} 55%,transparent)}
+/* the infographic look picker: sixteen styles do not fit a segmented control or an
+   inline popover, so they open in a dialog as a gallery — the thumbnail is the real
+   renderer drawing the notebook's own last infographic in that style */
+.nb-stylegrid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:6px;
+  max-height:min(64vh,492px);overflow:auto;overscroll-behavior:contain;padding:2px;margin:0 -2px;
+  scrollbar-width:thin}
+.nb-styleopt{display:flex;flex-direction:column;align-items:stretch;gap:0;min-width:0;
+  padding:0;border-radius:11px;border:1px solid ${T.lineSoft};background:${T.card};
+  cursor:pointer;overflow:hidden;color:${T.text2};font-family:inherit}
+.nb-styleopt:hover{border-color:color-mix(in srgb,${T.accent} 45%,${T.lineSoft})}
+.nb-styleopt[data-on="true"]{border-color:${T.accent};box-shadow:0 0 0 1px ${T.accent} inset}
+.nb-styleopt:focus-visible{outline:2px solid ${T.accent};outline-offset:1px}
+.nb-stylethumb{display:block;position:relative;height:60px;background:${T.inset}}
+.nb-stylethumb img{width:100%;height:100%;object-fit:cover;display:block}
+.nb-stylethumb[data-empty="true"]::after{content:'';position:absolute;inset:0;
+  background:linear-gradient(100deg,transparent 20%,color-mix(in srgb,${T.text} 6%,transparent) 50%,transparent 80%);
+  animation:nb-shimmer 1.4s linear infinite}
+@keyframes nb-shimmer{from{transform:translateX(-100%)}to{transform:translateX(100%)}}
+.nb-stylecheck{position:absolute;top:4px;right:4px;width:18px;height:18px;border-radius:50%;
+  display:grid;place-items:center;background:${T.accent};color:#fff;font-size:10px;
+  font-weight:700;line-height:1}
+/* the picker states where the previews come from, so nobody reads them as the user's
+   finished artifact */
+.nb-stylehint{margin-top:6px;font-size:11.5px;color:${T.text4}}
+.nb-stylelabel{display:block;padding:4px 4px 5px;font-size:11px;font-weight:600;
+  text-align:center;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+
 
 .nb-citepop{position:fixed;z-index:80;width:320px;max-width:calc(100vw - 32px);
   background:${T.card};border:1px solid ${T.line};border-radius:14px;
@@ -1239,8 +1311,8 @@ const persist = {
   }
 }
 
-/** One poll of `/state`; `nb` scopes it to a notebook. */
-function useStudio(nb) {
+/** One poll of `/state`; `nb` scopes it to a notebook, `thread` to a conversation. */
+function useStudio(nb, thread) {
   const [data, setData] = useState(null)
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(true)
@@ -1248,7 +1320,7 @@ function useStudio(nb) {
   const load = useCallback(async (silent) => {
     if (!silent) setLoading(true)
     try {
-      const next = await api(`/state${nb ? `?${qs({ notebook: nb })}` : ''}`)
+      const next = await api(`/state${nb ? `?${qs({ notebook: nb, thread: thread || "" })}` : ''}`)
       if (!alive.current) return next
       setData(next)
       setError('')
@@ -1259,7 +1331,7 @@ function useStudio(nb) {
     } finally {
       if (alive.current) setLoading(false)
     }
-  }, [nb])
+  }, [nb, thread])
   useEffect(() => {
     alive.current = true
     load(false)
@@ -1331,7 +1403,15 @@ const optsSummary = (opts) => Object.keys(opts || {})
 function App() {
   const [mode, setMode] = useState(() => persist.get('mode', 'home'))
   const [nb, setNb] = useState(() => persist.get('notebook', ''))
-  const studio = useStudio(nb)
+  // Which conversation is open, remembered per notebook so a reload lands people
+  // back in the thread they were reading.
+  const [threadName, setThreadName] = useState(() => persist.get('thread', ''))
+  const studio = useStudio(nb, threadName)
+  useEffect(() => {
+    if (!nb) return
+    const saved = persist.get(`thread.${nb}`, '')
+    setThreadName(saved || '')
+  }, [nb])
   const [picked, setPicked] = useState(null)       // artifact run selected in the viewer
   const [tab, setTab] = useState('chat')
   const [busy, setBusy] = useState({})             // kind -> startedAt (ms)
@@ -1571,6 +1651,56 @@ function App() {
     } catch (e) { say(`refresh failed: ${e.message || e}`) }
   }, [nb, studio, say, peek])
 
+  // ---------------------------------------------------------------- threads
+  const openThread = useCallback((name) => {
+    setThreadName(name)
+    if (nb) persist.set(`thread.${nb}`, name)
+  }, [nb])
+
+  const newThread = useCallback(async (title) => {
+    if (!nb) return
+    try {
+      const out = await api('/thread/new', {
+        method: 'POST',
+        body: { notebook: nb, title: title || '' },
+        timeoutMs: 30000
+      })
+      const name = out && out.thread ? out.thread.name : ''
+      if (name) openThread(name)
+      await studio.reload(true)
+      say('new conversation started')
+    } catch (e) { say(`could not start a conversation: ${e.message || e}`) }
+  }, [nb, openThread, studio, say])
+
+  const renameThread = useCallback(async (name, title) => {
+    if (!nb) return
+    try {
+      await api('/thread/rename', {
+        method: 'POST', body: { notebook: nb, thread: name, title }, timeoutMs: 30000
+      })
+      await studio.reload(true)
+    } catch (e) { say(`could not rename: ${e.message || e}`) }
+  }, [nb, studio, say])
+
+  const deleteThread = useCallback(async (name) => {
+    if (!nb) return
+    try {
+      const out = await api('/thread/delete', {
+        method: 'POST', body: { notebook: nb, thread: name, confirm: true }, timeoutMs: 30000
+      })
+      if (out && out.next) openThread(out.next)
+      await studio.reload(true)
+      say('conversation deleted')
+    } catch (e) { say(`could not delete: ${e.message || e}`) }
+  }, [nb, openThread, studio, say])
+
+  const threads = {
+    name: threadName || (notebook && notebook.thread_name) || 'default',
+    title: (notebook && notebook.thread_title) || 'Conversation',
+    list: (notebook && notebook.threads) || [],
+    onOpen: openThread, onNew: newThread, onRename: renameThread, onDelete: deleteThread
+  }
+
   const deleteNotebook = useCallback(async (id) => {
     try {
       await api('/notebook/delete', {
@@ -1711,7 +1841,8 @@ function App() {
               peek, setPeek, onOpenSource: openSource, onRefreshSource: refreshSource,
               refreshArtifact,
               onAddSource: openAddSource, onNewNotebook: () => setNewNb(true),
-              onFindSources: (seed) => openAddSource({ mode: 'find', seed: seed || '' })
+              onFindSources: (seed) => openAddSource({ mode: 'find', seed: seed || '' }),
+              threads
             }),
             studioOpen
               ? jsx(StudioPanel, {
@@ -2940,16 +3071,38 @@ function Chat({ notebook, kinds, askOpen, onSay, modelReady, onCite, onOpenSourc
             notebook, threads, current: thread,
             onClose: () => setThrOpen(false),
             onPick: (name) => { setThread(name); setThrOpen(false) },
-            onNew: () => {
-              const name = `chat-${Date.now().toString(36)}`
-              threadCache.set(`${notebook.id}:${name}`, [])
-              setThread(name); setThrOpen(false)
+            onNew: async (title) => {
+              try {
+                const out = await api('/thread/new', {
+                  method: 'POST',
+                  body: { notebook: notebook.id, title: title || '' },
+                  timeoutMs: 30000
+                })
+                const name = (out && out.thread && out.thread.name) || `chat-${Date.now().toString(36)}`
+                threadCache.set(`${notebook.id}:${name}`, [])
+                setThreads((ts) => [{ name, title: (out && out.thread && out.thread.title) || 'New chat',
+                                      count: 0, updated: '' }, ...ts])
+                setThread(name); setThrOpen(false)
+              } catch (e) { onSay && onSay(`could not start a chat: ${e.message || e}`) }
+            },
+            onRename: async (name, title) => {
+              try {
+                const out = await api('/thread/rename', {
+                  method: 'POST',
+                  body: { notebook: notebook.id, thread: name, title },
+                  timeoutMs: 30000
+                })
+                const fresh = (out && out.thread) || {}
+                setThreads((ts) => ts.map((t) => (t.name === name
+                  ? { ...t, title: fresh.title || title } : t)))
+                if (reload) reload(true)
+              } catch (e) { onSay && onSay(`could not rename: ${e.message || e}`) }
             },
             onDelete: async (name) => {
               try {
-                await api('/thread/clear', {
+                await api('/thread/delete', {
                   method: 'POST',
-                  body: { notebook: notebook.id, thread: name },
+                  body: { notebook: notebook.id, thread: name, confirm: true },
                   timeoutMs: 30000
                 })
                 const key = `${notebook.id}:${name}`
@@ -3019,36 +3172,89 @@ function ScopeDialog({ notebook, current, onClose, onPick }) {
   })
 }
 
-function ThreadDialog({ notebook, threads, current, onClose, onPick, onNew, onDelete }) {
+function ThreadDialog({ notebook, threads, current, onClose, onPick, onNew, onDelete, onRename }) {
   const list = threads && threads.length ? threads : [{ name: 'default', title: 'Chat', count: 0 }]
+  const [title, setTitle] = useState('')
+  const [editing, setEditing] = useState('')
+  const [draft, setDraft] = useState('')
+  const [confirming, setConfirming] = useState('')
+
+  const commit = (name) => {
+    const next = draft.trim()
+    setEditing('')
+    if (next && onRename) onRename(name, next)
+  }
+
   return jsx(Dialog, {
-    open: true, onClose, title: 'Conversations', width: 460,
-    children: el('div', { style: { display: 'grid', gap: '8px' } },
-      list.map((t) => el('div', {
-        key: t.name, className: 'nb-thrwrap',
-        children: [
-          el('button', {
-            type: 'button',
-            className: 'nb-thrrow' + (t.name === current ? ' is-current' : ''),
-            onClick: () => onPick(t.name),
-            'aria-current': t.name === current ? 'true' : undefined,
-            children: [
-              el('div', { style: { flex: 1, minWidth: 0 } },
-                el('div', { style: { fontSize: '14px', fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' },
-                  children: t.title || t.name }),
-                el('div', { className: 'nb-meta', children: `${t.count || 0} messages` })),
-              t.name === current ? jsx(Glyph, { name: 'check', size: 15 }) : null
-            ]
-          }),
-          jsx(IconBtn, {
-            icon: 'trash', size: 13, label: `Delete conversation — ${t.title || t.name}`,
-            onClick: () => onDelete(t.name)
-          })
-        ]
-      })),
-      el('div', { style: { display: 'flex', gap: '8px', justifyContent: 'space-between', marginTop: '10px' } },
-        jsx(Btn, { size: 'sm', onClick: () => onDelete(current), children: 'Delete this chat' }),
-        jsx(Btn, { size: 'sm', variant: 'primary', icon: 'plus', onClick: onNew, children: 'New chat' })))
+    open: true, onClose, title: 'Conversations', width: 560,
+    children: el('div', { style: { display: 'grid', gap: '12px' } },
+      el('div', { className: 'nb-newthread' },
+        el('input', {
+          className: 'nb-genopt-text', type: 'text',
+          placeholder: 'Name a new conversation (optional)',
+          'aria-label': 'New conversation name',
+          value: title,
+          onChange: (e) => setTitle(e.target.value),
+          onKeyDown: (e) => { if (e.key === 'Enter') { onNew(title); setTitle('') } }
+        }),
+        jsx(Btn, {
+          size: 'sm', variant: 'primary', icon: 'plus',
+          onClick: () => { onNew(title); setTitle('') },
+          children: 'Start'
+        })),
+      el('div', { className: 'nb-thrlist', role: 'list', 'aria-label': 'Conversations' },
+        list.map((t) => {
+          const on = t.name === current
+          const isEditing = editing === t.name
+          return el('div', { key: t.name, className: 'nb-thrwrap', role: 'listitem',
+                             'data-on': on ? 'true' : 'false' },
+            isEditing
+              ? el('div', { className: 'nb-thredit' },
+                  el('input', {
+                    className: 'nb-genopt-text', type: 'text', autoFocus: true,
+                    'aria-label': `Rename ${t.title || t.name}`,
+                    value: draft,
+                    onChange: (e) => setDraft(e.target.value),
+                    onKeyDown: (e) => {
+                      if (e.key === 'Enter') commit(t.name)
+                      if (e.key === 'Escape') setEditing('')
+                    }
+                  }),
+                  jsx(Btn, { size: 'sm', onClick: () => commit(t.name), children: 'Save' }))
+              : el('div', { style: { display: 'flex', alignItems: 'center', flex: 1, minWidth: 0 } },
+                  el('button', {
+                    type: 'button',
+                    className: 'nb-thrrow' + (on ? ' is-current' : ''),
+                    onClick: () => onPick(t.name),
+                    'aria-current': on ? 'true' : undefined,
+                    children: [
+                      el('div', { style: { flex: 1, minWidth: 0 } },
+                        el('div', { style: { fontSize: '14px', fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' },
+                          children: t.title || t.name }),
+                        el('div', { className: 'nb-meta',
+                          children: `${t.count || t.messages || 0} messages`
+                                   + (t.updated ? ` · ${ago(t.updated)}` : '') })),
+                      on ? jsx(Glyph, { name: 'check', size: 15 }) : null
+                    ]
+                  }),
+                  jsx(IconBtn, {
+                    icon: 'note', size: 13, label: `Rename conversation — ${t.title || t.name}`,
+                    onClick: () => { setEditing(t.name); setDraft(t.title || ''); setConfirming('') }
+                  }),
+                  confirming === t.name
+                    ? jsx(Btn, {
+                        size: 'sm', className: 'nb-danger',
+                        label: `Confirm delete — ${t.title || t.name}`,
+                        onClick: () => { setConfirming(''); onDelete(t.name) },
+                        children: 'Really delete'
+                      })
+                    : jsx(IconBtn, {
+                        icon: 'trash', size: 13, label: `Delete conversation — ${t.title || t.name}`,
+                        onClick: () => setConfirming(t.name)
+                      })))
+        })),
+      el('div', { className: 'nb-hint',
+        children: 'Each conversation keeps its own history; answers still cite the same sources.' }))
   })
 }
 
@@ -5215,6 +5421,9 @@ function InfographicView({ src, data }) {
         jsx(Btn, { size: 'sm', onClick: () => setZoom((z) => Math.min(2, z + 0.15)), children: '+' }),
         el('span', { className: 'nb-hint', children: `${Math.round(zoom * 100)}%` }),
         el('span', { style: { flex: 1 } }),
+        data && data._style
+          ? el('span', { className: 'nb-chip', title: 'Infographic style',
+                         children: data._style.label }) : null,
         data && data.takeaway ? el('span', { className: 'nb-chip', 'data-tone': 'accent', children: data.takeaway }) : null))
   )
 }

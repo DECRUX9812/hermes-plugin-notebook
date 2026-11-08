@@ -59,6 +59,8 @@ for _p in (_PLUGIN_ROOT, _HERE):
         sys.path.insert(0, _p)
 
 from hermes_notebook import runtime, store, artifacts as artifacts_mod  # noqa: E402
+from hermes_notebook import gfx  # noqa: E402
+from hermes_notebook.gfx import themes as gfx_themes  # noqa: E402
 
 router = APIRouter(tags=["hermes-notebook"])
 
@@ -99,10 +101,26 @@ KINDS: List[Dict[str, Any]] = [
      "blurb": "Multiple choice with explanations", "secs": 16},
     {"id": "slides", "label": "Slides", "group": "visual", "ext": "html",
      "blurb": "Self-contained deck, arrow keys", "secs": 22},
-    {"id": "infographic", "label": "Infographic", "group": "visual", "ext": "png",
-     "blurb": "One dense poster of the thesis", "secs": 20,
-     "options": [{"id": "style", "label": "Style",
-                  "choices": ["sections", "poster", "editorial"]}]},
+    {"id": "infographic", "label": "Infographic", "group": "visual", "ext": "svg",
+     "blurb": "Vector poster — 18 looks, 9 layouts", "secs": 20,
+     "options": [
+         {"id": "style", "label": "Look", "kind": "select",
+          "default": gfx_themes.DEFAULT_PRESET,
+          "choices": [p["id"] for p in gfx_themes.catalog()],
+          "items": [{"id": p["id"], "label": p["label"], "blurb": p["blurb"],
+                     "family": p["family"], "swatch": p["swatch"]}
+                    for p in gfx_themes.catalog()]},
+         {"id": "template", "label": "Layout", "kind": "select", "default": "infographic",
+          "choices": ["infographic", "key_figure", "stat_grid", "timeline",
+                      "comparison", "process", "quote_card", "cover", "illustration"],
+          "items": [{"id": t, "label": t.replace("_", " ").title()}
+                    for t in ["infographic", "key_figure", "stat_grid", "timeline",
+                              "comparison", "process", "quote_card", "cover",
+                              "illustration"]]},
+         {"id": "orientation", "label": "Shape", "kind": "seg",
+          "choices": ["landscape", "square", "portrait"]},
+         {"id": "detail", "label": "Detail", "kind": "seg",
+          "choices": ["concise", "standard", "detailed"]}]},
     {"id": "data_table", "label": "Data Table", "group": "docs", "ext": "csv",
      "blurb": "Structured rows, exports to Sheets", "secs": 14},
 ]
@@ -125,11 +143,18 @@ def _kinds_payload() -> list:
         out.append(kk)
     return out
 MEDIA_EXT = {"mp4": "video/mp4", "mp3": "audio/mpeg", "png": "image/png",
-             "html": "text/html", "webm": "video/webm", "wav": "audio/wav"}
+             "html": "text/html", "webm": "video/webm", "wav": "audio/wav",
+             "svg": "image/svg+xml"}
 TEXT_EXT = {"md", "txt", "json", "csv", "srt", "vtt"}
 
 
 # ------------------------------------------------------------------ helpers
+
+def _q(value: Any) -> str:
+    """A query argument as text. FastAPI hands the default `Query(...)` object when a
+    route is called directly (tests, dump scripts), which has no `.strip()`."""
+    return value.strip() if isinstance(value, str) else ""
+
 
 def _fail(message: str, status: int = 400, **extra: Any) -> JSONResponse:
     return JSONResponse(status_code=status, content={"ok": False, "error": message, **extra})
@@ -240,7 +265,7 @@ def _source_row(source: Dict[str, Any], index: int, active: bool = True) -> Dict
     }
 
 
-def _notebook_payload(notebook_id: str) -> Dict[str, Any]:
+def _notebook_payload(notebook_id: str, thread: str = "") -> Dict[str, Any]:
     meta = store.get_meta(notebook_id)
     disabled = store.disabled_sources(notebook_id)
     sources = [_source_row(s, i, s.get("id") not in disabled)
@@ -252,7 +277,11 @@ def _notebook_payload(notebook_id: str) -> Dict[str, Any]:
     labels = [{"label": k, "count": v}
               for k, v in sorted(label_counts.items(), key=lambda kv: (-kv[1], kv[0]))]
     arts = _collect_artifacts(notebook_id)
-    thread = store.get_thread(notebook_id, "default")[-24:]
+    threads = store.list_threads(notebook_id)
+    wanted = _q(thread)
+    names = {t["name"] for t in threads}
+    active = wanted if wanted in names else (threads[0]["name"] if threads else store.DEFAULT_THREAD)
+    open_thread = store.read_thread(notebook_id, active)
     threads = store.list_threads(notebook_id)
     return {
         "id": meta.get("id", notebook_id),
@@ -264,7 +293,9 @@ def _notebook_payload(notebook_id: str) -> Dict[str, Any]:
         "sources": sources,
         "artifacts": arts,
         "labels": labels,
-        "thread": thread,
+        "thread": open_thread["messages"][-24:],
+        "thread_name": open_thread["name"],
+        "thread_title": open_thread["title"],
         "threads": threads,
         "stats": {
             "sources": len(sources),
@@ -292,19 +323,88 @@ def health() -> Dict[str, Any]:
             "model_ready": _model_ready(), "kinds": [k["id"] for k in KINDS]}
 
 
+@router.get("/infographic_styles")
+def infographic_styles(previews: int = Query(0, description="1 = include SVG thumbnails"),
+                       notebook: str = Query("", description="preview with this notebook's own last infographic")) -> Dict[str, Any]:
+    """The graphics library as the picker needs it: every look, every layout, the
+    shapes and detail levels, and optional previews drawn by the real renderer."""
+    manifest = gfx.library_manifest()
+    out: Dict[str, Any] = {
+        "ok": True,
+        "default": gfx_themes.DEFAULT_PRESET,
+        "count": len(gfx_themes.PRESETS),
+        "styles": gfx_themes.catalog(),
+        "templates": manifest["templates"],
+        "orientations": list(gfx.ORIENTATIONS),
+        "detail": list(gfx.DETAIL_LEVELS),
+    }
+    if previews:
+        data, title = _preview_source(notebook)
+        out["previews"] = {s["id"]: _style_thumb(data, title, s["id"])
+                           for s in out["styles"]}
+    return out
+
+
+@router.get("/graphics_library")
+def graphics_library() -> Dict[str, Any]:
+    """Machine-readable inventory of the graphics library for host apps and agents."""
+    return {"ok": True, **gfx.library_manifest()}
+
+
+#: Style previews are deterministic for a (payload, preset) pair.
+_THUMB_CACHE: Dict[Tuple[str, str], str] = {}
+
+
+def _preview_source(notebook: str) -> Tuple[Dict[str, Any], str]:
+    """The payload previews are drawn from: the notebook's latest infographic JSON,
+    otherwise the library's built-in sample."""
+    sample = gfx.samples.SAMPLE_GRAPHIC
+    try:
+        nb_id = store.resolve_notebook(notebook) if (notebook or "").strip() else ""
+        if nb_id:
+            arts = store._nb_dir(nb_id) / "artifacts"
+            if arts.is_dir():
+                jsons = sorted(list(arts.glob("*-infographic.json")), reverse=True)
+                if jsons:
+                    data = json.loads(jsons[0].read_text(encoding="utf-8"))
+                    if isinstance(data, dict) and data.get("stats"):
+                        data.pop("_style", None)
+                        data.pop("_graphic", None)
+                        return data, str(data.get("title") or "Infographic")
+    except Exception:
+        pass
+    return sample, "Tidal power"
+
+
+def _style_thumb(data: Dict[str, Any], title: str, style_id: str) -> str:
+    key = (style_id, str(abs(hash(json.dumps(data, sort_keys=True, default=str))))[-12:])
+    hit = _THUMB_CACHE.get(key)
+    if hit:
+        return hit
+    payload = dict(data)
+    payload.setdefault("title", title)
+    out = gfx.data_url(payload, template="infographic", preset=style_id,
+                       orientation="landscape")
+    if len(_THUMB_CACHE) > 96:
+        _THUMB_CACHE.clear()
+    _THUMB_CACHE[key] = out
+    return out
+
+
 @router.get("/state")
-def state(notebook: str = Query("", description="notebook id, title or slug")) -> Any:
+def state(notebook: str = Query("", description="notebook id, title or slug"),
+          thread: str = Query("", description="thread name to open (default: most recent)")) -> Any:
     try:
         notebooks = store.list_notebooks()
     except Exception as exc:
         return _fail(f"cannot read the notebook root: {exc}", 500)
     active = None
-    wanted = (notebook or "").strip()
+    wanted = _q(notebook)
     try:
         if wanted:
-            active = _notebook_payload(store.resolve_notebook(wanted))
+            active = _notebook_payload(store.resolve_notebook(wanted), thread)
         elif notebooks:
-            active = _notebook_payload(notebooks[0]["id"])
+            active = _notebook_payload(notebooks[0]["id"], thread)
     except Exception as exc:
         return _fail(str(exc), 404)
     cards = []
@@ -836,13 +936,17 @@ async def generate(payload: Dict[str, Any] = Body(...)) -> Any:
                     nb_id, kind,
                     focus=str(payload.get("focus") or ""),
                     count_hint=str(payload.get("count_hint") or ""),
-                    style=str(payload.get("style") or "")))
+                    style=str(payload.get("style") or ""),
+                    fmt=str(payload.get("template") or ""),
+                    options={"orientation": payload.get("orientation") or "landscape",
+                             "detail": payload.get("detail") or "standard"}))
     except Exception as exc:
         return _fail(f"{type(exc).__name__}: {exc}", 500)
     # remember the knobs this run used — regenerate reuses them and the row
     # can show the artifact was tailored
     opts_used = {k: str(payload.get(k) or "").strip()
-                 for k in ("focus", "count_hint", "format", "length", "language", "style")}
+                 for k in ("focus", "count_hint", "format", "length", "language", "style",
+                           "template", "orientation", "detail")}
     opts_used = {k: v for k, v in opts_used.items() if v}
     if opts_used:
         try:
@@ -954,6 +1058,62 @@ def get_thread(notebook: str = Query(...), name: str = Query("default")) -> Any:
     safe = runtime.slugify(name or "default", 60) or "default"
     return {"ok": True, "thread": safe,
             "messages": store.get_thread(nb_id, safe)[-48:]}
+
+
+@router.get("/threads")
+def threads(notebook: str = Query("", description="notebook id, title or slug")) -> Any:
+    """Every conversation in a notebook, most recently used first."""
+    try:
+        nb_id = store.resolve_notebook(notebook)
+    except Exception as exc:
+        return _fail(str(exc), 404)
+    rows = store.list_threads(nb_id)
+    return {"ok": True, "threads": rows, "count": len(rows),
+            "default": rows[0]["name"] if rows else ""}
+
+
+@router.post("/thread/new")
+def new_thread(payload: Dict[str, Any] = Body(...)) -> Any:
+    """Start a conversation. Its memory is separate from every other thread."""
+    try:
+        nb_id = store.resolve_notebook(str(payload.get("notebook") or ""))
+    except Exception as exc:
+        return _fail(str(exc), 404)
+    try:
+        created = store.create_thread(nb_id, title=str(payload.get("title") or ""),
+                                      name=str(payload.get("name") or ""))
+    except Exception as exc:
+        return _fail(str(exc), 400)
+    return {"ok": True, "thread": created, "threads": store.list_threads(nb_id)}
+
+
+@router.post("/thread/rename")
+def rename_thread(payload: Dict[str, Any] = Body(...)) -> Any:
+    try:
+        nb_id = store.resolve_notebook(str(payload.get("notebook") or ""))
+    except Exception as exc:
+        return _fail(str(exc), 404)
+    try:
+        out = store.rename_thread(nb_id, str(payload.get("thread") or ""),
+                                  str(payload.get("title") or ""))
+    except Exception as exc:
+        return _fail(str(exc), 400)
+    return {"ok": True, "thread": out, "threads": store.list_threads(nb_id)}
+
+
+@router.post("/thread/delete")
+def delete_thread(payload: Dict[str, Any] = Body(...)) -> Any:
+    if not payload.get("confirm"):
+        return _fail("deleting a conversation needs confirm=true", 400)
+    try:
+        nb_id = store.resolve_notebook(str(payload.get("notebook") or ""))
+    except Exception as exc:
+        return _fail(str(exc), 404)
+    try:
+        out = store.delete_thread(nb_id, str(payload.get("thread") or ""))
+    except Exception as exc:
+        return _fail(str(exc), 400)
+    return {"ok": True, **out, "threads": store.list_threads(nb_id)}
 
 
 @router.post("/thread/clear")

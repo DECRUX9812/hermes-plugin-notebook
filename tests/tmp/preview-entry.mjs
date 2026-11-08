@@ -2,7 +2,7 @@
 import React from 'react'
 import { createRoot } from 'react-dom/client'
 import { App, OpsDeck, plugin } from './preview.mjs'
-import { STATE, FLEET, SERVICES, AUDIT, EXEC } from './payloads.mjs'
+import { STATE, FLEET, SERVICES, AUDIT, EXEC, STYLES } from './payloads.mjs'
 
 window.React = React
 
@@ -31,6 +31,7 @@ const rest = async (path, opts) => {
   // the harness renders the page as it appears with the agent half registered;
   // the dumped payload comes from a process where it is not.
   if (route === 'state') return { ...STATE, model_ready: true }
+  if (route === 'infographic_styles') return { ...STYLES, ok: true }
   if (route === 'health') return { ok: true, model_ready: true, data_root: STATE.notebook ? '/home/decrux/.hermes/plugin-data/hermes-notebook' : '', kinds: (STATE.kinds || []).map((k) => k.id) }
   if (route === 'artifact') {
     const name = params.get('name')

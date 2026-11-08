@@ -235,10 +235,12 @@ def _write_artifact(notebook_id: str, kind: str, ext: str, content: str) -> Path
 
 
 def generate(notebook: str, kind: str, *, focus: str = "", count_hint: str = "",
-             fmt: str = "md", style: str = "") -> dict:
+             fmt: str = "md", style: str = "", options: Optional[dict] = None) -> dict:
     """Generate one artifact; returns {path, kind, preview} or raises.
     fmt='csv' switches flashcards to an Anki-importable CSV.
-    style tunes visual kinds (infographic: sections|poster|editorial)."""
+    style picks the look of the visual kinds — see `hermes_notebook.igstyles`
+    for the bundled infographic pack (16 styles, four layout families)."""
+    options = options if isinstance(options, dict) else {}
     kind = (kind or "").strip().lower().replace("-", "_").replace(" ", "_")
     style = (style or "").strip().lower()
     if kind not in ALL_KINDS:
@@ -284,8 +286,17 @@ def generate(notebook: str, kind: str, *, focus: str = "", count_hint: str = "",
         return {"path": str(path), "kind": kind, "preview": text[:1200]}
 
     # structured kinds
+    instructions = _STRUCT_INSTRUCTIONS[kind]
+    style_spec = None
+    if kind == "infographic":
+        from .gfx import themes as _themes
+        style_spec = _themes.resolve(style)
+        # The content shape follows the look: a dashboard wants measurable metrics,
+        # an editorial page wants headline numbers. Same sources, different picks.
+        instructions += ("\n\nVisual treatment: " + style_spec.blurb + " "
+                         + igstyles.prompt_hint(style_spec))
     parsed = llmio.structured(
-        instructions=_STRUCT_INSTRUCTIONS[kind],
+        instructions=instructions,
         input=[{"type": "text", "text":
                 f"Notebook: {meta.get('title')}\nSources:\n{src_lines}\n"
                 f"{focus_line}{count_line}\nSources content:\n{digest}"}],
@@ -311,14 +322,27 @@ def generate(notebook: str, kind: str, *, focus: str = "", count_hint: str = "",
         return {"path": str(path), "kind": kind, "preview": html[:1200]}
 
     if kind == "infographic":
-        png = _render_infographic(parsed, meta.get("title") or nb_id, style=style)
-        d = store._nb_dir(nb_id) / "artifacts"
-        d.mkdir(parents=True, exist_ok=True)
-        path = d / f"{runtime.utc_stamp()}-{kind}.png"
-        png.save(path, "PNG")
-        store.touch(nb_id)
+        assert style_spec is not None
+        from . import gfx
+        # The graphic is vector now: text stays text, so a numeral from the sources
+        # can never be re-typeset by accident, and the file is a few KB.
+        template = (fmt or "").strip().lower()
+        if template not in gfx.TEMPLATES:
+            template = "infographic"
+        orientation = str(options.get("orientation") or "landscape").lower()
+        detail = str(options.get("detail") or "standard").lower()
+        parsed["_style"] = {"id": style_spec.id, "label": style_spec.label,
+                            "family": style_spec.family}
+        parsed["_graphic"] = {"template": template, "orientation": orientation,
+                              "detail": detail}
+        json_path = _write_artifact(nb_id, kind, "json",
+                                    json.dumps(parsed, indent=2, ensure_ascii=False))
+        svg = gfx.render(parsed, template=template, preset=style_spec.id,
+                         orientation=orientation, detail=detail)
+        path = _write_artifact(nb_id, kind, "svg", svg)
         return {"path": str(path), "json": str(json_path), "kind": kind,
-                "style": style or "sections",
+                "style": style_spec.id, "style_label": style_spec.label,
+                "template": template, "orientation": orientation, "detail": detail,
                 "preview": json.dumps(parsed, ensure_ascii=False)[:1200]}
 
     if kind == "data_table":
@@ -487,245 +511,26 @@ show(0);
 </script></body></html>"""
 
 
-def _render_infographic(data: dict, title: str, *, style: str = ""):
-    """PIL-rendered infographic PNG (1200x900). style: sections (default,
-    light NotebookLM-style cards) | poster (dark gradient) | editorial
-    (minimal light, oversized numerals)."""
-    style = style if style in ("sections", "poster", "editorial") else "sections"
-    if style == "poster":
-        return _render_infographic_poster(data, title)
-    if style == "editorial":
-        return _render_infographic_editorial(data, title)
-    return _render_infographic_sections(data, title)
+def _render_infographic(data: dict, title: str, *, style: str = "",
+                        template: str = "infographic", orientation: str = "landscape",
+                        detail: str = "standard") -> str:
+    """SVG source for an infographic, drawn by `hermes_notebook.gfx`.
+
+    The vector library replaced the Pillow renderer here: same payload, same style
+    catalog, but text stays text and the artifact weighs kilobytes. `igrender` is
+    kept as the raster fallback for callers that need a PNG with no browser around.
+    """
+    from . import gfx
+    payload = dict(data) if isinstance(data, dict) else {}
+    payload.setdefault("title", title)
+    return gfx.render(payload, template=template, preset=style, orientation=orientation,
+                      detail=detail)
 
 
-# NotebookLM-flavored palette: warm paper, ink, and a small set of confident
-# section accents — the same hues the studio pills use.
-_IG_ACCENTS = [(0x1A, 0x73, 0xE8), (0xE8, 0x71, 0x0B), (0x12, 0x87, 0x7B),
-               (0xC5, 0x18, 0x5B), (0x7C, 0x4D, 0xFF)]
-_IG_PAPER = (0xFA, 0xF9, 0xF6)
-_IG_INK = (0x1F, 0x1F, 0x1F)
-_IG_MUTED = (0x5F, 0x63, 0x68)
-_IG_CARD = (0xFF, 0xFF, 0xFF)
-
-
-def _ig_fonts():
-    from . import video as _v
-    return (_v._font(_v._BOLD_CANDIDATES, 54), _v._font(_v._BOLD_CANDIDATES, 60),
-            _v._font(_v._FONT_CANDIDATES, 24), _v._font(_v._FONT_CANDIDATES, 20),
-            _v._font(_v._BOLD_CANDIDATES, 30))
-
-
-def _render_infographic_sections(data: dict, title: str):
-    """Light, sectioned poster: kicker + title, stat cards with per-card accent
-    bars, a 'Key facts' column, and a takeaway band — the NotebookLM look."""
-    try:
-        from PIL import Image, ImageDraw
-    except ImportError as exc:
-        raise RuntimeError("infographic needs Pillow (declared plugin dependency)") from exc
-    Wd, Ht = 1200, 900
-    img = Image.new("RGB", (Wd, Ht), _IG_PAPER)
-    d = ImageDraw.Draw(img)
-    f_kick, f_title, f_label, f_small, f_head = _ig_fonts()
-
-    # header band
-    d.rectangle([0, 0, Wd, 8], fill=_IG_ACCENTS[0])
-    d.text((60, 44), "INFOGRAPHIC", font=f_label, fill=_IG_ACCENTS[0])
-    for j, ln in enumerate(_v_wrap_local(data.get("title") or title, f_title, Wd - 120, d)[:2]):
-        d.text((60, 76 + j * 62), ln, font=f_title, fill=_IG_INK)
-
-    stats = [s for s in (data.get("stats") or []) if isinstance(s, dict)][:6]
-    quotes = [q for q in (data.get("quotes") or []) if isinstance(q, dict)][:4]
-    take = str(data.get("takeaway") or "").strip()
-
-    # stat cards — 3 per row, white cards on paper with a colored top bar
-    y = 250
-    cols = 3 if len(stats) > 3 else max(1, len(stats))
-    cw = (Wd - 120 - (cols - 1) * 20) // cols
-    ch = 170
-    for i, st in enumerate(stats):
-        r, c = divmod(i, cols)
-        x = 60 + c * (cw + 20)
-        yy = y + r * (ch + 20)
-        if yy + ch > Ht - 140:
-            break
-        acc = _IG_ACCENTS[i % len(_IG_ACCENTS)]
-        d.rounded_rectangle([x, yy, x + cw, yy + ch], radius=16, fill=_IG_CARD)
-        d.rectangle([x + 18, yy + 18, x + 58, yy + 22], fill=acc)
-        val = str(st.get("value", ""))[:16]
-        for j, ln in enumerate(_v_wrap_local(val, f_title, cw - 40, d)[:2]):
-            lw = d.textlength(ln, font=f_title)
-            d.text((x + (cw - lw) / 2, yy + 40 + j * 62), ln, font=f_title, fill=acc)
-        lab_lines = _v_wrap_local(str(st.get("label", "")), f_label, cw - 36, d)[:3]
-        ly = yy + 118
-        for ln in lab_lines:
-            lw = d.textlength(ln, font=f_label)
-            d.text((x + (cw - lw) / 2, ly), ln, font=f_label, fill=_IG_INK)
-            ly += 30
-        det = str(st.get("detail") or "").strip()
-        if det:
-            dl = _v_wrap_local(det, f_small, cw - 36, d)[:1]
-            if dl:
-                lw = d.textlength(dl[0], font=f_small)
-                d.text((x + (cw - lw) / 2, yy + ch - 34), dl[0], font=f_small, fill=_IG_MUTED)
-
-    # key facts column
-    fy = y + ((len(stats) + cols - 1) // cols) * (ch + 20) + 10
-    if quotes and fy < Ht - 260:
-        d.text((60, fy), "KEY FACTS", font=f_label, fill=_IG_MUTED)
-        fy += 44
-        for q in quotes:
-            txt = str(q.get("text", ""))
-            src = str(q.get("source") or "")
-            for j, ln in enumerate(_v_wrap_local(txt, f_head, Wd - 220, d)[:3]):
-                d.text((76, fy + j * 40), ln, font=f_head, fill=_IG_INK)
-            if src:
-                d.text((Wd - 70 - d.textlength(src[:28], font=f_small), fy + 8),
-                       src[:28], font=f_small, fill=_IG_MUTED)
-            fy += 128
-            if fy > Ht - 180:
-                break
-
-    if take:
-        ty = Ht - 96
-        d.rounded_rectangle([60, ty, Wd - 60, ty + 64], radius=32, fill=_IG_INK)
-        lines = _v_wrap_local("Takeaway  ·  " + take, f_head, Wd - 180, d)[:1]
-        for ln in lines:
-            lw = d.textlength(ln, font=f_head)
-            d.text((80, ty + 16), ln, font=f_head, fill=_IG_PAPER)
-    return img
-
-
-def _render_infographic_editorial(data: dict, title: str):
-    """Minimal editorial poster: oversized numerals, hairline rules, one accent."""
-    try:
-        from PIL import Image, ImageDraw
-    except ImportError as exc:
-        raise RuntimeError("infographic needs Pillow (declared plugin dependency)") from exc
-    Wd, Ht = 1200, 900
-    img = Image.new("RGB", (Wd, Ht), (0xFF, 0xFF, 0xFF))
-    d = ImageDraw.Draw(img)
-    from . import video as _v
-    f_kick = _v._font(_v._BOLD_CANDIDATES, 22)
-    f_title = _v._font(_v._BOLD_CANDIDATES, 64)
-    f_num = _v._font(_v._BOLD_CANDIDATES, 96)
-    f_label = _v._font(_v._FONT_CANDIDATES, 24)
-    f_small = _v._font(_v._FONT_CANDIDATES, 20)
-    acc = _IG_ACCENTS[0]
-
-    d.text((60, 48), "INFOGRAPHIC", font=f_kick, fill=acc)
-    for j, ln in enumerate(_v_wrap_local(data.get("title") or title, f_title, Wd - 120, d)[:2]):
-        d.text((60, 84 + j * 70), ln, font=f_title, fill=_IG_INK)
-    d.line([60, 250, Wd - 60, 250], fill=(0xE0, 0xE0, 0xDC), width=2)
-
-    stats = [s for s in (data.get("stats") or []) if isinstance(s, dict)][:6]
-    y = 290
-    rh = (Ht - 380) // max(1, min(len(stats), 4))
-    for i, st in enumerate(stats[:4]):
-        yy = y + i * rh
-        val = str(st.get("value", ""))[:14]
-        d.text((60, yy), val, font=f_num, fill=acc if i % 2 == 0 else _IG_INK)
-        lw = d.textlength(val, font=f_num)
-        lab = _v_wrap_local(str(st.get("label", "")), f_label, Wd - 320, d)[:2]
-        ly = yy + 20
-        for ln in lab:
-            d.text((60 + lw + 40, ly), ln, font=f_label, fill=_IG_INK)
-            ly += 34
-        det = str(st.get("detail") or "").strip()
-        if det:
-            dl = _v_wrap_local(det, f_small, Wd - 320, d)[:1]
-            if dl:
-                d.text((60 + lw + 40, ly + 4), dl[0], font=f_small, fill=_IG_MUTED)
-        if i < min(len(stats), 4) - 1:
-            d.line([60, yy + rh - 14, Wd - 60, yy + rh - 14], fill=(0xEE, 0xEE, 0xEA), width=1)
-
-    take = str(data.get("takeaway") or "").strip()
-    if take:
-        ty = Ht - 80
-        d.line([60, ty - 24, Wd - 60, ty - 24], fill=_IG_INK, width=3)
-        for j, ln in enumerate(_v_wrap_local("Takeaway — " + take, f_label, Wd - 140, d)[:2]):
-            d.text((60, ty + j * 34), ln, font=f_label, fill=_IG_INK)
-    return img
-
-
-def _v_wrap_local(text: str, font, max_w: int, draw) -> list:
-    """Local copy of video._wrap that tolerates any draw object."""
-    from . import video as _v
-    return _v._wrap(text, font, max_w, draw)
-
-
-def _render_infographic_poster(data: dict, title: str):
-    """PIL-rendered infographic PNG (1200x900, dark card style)."""
-    try:
-        from PIL import Image, ImageDraw
-        from . import video as _v
-    except ImportError as exc:
-        raise RuntimeError("infographic needs Pillow (declared plugin dependency)") from exc
-    Wd, Ht = 1200, 900
-    # build gradient directly (video._gradient is fixed 1280x720)
-    top, bottom, acc = _v._CARD_COLORS["indigo"]
-    img = Image.new("RGB", (Wd, Ht))
-    px = img.load()
-    for y in range(Ht):
-        t = y / (Ht - 1)
-        row = tuple(int(top[c] + (bottom[c] - top[c]) * t) for c in range(3))
-        for x in range(Wd):
-            px[x, y] = row
-    d = ImageDraw.Draw(img)
-    f_title = _v._font(_v._BOLD_CANDIDATES, 56)
-    f_stat = _v._font(_v._BOLD_CANDIDATES, 64)
-    f_label = _v._font(_v._FONT_CANDIDATES, 26)
-    f_small = _v._font(_v._FONT_CANDIDATES, 22)
-    f_quote = _v._font(_v._FONT_CANDIDATES, 26)
-
-    d.rectangle([0, 0, Wd, 8], fill=acc)
-    d.text((60, 50), "INFOGRAPHIC", font=f_label, fill=acc)
-    for j, ln in enumerate(_v._wrap(data.get("title") or title, f_title, Wd - 120, d)[:2]):
-        d.text((60, 90 + j * 66), ln, font=f_title, fill=_v._TEXT)
-
-    stats = [s for s in (data.get("stats") or []) if isinstance(s, dict)][:6]
-    quotes = [q for q in (data.get("quotes") or []) if isinstance(q, dict)][:4]
-    # stat cards row
-    n = max(1, len(stats))
-    cw = (Wd - 120 - (n - 1) * 20) // n
-    y = 260
-    for i, st in enumerate(stats):
-        x = 60 + i * (cw + 20)
-        d.rounded_rectangle([x, y, x + cw, y + 190], radius=14, fill=(18, 18, 32))
-        d.rectangle([x, y, x + cw, y + 6], fill=acc)
-        val = str(st.get("value", ""))[:18]
-        for j, ln in enumerate(_v._wrap(val, f_stat, cw - 24, d)[:2]):
-            lw = d.textlength(ln, font=f_stat)
-            d.text((x + (cw - lw) / 2, y + 26 + j * 70), ln, font=f_stat, fill=acc)
-        lab = _v._wrap(str(st.get("label", "")), f_label, cw - 24, d)[:3]
-        ly = y + 130
-        for ln in lab:
-            lw = d.textlength(ln, font=f_label)
-            d.text((x + (cw - lw) / 2, ly), ln, font=f_label, fill=_v._DIM)
-            ly += 32
-
-    y += 240
-    d.text((60, y), "Key facts", font=f_label, fill=_v._TEXT)
-    y += 50
-    for q in quotes:
-        txt = str(q.get("text", ""))
-        src = str(q.get("source") or "")
-        for j, ln in enumerate(_v._wrap(txt, f_quote, Wd - 200, d)[:3]):
-            d.text((80, y + j * 36), ln, font=f_quote, fill=_v._TEXT)
-        if src:
-            d.text((Wd - 60 - d.textlength(src[:30], font=f_small), y + 4),
-                   src[:30], font=f_small, fill=_v._DIM)
-        y += 120
-        if y > Ht - 160:
-            break
-
-    take = str(data.get("takeaway") or "").strip()
-    if take:
-        ty = Ht - 120
-        d.rounded_rectangle([60, ty, Wd - 60, ty + 80], radius=14, fill=(24, 22, 48))
-        for j, ln in enumerate(_v._wrap("Takeaway: " + take, f_quote, Wd - 160, d)[:2]):
-            d.text((84, ty + 14 + j * 34), ln, font=f_quote, fill=_v._TEXT)
-    return img
+def _raster_infographic(data: dict, title: str, *, style: str = ""):
+    """Pillow fallback: a PIL image of the same payload (no browser required)."""
+    from . import igrender
+    return igrender.render(data, title, style)
 
 
 def _render_quiz(data: dict) -> str:

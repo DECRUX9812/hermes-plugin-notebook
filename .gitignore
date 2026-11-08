@@ -4,5 +4,8 @@ __pycache__/
 *.egg-info/
 dist/
 build/
+
+# generated contact-sheet pages (the PNGs are the artefacts)
+assets/*.html
 tests/tmp/load-*/
 tests/shots/

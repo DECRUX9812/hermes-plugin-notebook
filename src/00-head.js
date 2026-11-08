@@ -328,6 +328,39 @@ const CSS = `
 
 /* ------------------------------------------------------------------- chat */
 .nb-chat{flex:1;min-height:0;display:flex;flex-direction:column;position:relative}
+<<<<<<< HEAD
+/* conversation bar: the open thread is the page's subject, so it gets the top row */
+.nb-chatbar{display:flex;align-items:center;gap:8px;padding:10px 16px 8px;
+  border-bottom:1px solid ${T.lineSoft};flex-wrap:nowrap}
+.nb-threadpick{display:flex;align-items:center;gap:8px;min-width:0;max-width:min(56ch,72%);
+  min-height:34px;padding:4px 8px;border-radius:10px;border:1px solid transparent;
+  background:transparent;color:${T.text};font:inherit;font-size:14px;font-weight:600;
+  cursor:pointer}
+.nb-threadpick:hover{background:${T.inset};border-color:${T.lineSoft}}
+.nb-threadpick:focus-visible{outline:2px solid ${T.accent};outline-offset:1px}
+.nb-threadpick svg{color:${T.text4};flex:0 0 auto}
+.nb-threadpick-title{min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.nb-newthread{display:flex;gap:8px;align-items:center}
+.nb-newthread .nb-genopt-text{flex:1;min-width:0}
+.nb-threadlist{display:flex;flex-direction:column;gap:6px;max-height:min(48vh,380px);
+  overflow:auto;overscroll-behavior:contain}
+.nb-threadrow{display:flex;align-items:center;gap:6px;padding:2px;border-radius:12px;
+  border:1px solid ${T.lineSoft};background:${T.card}}
+.nb-threadrow[data-on="true"]{border-color:${T.accent};
+  background:color-mix(in srgb,${T.accent} 9%,transparent)}
+.nb-threadrow-main{flex:1;min-width:0;display:flex;flex-direction:column;gap:3px;
+  align-items:flex-start;text-align:left;background:transparent;border:0;cursor:pointer;
+  padding:8px 10px;border-radius:10px;color:${T.text};font:inherit;min-height:48px}
+.nb-threadrow-main:hover{background:${T.inset}}
+.nb-threadrow-main:focus-visible{outline:2px solid ${T.accent};outline-offset:-2px}
+.nb-threadrow-title{display:block;font-size:14px;font-weight:600;max-width:100%;
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.nb-threadrow-meta{display:block;font-size:11.5px;color:${T.text4};line-height:1.2}
+.nb-threadrow-acts{display:flex;align-items:center;gap:4px;padding-right:6px}
+.nb-threadrow-acts .nb-btn{height:32px}
+.nb-threadrow-edit{display:flex;gap:6px;align-items:center;padding-right:8px;flex:1}
+.nb-threadrow-edit .nb-genopt-text{flex:1;min-width:0}
+=======
 /* A scrolled thread clips its first visible message at the panel edge, which reads
    as a broken one-line fragment. Fade that edge with an overlay — pointer-events
    off, so citations under it stay clickable (a mask would eat the clicks). */
@@ -337,6 +370,7 @@ const CSS = `
 .nb-hl{background:color-mix(in srgb, ${T.accent} 30%, transparent);color:inherit;border-radius:4px;padding:0 2px}
 .nb-latest{position:absolute;left:50%;bottom:14px;transform:translateX(-50%);z-index:20;display:inline-flex;align-items:center;gap:4px;padding:7px 14px;border-radius:999px;border:1px solid var(--nb-line,#2a2d3d);background:var(--nb-card,#14161f);color:var(--nb-text2,#c6c9d8);font-size:12.5px;font-weight:600;cursor:pointer;box-shadow:0 6px 20px rgba(0,0,0,.35);transition:transform .15s ease,box-shadow .15s ease}
 .nb-latest:hover{transform:translateX(-50%) translateY(-1px);box-shadow:0 8px 24px rgba(0,0,0,.45)}
+>>>>>>> origin/main
 .nb-thread{flex:1;min-height:0;overflow:auto;padding:28px 28px 12px;display:flex;flex-direction:column;gap:24px}
 .nb-chiprow{display:flex;align-items:center;gap:6px;flex-wrap:wrap;padding:8px 0 6px}
 .nb-msg{max-width:72ch}
@@ -415,10 +449,21 @@ const CSS = `
 .nb-thrrow:hover{background:var(--nb-wash)}
 .nb-thrrow.is-current{border-color:color-mix(in srgb,${T.accent} 40%, transparent);
   background:color-mix(in srgb,${T.accent} 8%, transparent)}
-.nb-thrwrap{display:flex;align-items:center;gap:4px}
+.nb-thrwrap{display:flex;align-items:center;gap:4px;padding:1px;border-radius:12px}
 .nb-thrwrap .nb-thrrow{flex:1;min-width:0}
-.nb-thrwrap .nb-icon{opacity:0;transition:opacity .12s ease}
+/* rename/delete are actions on a conversation, not hover trivia — keep them visible
+   and let hover only raise their weight */
+.nb-thrwrap .nb-icon{opacity:.7;transition:opacity .12s ease}
 .nb-thrwrap:hover .nb-icon,.nb-thrwrap:focus-within .nb-icon{opacity:1}
+.nb-thrwrap[data-on="true"]{background:color-mix(in srgb,${T.accent} 8%,transparent)}
+.nb-thrlist{display:flex;flex-direction:column;gap:6px;max-height:min(46vh,360px);
+  overflow:auto;overscroll-behavior:contain;padding:2px;margin:0 -2px}
+.nb-thredit{display:flex;gap:6px;align-items:center;width:100%;padding:2px 4px}
+.nb-thredit .nb-genopt-text{flex:1;min-width:0}
+.nb-newthread{display:flex;gap:8px;align-items:center}
+.nb-newthread .nb-genopt-text{flex:1;min-width:0}
+.nb-danger{color:${T.danger} !important;
+  border-color:color-mix(in srgb,${T.danger} 45%,transparent) !important}
 .nb-emgrid{display:grid;grid-template-columns:repeat(8,1fr);gap:6px}
 .nb-em{aspect-ratio:1;border-radius:10px;border:1px solid var(--nb-hair-soft);
   background:var(--nb-card);font-size:17px;cursor:pointer;display:grid;place-items:center;
@@ -657,6 +702,33 @@ const CSS = `
 .nb-genopt-text{width:100%;height:32px;padding:0 10px;border-radius:9px;font-size:13px;
   border:1px solid ${T.line};background:${T.inset};color:${T.text};outline:none}
 .nb-genopt-text:focus{border-color:color-mix(in srgb,${T.accent} 55%,transparent)}
+/* the infographic look picker: sixteen styles do not fit a segmented control or an
+   inline popover, so they open in a dialog as a gallery — the thumbnail is the real
+   renderer drawing the notebook's own last infographic in that style */
+.nb-stylegrid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:6px;
+  max-height:min(64vh,492px);overflow:auto;overscroll-behavior:contain;padding:2px;margin:0 -2px;
+  scrollbar-width:thin}
+.nb-styleopt{display:flex;flex-direction:column;align-items:stretch;gap:0;min-width:0;
+  padding:0;border-radius:11px;border:1px solid ${T.lineSoft};background:${T.card};
+  cursor:pointer;overflow:hidden;color:${T.text2};font-family:inherit}
+.nb-styleopt:hover{border-color:color-mix(in srgb,${T.accent} 45%,${T.lineSoft})}
+.nb-styleopt[data-on="true"]{border-color:${T.accent};box-shadow:0 0 0 1px ${T.accent} inset}
+.nb-styleopt:focus-visible{outline:2px solid ${T.accent};outline-offset:1px}
+.nb-stylethumb{display:block;position:relative;height:60px;background:${T.inset}}
+.nb-stylethumb img{width:100%;height:100%;object-fit:cover;display:block}
+.nb-stylethumb[data-empty="true"]::after{content:'';position:absolute;inset:0;
+  background:linear-gradient(100deg,transparent 20%,color-mix(in srgb,${T.text} 6%,transparent) 50%,transparent 80%);
+  animation:nb-shimmer 1.4s linear infinite}
+@keyframes nb-shimmer{from{transform:translateX(-100%)}to{transform:translateX(100%)}}
+.nb-stylecheck{position:absolute;top:4px;right:4px;width:18px;height:18px;border-radius:50%;
+  display:grid;place-items:center;background:${T.accent};color:#fff;font-size:10px;
+  font-weight:700;line-height:1}
+/* the picker states where the previews come from, so nobody reads them as the user's
+   finished artifact */
+.nb-stylehint{margin-top:6px;font-size:11.5px;color:${T.text4}}
+.nb-stylelabel{display:block;padding:4px 4px 5px;font-size:11px;font-weight:600;
+  text-align:center;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+
 
 .nb-citepop{position:fixed;z-index:80;width:320px;max-width:calc(100vw - 32px);
   background:${T.card};border:1px solid ${T.line};border-radius:14px;
