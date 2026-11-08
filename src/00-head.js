@@ -599,6 +599,43 @@ const CSS = `
 .nb-nbcard-title{font-size:14.5px;font-weight:650;line-height:1.35;padding-right:28px}
 .nb-nbcard-meta{font-size:11.5px;color:${T.text3};margin-top:8px}
 
+/* generator options popover + citation hover card + data table */
+.nb-gen{position:relative}
+.nb-gen-cfg{position:absolute;top:4px;right:4px;width:32px;height:32px;opacity:0;
+  transition:opacity .15s}
+.nb-gen:hover .nb-gen-cfg,.nb-gen-cfg[data-active="true"]{opacity:1}
+.nb-genpop{position:absolute;top:calc(100% + 6px);left:0;right:0;z-index:30;
+  background:${T.card};border:1px solid ${T.line};border-radius:14px;
+  box-shadow:var(--nb-shadow-lift);padding:12px;display:grid;gap:12px}
+.nb-genopt-label{font-size:11px;font-weight:600;color:${T.text3};margin-bottom:6px;
+  text-transform:uppercase;letter-spacing:.06em}
+.nb-genopt .nb-seg{width:100%}
+.nb-genopt .nb-seg button{flex:1;justify-content:center}
+.nb-genopt-text{width:100%;height:32px;padding:0 10px;border-radius:9px;font-size:13px;
+  border:1px solid ${T.line};background:${T.inset};color:${T.text};outline:none}
+.nb-genopt-text:focus{border-color:color-mix(in srgb,${T.accent} 55%,transparent)}
+
+.nb-citepop{position:fixed;z-index:80;width:320px;max-width:calc(100vw - 32px);
+  background:${T.card};border:1px solid ${T.line};border-radius:14px;
+  box-shadow:var(--nb-shadow-lift);padding:12px 14px;pointer-events:none}
+.nb-citepop-head{display:flex;align-items:center;gap:8px;font-size:12.5px;
+  color:${T.text3};margin-bottom:6px;flex-wrap:wrap}
+.nb-citepop-head b{color:${T.accent};font-weight:700}
+.nb-citepop-body{font-size:13px;line-height:1.55;color:${T.text2};
+  display:-webkit-box;-webkit-line-clamp:5;-webkit-box-orient:vertical;overflow:hidden}
+
+.nb-dt-wrap{overflow:auto;border:1px solid ${T.line};border-radius:14px;
+  background:${T.card}}
+.nb-dt{border-collapse:collapse;width:100%;font-size:13px;min-width:520px}
+.nb-dt th{position:sticky;top:0;background:${T.inset};text-align:left;
+  font-weight:650;font-size:12px;color:${T.text2};padding:10px 14px;
+  border-bottom:1px solid ${T.line};cursor:pointer;user-select:none;white-space:nowrap}
+.nb-dt th:hover{color:${T.text}}
+.nb-dt-arrow{color:${T.accent};margin-left:5px;font-size:11px}
+.nb-dt td{padding:9px 14px;border-bottom:1px solid ${T.lineSoft};color:${T.text2}}
+.nb-dt tbody tr:last-child td{border-bottom:0}
+.nb-dt tbody tr:hover td{background:color-mix(in srgb,${T.accent} 4%,transparent)}
+
 @media (max-width:1280px){
   .nb-root{--nb-rail:250px; --nb-studio:320px}
   .nb-body{padding:10px;gap:10px}

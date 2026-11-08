@@ -65,7 +65,7 @@ const KIND_ICON = {
   video_overview: 'video', audio_overview: 'audio', summary: 'summary',
   briefing_doc: 'doc', study_guide: 'study', faq: 'faq', timeline: 'timeline',
   mind_map: 'mindmap', flashcards: 'cards', quiz: 'quiz', slides: 'slides',
-  infographic: 'chart'
+  infographic: 'chart', data_table: 'grid'
 }
 
 const SRC_ICON = {

@@ -66,9 +66,19 @@ router = APIRouter(tags=["hermes-notebook"])
 #: which filter chip a card falls under; `label` is what a person reads.
 KINDS: List[Dict[str, Any]] = [
     {"id": "video_overview", "label": "Video Overview", "group": "media", "ext": "mp4",
-     "blurb": "Narrated slideshow, cinematic or explainer", "secs": 60},
+     "blurb": "Narrated slideshow, cinematic or explainer", "secs": 60,
+     "options": [{"id": "style", "label": "Style",
+                  "choices": ["cinematic", "explainer"]},
+                 {"id": "length", "label": "Length",
+                  "choices": ["short", "medium", "long"]}]},
     {"id": "audio_overview", "label": "Audio Overview", "group": "media", "ext": "mp3",
-     "blurb": "Two hosts talking through the sources", "secs": 90},
+     "blurb": "Hosts talking through the sources", "secs": 90,
+     "options": [{"id": "format", "label": "Format",
+                  "choices": ["deep_dive", "brief", "critique", "debate"]},
+                 {"id": "length", "label": "Length",
+                  "choices": ["short", "medium", "long"]},
+                 {"id": "language", "label": "Language", "kind": "text",
+                  "placeholder": "Auto (English)"}]},
     {"id": "summary", "label": "Summary", "group": "docs", "ext": "md",
      "blurb": "The notebook in a page", "secs": 12},
     {"id": "briefing_doc", "label": "Briefing Doc", "group": "docs", "ext": "md",
@@ -88,7 +98,11 @@ KINDS: List[Dict[str, Any]] = [
     {"id": "slides", "label": "Slides", "group": "visual", "ext": "html",
      "blurb": "Self-contained deck, arrow keys", "secs": 22},
     {"id": "infographic", "label": "Infographic", "group": "visual", "ext": "png",
-     "blurb": "One dense poster of the thesis", "secs": 20},
+     "blurb": "One dense poster of the thesis", "secs": 20,
+     "options": [{"id": "style", "label": "Style",
+                  "choices": ["sections", "poster", "editorial"]}]},
+    {"id": "data_table", "label": "Data Table", "group": "docs", "ext": "csv",
+     "blurb": "Structured rows, exports to Sheets", "secs": 14},
 ]
 KIND_INDEX = {k["id"]: k for k in KINDS}
 MEDIA_EXT = {"mp4": "video/mp4", "mp3": "audio/mpeg", "png": "image/png",
@@ -152,7 +166,7 @@ def _collect_artifacts(notebook_id: str) -> List[Dict[str, Any]]:
         exts = {f["ext"] for f in run["files"]}
         meta = KIND_INDEX.get(run["kind"], {})
         # prefer the richest representation: media, then html, then md, then json
-        for want in ("mp4", "mp3", "png", "html", "md", "txt", "json"):
+        for want in ("mp4", "mp3", "png", "html", "csv", "md", "txt", "json"):
             if want in exts:
                 primary = next(f for f in run["files"] if f["ext"] == want)
                 break
@@ -222,6 +236,7 @@ def _notebook_payload(notebook_id: str) -> Dict[str, Any]:
             "artifacts": len(arts),
             "kinds": sorted({a["kind"] for a in arts}),
         },
+        "options": dict(meta.get("options") or {}),
     }
 
 
@@ -481,6 +496,30 @@ async def overview(payload: Dict[str, Any] = Body(...)) -> Any:
             "seconds": round(time.time() - started, 1)}
 
 
+@router.post("/options")
+def set_options(payload: Dict[str, Any] = Body(...)) -> Any:
+    """Per-notebook preferences — chat style/length today, generator options
+    tomorrow. Stored on notebook.json so every surface agrees."""
+    nb = str(payload.get("notebook") or "")
+    opts = payload.get("options")
+    if not isinstance(opts, dict):
+        return _fail("options must be an object")
+    try:
+        nb_id = store.resolve_notebook(nb)
+        merged = dict(store.get_meta(nb_id).get("options") or {})
+        for key, value in opts.items():
+            key = str(key)
+            if value in (None, ""):
+                merged.pop(key, None)
+            else:
+                merged[key] = value
+        store.update_meta(nb_id, options=merged)
+    except Exception as exc:
+        return _fail(f"{type(exc).__name__}: {exc}", 500)
+    return {"ok": True, "options": merged,
+            "state": _notebook_payload(store.resolve_notebook(nb))}
+
+
 @router.post("/notebook/delete")
 def delete_notebook(payload: Dict[str, Any] = Body(...)) -> Any:
     nb = str(payload.get("notebook") or "")
@@ -596,18 +635,22 @@ async def generate(payload: Dict[str, Any] = Body(...)) -> Any:
         if kind == "audio_overview":
             from hermes_notebook import audio
             out = await audio.make_audio_overview(
-                nb_id, length=str(payload.get("length") or "short"))
+                nb_id, length=str(payload.get("length") or "short"),
+                fmt=str(payload.get("format") or "deep_dive"),
+                language=str(payload.get("language") or ""))
         elif kind == "video_overview":
             from hermes_notebook import video
             out = await video.make_video_overview(
                 nb_id, style=str(payload.get("style") or "cinematic"),
-                length=str(payload.get("length") or "short"))
+                length=str(payload.get("length") or "short"),
+                notes=payload.get("notes") if isinstance(payload.get("notes"), dict) else None)
         else:
             out = await run_in_threadpool(
                 lambda: artifacts_mod.generate(
                     nb_id, kind,
                     focus=str(payload.get("focus") or ""),
-                    count_hint=str(payload.get("count_hint") or "")))
+                    count_hint=str(payload.get("count_hint") or ""),
+                    style=str(payload.get("style") or "")))
     except Exception as exc:
         return _fail(f"{type(exc).__name__}: {exc}", 500)
     payload_state = _notebook_payload(nb_id)
@@ -615,6 +658,29 @@ async def generate(payload: Dict[str, Any] = Body(...)) -> Any:
             "seconds": round(time.time() - started, 1),
             "artifacts": payload_state["artifacts"],
             "stats": payload_state["stats"]}
+
+
+@router.post("/video_notes")
+async def video_notes(payload: Dict[str, Any] = Body(...)) -> Any:
+    """Producer notes for a video overview — headlines + narration BEFORE any
+    frame is encoded. The page reviews them, then POSTs them back to /generate
+    as `notes` and the render skips the script rewrite."""
+    nb_arg = str(payload.get("notebook") or "")
+    _ensure_model()
+    try:
+        nb_id = store.resolve_notebook(nb_arg)
+    except Exception as exc:
+        return _fail(str(exc), 404)
+    from hermes_notebook import video
+    try:
+        out = await video.video_notes(
+            nb_id,
+            length=str(payload.get("length") or "") or None,
+            style=str(payload.get("style") or "") or None,
+            focus=str(payload.get("focus") or ""))
+    except Exception as exc:
+        return _fail(f"{type(exc).__name__}: {exc}", 500)
+    return {"ok": True, **out}
 
 
 @router.post("/label")

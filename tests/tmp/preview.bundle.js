@@ -15188,6 +15188,43 @@ var CSS2 = `
 .nb-nbcard-title{font-size:14.5px;font-weight:650;line-height:1.35;padding-right:28px}
 .nb-nbcard-meta{font-size:11.5px;color:${T.text3};margin-top:8px}
 
+/* generator options popover + citation hover card + data table */
+.nb-gen{position:relative}
+.nb-gen-cfg{position:absolute;top:4px;right:4px;width:32px;height:32px;opacity:0;
+  transition:opacity .15s}
+.nb-gen:hover .nb-gen-cfg,.nb-gen-cfg[data-active="true"]{opacity:1}
+.nb-genpop{position:absolute;top:calc(100% + 6px);left:0;right:0;z-index:30;
+  background:${T.card};border:1px solid ${T.line};border-radius:14px;
+  box-shadow:var(--nb-shadow-lift);padding:12px;display:grid;gap:12px}
+.nb-genopt-label{font-size:11px;font-weight:600;color:${T.text3};margin-bottom:6px;
+  text-transform:uppercase;letter-spacing:.06em}
+.nb-genopt .nb-seg{width:100%}
+.nb-genopt .nb-seg button{flex:1;justify-content:center}
+.nb-genopt-text{width:100%;height:32px;padding:0 10px;border-radius:9px;font-size:13px;
+  border:1px solid ${T.line};background:${T.inset};color:${T.text};outline:none}
+.nb-genopt-text:focus{border-color:color-mix(in srgb,${T.accent} 55%,transparent)}
+
+.nb-citepop{position:fixed;z-index:80;width:320px;max-width:calc(100vw - 32px);
+  background:${T.card};border:1px solid ${T.line};border-radius:14px;
+  box-shadow:var(--nb-shadow-lift);padding:12px 14px;pointer-events:none}
+.nb-citepop-head{display:flex;align-items:center;gap:8px;font-size:12.5px;
+  color:${T.text3};margin-bottom:6px;flex-wrap:wrap}
+.nb-citepop-head b{color:${T.accent};font-weight:700}
+.nb-citepop-body{font-size:13px;line-height:1.55;color:${T.text2};
+  display:-webkit-box;-webkit-line-clamp:5;-webkit-box-orient:vertical;overflow:hidden}
+
+.nb-dt-wrap{overflow:auto;border:1px solid ${T.line};border-radius:14px;
+  background:${T.card}}
+.nb-dt{border-collapse:collapse;width:100%;font-size:13px;min-width:520px}
+.nb-dt th{position:sticky;top:0;background:${T.inset};text-align:left;
+  font-weight:650;font-size:12px;color:${T.text2};padding:10px 14px;
+  border-bottom:1px solid ${T.line};cursor:pointer;user-select:none;white-space:nowrap}
+.nb-dt th:hover{color:${T.text}}
+.nb-dt-arrow{color:${T.accent};margin-left:5px;font-size:11px}
+.nb-dt td{padding:9px 14px;border-bottom:1px solid ${T.lineSoft};color:${T.text2}}
+.nb-dt tbody tr:last-child td{border-bottom:0}
+.nb-dt tbody tr:hover td{background:color-mix(in srgb,${T.accent} 4%,transparent)}
+
 @media (max-width:1280px){
   .nb-root{--nb-rail:250px; --nb-studio:320px}
   .nb-body{padding:10px;gap:10px}
@@ -15289,7 +15326,8 @@ var P = {
   stop: "M7 7h10v10H7V7Z",
   tag: "M4 4h6.6L20 13.4a2 2 0 0 1 0 2.8l-3.8 3.8a2 2 0 0 1-2.8 0L4 10.6V4Zm4.6 3.4a1.3 1.3 0 1 0 0 2.6 1.3 1.3 0 0 0 0-2.6Z",
   more: "M5 12h.01M12 12h.01M19 12h.01",
-  pin: "M9 4h6l-1 6 3 3v2H7v-2l3-3-1-6Z"
+  pin: "M9 4h6l-1 6 3 3v2H7v-2l3-3-1-6Z",
+  sliders: "M4 7h9m4 0h3M4 17h3m4 0h9M13 4v6m-6 4v6"
 };
 function Glyph({ name, size = 16, stroke = 1.7 }) {
   const d = P[name] || P.doc;
@@ -15522,6 +15560,7 @@ function inlineNodes(text, keyBase, onCite) {
           type: "button",
           className: "nb-inline-cite",
           title: `Open source S${n}`,
+          "data-n": n,
           "aria-label": `Citation ${n} \u2014 open the source`,
           onClick: (e) => {
             e.stopPropagation();
@@ -15719,7 +15758,8 @@ var KIND_ICON = {
   flashcards: "cards",
   quiz: "quiz",
   slides: "slides",
-  infographic: "chart"
+  infographic: "chart",
+  data_table: "grid"
 };
 var SRC_ICON = {
   url: "globe",
@@ -15847,13 +15887,13 @@ function App() {
     }
     persist.set("__open", "");
   }, [notebook]);
-  const generate = (0, import_react.useCallback)(async (kind) => {
+  const generate = (0, import_react.useCallback)(async (kind, opts) => {
     if (!notebook) return;
     setBusy((b) => ({ ...b, [kind]: Date.now() }));
     try {
       await api("/generate", {
         method: "POST",
-        body: { notebook: notebook.id, kind, length: "short" },
+        body: { notebook: notebook.id, kind, length: "short", ...opts || {} },
         timeoutMs: 24e4
       });
       const fresh = await studio.reload(true);
@@ -16791,6 +16831,9 @@ function Chat({ notebook, askOpen, onSay, modelReady, onCite, onOpenSource, onFi
   const [pending, setPending] = (0, import_react.useState)(null);
   const [ov, setOv] = (0, import_react.useState)("");
   const [sugg, setSugg] = (0, import_react.useState)(null);
+  const [cfgOpen, setCfgOpen] = (0, import_react.useState)(false);
+  const [cfg, setCfg] = (0, import_react.useState)({});
+  const [cfgBusy, setCfgBusy] = (0, import_react.useState)(false);
   const threadRef = (0, import_react.useRef)(null);
   const boxRef = (0, import_react.useRef)(null);
   const stats = notebook.stats || {};
@@ -16984,7 +17027,7 @@ ${e.message || e}`,
           }))
         ) : null
       ) : null,
-      msgs.map((m) => (0, import_jsx_runtime.jsx)(Msg, { msg: m, onCite, onOpenSource }, m.k)),
+      msgs.map((m) => (0, import_jsx_runtime.jsx)(Msg, { msg: m, onCite, onOpenSource, notebook }, m.k)),
       pending ? el(
         "div",
         { className: "nb-msg", "data-role": "assistant" },
@@ -17038,6 +17081,19 @@ ${e.message || e}`,
             title: `${activeCount} of ${stats.sources || 0} sources are in context`,
             children: `${activeCount} source${activeCount === 1 ? "" : "s"}`
           }),
+          (0, import_jsx_runtime.jsx)(IconBtn, {
+            icon: "sliders",
+            label: "Configure chat",
+            onClick: () => {
+              const o = notebook.options || {};
+              setCfg({
+                chat_style: o.chat_style || "default",
+                chat_length: o.chat_length || "medium",
+                chat_custom: o.chat_custom || ""
+              });
+              setCfgOpen(true);
+            }
+          }),
           el("span", {
             className: "nb-hint",
             style: { marginLeft: "auto" },
@@ -17057,19 +17113,134 @@ ${e.message || e}`,
       el("div", {
         className: "nb-disclaimer",
         children: "Hermes Notebook can make mistakes \u2014 double-check it."
-      })
+      }),
+      cfgOpen ? (0, import_jsx_runtime.jsx)(Dialog, {
+        open: true,
+        title: "Configure chat",
+        onClose: () => setCfgOpen(false),
+        children: el(
+          "div",
+          { style: { display: "grid", gap: "16px" } },
+          el(
+            "div",
+            null,
+            el("div", { className: "nb-meta", style: { marginBottom: "8px" }, children: "Response style" }),
+            (0, import_jsx_runtime.jsx)(Seg, {
+              label: "Response style",
+              fill: true,
+              value: cfg.chat_style || "default",
+              onChange: (v) => setCfg((c) => ({ ...c, chat_style: v })),
+              options: [
+                { id: "default", label: "Default" },
+                { id: "learning_guide", label: "Learning guide" },
+                { id: "custom", label: "Custom" }
+              ]
+            }),
+            cfg.chat_style === "custom" ? el("input", {
+              className: "nb-genopt-text",
+              type: "text",
+              placeholder: "e.g. always end with a checklist",
+              value: cfg.chat_custom || "",
+              onChange: (e) => setCfg((c) => ({ ...c, chat_custom: e.target.value })),
+              style: { marginTop: "8px", width: "100%" }
+            }) : null
+          ),
+          el(
+            "div",
+            null,
+            el("div", { className: "nb-meta", style: { marginBottom: "8px" }, children: "Response length" }),
+            (0, import_jsx_runtime.jsx)(Seg, {
+              label: "Response length",
+              fill: true,
+              value: cfg.chat_length || "medium",
+              onChange: (v) => setCfg((c) => ({ ...c, chat_length: v })),
+              options: [
+                { id: "short", label: "Short" },
+                { id: "medium", label: "Medium" },
+                { id: "long", label: "Long" }
+              ]
+            })
+          ),
+          el(
+            "div",
+            { style: { display: "flex", gap: "8px", justifyContent: "flex-end" } },
+            (0, import_jsx_runtime.jsx)(Btn, { onClick: () => setCfgOpen(false), children: "Cancel" }),
+            (0, import_jsx_runtime.jsx)(Btn, {
+              variant: "primary",
+              disabled: cfgBusy,
+              onClick: async () => {
+                setCfgBusy(true);
+                try {
+                  await api("/options", {
+                    method: "POST",
+                    body: {
+                      notebook: notebook.id,
+                      options: {
+                        chat_style: cfg.chat_style === "custom" ? "custom" : cfg.chat_style,
+                        chat_length: cfg.chat_length,
+                        chat_custom: cfg.chat_style === "custom" ? cfg.chat_custom : ""
+                      }
+                    },
+                    timeoutMs: 3e4
+                  });
+                  setCfgOpen(false);
+                  if (reload) reload();
+                } catch (e) {
+                  onSay && onSay(`could not save chat options: ${e.message || e}`);
+                } finally {
+                  setCfgBusy(false);
+                }
+              },
+              children: "Save"
+            })
+          )
+        )
+      }) : null
     )
   );
 }
-function Msg({ msg, onCite }) {
+var CITE_TEXT_CACHE = /* @__PURE__ */ new Map();
+function Msg({ msg, onCite, notebook }) {
   const isUser = msg.role === "user";
+  const [citePop, setCitePop] = (0, import_react.useState)(null);
+  const citeFor = (n) => (msg.citations || []).find((c) => c.n === n);
+  const onMouseOver = (e) => {
+    const b = e.target && e.target.closest ? e.target.closest(".nb-inline-cite") : null;
+    if (!b || !notebook) return;
+    const n = Number(b.getAttribute("data-n"));
+    const c = citeFor(n);
+    if (!c) return;
+    const r = b.getBoundingClientRect();
+    setCitePop({ n, x: r.left, y: r.bottom + 8, title: c.title, kind: c.kind, id: c.id, text: null, loading: true });
+    const key = `${notebook.id}:${c.id || n}`;
+    if (CITE_TEXT_CACHE.has(key)) {
+      setCitePop((p) => p && p.n === n ? { ...p, text: CITE_TEXT_CACHE.get(key), loading: false } : p);
+      return;
+    }
+    if (!c.id) {
+      setCitePop((p) => p && p.n === n ? { ...p, loading: false } : p);
+      return;
+    }
+    api(`/source_text?${qs({ notebook: notebook.id, id: c.id, chars: 700 })}`, { timeoutMs: 2e4 }).then((out) => {
+      const passage = String(out.text || out.source_text || "").replace(/\s+/g, " ").trim().slice(0, 420);
+      CITE_TEXT_CACHE.set(key, passage);
+      setCitePop((p) => p && p.n === n ? { ...p, text: passage, loading: false } : p);
+    }).catch(() => {
+      CITE_TEXT_CACHE.set(key, "");
+      setCitePop((p) => p && p.n === n ? { ...p, text: "", loading: false } : p);
+    });
+  };
+  const onMouseOut = (e) => {
+    const b = e.target && e.target.closest ? e.target.closest(".nb-inline-cite") : null;
+    if (b) setCitePop(null);
+  };
   return el(
     "div",
     { className: "nb-msg", "data-role": isUser ? "user" : "assistant" },
     isUser ? null : el("span", { className: "nb-avatar", children: "HN" }),
     el(
       "div",
-      { className: "nb-msg-body" },
+      { className: "nb-msg-body", onMouseOver: isUser ? void 0 : onMouseOver, onMouseOut: isUser ? void 0 : onMouseOut },
       isUser ? el(
         "div",
         { className: "nb-bubble" },
@@ -17103,7 +17274,25 @@ function Msg({ msg, onCite }) {
           }))
         ) : null
       )
-    )
+    ),
+    citePop ? el("div", {
+      className: "nb-citepop",
+      role: "tooltip",
+      style: { left: `${Math.min(citePop.x, (typeof window !== "undefined" ? window.innerWidth : 1200) - 340)}px`, top: `${citePop.y}px` },
+      children: [
+        el(
+          "div",
+          { className: "nb-citepop-head" },
+          el("b", { children: `S${citePop.n}` }),
+          el("span", { children: citePop.title || "source" }),
+          citePop.kind ? el("span", { className: "nb-meta", children: citePop.kind }) : null
+        ),
+        el("div", {
+          className: "nb-citepop-body",
+          children: citePop.loading ? "reading the passage\u2026" : citePop.text ? `\u201C${citePop.text}${citePop.text.length >= 420 ? "\u2026" : ""}\u201D` : "passage unavailable \u2014 click the citation to open the source"
+        })
+      ]
+    }) : null
   );
 }
 function SourcePeek({ source, notebook, onClose }) {
@@ -17214,7 +17403,7 @@ function StudioPanel({ kinds, notebook, busy, generate, filter, setFilter, onOpe
             if (a) onOpen(a);
             else generate(k.id);
           },
-          onRegenerate: () => generate(k.id)
+          onGenerate: (opts) => generate(k.id, opts)
         }))
       )
     ),
@@ -17281,8 +17470,13 @@ function StudioPanel({ kinds, notebook, busy, generate, filter, setFilter, onOpe
     )
   );
 }
-function GenPill({ kind, art, started, nbId, onOpen, onRegenerate }) {
+function GenPill({ kind, art, started, nbId, onOpen, onGenerate }) {
   const [, force] = (0, import_react.useState)(0);
+  const [opts, setOpts] = (0, import_react.useState)({});
+  const [cfgOpen, setCfgOpen] = (0, import_react.useState)(false);
+  const [notes, setNotes] = (0, import_react.useState)(null);
+  const [notesBusy, setNotesBusy] = (0, import_react.useState)(false);
+  const optSpecs = kind.options || [];
   (0, import_react.useEffect)(() => {
     if (!started) return void 0;
     const t = setInterval(() => force((n) => n + 1), 1e3);
@@ -17290,45 +17484,142 @@ function GenPill({ kind, art, started, nbId, onOpen, onRegenerate }) {
   }, [started]);
   const secs = started ? Math.max(0, Math.round((Date.now() - started) / 1e3)) : 0;
   const state = started ? `writing \xB7 ${secs}s` : art ? `ready \xB7 ${ago(art.modified)}` : "Generate";
-  return el("button", {
-    type: "button",
-    className: "nb-card",
-    "data-kind": kind.id,
-    "data-ready": art ? "true" : "false",
-    "data-busy": started ? "true" : "false",
-    onClick: started ? void 0 : onOpen,
-    "aria-label": `${kind.label} \u2014 ${state}. ${art ? "Open it" : "Generate it"}`,
-    title: art ? `${kind.label} \xB7 ${art.primary}` : `Generate ${kind.label}`,
-    children: [
-      el(
-        "span",
-        { className: "nb-card-ico", "aria-hidden": "true" },
-        (0, import_jsx_runtime.jsx)(Glyph, { name: KIND_ICON[kind.id] || "doc", size: 15 })
-      ),
-      el(
-        "span",
-        { className: "nb-card-main" },
-        el("span", { className: "nb-card-name", children: kind.label }),
+  const pick = (id, v) => setOpts((o) => ({ ...o, [id]: v }));
+  return el(
+    "div",
+    { className: "nb-gen", "data-kind": kind.id },
+    el("button", {
+      type: "button",
+      className: "nb-card",
+      "data-kind": kind.id,
+      "data-ready": art ? "true" : "false",
+      "data-busy": started ? "true" : "false",
+      onClick: started ? void 0 : art ? onOpen : () => onGenerate(opts),
+      "aria-label": `${kind.label} \u2014 ${state}. ${art ? "Open it" : "Generate it"}`,
+      title: art ? `${kind.label} \xB7 ${art.primary}` : `Generate ${kind.label}`,
+      children: [
         el(
           "span",
-          { className: "nb-card-state" },
-          el("span", {
-            className: "nb-dot",
-            style: { background: started ? "var(--kc)" : art ? T.ok : void 0 }
-          }),
-          started ? `${secs}s` : art ? ago(art.modified) : "generate"
+          { className: "nb-card-ico", "aria-hidden": "true" },
+          (0, import_jsx_runtime.jsx)(Glyph, { name: KIND_ICON[kind.id] || "doc", size: 15 })
         ),
-        started ? el(
+        el(
           "span",
-          { className: "nb-bar-track", style: { marginTop: "2px" } },
-          el("span", {
-            className: "nb-bar-fill",
-            style: { width: `${Math.min(96, 12 + secs * 2.2)}%`, opacity: 0.9 }
-          })
-        ) : null
+          { className: "nb-card-main" },
+          el("span", { className: "nb-card-name", children: kind.label }),
+          el(
+            "span",
+            { className: "nb-card-state" },
+            el("span", {
+              className: "nb-dot",
+              style: { background: started ? "var(--kc)" : art ? T.ok : void 0 }
+            }),
+            started ? `${secs}s` : art ? ago(art.modified) : "generate"
+          ),
+          started ? el(
+            "span",
+            { className: "nb-bar-track", style: { marginTop: "2px" } },
+            el("span", {
+              className: "nb-bar-fill",
+              style: { width: `${Math.min(96, 12 + secs * 2.2)}%`, opacity: 0.9 }
+            })
+          ) : null
+        )
+      ]
+    }),
+    optSpecs.length ? (0, import_jsx_runtime.jsx)(IconBtn, {
+      icon: "sliders",
+      label: `${kind.label} options`,
+      className: "nb-gen-cfg",
+      active: cfgOpen,
+      onClick: () => setCfgOpen((o) => !o)
+    }) : null,
+    cfgOpen && optSpecs.length ? el(
+      "div",
+      { className: "nb-genpop", role: "dialog", "aria-label": `${kind.label} options` },
+      optSpecs.map((spec) => el(
+        "div",
+        { key: spec.id, className: "nb-genopt" },
+        el("div", { className: "nb-genopt-label", children: spec.label }),
+        spec.kind === "text" ? el("input", {
+          className: "nb-genopt-text",
+          type: "text",
+          placeholder: spec.placeholder || "",
+          value: opts[spec.id] || "",
+          onChange: (e) => pick(spec.id, e.target.value)
+        }) : el(Seg, {
+          value: opts[spec.id] || spec.choices[0],
+          onChange: (v) => pick(spec.id, v),
+          options: spec.choices.map((c) => ({
+            id: c,
+            label: c.replace(/_/g, " ").replace(/\b\w/g, (ch) => ch.toUpperCase())
+          }))
+        })
+      )),
+      kind.id === "video_overview" && nbId ? el(
+        "div",
+        { style: { borderTop: `1px solid ${T.lineSoft}`, paddingTop: "10px", display: "grid", gap: "8px" } },
+        (0, import_jsx_runtime.jsx)(Btn, {
+          size: "sm",
+          icon: "doc",
+          disabled: notesBusy || started,
+          onClick: async () => {
+            setNotesBusy(true);
+            try {
+              const out = await api("/video_notes", {
+                method: "POST",
+                body: { notebook: nbId, style: opts.style || "cinematic", length: opts.length || "short" },
+                timeoutMs: 18e4
+              });
+              setNotes(out);
+            } catch (e) {
+              setNotes({ error: e.message || String(e) });
+            } finally {
+              setNotesBusy(false);
+            }
+          },
+          children: notesBusy ? "Writing script\u2026" : "Review script first"
+        }),
+        notes && !notes.error ? (0, import_jsx_runtime.jsx)(Btn, {
+          size: "sm",
+          variant: "primary",
+          disabled: started,
+          onClick: () => {
+            setCfgOpen(false);
+            onGenerate({ ...opts, notes });
+          },
+          children: `Render with these notes (${(notes.beats || []).length} beats)`
+        }) : null
+      ) : null
+    ) : null,
+    notes ? (0, import_jsx_runtime.jsx)(Dialog, {
+      open: true,
+      title: notes.title || "Video producer notes",
+      onClose: () => setNotes(null),
+      width: 640,
+      children: notes.error ? el("div", { style: { color: T.danger }, children: notes.error }) : el(
+        "div",
+        { style: { display: "grid", gap: "10px" } },
+        el("div", { className: "nb-meta", children: `${(notes.beats || []).length} beats \xB7 ${notes.style} \xB7 ${notes.length}` }),
+        (notes.beats || []).map((b, i) => el(
+          "div",
+          {
+            key: i,
+            style: {
+              border: `1px solid ${T.lineSoft}`,
+              borderRadius: "12px",
+              padding: "10px 12px"
+            }
+          },
+          el("div", {
+            style: { fontSize: "12px", fontWeight: 650, color: T.accent, marginBottom: "4px" },
+            children: `${String(i + 1).padStart(2, "0")} \xB7 ${b.headline || "beat"}`
+          }),
+          el("div", { style: { fontSize: "13px", color: T.text2, lineHeight: 1.5 }, children: b.text })
+        ))
       )
-    ]
-  });
+    }) : null
+  );
 }
 function ArtThumb({ run, nbId }) {
   const ext = String(run.ext || (run.primary || "").split(".").pop() || "").toLowerCase();
@@ -18011,6 +18302,8 @@ function Viewer({ artifact, notebook, onCite }) {
     body = (0, import_jsx_runtime.jsx)(SlidesView, { data: asJson.json, text: primary.text, htmlUrl: primary.url && artifact.ext === "html" ? primary.url : "" });
   } else if (artifact.kind === "infographic") {
     body = (0, import_jsx_runtime.jsx)(InfographicView, { src: primary.url, data: asJson.json });
+  } else if (artifact.kind === "data_table") {
+    body = (0, import_jsx_runtime.jsx)(DataTableView, { text: primary.text, name: artifact.primary });
   } else if (artifact.kind === "timeline") {
     body = (0, import_jsx_runtime.jsx)(TimelineView, { text: primary.text, onCite });
   } else {
@@ -18772,6 +19065,105 @@ function InfographicView({ src, data }) {
         el("span", { className: "nb-hint", children: `${Math.round(zoom * 100)}%` }),
         el("span", { style: { flex: 1 } }),
         data && data.takeaway ? el("span", { className: "nb-chip", "data-tone": "accent", children: data.takeaway }) : null
+      )
+    )
+  );
+}
+function parseCsv(text) {
+  const rows = [];
+  let row = [], cell = "", inQ = false;
+  const s = String(text || "");
+  for (let i = 0; i < s.length; i += 1) {
+    const ch = s[i];
+    if (inQ) {
+      if (ch === '"') {
+        if (s[i + 1] === '"') {
+          cell += '"';
+          i += 1;
+        } else inQ = false;
+      } else cell += ch;
+    } else if (ch === '"') inQ = true;
+    else if (ch === ",") {
+      row.push(cell);
+      cell = "";
+    } else if (ch === "\n" || ch === "\r") {
+      if (ch === "\r" && s[i + 1] === "\n") i += 1;
+      row.push(cell);
+      cell = "";
+      if (row.some((c) => c !== "")) rows.push(row);
+      row = [];
+    } else cell += ch;
+  }
+  if (cell !== "" || row.length) {
+    row.push(cell);
+    if (row.some((c) => c !== "")) rows.push(row);
+  }
+  return rows;
+}
+function DataTableView({ text, name }) {
+  const rows = (0, import_react.useMemo)(() => parseCsv(text), [text]);
+  const [sort, setSort] = (0, import_react.useState)({ col: -1, dir: 1 });
+  const head = rows[0] || [];
+  const body = rows.slice(1);
+  const shown = (0, import_react.useMemo)(() => {
+    if (sort.col < 0) return body;
+    const i = sort.col;
+    return [...body].sort((a, b) => {
+      const x = String(a[i] || ""), y = String(b[i] || "");
+      const nx = Number(x.replace(/[^0-9.\-]/g, "")), ny = Number(y.replace(/[^0-9.\-]/g, ""));
+      const c = !Number.isNaN(nx) && !Number.isNaN(ny) && x !== "" && y !== "" ? nx - ny : x.localeCompare(y);
+      return c * sort.dir;
+    });
+  }, [body, sort]);
+  const exportCsv = () => {
+    const blob = new Blob([text || ""], { type: "text/csv" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = name || "table.csv";
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 4e3);
+  };
+  if (!head.length) {
+    return el("div", { className: "nb-view-body" }, el("div", { className: "nb-hint", children: "empty table" }));
+  }
+  return el(
+    "div",
+    { className: "nb-view-body" },
+    el(
+      "div",
+      { style: { display: "flex", alignItems: "center", gap: "10px", marginBottom: "12px" } },
+      el("span", { className: "nb-meta", children: `${body.length} rows \xD7 ${head.length} columns` }),
+      el("span", { style: { flex: 1 } }),
+      (0, import_jsx_runtime.jsx)(Btn, { size: "sm", icon: "download", onClick: exportCsv, children: "Export CSV" })
+    ),
+    el(
+      "div",
+      { className: "nb-dt-wrap" },
+      el(
+        "table",
+        { className: "nb-dt" },
+        el("thead", null, el(
+          "tr",
+          null,
+          head.map((h, i) => el("th", {
+            key: i,
+            onClick: () => setSort((s) => ({ col: i, dir: s.col === i ? -s.dir : 1 })),
+            "aria-sort": sort.col === i ? sort.dir > 0 ? "ascending" : "descending" : "none",
+            children: [h, sort.col === i ? el("span", { className: "nb-dt-arrow", children: sort.dir > 0 ? "\u2191" : "\u2193" }) : null]
+          }, `h${i}`))
+        )),
+        el(
+          "tbody",
+          null,
+          shown.map((r, ri) => el(
+            "tr",
+            { key: `r${ri}` },
+            head.map((_, ci) => el("td", { key: `c${ci}`, children: String(r[ci] || "") }, `c${ci}`))
+          ))
+        )
       )
     )
   );
@@ -19693,7 +20085,7 @@ var plugin = {
 };
 
 // tests/tmp/payloads.mjs
-var STATE = { "ok": true, "generated_at": "2026-11-07T18:38:54Z", "model_ready": false, "notebooks": [{ "id": "business-analyst-job-interview-you-know-thanks", "title": "Business Analyst Job Interview you know. Thanks", "description": "", "updated_at": "2026-11-07T18:34:28+00:00", "sources": 0, "artifacts": 0, "chars": 0 }, { "id": "commercial-fusion-2026", "title": "Commercial Fusion Energy in 2026", "description": "Six sources on the state of commercial fusion: the CRS briefing for Congress, the DOE deployment roadmap, two ITER releases, the IAEA outlook and the reference article.", "updated_at": "2026-11-07T17:53:27+00:00", "sources": 6, "artifacts": 12, "chars": 157369 }, { "id": "smoke-test-notebook", "title": "Scratchpad", "description": "Short sources used to smoke-test labels and artifacts.", "updated_at": "2026-11-07T17:38:11+00:00", "sources": 3, "artifacts": 6, "chars": 24919 }], "notebook": { "id": "commercial-fusion-2026", "title": "Commercial Fusion Energy in 2026", "description": "Six sources on the state of commercial fusion: the CRS briefing for Congress, the DOE deployment roadmap, two ITER releases, the IAEA outlook and the reference article.", "created_at": "2026-11-07T16:36:51+00:00", "updated_at": "2026-11-07T17:53:27+00:00", "sources": [{ "n": 1, "id": "crs-toward-commercial-fusion-energy", "title": "Toward Commercial Fusion Energy: Considerations for Congress (CRS R48866)", "kind": "url", "origin": "https://www.congress.gov/crs_external_products/R/HTML/R48866.html", "chars": 59746, "labels": ["CRS", "policy", "federal funding", "FY2025 budget"], "summary": "Congressional Research Service briefing: fusion physics, the DOE/FES programme ($790M in FY2025), inertial confinement (~$700M), and the policy questions a commercial build-out raises.", "added_at": "2026-11-07T16:36:51+00:00", "refreshed_at": "2026-11-07T17:00:41+00:00" }, { "n": 2, "id": "reuters-us-fusion-roadmap-mid-2030s", "title": "US roadmap targets fusion deployment by mid 2030s - Reuters", "kind": "url", "origin": "https://www.reuters.com/business/energy/us-roadmap-targets-fusion-deployment-by-mid-2030s--reeii-2026-08-25/", "chars": 14406, "labels": ["roadmap", "Reuters", "FIA funding", "engineering gaps"], "summary": "DOE's Fusion Science and Technology Roadmap (June) targets pilot plants by the mid-2030s; industry says it needs >$1B a year. FIA counts $4.48B raised to July 2026 and $14.24B cumulative since 2021.", "added_at": "2026-11-07T16:36:51+00:00", "refreshed_at": "2026-11-07T17:00:41+00:00" }, { "n": 3, "id": "ans-iter-assembly-progress", "title": "ITER reports \u201Csubstantial progress\u201D in assembly and installation work - ANS Nuclear Newswire", "kind": "url", "origin": "https://www.ans.org/news/2026-09-09/article-8375/iter-reports-substantial-progress-in-assembly-and-installation-work/", "chars": 11601, "labels": ["ITER", "assembly", "schedule"], "summary": "ANS Nuclear Newswire on ITER's assembly campaign: sector-module installation running ahead of plan under the accelerated assembly approach.", "added_at": "2026-11-07T16:36:51+00:00", "refreshed_at": "2026-11-07T17:00:41+00:00" }, { "n": 4, "id": "iter-two-thirds-tokamak-core", "title": "Two-thirds of ITER tokamak core now in place - ITER Organization", "kind": "url", "origin": "https://www.iter.org/two-thirds-iter-tokamak-core-now-place", "chars": 6116, "labels": ["ITER", "tokamak", "sector module", "milestone"], "summary": "ITER's own release: sixth of nine sector modules installed on 28 July 2026, ~30 hours of lifting, a 1,100-tonne module, two-thirds of the torus in place, final module due 2027.", "added_at": "2026-11-07T16:36:51+00:00", "refreshed_at": "2026-11-07T17:00:41+00:00" }, { "n": 5, "id": "iaea-world-fusion-outlook-2025", "title": "IAEA World Fusion Outlook 2025 (IAEA/PAT/012)", "kind": "url", "origin": "https://www.iaea.org/publications/15935/iaea-world-fusion-outlook-2025", "chars": 6329, "labels": ["IAEA", "outlook", "global fleet"], "summary": "IAEA's World Fusion Outlook 2025: the international reference on device counts, timelines and the regulatory picture across member states.", "added_at": "2026-11-07T16:36:51+00:00", "refreshed_at": "2026-11-07T17:00:41+00:00" }, { "n": 6, "id": "wikipedia-fusion-power", "title": "Fusion power - Wikipedia", "kind": "url", "origin": "https://en.wikipedia.org/wiki/Fusion_power", "chars": 59171, "labels": ["reference", "confinement", "tritium", "history"], "summary": "Reference article: confinement approaches, tritium breeding, the neutron-damage problem and the historical funding curve.", "added_at": "2026-11-07T16:36:51+00:00", "refreshed_at": "2026-11-07T17:00:41+00:00" }], "artifacts": [{ "key": "20261107-audio_overview", "kind": "audio_overview", "label": "Audio Overview", "group": "media", "primary": "20261107-171108-audio_overview.mp3", "ext": "mp3", "media": true, "bytes": 1118613, "files": [{ "name": "20261107-171108-audio_overview.json", "ext": "json", "size": 4454 }, { "name": "20261107-171108-audio_overview.mp3", "ext": "mp3", "size": 1110764 }, { "name": "20261107-171108-audio_overview.txt", "ext": "txt", "size": 3395 }], "modified": "2026-11-07T17:53:13+00:00" }, { "key": "20261107-video_overview", "kind": "video_overview", "label": "Video Overview", "group": "media", "primary": "20261107-170743-video_overview.mp4", "ext": "mp4", "media": true, "bytes": 1829333, "files": [{ "name": "20261107-170743-video_overview.json", "ext": "json", "size": 2042 }, { "name": "20261107-170743-video_overview.txt", "ext": "txt", "size": 1459 }, { "name": "20261107-170743-video_overview.mp4", "ext": "mp4", "size": 1825832 }], "modified": "2026-11-07T17:53:13+00:00" }, { "key": "20261107-faq", "kind": "faq", "label": "FAQ", "group": "docs", "primary": "20261107-170050-faq.md", "ext": "md", "media": false, "bytes": 1647, "files": [{ "name": "20261107-170050-faq.md", "ext": "md", "size": 1647 }], "modified": "2026-11-07T17:53:13+00:00" }, { "key": "20261107-study_guide", "kind": "study_guide", "label": "Study Guide", "group": "study", "primary": "20261107-170050-study_guide.md", "ext": "md", "media": false, "bytes": 2041, "files": [{ "name": "20261107-170050-study_guide.md", "ext": "md", "size": 2041 }], "modified": "2026-11-07T17:53:13+00:00" }, { "key": "20261107-briefing_doc", "kind": "briefing_doc", "label": "Briefing Doc", "group": "docs", "primary": "20261107-170050-briefing_doc.md", "ext": "md", "media": false, "bytes": 2293, "files": [{ "name": "20261107-170050-briefing_doc.md", "ext": "md", "size": 2293 }], "modified": "2026-11-07T17:53:13+00:00" }, { "key": "20261107-timeline", "kind": "timeline", "label": "Timeline", "group": "docs", "primary": "20261107-170042-timeline.md", "ext": "md", "media": false, "bytes": 1309, "files": [{ "name": "20261107-170042-timeline.md", "ext": "md", "size": 1309 }], "modified": "2026-11-07T17:53:13+00:00" }, { "key": "20261107-infographic", "kind": "infographic", "label": "Infographic", "group": "visual", "primary": "20261107-170042-infographic.png", "ext": "png", "media": true, "bytes": 87390, "files": [{ "name": "20261107-170042-infographic.png", "ext": "png", "size": 86310 }, { "name": "20261107-170041-infographic.json", "ext": "json", "size": 1080 }], "modified": "2026-11-07T17:53:13+00:00" }, { "key": "20261107-slides", "kind": "slides", "label": "Slides", "group": "visual", "primary": "20261107-170041-slides.html", "ext": "html", "media": true, "bytes": 5267, "files": [{ "name": "20261107-170041-slides.html", "ext": "html", "size": 3631 }, { "name": "20261107-170041-slides.json", "ext": "json", "size": 1636 }], "modified": "2026-11-07T17:53:13+00:00" }, { "key": "20261107-quiz", "kind": "quiz", "label": "Quiz", "group": "study", "primary": "20261107-170041-quiz.md", "ext": "md", "media": false, "bytes": 3469, "files": [{ "name": "20261107-170041-quiz.md", "ext": "md", "size": 1498 }, { "name": "20261107-170041-quiz.json", "ext": "json", "size": 1971 }], "modified": "2026-11-07T17:53:13+00:00" }, { "key": "20261107-flashcards", "kind": "flashcards", "label": "Flashcards", "group": "study", "primary": "20261107-170041-flashcards.md", "ext": "md", "media": false, "bytes": 3696, "files": [{ "name": "20261107-170041-flashcards.md", "ext": "md", "size": 1760 }, { "name": "20261107-170041-flashcards.json", "ext": "json", "size": 1936 }], "modified": "2026-11-07T17:53:13+00:00" }, { "key": "20261107-mind_map", "kind": "mind_map", "label": "Mind Map", "group": "visual", "primary": "20261107-170041-mind_map.md", "ext": "md", "media": false, "bytes": 3417, "files": [{ "name": "20261107-170041-mind_map.md", "ext": "md", "size": 1577 }, { "name": "20261107-170041-mind_map.json", "ext": "json", "size": 1840 }], "modified": "2026-11-07T17:53:13+00:00" }, { "key": "20261107-summary", "kind": "summary", "label": "Summary", "group": "docs", "primary": "20261107-170041-summary.md", "ext": "md", "media": false, "bytes": 1955, "files": [{ "name": "20261107-170041-summary.md", "ext": "md", "size": 1955 }], "modified": "2026-11-07T17:53:13+00:00" }], "labels": [{ "label": "ITER", "count": 2 }, { "label": "CRS", "count": 1 }, { "label": "FIA funding", "count": 1 }, { "label": "FY2025 budget", "count": 1 }, { "label": "IAEA", "count": 1 }, { "label": "Reuters", "count": 1 }, { "label": "assembly", "count": 1 }, { "label": "confinement", "count": 1 }, { "label": "engineering gaps", "count": 1 }, { "label": "federal funding", "count": 1 }, { "label": "global fleet", "count": 1 }, { "label": "history", "count": 1 }, { "label": "milestone", "count": 1 }, { "label": "outlook", "count": 1 }, { "label": "policy", "count": 1 }, { "label": "reference", "count": 1 }, { "label": "roadmap", "count": 1 }, { "label": "schedule", "count": 1 }, { "label": "sector module", "count": 1 }, { "label": "tokamak", "count": 1 }, { "label": "tritium", "count": 1 }], "thread": [{ "role": "user", "content": "Where does ITER's machine assembly actually stand?", "ts": "2026-11-07T16:36:51+00:00" }, { "role": "assistant", "content": "As of 29 July 2026 the ITER Organization had installed the sixth of nine tokamak sector modules in the tokamak pit, putting roughly two-thirds of the torus-shaped core in place. The organisation says the milestone landed almost six months ahead of schedule, and the module involved weighed about 1,100 tonnes and was transferred from the Assembly Hall in a coordinated lifting operation. Sources: 'Two-thirds of ITER tokamak core now in place' (ITER, 29 Jul 2026) and ANS Nuclear Newswire's 9 Sep 2026 assembly report.", "ts": "2026-11-07T16:36:51+00:00" }, { "role": "user", "content": "Is the US roadmap to fusion deployment by the mid-2030s credible?", "ts": "2026-11-07T16:36:51+00:00" }, { "role": "assistant", "content": `Reuters (25 Aug 2026) reports the US government launched a strategy to catalyse early-stage fusion plants by the mid-2030s, and that success hinges on more federal funding. Developers point to unsolved engineering: neutron-resistant structural materials, tritium separation and reprocessing, and components that survive constant high-energy neutron flux. Robb Hughes of Realta Fusion framed it as "The plan isn't the problem. We all agree on the plan. The X factor is the funding." The roadmap leans on existing DOE programmes such as Milestone-Based Fusion Development and INFUSE. Treat the timeline as policy intent, not a committed delivery date.`, "ts": "2026-11-07T16:36:51+00:00" }], "stats": { "sources": 6, "chars": 157369, "labels": 21, "unlabeled": 0, "artifacts": 12, "kinds": ["audio_overview", "briefing_doc", "faq", "flashcards", "infographic", "mind_map", "quiz", "slides", "study_guide", "summary", "timeline", "video_overview"] } }, "kinds": [{ "id": "video_overview", "label": "Video Overview", "group": "media", "ext": "mp4", "blurb": "Narrated slideshow, cinematic or explainer", "secs": 60 }, { "id": "audio_overview", "label": "Audio Overview", "group": "media", "ext": "mp3", "blurb": "Two hosts talking through the sources", "secs": 90 }, { "id": "summary", "label": "Summary", "group": "docs", "ext": "md", "blurb": "The notebook in a page", "secs": 12 }, { "id": "briefing_doc", "label": "Briefing Doc", "group": "docs", "ext": "md", "blurb": "Decisions, risks, what to do next", "secs": 18 }, { "id": "study_guide", "label": "Study Guide", "group": "study", "ext": "md", "blurb": "Concepts, questions, answers", "secs": 18 }, { "id": "faq", "label": "FAQ", "group": "docs", "ext": "md", "blurb": "The questions the sources answer", "secs": 14 }, { "id": "timeline", "label": "Timeline", "group": "docs", "ext": "md", "blurb": "Dated events in order", "secs": 14 }, { "id": "mind_map", "label": "Mind Map", "group": "visual", "ext": "md", "blurb": "Radial structure you can pan", "secs": 16 }, { "id": "flashcards", "label": "Flashcards", "group": "study", "ext": "md", "blurb": "Flip deck, Anki-ready export", "secs": 16 }, { "id": "quiz", "label": "Quiz", "group": "study", "ext": "md", "blurb": "Multiple choice with explanations", "secs": 16 }, { "id": "slides", "label": "Slides", "group": "visual", "ext": "html", "blurb": "Self-contained deck, arrow keys", "secs": 22 }, { "id": "infographic", "label": "Infographic", "group": "visual", "ext": "png", "blurb": "One dense poster of the thesis", "secs": 20 }] };
+var STATE = { "ok": true, "generated_at": "2026-11-07T18:38:54Z", "model_ready": false, "notebooks": [{ "id": "business-analyst-job-interview-you-know-thanks", "title": "Business Analyst Job Interview you know. Thanks", "description": "", "updated_at": "2026-11-07T18:34:28+00:00", "sources": 0, "artifacts": 0, "chars": 0 }, { "id": "commercial-fusion-2026", "title": "Commercial Fusion Energy in 2026", "description": "Six sources on the state of commercial fusion: the CRS briefing for Congress, the DOE deployment roadmap, two ITER releases, the IAEA outlook and the reference article.", "updated_at": "2026-11-07T17:53:27+00:00", "sources": 6, "artifacts": 12, "chars": 157369 }, { "id": "smoke-test-notebook", "title": "Scratchpad", "description": "Short sources used to smoke-test labels and artifacts.", "updated_at": "2026-11-07T17:38:11+00:00", "sources": 3, "artifacts": 6, "chars": 24919 }], "notebook": { "id": "commercial-fusion-2026", "title": "Commercial Fusion Energy in 2026", "description": "Six sources on the state of commercial fusion: the CRS briefing for Congress, the DOE deployment roadmap, two ITER releases, the IAEA outlook and the reference article.", "created_at": "2026-11-07T16:36:51+00:00", "updated_at": "2026-11-07T17:53:27+00:00", "sources": [{ "n": 1, "id": "crs-toward-commercial-fusion-energy", "title": "Toward Commercial Fusion Energy: Considerations for Congress (CRS R48866)", "kind": "url", "origin": "https://www.congress.gov/crs_external_products/R/HTML/R48866.html", "chars": 59746, "labels": ["CRS", "policy", "federal funding", "FY2025 budget"], "summary": "Congressional Research Service briefing: fusion physics, the DOE/FES programme ($790M in FY2025), inertial confinement (~$700M), and the policy questions a commercial build-out raises.", "added_at": "2026-11-07T16:36:51+00:00", "refreshed_at": "2026-11-07T17:00:41+00:00" }, { "n": 2, "id": "reuters-us-fusion-roadmap-mid-2030s", "title": "US roadmap targets fusion deployment by mid 2030s - Reuters", "kind": "url", "origin": "https://www.reuters.com/business/energy/us-roadmap-targets-fusion-deployment-by-mid-2030s--reeii-2026-08-25/", "chars": 14406, "labels": ["roadmap", "Reuters", "FIA funding", "engineering gaps"], "summary": "DOE's Fusion Science and Technology Roadmap (June) targets pilot plants by the mid-2030s; industry says it needs >$1B a year. FIA counts $4.48B raised to July 2026 and $14.24B cumulative since 2021.", "added_at": "2026-11-07T16:36:51+00:00", "refreshed_at": "2026-11-07T17:00:41+00:00" }, { "n": 3, "id": "ans-iter-assembly-progress", "title": "ITER reports \u201Csubstantial progress\u201D in assembly and installation work - ANS Nuclear Newswire", "kind": "url", "origin": "https://www.ans.org/news/2026-09-09/article-8375/iter-reports-substantial-progress-in-assembly-and-installation-work/", "chars": 11601, "labels": ["ITER", "assembly", "schedule"], "summary": "ANS Nuclear Newswire on ITER's assembly campaign: sector-module installation running ahead of plan under the accelerated assembly approach.", "added_at": "2026-11-07T16:36:51+00:00", "refreshed_at": "2026-11-07T17:00:41+00:00" }, { "n": 4, "id": "iter-two-thirds-tokamak-core", "title": "Two-thirds of ITER tokamak core now in place - ITER Organization", "kind": "url", "origin": "https://www.iter.org/two-thirds-iter-tokamak-core-now-place", "chars": 6116, "labels": ["ITER", "tokamak", "sector module", "milestone"], "summary": "ITER's own release: sixth of nine sector modules installed on 28 July 2026, ~30 hours of lifting, a 1,100-tonne module, two-thirds of the torus in place, final module due 2027.", "added_at": "2026-11-07T16:36:51+00:00", "refreshed_at": "2026-11-07T17:00:41+00:00" }, { "n": 5, "id": "iaea-world-fusion-outlook-2025", "title": "IAEA World Fusion Outlook 2025 (IAEA/PAT/012)", "kind": "url", "origin": "https://www.iaea.org/publications/15935/iaea-world-fusion-outlook-2025", "chars": 6329, "labels": ["IAEA", "outlook", "global fleet"], "summary": "IAEA's World Fusion Outlook 2025: the international reference on device counts, timelines and the regulatory picture across member states.", "added_at": "2026-11-07T16:36:51+00:00", "refreshed_at": "2026-11-07T17:00:41+00:00" }, { "n": 6, "id": "wikipedia-fusion-power", "title": "Fusion power - Wikipedia", "kind": "url", "origin": "https://en.wikipedia.org/wiki/Fusion_power", "chars": 59171, "labels": ["reference", "confinement", "tritium", "history"], "summary": "Reference article: confinement approaches, tritium breeding, the neutron-damage problem and the historical funding curve.", "added_at": "2026-11-07T16:36:51+00:00", "refreshed_at": "2026-11-07T17:00:41+00:00" }], "artifacts": [{ "key": "20261107-audio_overview", "kind": "audio_overview", "label": "Audio Overview", "group": "media", "primary": "20261107-171108-audio_overview.mp3", "ext": "mp3", "media": true, "bytes": 1118613, "files": [{ "name": "20261107-171108-audio_overview.json", "ext": "json", "size": 4454 }, { "name": "20261107-171108-audio_overview.mp3", "ext": "mp3", "size": 1110764 }, { "name": "20261107-171108-audio_overview.txt", "ext": "txt", "size": 3395 }], "modified": "2026-11-07T17:53:13+00:00" }, { "key": "20261107-video_overview", "kind": "video_overview", "label": "Video Overview", "group": "media", "primary": "20261107-170743-video_overview.mp4", "ext": "mp4", "media": true, "bytes": 1829333, "files": [{ "name": "20261107-170743-video_overview.json", "ext": "json", "size": 2042 }, { "name": "20261107-170743-video_overview.txt", "ext": "txt", "size": 1459 }, { "name": "20261107-170743-video_overview.mp4", "ext": "mp4", "size": 1825832 }], "modified": "2026-11-07T17:53:13+00:00" }, { "key": "20261107-faq", "kind": "faq", "label": "FAQ", "group": "docs", "primary": "20261107-170050-faq.md", "ext": "md", "media": false, "bytes": 1647, "files": [{ "name": "20261107-170050-faq.md", "ext": "md", "size": 1647 }], "modified": "2026-11-07T17:53:13+00:00" }, { "key": "20261107-study_guide", "kind": "study_guide", "label": "Study Guide", "group": "study", "primary": "20261107-170050-study_guide.md", "ext": "md", "media": false, "bytes": 2041, "files": [{ "name": "20261107-170050-study_guide.md", "ext": "md", "size": 2041 }], "modified": "2026-11-07T17:53:13+00:00" }, { "key": "20261107-briefing_doc", "kind": "briefing_doc", "label": "Briefing Doc", "group": "docs", "primary": "20261107-170050-briefing_doc.md", "ext": "md", "media": false, "bytes": 2293, "files": [{ "name": "20261107-170050-briefing_doc.md", "ext": "md", "size": 2293 }], "modified": "2026-11-07T17:53:13+00:00" }, { "key": "20261107-timeline", "kind": "timeline", "label": "Timeline", "group": "docs", "primary": "20261107-170042-timeline.md", "ext": "md", "media": false, "bytes": 1309, "files": [{ "name": "20261107-170042-timeline.md", "ext": "md", "size": 1309 }], "modified": "2026-11-07T17:53:13+00:00" }, { "key": "20261107-infographic", "kind": "infographic", "label": "Infographic", "group": "visual", "primary": "20261107-170042-infographic.png", "ext": "png", "media": true, "bytes": 87390, "files": [{ "name": "20261107-170042-infographic.png", "ext": "png", "size": 86310 }, { "name": "20261107-170041-infographic.json", "ext": "json", "size": 1080 }], "modified": "2026-11-07T17:53:13+00:00" }, { "key": "20261107-slides", "kind": "slides", "label": "Slides", "group": "visual", "primary": "20261107-170041-slides.html", "ext": "html", "media": true, "bytes": 5267, "files": [{ "name": "20261107-170041-slides.html", "ext": "html", "size": 3631 }, { "name": "20261107-170041-slides.json", "ext": "json", "size": 1636 }], "modified": "2026-11-07T17:53:13+00:00" }, { "key": "20261107-quiz", "kind": "quiz", "label": "Quiz", "group": "study", "primary": "20261107-170041-quiz.md", "ext": "md", "media": false, "bytes": 3469, "files": [{ "name": "20261107-170041-quiz.md", "ext": "md", "size": 1498 }, { "name": "20261107-170041-quiz.json", "ext": "json", "size": 1971 }], "modified": "2026-11-07T17:53:13+00:00" }, { "key": "20261107-flashcards", "kind": "flashcards", "label": "Flashcards", "group": "study", "primary": "20261107-170041-flashcards.md", "ext": "md", "media": false, "bytes": 3696, "files": [{ "name": "20261107-170041-flashcards.md", "ext": "md", "size": 1760 }, { "name": "20261107-170041-flashcards.json", "ext": "json", "size": 1936 }], "modified": "2026-11-07T17:53:13+00:00" }, { "key": "20261107-mind_map", "kind": "mind_map", "label": "Mind Map", "group": "visual", "primary": "20261107-170041-mind_map.md", "ext": "md", "media": false, "bytes": 3417, "files": [{ "name": "20261107-170041-mind_map.md", "ext": "md", "size": 1577 }, { "name": "20261107-170041-mind_map.json", "ext": "json", "size": 1840 }], "modified": "2026-11-07T17:53:13+00:00" }, { "key": "20261107-summary", "kind": "summary", "label": "Summary", "group": "docs", "primary": "20261107-170041-summary.md", "ext": "md", "media": false, "bytes": 1955, "files": [{ "name": "20261107-170041-summary.md", "ext": "md", "size": 1955 }], "modified": "2026-11-07T17:53:13+00:00" }], "labels": [{ "label": "ITER", "count": 2 }, { "label": "CRS", "count": 1 }, { "label": "FIA funding", "count": 1 }, { "label": "FY2025 budget", "count": 1 }, { "label": "IAEA", "count": 1 }, { "label": "Reuters", "count": 1 }, { "label": "assembly", "count": 1 }, { "label": "confinement", "count": 1 }, { "label": "engineering gaps", "count": 1 }, { "label": "federal funding", "count": 1 }, { "label": "global fleet", "count": 1 }, { "label": "history", "count": 1 }, { "label": "milestone", "count": 1 }, { "label": "outlook", "count": 1 }, { "label": "policy", "count": 1 }, { "label": "reference", "count": 1 }, { "label": "roadmap", "count": 1 }, { "label": "schedule", "count": 1 }, { "label": "sector module", "count": 1 }, { "label": "tokamak", "count": 1 }, { "label": "tritium", "count": 1 }], "thread": [{ "role": "user", "content": "Where does ITER's machine assembly actually stand?", "ts": "2026-11-07T16:36:51+00:00" }, { "role": "assistant", "content": "As of 29 July 2026 the ITER Organization had installed the sixth of nine tokamak sector modules in the tokamak pit, putting roughly two-thirds of the torus-shaped core in place. The organisation says the milestone landed almost six months ahead of schedule, and the module involved weighed about 1,100 tonnes and was transferred from the Assembly Hall in a coordinated lifting operation. Sources: 'Two-thirds of ITER tokamak core now in place' (ITER, 29 Jul 2026) and ANS Nuclear Newswire's 9 Sep 2026 assembly report.", "ts": "2026-11-07T16:36:51+00:00" }, { "role": "user", "content": "Is the US roadmap to fusion deployment by the mid-2030s credible?", "ts": "2026-11-07T16:36:51+00:00" }, { "role": "assistant", "content": `Reuters (25 Aug 2026) reports the US government launched a strategy to catalyse early-stage fusion plants by the mid-2030s, and that success hinges on more federal funding. Developers point to unsolved engineering: neutron-resistant structural materials, tritium separation and reprocessing, and components that survive constant high-energy neutron flux. Robb Hughes of Realta Fusion framed it as "The plan isn't the problem. We all agree on the plan. The X factor is the funding." The roadmap leans on existing DOE programmes such as Milestone-Based Fusion Development and INFUSE. Treat the timeline as policy intent, not a committed delivery date.`, "ts": "2026-11-07T16:36:51+00:00" }], "stats": { "sources": 6, "chars": 157369, "labels": 21, "unlabeled": 0, "artifacts": 12, "kinds": ["audio_overview", "briefing_doc", "faq", "flashcards", "infographic", "mind_map", "quiz", "slides", "study_guide", "summary", "timeline", "video_overview"] }, "options": {} }, "kinds": [{ "id": "video_overview", "label": "Video Overview", "group": "media", "ext": "mp4", "blurb": "Narrated slideshow, cinematic or explainer", "secs": 60, "options": [{ "id": "style", "label": "Style", "choices": ["cinematic", "explainer"] }, { "id": "length", "label": "Length", "choices": ["short", "medium", "long"] }] }, { "id": "audio_overview", "label": "Audio Overview", "group": "media", "ext": "mp3", "blurb": "Hosts talking through the sources", "secs": 90, "options": [{ "id": "format", "label": "Format", "choices": ["deep_dive", "brief", "critique", "debate"] }, { "id": "length", "label": "Length", "choices": ["short", "medium", "long"] }, { "id": "language", "label": "Language", "kind": "text", "placeholder": "Auto (English)" }] }, { "id": "summary", "label": "Summary", "group": "docs", "ext": "md", "blurb": "The notebook in a page", "secs": 12 }, { "id": "briefing_doc", "label": "Briefing Doc", "group": "docs", "ext": "md", "blurb": "Decisions, risks, what to do next", "secs": 18 }, { "id": "study_guide", "label": "Study Guide", "group": "study", "ext": "md", "blurb": "Concepts, questions, answers", "secs": 18 }, { "id": "faq", "label": "FAQ", "group": "docs", "ext": "md", "blurb": "The questions the sources answer", "secs": 14 }, { "id": "timeline", "label": "Timeline", "group": "docs", "ext": "md", "blurb": "Dated events in order", "secs": 14 }, { "id": "mind_map", "label": "Mind Map", "group": "visual", "ext": "md", "blurb": "Radial structure you can pan", "secs": 16 }, { "id": "flashcards", "label": "Flashcards", "group": "study", "ext": "md", "blurb": "Flip deck, Anki-ready export", "secs": 16 }, { "id": "quiz", "label": "Quiz", "group": "study", "ext": "md", "blurb": "Multiple choice with explanations", "secs": 16 }, { "id": "slides", "label": "Slides", "group": "visual", "ext": "html", "blurb": "Self-contained deck, arrow keys", "secs": 22 }, { "id": "infographic", "label": "Infographic", "group": "visual", "ext": "png", "blurb": "One dense poster of the thesis", "secs": 20, "options": [{ "id": "style", "label": "Style", "choices": ["sections", "poster", "editorial"] }] }, { "id": "data_table", "label": "Data Table", "group": "docs", "ext": "csv", "blurb": "Structured rows, exports to Sheets", "secs": 14 }] };
 var FLEET = {
   "ok": true,
   "measured_at": "2026-11-07 10:43:11 -0600",
@@ -21858,6 +22250,7 @@ var b64 = async (name) => {
       html: "text/html",
       md: "text/markdown",
       txt: "text/plain",
+      csv: "text/csv",
       json: "application/json"
     }[name.split(".").pop().toLowerCase()] || "application/octet-stream",
     b64: btoa(s)
@@ -21988,9 +22381,28 @@ var rest = async (path, opts) => {
     return { ok: true, source: { id: "note-mock", kind: "note" } };
   }
   if (route === "notebook/delete") return { ok: true, deleted: opts && opts.body && opts.body.notebook || "" };
+  if (route === "options") {
+    const body = opts && opts.body || {};
+    if (STATE.notebook) STATE.notebook.options = { ...STATE.notebook.options || {}, ...body.options || {} };
+    return { ok: true, options: STATE.notebook ? STATE.notebook.options : {}, state: STATE.notebook };
+  }
   if (route === "label") {
     await new Promise((r) => setTimeout(r, 900));
     return { ok: true, labeled: [], failed: [], state: STATE };
+  }
+  if (route === "video_notes") {
+    await new Promise((r) => setTimeout(r, 1200));
+    return {
+      ok: true,
+      title: "Fusion, honestly",
+      length: "short",
+      style: "cinematic",
+      beats: [
+        { headline: "The bet", text: "Seventy years of plasma physics just produced a module heavier than a jumbo jet \u2014 and it slid into place ahead of schedule.", palette: "indigo" },
+        { headline: "The math", text: "Two-thirds of the tokamak core is assembled. The remaining sectors are the easy part; the blanket is not.", palette: "crimson" },
+        { headline: "The catch", text: "No defensible cost figure exists yet. Anyone quoting a price per megawatt-hour is guessing.", palette: "amber" }
+      ]
+    };
   }
   if (route === "generate") {
     await new Promise((r) => setTimeout(r, 1500));

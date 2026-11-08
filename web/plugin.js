@@ -599,6 +599,43 @@ const CSS = `
 .nb-nbcard-title{font-size:14.5px;font-weight:650;line-height:1.35;padding-right:28px}
 .nb-nbcard-meta{font-size:11.5px;color:${T.text3};margin-top:8px}
 
+/* generator options popover + citation hover card + data table */
+.nb-gen{position:relative}
+.nb-gen-cfg{position:absolute;top:4px;right:4px;width:32px;height:32px;opacity:0;
+  transition:opacity .15s}
+.nb-gen:hover .nb-gen-cfg,.nb-gen-cfg[data-active="true"]{opacity:1}
+.nb-genpop{position:absolute;top:calc(100% + 6px);left:0;right:0;z-index:30;
+  background:${T.card};border:1px solid ${T.line};border-radius:14px;
+  box-shadow:var(--nb-shadow-lift);padding:12px;display:grid;gap:12px}
+.nb-genopt-label{font-size:11px;font-weight:600;color:${T.text3};margin-bottom:6px;
+  text-transform:uppercase;letter-spacing:.06em}
+.nb-genopt .nb-seg{width:100%}
+.nb-genopt .nb-seg button{flex:1;justify-content:center}
+.nb-genopt-text{width:100%;height:32px;padding:0 10px;border-radius:9px;font-size:13px;
+  border:1px solid ${T.line};background:${T.inset};color:${T.text};outline:none}
+.nb-genopt-text:focus{border-color:color-mix(in srgb,${T.accent} 55%,transparent)}
+
+.nb-citepop{position:fixed;z-index:80;width:320px;max-width:calc(100vw - 32px);
+  background:${T.card};border:1px solid ${T.line};border-radius:14px;
+  box-shadow:var(--nb-shadow-lift);padding:12px 14px;pointer-events:none}
+.nb-citepop-head{display:flex;align-items:center;gap:8px;font-size:12.5px;
+  color:${T.text3};margin-bottom:6px;flex-wrap:wrap}
+.nb-citepop-head b{color:${T.accent};font-weight:700}
+.nb-citepop-body{font-size:13px;line-height:1.55;color:${T.text2};
+  display:-webkit-box;-webkit-line-clamp:5;-webkit-box-orient:vertical;overflow:hidden}
+
+.nb-dt-wrap{overflow:auto;border:1px solid ${T.line};border-radius:14px;
+  background:${T.card}}
+.nb-dt{border-collapse:collapse;width:100%;font-size:13px;min-width:520px}
+.nb-dt th{position:sticky;top:0;background:${T.inset};text-align:left;
+  font-weight:650;font-size:12px;color:${T.text2};padding:10px 14px;
+  border-bottom:1px solid ${T.line};cursor:pointer;user-select:none;white-space:nowrap}
+.nb-dt th:hover{color:${T.text}}
+.nb-dt-arrow{color:${T.accent};margin-left:5px;font-size:11px}
+.nb-dt td{padding:9px 14px;border-bottom:1px solid ${T.lineSoft};color:${T.text2}}
+.nb-dt tbody tr:last-child td{border-bottom:0}
+.nb-dt tbody tr:hover td{background:color-mix(in srgb,${T.accent} 4%,transparent)}
+
 @media (max-width:1280px){
   .nb-root{--nb-rail:250px; --nb-studio:320px}
   .nb-body{padding:10px;gap:10px}
@@ -721,7 +758,8 @@ const P = {
   stop: 'M7 7h10v10H7V7Z',
   tag: 'M4 4h6.6L20 13.4a2 2 0 0 1 0 2.8l-3.8 3.8a2 2 0 0 1-2.8 0L4 10.6V4Zm4.6 3.4a1.3 1.3 0 1 0 0 2.6 1.3 1.3 0 0 0 0-2.6Z',
   more: 'M5 12h.01M12 12h.01M19 12h.01',
-  pin: 'M9 4h6l-1 6 3 3v2H7v-2l3-3-1-6Z'
+  pin: 'M9 4h6l-1 6 3 3v2H7v-2l3-3-1-6Z',
+  sliders: 'M4 7h9m4 0h3M4 17h3m4 0h9M13 4v6m-6 4v6'
 }
 
 function Glyph({ name, size = 16, stroke = 1.7 }) {
@@ -901,6 +939,7 @@ function inlineNodes(text, keyBase, onCite) {
       if (onCite) {
         out.push(el('button', {
           type: 'button', className: 'nb-inline-cite', title: `Open source S${n}`,
+          'data-n': n,
           'aria-label': `Citation ${n} — open the source`,
           onClick: (e) => { e.stopPropagation(); onCite(n) },
           children: tok
@@ -1076,7 +1115,7 @@ const KIND_ICON = {
   video_overview: 'video', audio_overview: 'audio', summary: 'summary',
   briefing_doc: 'doc', study_guide: 'study', faq: 'faq', timeline: 'timeline',
   mind_map: 'mindmap', flashcards: 'cards', quiz: 'quiz', slides: 'slides',
-  infographic: 'chart'
+  infographic: 'chart', data_table: 'grid'
 }
 
 const SRC_ICON = {
@@ -1172,13 +1211,13 @@ function App() {
     persist.set('__open', '')
   }, [notebook])
 
-  const generate = useCallback(async (kind) => {
+  const generate = useCallback(async (kind, opts) => {
     if (!notebook) return
     setBusy((b) => ({ ...b, [kind]: Date.now() }))
     try {
       await api('/generate', {
         method: 'POST',
-        body: { notebook: notebook.id, kind, length: 'short' },
+        body: { notebook: notebook.id, kind, length: 'short', ...(opts || {}) },
         timeoutMs: 240000
       })
       const fresh = await studio.reload(true)
@@ -1855,6 +1894,9 @@ function Chat({ notebook, askOpen, onSay, modelReady, onCite, onOpenSource, onFi
   const [pending, setPending] = useState(null)
   const [ov, setOv] = useState('')
   const [sugg, setSugg] = useState(null)
+  const [cfgOpen, setCfgOpen] = useState(false)
+  const [cfg, setCfg] = useState({})
+  const [cfgBusy, setCfgBusy] = useState(false)
   const threadRef = useRef(null)
   const boxRef = useRef(null)
   const stats = notebook.stats || {}
@@ -2006,7 +2048,7 @@ function Chat({ notebook, askOpen, onSay, modelReady, onCite, onOpenSource, onFi
                   })))
               : null)
         : null,
-      msgs.map((m) => jsx(Msg, { msg: m, onCite, onOpenSource }, m.k)),
+      msgs.map((m) => jsx(Msg, { msg: m, onCite, onOpenSource, notebook }, m.k)),
       pending
         ? el('div', { className: 'nb-msg', 'data-role': 'assistant' },
             el('span', { className: 'nb-avatar', children: 'HN' }),
@@ -2038,6 +2080,18 @@ function Chat({ notebook, askOpen, onSay, modelReady, onCite, onOpenSource, onFi
             title: `${activeCount} of ${stats.sources || 0} sources are in context`,
             children: `${activeCount} source${activeCount === 1 ? '' : 's'}`
           }),
+          jsx(IconBtn, {
+            icon: 'sliders', label: 'Configure chat',
+            onClick: () => {
+              const o = notebook.options || {}
+              setCfg({
+                chat_style: o.chat_style || 'default',
+                chat_length: o.chat_length || 'medium',
+                chat_custom: o.chat_custom || ''
+              })
+              setCfgOpen(true)
+            }
+          }),
           el('span', { className: 'nb-hint', style: { marginLeft: 'auto' },
             children: modelReady ? '⏎ send · ⇧⏎ newline' : 'model offline — enable the plugin and restart the gateway' }),
           el('button', {
@@ -2049,16 +2103,122 @@ function Chat({ notebook, askOpen, onSay, modelReady, onCite, onOpenSource, onFi
           }))
       ),
       el('div', { className: 'nb-disclaimer',
-        children: 'Hermes Notebook can make mistakes — double-check it.' })
+        children: 'Hermes Notebook can make mistakes — double-check it.' }),
+      cfgOpen
+        ? jsx(Dialog, {
+            open: true,
+            title: 'Configure chat',
+            onClose: () => setCfgOpen(false),
+            children: el('div', { style: { display: 'grid', gap: '16px' } },
+              el('div', null,
+                el('div', { className: 'nb-meta', style: { marginBottom: '8px' }, children: 'Response style' }),
+                jsx(Seg, {
+                  label: 'Response style', fill: true,
+                  value: cfg.chat_style || 'default',
+                  onChange: (v) => setCfg((c) => ({ ...c, chat_style: v })),
+                  options: [
+                    { id: 'default', label: 'Default' },
+                    { id: 'learning_guide', label: 'Learning guide' },
+                    { id: 'custom', label: 'Custom' }
+                  ]
+                }),
+                cfg.chat_style === 'custom'
+                  ? el('input', {
+                      className: 'nb-genopt-text', type: 'text',
+                      placeholder: 'e.g. always end with a checklist',
+                      value: cfg.chat_custom || '',
+                      onChange: (e) => setCfg((c) => ({ ...c, chat_custom: e.target.value })),
+                      style: { marginTop: '8px', width: '100%' }
+                    })
+                  : null),
+              el('div', null,
+                el('div', { className: 'nb-meta', style: { marginBottom: '8px' }, children: 'Response length' }),
+                jsx(Seg, {
+                  label: 'Response length', fill: true,
+                  value: cfg.chat_length || 'medium',
+                  onChange: (v) => setCfg((c) => ({ ...c, chat_length: v })),
+                  options: [
+                    { id: 'short', label: 'Short' },
+                    { id: 'medium', label: 'Medium' },
+                    { id: 'long', label: 'Long' }
+                  ]
+                })),
+              el('div', { style: { display: 'flex', gap: '8px', justifyContent: 'flex-end' } },
+                jsx(Btn, { onClick: () => setCfgOpen(false), children: 'Cancel' }),
+                jsx(Btn, {
+                  variant: 'primary', disabled: cfgBusy,
+                  onClick: async () => {
+                    setCfgBusy(true)
+                    try {
+                      await api('/options', {
+                        method: 'POST',
+                        body: {
+                          notebook: notebook.id,
+                          options: {
+                            chat_style: cfg.chat_style === 'custom' ? 'custom' : cfg.chat_style,
+                            chat_length: cfg.chat_length,
+                            chat_custom: cfg.chat_style === 'custom' ? cfg.chat_custom : ''
+                          }
+                        },
+                        timeoutMs: 30000
+                      })
+                      setCfgOpen(false)
+                      if (reload) reload()
+                    } catch (e) {
+                      onSay && onSay(`could not save chat options: ${e.message || e}`)
+                    } finally {
+                      setCfgBusy(false)
+                    }
+                  },
+                  children: 'Save'
+                })))
+            })
+        : null
     )
   )
 }
 
-function Msg({ msg, onCite }) {
+const CITE_TEXT_CACHE = new Map()
+
+function Msg({ msg, onCite, notebook }) {
   const isUser = msg.role === 'user'
+  const [citePop, setCitePop] = useState(null)
+
+  const citeFor = (n) => (msg.citations || []).find((c) => c.n === n)
+
+  const onMouseOver = (e) => {
+    const b = e.target && e.target.closest ? e.target.closest('.nb-inline-cite') : null
+    if (!b || !notebook) return
+    const n = Number(b.getAttribute('data-n'))
+    const c = citeFor(n)
+    if (!c) return
+    const r = b.getBoundingClientRect()
+    setCitePop({ n, x: r.left, y: r.bottom + 8, title: c.title, kind: c.kind, id: c.id, text: null, loading: true })
+    const key = `${notebook.id}:${c.id || n}`
+    if (CITE_TEXT_CACHE.has(key)) {
+      setCitePop((p) => (p && p.n === n ? { ...p, text: CITE_TEXT_CACHE.get(key), loading: false } : p))
+      return
+    }
+    if (!c.id) { setCitePop((p) => (p && p.n === n ? { ...p, loading: false } : p)); return }
+    api(`/source_text?${qs({ notebook: notebook.id, id: c.id, chars: 700 })}`, { timeoutMs: 20000 })
+      .then((out) => {
+        const passage = String(out.text || out.source_text || '').replace(/\s+/g, ' ').trim().slice(0, 420)
+        CITE_TEXT_CACHE.set(key, passage)
+        setCitePop((p) => (p && p.n === n ? { ...p, text: passage, loading: false } : p))
+      })
+      .catch(() => {
+        CITE_TEXT_CACHE.set(key, '')
+        setCitePop((p) => (p && p.n === n ? { ...p, text: '', loading: false } : p))
+      })
+  }
+  const onMouseOut = (e) => {
+    const b = e.target && e.target.closest ? e.target.closest('.nb-inline-cite') : null
+    if (b) setCitePop(null)
+  }
+
   return el('div', { className: 'nb-msg', 'data-role': isUser ? 'user' : 'assistant' },
     isUser ? null : el('span', { className: 'nb-avatar', children: 'HN' }),
-    el('div', { className: 'nb-msg-body' },
+    el('div', { className: 'nb-msg-body', onMouseOver: isUser ? undefined : onMouseOver, onMouseOut: isUser ? undefined : onMouseOut },
       isUser
         ? el('div', { className: 'nb-bubble' },
             el('div', { className: 'nb-who', children: 'You' }),
@@ -2078,7 +2238,25 @@ function Msg({ msg, onCite }) {
                     'aria-label': `Citation ${c.n} — ${c.title}`,
                     children: [el('b', { children: `S${c.n}` }), el('span', { children: c.title })]
                   })))
-              : null))
+              : null)),
+    citePop
+      ? el('div', {
+          className: 'nb-citepop', role: 'tooltip',
+          style: { left: `${Math.min(citePop.x, (typeof window !== 'undefined' ? window.innerWidth : 1200) - 340)}px`, top: `${citePop.y}px` },
+          children: [
+            el('div', { className: 'nb-citepop-head' },
+              el('b', { children: `S${citePop.n}` }),
+              el('span', { children: citePop.title || 'source' }),
+              citePop.kind ? el('span', { className: 'nb-meta', children: citePop.kind }) : null),
+            el('div', { className: 'nb-citepop-body',
+              children: citePop.loading
+                ? 'reading the passage…'
+                : citePop.text
+                  ? `“${citePop.text}${citePop.text.length >= 420 ? '…' : ''}”`
+                  : 'passage unavailable — click the citation to open the source' })
+          ]
+        })
+      : null
   )
 }
 
@@ -2171,7 +2349,7 @@ function StudioPanel({ kinds, notebook, busy, generate, filter, setFilter, onOpe
           key: k.id, kind: k, art: ready[k.id], started: busy[k.id],
           nbId: notebook && notebook.id,
           onOpen: () => { const a = ready[k.id]; if (a) onOpen(a); else generate(k.id) },
-          onRegenerate: () => generate(k.id)
+          onGenerate: (opts) => generate(k.id, opts)
         })))),
     el('div', { className: 'nb-pad', style: { paddingTop: '10px', paddingBottom: '4px', borderTop: `1px solid ${T.lineSoft}` } },
       el('div', { style: { display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' } },
@@ -2212,8 +2390,13 @@ function StudioPanel({ kinds, notebook, busy, generate, filter, setFilter, onOpe
   )
 }
 
-function GenPill({ kind, art, started, nbId, onOpen, onRegenerate }) {
+function GenPill({ kind, art, started, nbId, onOpen, onGenerate }) {
   const [, force] = useState(0)
+  const [opts, setOpts] = useState({})
+  const [cfgOpen, setCfgOpen] = useState(false)
+  const [notes, setNotes] = useState(null)
+  const [notesBusy, setNotesBusy] = useState(false)
+  const optSpecs = kind.options || []
   useEffect(() => {
     if (!started) return undefined
     const t = setInterval(() => force((n) => n + 1), 1000)
@@ -2221,33 +2404,109 @@ function GenPill({ kind, art, started, nbId, onOpen, onRegenerate }) {
   }, [started])
   const secs = started ? Math.max(0, Math.round((Date.now() - started) / 1000)) : 0
   const state = started ? `writing · ${secs}s` : art ? `ready · ${ago(art.modified)}` : 'Generate'
-  return el('button', {
-    type: 'button', className: 'nb-card',
-    'data-kind': kind.id,
-    'data-ready': art ? 'true' : 'false', 'data-busy': started ? 'true' : 'false',
-    onClick: started ? undefined : onOpen,
-    'aria-label': `${kind.label} — ${state}. ${art ? 'Open it' : 'Generate it'}`,
-    title: art ? `${kind.label} · ${art.primary}` : `Generate ${kind.label}`,
-    children: [
-      el('span', { className: 'nb-card-ico', 'aria-hidden': 'true' },
-        jsx(Glyph, { name: KIND_ICON[kind.id] || 'doc', size: 15 })),
-      el('span', { className: 'nb-card-main' },
-        el('span', { className: 'nb-card-name', children: kind.label }),
-        el('span', { className: 'nb-card-state' },
-          el('span', {
-            className: 'nb-dot',
-            style: { background: started ? 'var(--kc)' : art ? T.ok : undefined }
-          }),
-          started ? `${secs}s` : art ? ago(art.modified) : 'generate'),
-        started
-          ? el('span', { className: 'nb-bar-track', style: { marginTop: '2px' } },
-              el('span', {
-                className: 'nb-bar-fill',
-                style: { width: `${Math.min(96, 12 + secs * 2.2)}%`, opacity: 0.9 }
-              }))
-          : null)
-    ]
-  })
+  const pick = (id, v) => setOpts((o) => ({ ...o, [id]: v }))
+  return el('div', { className: 'nb-gen', 'data-kind': kind.id },
+    el('button', {
+      type: 'button', className: 'nb-card',
+      'data-kind': kind.id,
+      'data-ready': art ? 'true' : 'false', 'data-busy': started ? 'true' : 'false',
+      onClick: started ? undefined : (art ? onOpen : () => onGenerate(opts)),
+      'aria-label': `${kind.label} — ${state}. ${art ? 'Open it' : 'Generate it'}`,
+      title: art ? `${kind.label} · ${art.primary}` : `Generate ${kind.label}`,
+      children: [
+        el('span', { className: 'nb-card-ico', 'aria-hidden': 'true' },
+          jsx(Glyph, { name: KIND_ICON[kind.id] || 'doc', size: 15 })),
+        el('span', { className: 'nb-card-main' },
+          el('span', { className: 'nb-card-name', children: kind.label }),
+          el('span', { className: 'nb-card-state' },
+            el('span', {
+              className: 'nb-dot',
+              style: { background: started ? 'var(--kc)' : art ? T.ok : undefined }
+            }),
+            started ? `${secs}s` : art ? ago(art.modified) : 'generate'),
+          started
+            ? el('span', { className: 'nb-bar-track', style: { marginTop: '2px' } },
+                el('span', {
+                  className: 'nb-bar-fill',
+                  style: { width: `${Math.min(96, 12 + secs * 2.2)}%`, opacity: 0.9 }
+                }))
+            : null)
+      ]
+    }),
+    optSpecs.length
+      ? jsx(IconBtn, {
+          icon: 'sliders', label: `${kind.label} options`,
+          className: 'nb-gen-cfg', active: cfgOpen,
+          onClick: () => setCfgOpen((o) => !o)
+        })
+      : null,
+    cfgOpen && optSpecs.length
+      ? el('div', { className: 'nb-genpop', role: 'dialog', 'aria-label': `${kind.label} options` },
+          optSpecs.map((spec) => el('div', { key: spec.id, className: 'nb-genopt' },
+            el('div', { className: 'nb-genopt-label', children: spec.label }),
+            spec.kind === 'text'
+              ? el('input', {
+                  className: 'nb-genopt-text', type: 'text',
+                  placeholder: spec.placeholder || '',
+                  value: opts[spec.id] || '',
+                  onChange: (e) => pick(spec.id, e.target.value)
+                })
+              : el(Seg, {
+                  value: opts[spec.id] || spec.choices[0],
+                  onChange: (v) => pick(spec.id, v),
+                  options: spec.choices.map((c) => ({
+                    id: c, label: c.replace(/_/g, ' ').replace(/\b\w/g, (ch) => ch.toUpperCase())
+                  }))
+                }))),
+          kind.id === 'video_overview' && nbId
+            ? el('div', { style: { borderTop: `1px solid ${T.lineSoft}`, paddingTop: '10px', display: 'grid', gap: '8px' } },
+                jsx(Btn, {
+                  size: 'sm', icon: 'doc', disabled: notesBusy || started,
+                  onClick: async () => {
+                    setNotesBusy(true)
+                    try {
+                      const out = await api('/video_notes', {
+                        method: 'POST',
+                        body: { notebook: nbId, style: opts.style || 'cinematic', length: opts.length || 'short' },
+                        timeoutMs: 180000
+                      })
+                      setNotes(out)
+                    } catch (e) {
+                      setNotes({ error: e.message || String(e) })
+                    } finally {
+                      setNotesBusy(false)
+                    }
+                  },
+                  children: notesBusy ? 'Writing script…' : 'Review script first'
+                }),
+                notes && !notes.error
+                  ? jsx(Btn, {
+                      size: 'sm', variant: 'primary', disabled: started,
+                      onClick: () => { setCfgOpen(false); onGenerate({ ...opts, notes }) },
+                      children: `Render with these notes (${(notes.beats || []).length} beats)`
+                    })
+                  : null)
+            : null)
+      : null,
+    notes
+      ? jsx(Dialog, {
+          open: true, title: notes.title || 'Video producer notes',
+          onClose: () => setNotes(null), width: 640,
+          children: notes.error
+            ? el('div', { style: { color: T.danger }, children: notes.error })
+            : el('div', { style: { display: 'grid', gap: '10px' } },
+                el('div', { className: 'nb-meta', children: `${(notes.beats || []).length} beats · ${notes.style} · ${notes.length}` }),
+                (notes.beats || []).map((b, i) => el('div', {
+                  key: i, style: {
+                    border: `1px solid ${T.lineSoft}`, borderRadius: '12px', padding: '10px 12px'
+                  }
+                },
+                  el('div', { style: { fontSize: '12px', fontWeight: 650, color: T.accent, marginBottom: '4px' },
+                    children: `${String(i + 1).padStart(2, '0')} · ${b.headline || 'beat'}` }),
+                  el('div', { style: { fontSize: '13px', color: T.text2, lineHeight: 1.5 }, children: b.text }))))
+        })
+      : null
+  )
 }
 
 /* ------------------------------------------------------------- art thumbs
@@ -2755,6 +3014,8 @@ function Viewer({ artifact, notebook, onCite }) {
     body = jsx(SlidesView, { data: asJson.json, text: primary.text, htmlUrl: primary.url && artifact.ext === 'html' ? primary.url : '' })
   } else if (artifact.kind === 'infographic') {
     body = jsx(InfographicView, { src: primary.url, data: asJson.json })
+  } else if (artifact.kind === 'data_table') {
+    body = jsx(DataTableView, { text: primary.text, name: artifact.primary })
   } else if (artifact.kind === 'timeline') {
     body = jsx(TimelineView, { text: primary.text, onCite })
   } else {
@@ -3336,6 +3597,76 @@ function InfographicView({ src, data }) {
         el('span', { style: { flex: 1 } }),
         data && data.takeaway ? el('span', { className: 'nb-chip', 'data-tone': 'accent', children: data.takeaway }) : null))
   )
+}
+
+/* ----------------------------------------------------------- data table */
+
+function parseCsv(text) {
+  const rows = []
+  let row = [], cell = '', inQ = false
+  const s = String(text || '')
+  for (let i = 0; i < s.length; i += 1) {
+    const ch = s[i]
+    if (inQ) {
+      if (ch === '"') {
+        if (s[i + 1] === '"') { cell += '"'; i += 1 } else inQ = false
+      } else cell += ch
+    } else if (ch === '"') inQ = true
+    else if (ch === ',') { row.push(cell); cell = '' }
+    else if (ch === '\n' || ch === '\r') {
+      if (ch === '\r' && s[i + 1] === '\n') i += 1
+      row.push(cell); cell = ''
+      if (row.some((c) => c !== '')) rows.push(row)
+      row = []
+    } else cell += ch
+  }
+  if (cell !== '' || row.length) { row.push(cell); if (row.some((c) => c !== '')) rows.push(row) }
+  return rows
+}
+
+function DataTableView({ text, name }) {
+  const rows = useMemo(() => parseCsv(text), [text])
+  const [sort, setSort] = useState({ col: -1, dir: 1 })
+  const head = rows[0] || []
+  const body = rows.slice(1)
+  const shown = useMemo(() => {
+    if (sort.col < 0) return body
+    const i = sort.col
+    return [...body].sort((a, b) => {
+      const x = String(a[i] || ''), y = String(b[i] || '')
+      const nx = Number(x.replace(/[^0-9.\-]/g, '')), ny = Number(y.replace(/[^0-9.\-]/g, ''))
+      const c = (!Number.isNaN(nx) && !Number.isNaN(ny) && x !== '' && y !== '')
+        ? nx - ny : x.localeCompare(y)
+      return c * sort.dir
+    })
+  }, [body, sort])
+  const exportCsv = () => {
+    const blob = new Blob([text || ''], { type: 'text/csv' })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url; a.download = name || 'table.csv'
+    document.body.appendChild(a); a.click(); a.remove()
+    setTimeout(() => URL.revokeObjectURL(url), 4000)
+  }
+  if (!head.length) {
+    return el('div', { className: 'nb-view-body' }, el('div', { className: 'nb-hint', children: 'empty table' }))
+  }
+  return el('div', { className: 'nb-view-body' },
+    el('div', { style: { display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '12px' } },
+      el('span', { className: 'nb-meta', children: `${body.length} rows × ${head.length} columns` }),
+      el('span', { style: { flex: 1 } }),
+      jsx(Btn, { size: 'sm', icon: 'download', onClick: exportCsv, children: 'Export CSV' })),
+    el('div', { className: 'nb-dt-wrap' },
+      el('table', { className: 'nb-dt' },
+        el('thead', null, el('tr', null,
+          head.map((h, i) => el('th', {
+            key: i, onClick: () => setSort((s) => ({ col: i, dir: s.col === i ? -s.dir : 1 })),
+            'aria-sort': sort.col === i ? (sort.dir > 0 ? 'ascending' : 'descending') : 'none',
+            children: [h, sort.col === i ? el('span', { className: 'nb-dt-arrow', children: sort.dir > 0 ? '↑' : '↓' }) : null]
+          }, `h${i}`)))),
+        el('tbody', null,
+          shown.map((r, ri) => el('tr', { key: `r${ri}` },
+            head.map((_, ci) => el('td', { key: `c${ci}`, children: String(r[ci] || '') }, `c${ci}`))))))))
 }
 
 /* ------------------------------------------------------------- timeline */

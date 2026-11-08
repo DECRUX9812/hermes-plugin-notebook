@@ -83,7 +83,8 @@ NOTEBOOK_GENERATE = {
         "notebook": _NB,
         "kind": {"type": "string",
                  "enum": ["summary", "briefing_doc", "study_guide", "faq", "timeline",
-                          "mind_map", "flashcards", "quiz", "slides", "infographic"]},
+                          "mind_map", "flashcards", "quiz", "slides", "infographic",
+                          "data_table"]},
         "focus": {"type": "string",
                   "description": "Optional focus/topic for the artifact (e.g. 'only the pricing sections')"},
         "count_hint": {"type": "string",
@@ -105,6 +106,14 @@ NOTEBOOK_AUDIO = {
         "notebook": _NB,
         "length": {"type": "string", "enum": ["short", "medium", "long"],
                    "description": "short ≈5min, medium ≈10min (default), long ≈18min"},
+        "format": {"type": "string",
+                   "enum": ["deep_dive", "brief", "critique", "debate"],
+                   "description": "deep_dive = two-host conversation (default); "
+                                  "brief = single narrator, tight summary; "
+                                  "critique = critical review of the sources; "
+                                  "debate = two hosts argue pro/con grounded in sources"},
+        "language": {"type": "string",
+                     "description": "Optional language for the script (e.g. 'Spanish')"},
         "focus": {"type": "string", "description": "Optional episode focus"},
     }},
 }

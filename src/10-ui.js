@@ -52,7 +52,8 @@ const P = {
   stop: 'M7 7h10v10H7V7Z',
   tag: 'M4 4h6.6L20 13.4a2 2 0 0 1 0 2.8l-3.8 3.8a2 2 0 0 1-2.8 0L4 10.6V4Zm4.6 3.4a1.3 1.3 0 1 0 0 2.6 1.3 1.3 0 0 0 0-2.6Z',
   more: 'M5 12h.01M12 12h.01M19 12h.01',
-  pin: 'M9 4h6l-1 6 3 3v2H7v-2l3-3-1-6Z'
+  pin: 'M9 4h6l-1 6 3 3v2H7v-2l3-3-1-6Z',
+  sliders: 'M4 7h9m4 0h3M4 17h3m4 0h9M13 4v6m-6 4v6'
 }
 
 function Glyph({ name, size = 16, stroke = 1.7 }) {

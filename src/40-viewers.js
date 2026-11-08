@@ -67,6 +67,8 @@ function Viewer({ artifact, notebook, onCite }) {
     body = jsx(SlidesView, { data: asJson.json, text: primary.text, htmlUrl: primary.url && artifact.ext === 'html' ? primary.url : '' })
   } else if (artifact.kind === 'infographic') {
     body = jsx(InfographicView, { src: primary.url, data: asJson.json })
+  } else if (artifact.kind === 'data_table') {
+    body = jsx(DataTableView, { text: primary.text, name: artifact.primary })
   } else if (artifact.kind === 'timeline') {
     body = jsx(TimelineView, { text: primary.text, onCite })
   } else {
@@ -648,6 +650,76 @@ function InfographicView({ src, data }) {
         el('span', { style: { flex: 1 } }),
         data && data.takeaway ? el('span', { className: 'nb-chip', 'data-tone': 'accent', children: data.takeaway }) : null))
   )
+}
+
+/* ----------------------------------------------------------- data table */
+
+function parseCsv(text) {
+  const rows = []
+  let row = [], cell = '', inQ = false
+  const s = String(text || '')
+  for (let i = 0; i < s.length; i += 1) {
+    const ch = s[i]
+    if (inQ) {
+      if (ch === '"') {
+        if (s[i + 1] === '"') { cell += '"'; i += 1 } else inQ = false
+      } else cell += ch
+    } else if (ch === '"') inQ = true
+    else if (ch === ',') { row.push(cell); cell = '' }
+    else if (ch === '\n' || ch === '\r') {
+      if (ch === '\r' && s[i + 1] === '\n') i += 1
+      row.push(cell); cell = ''
+      if (row.some((c) => c !== '')) rows.push(row)
+      row = []
+    } else cell += ch
+  }
+  if (cell !== '' || row.length) { row.push(cell); if (row.some((c) => c !== '')) rows.push(row) }
+  return rows
+}
+
+function DataTableView({ text, name }) {
+  const rows = useMemo(() => parseCsv(text), [text])
+  const [sort, setSort] = useState({ col: -1, dir: 1 })
+  const head = rows[0] || []
+  const body = rows.slice(1)
+  const shown = useMemo(() => {
+    if (sort.col < 0) return body
+    const i = sort.col
+    return [...body].sort((a, b) => {
+      const x = String(a[i] || ''), y = String(b[i] || '')
+      const nx = Number(x.replace(/[^0-9.\-]/g, '')), ny = Number(y.replace(/[^0-9.\-]/g, ''))
+      const c = (!Number.isNaN(nx) && !Number.isNaN(ny) && x !== '' && y !== '')
+        ? nx - ny : x.localeCompare(y)
+      return c * sort.dir
+    })
+  }, [body, sort])
+  const exportCsv = () => {
+    const blob = new Blob([text || ''], { type: 'text/csv' })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url; a.download = name || 'table.csv'
+    document.body.appendChild(a); a.click(); a.remove()
+    setTimeout(() => URL.revokeObjectURL(url), 4000)
+  }
+  if (!head.length) {
+    return el('div', { className: 'nb-view-body' }, el('div', { className: 'nb-hint', children: 'empty table' }))
+  }
+  return el('div', { className: 'nb-view-body' },
+    el('div', { style: { display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '12px' } },
+      el('span', { className: 'nb-meta', children: `${body.length} rows × ${head.length} columns` }),
+      el('span', { style: { flex: 1 } }),
+      jsx(Btn, { size: 'sm', icon: 'download', onClick: exportCsv, children: 'Export CSV' })),
+    el('div', { className: 'nb-dt-wrap' },
+      el('table', { className: 'nb-dt' },
+        el('thead', null, el('tr', null,
+          head.map((h, i) => el('th', {
+            key: i, onClick: () => setSort((s) => ({ col: i, dir: s.col === i ? -s.dir : 1 })),
+            'aria-sort': sort.col === i ? (sort.dir > 0 ? 'ascending' : 'descending') : 'none',
+            children: [h, sort.col === i ? el('span', { className: 'nb-dt-arrow', children: sort.dir > 0 ? '↑' : '↓' }) : null]
+          }, `h${i}`)))),
+        el('tbody', null,
+          shown.map((r, ri) => el('tr', { key: `r${ri}` },
+            head.map((_, ci) => el('td', { key: `c${ci}`, children: String(r[ci] || '') }, `c${ci}`))))))))
 }
 
 /* ------------------------------------------------------------- timeline */

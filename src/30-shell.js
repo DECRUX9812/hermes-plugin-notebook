@@ -48,13 +48,13 @@ function App() {
     persist.set('__open', '')
   }, [notebook])
 
-  const generate = useCallback(async (kind) => {
+  const generate = useCallback(async (kind, opts) => {
     if (!notebook) return
     setBusy((b) => ({ ...b, [kind]: Date.now() }))
     try {
       await api('/generate', {
         method: 'POST',
-        body: { notebook: notebook.id, kind, length: 'short' },
+        body: { notebook: notebook.id, kind, length: 'short', ...(opts || {}) },
         timeoutMs: 240000
       })
       const fresh = await studio.reload(true)

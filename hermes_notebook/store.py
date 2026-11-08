@@ -118,6 +118,16 @@ def get_meta(notebook_id: str) -> dict:
     return meta
 
 
+def update_meta(notebook_id: str, **fields) -> dict:
+    """Shallow-merge fields into notebook.json (options, prefs, …)."""
+    d = _nb_dir(notebook_id)
+    meta = get_meta(notebook_id)
+    meta.update(fields)
+    meta["updated_at"] = _iso(_now())
+    _write_json(d / "notebook.json", meta)
+    return meta
+
+
 def touch(notebook_id: str) -> None:
     d = _nb_dir(notebook_id)
     meta = get_meta(notebook_id)

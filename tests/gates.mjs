@@ -113,7 +113,7 @@ async function functional(port) {
   await settle(page, 900)
 
   const cards = await page.locator('.nb-card').count()
-  ok('studio renders 12 outputs', cards === 12, `${cards} cards`)
+  ok('studio renders all outputs', cards === 13, `${cards} cards`)
 
   // a ready card opens the viewer for its own kind
   const ready = page.locator('.nb-card[data-ready="true"]').first()

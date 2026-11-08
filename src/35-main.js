@@ -115,6 +115,9 @@ function Chat({ notebook, askOpen, onSay, modelReady, onCite, onOpenSource, onFi
   const [pending, setPending] = useState(null)
   const [ov, setOv] = useState('')
   const [sugg, setSugg] = useState(null)
+  const [cfgOpen, setCfgOpen] = useState(false)
+  const [cfg, setCfg] = useState({})
+  const [cfgBusy, setCfgBusy] = useState(false)
   const threadRef = useRef(null)
   const boxRef = useRef(null)
   const stats = notebook.stats || {}
@@ -266,7 +269,7 @@ function Chat({ notebook, askOpen, onSay, modelReady, onCite, onOpenSource, onFi
                   })))
               : null)
         : null,
-      msgs.map((m) => jsx(Msg, { msg: m, onCite, onOpenSource }, m.k)),
+      msgs.map((m) => jsx(Msg, { msg: m, onCite, onOpenSource, notebook }, m.k)),
       pending
         ? el('div', { className: 'nb-msg', 'data-role': 'assistant' },
             el('span', { className: 'nb-avatar', children: 'HN' }),
@@ -298,6 +301,18 @@ function Chat({ notebook, askOpen, onSay, modelReady, onCite, onOpenSource, onFi
             title: `${activeCount} of ${stats.sources || 0} sources are in context`,
             children: `${activeCount} source${activeCount === 1 ? '' : 's'}`
           }),
+          jsx(IconBtn, {
+            icon: 'sliders', label: 'Configure chat',
+            onClick: () => {
+              const o = notebook.options || {}
+              setCfg({
+                chat_style: o.chat_style || 'default',
+                chat_length: o.chat_length || 'medium',
+                chat_custom: o.chat_custom || ''
+              })
+              setCfgOpen(true)
+            }
+          }),
           el('span', { className: 'nb-hint', style: { marginLeft: 'auto' },
             children: modelReady ? '⏎ send · ⇧⏎ newline' : 'model offline — enable the plugin and restart the gateway' }),
           el('button', {
@@ -309,16 +324,122 @@ function Chat({ notebook, askOpen, onSay, modelReady, onCite, onOpenSource, onFi
           }))
       ),
       el('div', { className: 'nb-disclaimer',
-        children: 'Hermes Notebook can make mistakes — double-check it.' })
+        children: 'Hermes Notebook can make mistakes — double-check it.' }),
+      cfgOpen
+        ? jsx(Dialog, {
+            open: true,
+            title: 'Configure chat',
+            onClose: () => setCfgOpen(false),
+            children: el('div', { style: { display: 'grid', gap: '16px' } },
+              el('div', null,
+                el('div', { className: 'nb-meta', style: { marginBottom: '8px' }, children: 'Response style' }),
+                jsx(Seg, {
+                  label: 'Response style', fill: true,
+                  value: cfg.chat_style || 'default',
+                  onChange: (v) => setCfg((c) => ({ ...c, chat_style: v })),
+                  options: [
+                    { id: 'default', label: 'Default' },
+                    { id: 'learning_guide', label: 'Learning guide' },
+                    { id: 'custom', label: 'Custom' }
+                  ]
+                }),
+                cfg.chat_style === 'custom'
+                  ? el('input', {
+                      className: 'nb-genopt-text', type: 'text',
+                      placeholder: 'e.g. always end with a checklist',
+                      value: cfg.chat_custom || '',
+                      onChange: (e) => setCfg((c) => ({ ...c, chat_custom: e.target.value })),
+                      style: { marginTop: '8px', width: '100%' }
+                    })
+                  : null),
+              el('div', null,
+                el('div', { className: 'nb-meta', style: { marginBottom: '8px' }, children: 'Response length' }),
+                jsx(Seg, {
+                  label: 'Response length', fill: true,
+                  value: cfg.chat_length || 'medium',
+                  onChange: (v) => setCfg((c) => ({ ...c, chat_length: v })),
+                  options: [
+                    { id: 'short', label: 'Short' },
+                    { id: 'medium', label: 'Medium' },
+                    { id: 'long', label: 'Long' }
+                  ]
+                })),
+              el('div', { style: { display: 'flex', gap: '8px', justifyContent: 'flex-end' } },
+                jsx(Btn, { onClick: () => setCfgOpen(false), children: 'Cancel' }),
+                jsx(Btn, {
+                  variant: 'primary', disabled: cfgBusy,
+                  onClick: async () => {
+                    setCfgBusy(true)
+                    try {
+                      await api('/options', {
+                        method: 'POST',
+                        body: {
+                          notebook: notebook.id,
+                          options: {
+                            chat_style: cfg.chat_style === 'custom' ? 'custom' : cfg.chat_style,
+                            chat_length: cfg.chat_length,
+                            chat_custom: cfg.chat_style === 'custom' ? cfg.chat_custom : ''
+                          }
+                        },
+                        timeoutMs: 30000
+                      })
+                      setCfgOpen(false)
+                      if (reload) reload()
+                    } catch (e) {
+                      onSay && onSay(`could not save chat options: ${e.message || e}`)
+                    } finally {
+                      setCfgBusy(false)
+                    }
+                  },
+                  children: 'Save'
+                })))
+            })
+        : null
     )
   )
 }
 
-function Msg({ msg, onCite }) {
+const CITE_TEXT_CACHE = new Map()
+
+function Msg({ msg, onCite, notebook }) {
   const isUser = msg.role === 'user'
+  const [citePop, setCitePop] = useState(null)
+
+  const citeFor = (n) => (msg.citations || []).find((c) => c.n === n)
+
+  const onMouseOver = (e) => {
+    const b = e.target && e.target.closest ? e.target.closest('.nb-inline-cite') : null
+    if (!b || !notebook) return
+    const n = Number(b.getAttribute('data-n'))
+    const c = citeFor(n)
+    if (!c) return
+    const r = b.getBoundingClientRect()
+    setCitePop({ n, x: r.left, y: r.bottom + 8, title: c.title, kind: c.kind, id: c.id, text: null, loading: true })
+    const key = `${notebook.id}:${c.id || n}`
+    if (CITE_TEXT_CACHE.has(key)) {
+      setCitePop((p) => (p && p.n === n ? { ...p, text: CITE_TEXT_CACHE.get(key), loading: false } : p))
+      return
+    }
+    if (!c.id) { setCitePop((p) => (p && p.n === n ? { ...p, loading: false } : p)); return }
+    api(`/source_text?${qs({ notebook: notebook.id, id: c.id, chars: 700 })}`, { timeoutMs: 20000 })
+      .then((out) => {
+        const passage = String(out.text || out.source_text || '').replace(/\s+/g, ' ').trim().slice(0, 420)
+        CITE_TEXT_CACHE.set(key, passage)
+        setCitePop((p) => (p && p.n === n ? { ...p, text: passage, loading: false } : p))
+      })
+      .catch(() => {
+        CITE_TEXT_CACHE.set(key, '')
+        setCitePop((p) => (p && p.n === n ? { ...p, text: '', loading: false } : p))
+      })
+  }
+  const onMouseOut = (e) => {
+    const b = e.target && e.target.closest ? e.target.closest('.nb-inline-cite') : null
+    if (b) setCitePop(null)
+  }
+
   return el('div', { className: 'nb-msg', 'data-role': isUser ? 'user' : 'assistant' },
     isUser ? null : el('span', { className: 'nb-avatar', children: 'HN' }),
-    el('div', { className: 'nb-msg-body' },
+    el('div', { className: 'nb-msg-body', onMouseOver: isUser ? undefined : onMouseOver, onMouseOut: isUser ? undefined : onMouseOut },
       isUser
         ? el('div', { className: 'nb-bubble' },
             el('div', { className: 'nb-who', children: 'You' }),
@@ -338,7 +459,25 @@ function Msg({ msg, onCite }) {
                     'aria-label': `Citation ${c.n} — ${c.title}`,
                     children: [el('b', { children: `S${c.n}` }), el('span', { children: c.title })]
                   })))
-              : null))
+              : null)),
+    citePop
+      ? el('div', {
+          className: 'nb-citepop', role: 'tooltip',
+          style: { left: `${Math.min(citePop.x, (typeof window !== 'undefined' ? window.innerWidth : 1200) - 340)}px`, top: `${citePop.y}px` },
+          children: [
+            el('div', { className: 'nb-citepop-head' },
+              el('b', { children: `S${citePop.n}` }),
+              el('span', { children: citePop.title || 'source' }),
+              citePop.kind ? el('span', { className: 'nb-meta', children: citePop.kind }) : null),
+            el('div', { className: 'nb-citepop-body',
+              children: citePop.loading
+                ? 'reading the passage…'
+                : citePop.text
+                  ? `“${citePop.text}${citePop.text.length >= 420 ? '…' : ''}”`
+                  : 'passage unavailable — click the citation to open the source' })
+          ]
+        })
+      : null
   )
 }
 
@@ -431,7 +570,7 @@ function StudioPanel({ kinds, notebook, busy, generate, filter, setFilter, onOpe
           key: k.id, kind: k, art: ready[k.id], started: busy[k.id],
           nbId: notebook && notebook.id,
           onOpen: () => { const a = ready[k.id]; if (a) onOpen(a); else generate(k.id) },
-          onRegenerate: () => generate(k.id)
+          onGenerate: (opts) => generate(k.id, opts)
         })))),
     el('div', { className: 'nb-pad', style: { paddingTop: '10px', paddingBottom: '4px', borderTop: `1px solid ${T.lineSoft}` } },
       el('div', { style: { display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' } },
@@ -472,8 +611,13 @@ function StudioPanel({ kinds, notebook, busy, generate, filter, setFilter, onOpe
   )
 }
 
-function GenPill({ kind, art, started, nbId, onOpen, onRegenerate }) {
+function GenPill({ kind, art, started, nbId, onOpen, onGenerate }) {
   const [, force] = useState(0)
+  const [opts, setOpts] = useState({})
+  const [cfgOpen, setCfgOpen] = useState(false)
+  const [notes, setNotes] = useState(null)
+  const [notesBusy, setNotesBusy] = useState(false)
+  const optSpecs = kind.options || []
   useEffect(() => {
     if (!started) return undefined
     const t = setInterval(() => force((n) => n + 1), 1000)
@@ -481,33 +625,109 @@ function GenPill({ kind, art, started, nbId, onOpen, onRegenerate }) {
   }, [started])
   const secs = started ? Math.max(0, Math.round((Date.now() - started) / 1000)) : 0
   const state = started ? `writing · ${secs}s` : art ? `ready · ${ago(art.modified)}` : 'Generate'
-  return el('button', {
-    type: 'button', className: 'nb-card',
-    'data-kind': kind.id,
-    'data-ready': art ? 'true' : 'false', 'data-busy': started ? 'true' : 'false',
-    onClick: started ? undefined : onOpen,
-    'aria-label': `${kind.label} — ${state}. ${art ? 'Open it' : 'Generate it'}`,
-    title: art ? `${kind.label} · ${art.primary}` : `Generate ${kind.label}`,
-    children: [
-      el('span', { className: 'nb-card-ico', 'aria-hidden': 'true' },
-        jsx(Glyph, { name: KIND_ICON[kind.id] || 'doc', size: 15 })),
-      el('span', { className: 'nb-card-main' },
-        el('span', { className: 'nb-card-name', children: kind.label }),
-        el('span', { className: 'nb-card-state' },
-          el('span', {
-            className: 'nb-dot',
-            style: { background: started ? 'var(--kc)' : art ? T.ok : undefined }
-          }),
-          started ? `${secs}s` : art ? ago(art.modified) : 'generate'),
-        started
-          ? el('span', { className: 'nb-bar-track', style: { marginTop: '2px' } },
-              el('span', {
-                className: 'nb-bar-fill',
-                style: { width: `${Math.min(96, 12 + secs * 2.2)}%`, opacity: 0.9 }
-              }))
-          : null)
-    ]
-  })
+  const pick = (id, v) => setOpts((o) => ({ ...o, [id]: v }))
+  return el('div', { className: 'nb-gen', 'data-kind': kind.id },
+    el('button', {
+      type: 'button', className: 'nb-card',
+      'data-kind': kind.id,
+      'data-ready': art ? 'true' : 'false', 'data-busy': started ? 'true' : 'false',
+      onClick: started ? undefined : (art ? onOpen : () => onGenerate(opts)),
+      'aria-label': `${kind.label} — ${state}. ${art ? 'Open it' : 'Generate it'}`,
+      title: art ? `${kind.label} · ${art.primary}` : `Generate ${kind.label}`,
+      children: [
+        el('span', { className: 'nb-card-ico', 'aria-hidden': 'true' },
+          jsx(Glyph, { name: KIND_ICON[kind.id] || 'doc', size: 15 })),
+        el('span', { className: 'nb-card-main' },
+          el('span', { className: 'nb-card-name', children: kind.label }),
+          el('span', { className: 'nb-card-state' },
+            el('span', {
+              className: 'nb-dot',
+              style: { background: started ? 'var(--kc)' : art ? T.ok : undefined }
+            }),
+            started ? `${secs}s` : art ? ago(art.modified) : 'generate'),
+          started
+            ? el('span', { className: 'nb-bar-track', style: { marginTop: '2px' } },
+                el('span', {
+                  className: 'nb-bar-fill',
+                  style: { width: `${Math.min(96, 12 + secs * 2.2)}%`, opacity: 0.9 }
+                }))
+            : null)
+      ]
+    }),
+    optSpecs.length
+      ? jsx(IconBtn, {
+          icon: 'sliders', label: `${kind.label} options`,
+          className: 'nb-gen-cfg', active: cfgOpen,
+          onClick: () => setCfgOpen((o) => !o)
+        })
+      : null,
+    cfgOpen && optSpecs.length
+      ? el('div', { className: 'nb-genpop', role: 'dialog', 'aria-label': `${kind.label} options` },
+          optSpecs.map((spec) => el('div', { key: spec.id, className: 'nb-genopt' },
+            el('div', { className: 'nb-genopt-label', children: spec.label }),
+            spec.kind === 'text'
+              ? el('input', {
+                  className: 'nb-genopt-text', type: 'text',
+                  placeholder: spec.placeholder || '',
+                  value: opts[spec.id] || '',
+                  onChange: (e) => pick(spec.id, e.target.value)
+                })
+              : el(Seg, {
+                  value: opts[spec.id] || spec.choices[0],
+                  onChange: (v) => pick(spec.id, v),
+                  options: spec.choices.map((c) => ({
+                    id: c, label: c.replace(/_/g, ' ').replace(/\b\w/g, (ch) => ch.toUpperCase())
+                  }))
+                }))),
+          kind.id === 'video_overview' && nbId
+            ? el('div', { style: { borderTop: `1px solid ${T.lineSoft}`, paddingTop: '10px', display: 'grid', gap: '8px' } },
+                jsx(Btn, {
+                  size: 'sm', icon: 'doc', disabled: notesBusy || started,
+                  onClick: async () => {
+                    setNotesBusy(true)
+                    try {
+                      const out = await api('/video_notes', {
+                        method: 'POST',
+                        body: { notebook: nbId, style: opts.style || 'cinematic', length: opts.length || 'short' },
+                        timeoutMs: 180000
+                      })
+                      setNotes(out)
+                    } catch (e) {
+                      setNotes({ error: e.message || String(e) })
+                    } finally {
+                      setNotesBusy(false)
+                    }
+                  },
+                  children: notesBusy ? 'Writing script…' : 'Review script first'
+                }),
+                notes && !notes.error
+                  ? jsx(Btn, {
+                      size: 'sm', variant: 'primary', disabled: started,
+                      onClick: () => { setCfgOpen(false); onGenerate({ ...opts, notes }) },
+                      children: `Render with these notes (${(notes.beats || []).length} beats)`
+                    })
+                  : null)
+            : null)
+      : null,
+    notes
+      ? jsx(Dialog, {
+          open: true, title: notes.title || 'Video producer notes',
+          onClose: () => setNotes(null), width: 640,
+          children: notes.error
+            ? el('div', { style: { color: T.danger }, children: notes.error })
+            : el('div', { style: { display: 'grid', gap: '10px' } },
+                el('div', { className: 'nb-meta', children: `${(notes.beats || []).length} beats · ${notes.style} · ${notes.length}` }),
+                (notes.beats || []).map((b, i) => el('div', {
+                  key: i, style: {
+                    border: `1px solid ${T.lineSoft}`, borderRadius: '12px', padding: '10px 12px'
+                  }
+                },
+                  el('div', { style: { fontSize: '12px', fontWeight: 650, color: T.accent, marginBottom: '4px' },
+                    children: `${String(i + 1).padStart(2, '0')} · ${b.headline || 'beat'}` }),
+                  el('div', { style: { fontSize: '13px', color: T.text2, lineHeight: 1.5 }, children: b.text }))))
+        })
+      : null
+  )
 }
 
 /* ------------------------------------------------------------- art thumbs

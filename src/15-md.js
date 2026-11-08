@@ -27,6 +27,7 @@ function inlineNodes(text, keyBase, onCite) {
       if (onCite) {
         out.push(el('button', {
           type: 'button', className: 'nb-inline-cite', title: `Open source S${n}`,
+          'data-n': n,
           'aria-label': `Citation ${n} — open the source`,
           onClick: (e) => { e.stopPropagation(); onCite(n) },
           children: tok

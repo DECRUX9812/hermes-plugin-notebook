@@ -93,6 +93,7 @@ const b64 = async (name) => {
   return { ok: true, name, ext: name.split('.').pop().toLowerCase(),
            mime: ({ mp4: 'video/mp4', mp3: 'audio/mpeg', png: 'image/png',
                     html: 'text/html', md: 'text/markdown', txt: 'text/plain',
+                    csv: 'text/csv',
                     json: 'application/json' })[name.split('.').pop().toLowerCase()] || 'application/octet-stream',
            b64: btoa(s) }
 }
@@ -204,9 +205,25 @@ const rest = async (path, opts) => {
     return { ok: true, source: { id: 'note-mock', kind: 'note' } }
   }
   if (route === 'notebook/delete') return { ok: true, deleted: (opts && opts.body && opts.body.notebook) || '' }
+  if (route === 'options') {
+    const body = (opts && opts.body) || {}
+    if (STATE.notebook) STATE.notebook.options = { ...(STATE.notebook.options || {}), ...(body.options || {}) }
+    return { ok: true, options: STATE.notebook ? STATE.notebook.options : {}, state: STATE.notebook }
+  }
   if (route === 'label') {
     await new Promise((r) => setTimeout(r, 900))
     return { ok: true, labeled: [], failed: [], state: STATE }
+  }
+  if (route === 'video_notes') {
+    await new Promise((r) => setTimeout(r, 1200))
+    return {
+      ok: true, title: 'Fusion, honestly', length: 'short', style: 'cinematic',
+      beats: [
+        { headline: 'The bet', text: 'Seventy years of plasma physics just produced a module heavier than a jumbo jet — and it slid into place ahead of schedule.', palette: 'indigo' },
+        { headline: 'The math', text: 'Two-thirds of the tokamak core is assembled. The remaining sectors are the easy part; the blanket is not.', palette: 'crimson' },
+        { headline: 'The catch', text: 'No defensible cost figure exists yet. Anyone quoting a price per megawatt-hour is guessing.', palette: 'amber' }
+      ]
+    }
   }
   if (route === 'generate') {
     await new Promise((r) => setTimeout(r, 1500))
