@@ -615,6 +615,33 @@ const CSS = `
 .nb-genopt-text{width:100%;height:32px;padding:0 10px;border-radius:9px;font-size:13px;
   border:1px solid ${T.line};background:${T.inset};color:${T.text};outline:none}
 .nb-genopt-text:focus{border-color:color-mix(in srgb,${T.accent} 55%,transparent)}
+/* the infographic look picker: sixteen styles do not fit a segmented control or an
+   inline popover, so they open in a dialog as a gallery — the thumbnail is the real
+   renderer drawing the notebook's own last infographic in that style */
+.nb-stylegrid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:6px;
+  max-height:min(62vh,470px);overflow:auto;overscroll-behavior:contain;padding:2px;margin:0 -2px;
+  scrollbar-width:thin}
+.nb-styleopt{display:flex;flex-direction:column;align-items:stretch;gap:0;min-width:0;
+  padding:0;border-radius:11px;border:1px solid ${T.lineSoft};background:${T.card};
+  cursor:pointer;overflow:hidden;color:${T.text2};font-family:inherit}
+.nb-styleopt:hover{border-color:color-mix(in srgb,${T.accent} 45%,${T.lineSoft})}
+.nb-styleopt[data-on="true"]{border-color:${T.accent};box-shadow:0 0 0 1px ${T.accent} inset}
+.nb-styleopt:focus-visible{outline:2px solid ${T.accent};outline-offset:1px}
+.nb-stylethumb{display:block;position:relative;height:76px;background:${T.inset}}
+.nb-stylethumb img{width:100%;height:100%;object-fit:cover;display:block}
+.nb-stylethumb[data-empty="true"]::after{content:'';position:absolute;inset:0;
+  background:linear-gradient(100deg,transparent 20%,color-mix(in srgb,${T.text} 6%,transparent) 50%,transparent 80%);
+  animation:nb-shimmer 1.4s linear infinite}
+@keyframes nb-shimmer{from{transform:translateX(-100%)}to{transform:translateX(100%)}}
+.nb-stylecheck{position:absolute;top:4px;right:4px;width:18px;height:18px;border-radius:50%;
+  display:grid;place-items:center;background:${T.accent};color:#fff;font-size:10px;
+  font-weight:700;line-height:1}
+/* the picker states where the previews come from, so nobody reads them as the user's
+   finished artifact */
+.nb-stylehint{margin-top:6px;font-size:11.5px;color:${T.text4}}
+.nb-stylelabel{display:block;padding:5px 4px 6px;font-size:11px;font-weight:600;
+  text-align:center;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+
 
 .nb-citepop{position:fixed;z-index:80;width:320px;max-width:calc(100vw - 32px);
   background:${T.card};border:1px solid ${T.line};border-radius:14px;

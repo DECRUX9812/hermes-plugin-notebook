@@ -1,6 +1,6 @@
 {
  "ok": true,
- "generated_at": "2026-11-07T18:38:54Z",
+ "generated_at": "2026-11-08T05:00:11Z",
  "model_ready": false,
  "notebooks": [
   {
@@ -53,7 +53,8 @@
     ],
     "summary": "Congressional Research Service briefing: fusion physics, the DOE/FES programme ($790M in FY2025), inertial confinement (~$700M), and the policy questions a commercial build-out raises.",
     "added_at": "2026-11-07T16:36:51+00:00",
-    "refreshed_at": "2026-11-07T17:00:41+00:00"
+    "refreshed_at": "2026-11-07T17:00:41+00:00",
+    "active": true
    },
    {
     "n": 2,
@@ -70,7 +71,8 @@
     ],
     "summary": "DOE's Fusion Science and Technology Roadmap (June) targets pilot plants by the mid-2030s; industry says it needs >$1B a year. FIA counts $4.48B raised to July 2026 and $14.24B cumulative since 2021.",
     "added_at": "2026-11-07T16:36:51+00:00",
-    "refreshed_at": "2026-11-07T17:00:41+00:00"
+    "refreshed_at": "2026-11-07T17:00:41+00:00",
+    "active": true
    },
    {
     "n": 3,
@@ -86,7 +88,8 @@
     ],
     "summary": "ANS Nuclear Newswire on ITER's assembly campaign: sector-module installation running ahead of plan under the accelerated assembly approach.",
     "added_at": "2026-11-07T16:36:51+00:00",
-    "refreshed_at": "2026-11-07T17:00:41+00:00"
+    "refreshed_at": "2026-11-07T17:00:41+00:00",
+    "active": true
    },
    {
     "n": 4,
@@ -103,7 +106,8 @@
     ],
     "summary": "ITER's own release: sixth of nine sector modules installed on 28 July 2026, ~30 hours of lifting, a 1,100-tonne module, two-thirds of the torus in place, final module due 2027.",
     "added_at": "2026-11-07T16:36:51+00:00",
-    "refreshed_at": "2026-11-07T17:00:41+00:00"
+    "refreshed_at": "2026-11-07T17:00:41+00:00",
+    "active": true
    },
    {
     "n": 5,
@@ -119,7 +123,8 @@
     ],
     "summary": "IAEA's World Fusion Outlook 2025: the international reference on device counts, timelines and the regulatory picture across member states.",
     "added_at": "2026-11-07T16:36:51+00:00",
-    "refreshed_at": "2026-11-07T17:00:41+00:00"
+    "refreshed_at": "2026-11-07T17:00:41+00:00",
+    "active": true
    },
    {
     "n": 6,
@@ -136,7 +141,8 @@
     ],
     "summary": "Reference article: confinement approaches, tritium breeding, the neutron-damage problem and the historical funding curve.",
     "added_at": "2026-11-07T16:36:51+00:00",
-    "refreshed_at": "2026-11-07T17:00:41+00:00"
+    "refreshed_at": "2026-11-07T17:00:41+00:00",
+    "active": true
    }
   ],
   "artifacts": [
@@ -156,17 +162,17 @@
       "size": 4454
      },
      {
-      "name": "20261107-171108-audio_overview.mp3",
-      "ext": "mp3",
-      "size": 1110764
-     },
-     {
       "name": "20261107-171108-audio_overview.txt",
       "ext": "txt",
       "size": 3395
+     },
+     {
+      "name": "20261107-171108-audio_overview.mp3",
+      "ext": "mp3",
+      "size": 1110764
      }
     ],
-    "modified": "2026-11-07T17:53:13+00:00"
+    "modified": "2026-11-07T17:11:34+00:00"
    },
    {
     "key": "20261107-video_overview",
@@ -194,7 +200,7 @@
       "size": 1825832
      }
     ],
-    "modified": "2026-11-07T17:53:13+00:00"
+    "modified": "2026-11-07T17:08:31+00:00"
    },
    {
     "key": "20261107-faq",
@@ -212,7 +218,7 @@
       "size": 1647
      }
     ],
-    "modified": "2026-11-07T17:53:13+00:00"
+    "modified": "2026-11-07T17:00:50+00:00"
    },
    {
     "key": "20261107-study_guide",
@@ -230,7 +236,7 @@
       "size": 2041
      }
     ],
-    "modified": "2026-11-07T17:53:13+00:00"
+    "modified": "2026-11-07T17:00:50+00:00"
    },
    {
     "key": "20261107-briefing_doc",
@@ -248,7 +254,7 @@
       "size": 2293
      }
     ],
-    "modified": "2026-11-07T17:53:13+00:00"
+    "modified": "2026-11-07T17:00:50+00:00"
    },
    {
     "key": "20261107-timeline",
@@ -266,7 +272,7 @@
       "size": 1309
      }
     ],
-    "modified": "2026-11-07T17:53:13+00:00"
+    "modified": "2026-11-07T17:00:42+00:00"
    },
    {
     "key": "20261107-infographic",
@@ -289,7 +295,7 @@
       "size": 1080
      }
     ],
-    "modified": "2026-11-07T17:53:13+00:00"
+    "modified": "2026-11-07T17:00:42+00:00"
    },
    {
     "key": "20261107-slides",
@@ -312,7 +318,7 @@
       "size": 1636
      }
     ],
-    "modified": "2026-11-07T17:53:13+00:00"
+    "modified": "2026-11-07T17:00:41+00:00"
    },
    {
     "key": "20261107-quiz",
@@ -335,7 +341,7 @@
       "size": 1971
      }
     ],
-    "modified": "2026-11-07T17:53:13+00:00"
+    "modified": "2026-11-07T17:00:41+00:00"
    },
    {
     "key": "20261107-flashcards",
@@ -358,7 +364,7 @@
       "size": 1936
      }
     ],
-    "modified": "2026-11-07T17:53:13+00:00"
+    "modified": "2026-11-07T17:00:41+00:00"
    },
    {
     "key": "20261107-mind_map",
@@ -381,7 +387,7 @@
       "size": 1840
      }
     ],
-    "modified": "2026-11-07T17:53:13+00:00"
+    "modified": "2026-11-07T17:00:41+00:00"
    },
    {
     "key": "20261107-summary",
@@ -399,7 +405,7 @@
       "size": 1955
      }
     ],
-    "modified": "2026-11-07T17:53:13+00:00"
+    "modified": "2026-11-07T17:00:41+00:00"
    }
   ],
   "labels": [
@@ -515,6 +521,7 @@
    "chars": 157369,
    "labels": 21,
    "unlabeled": 0,
+   "active": 6,
    "artifacts": 12,
    "kinds": [
     "audio_overview",
@@ -679,10 +686,240 @@
     {
      "id": "style",
      "label": "Style",
+     "kind": "select",
+     "default": "sections",
      "choices": [
       "sections",
+      "editorial",
       "poster",
-      "editorial"
+      "swiss",
+      "magazine",
+      "bento",
+      "blueprint",
+      "terminal",
+      "neon",
+      "brutalist",
+      "retro",
+      "risograph",
+      "kraft",
+      "chalkboard",
+      "dashboard",
+      "mission"
+     ],
+     "items": [
+      {
+       "id": "sections",
+       "label": "Sections",
+       "blurb": "Warm paper, white stat cards, one accent per card.",
+       "family": "cards",
+       "swatch": [
+        "#faf9f6",
+        "#ffffff",
+        "#1a73e8",
+        "#e8710b",
+        "#12877b",
+        "#1f1f1f"
+       ]
+      },
+      {
+       "id": "editorial",
+       "label": "Editorial",
+       "blurb": "White page, oversized numerals, hairline rules, one accent.",
+       "family": "rows",
+       "swatch": [
+        "#ffffff",
+        "#ffffff",
+        "#1a73e8",
+        "#1f1f1f"
+       ]
+      },
+      {
+       "id": "poster",
+       "label": "Poster",
+       "blurb": "Dark indigo gradient, one accent, facts in a strip.",
+       "family": "poster",
+       "swatch": [
+        "#1b1b3a",
+        "#121220",
+        "#8b7cff",
+        "#f4f4fa"
+       ]
+      },
+      {
+       "id": "swiss",
+       "label": "Swiss Grid",
+       "blurb": "Helvetica discipline: strict columns, black type, red rule.",
+       "family": "rows",
+       "swatch": [
+        "#ffffff",
+        "#f6f6f6",
+        "#c1121f",
+        "#0b0b0b"
+       ]
+      },
+      {
+       "id": "magazine",
+       "label": "Magazine",
+       "blurb": "Warm cream, serif headlines, brown accents, wide margins.",
+       "family": "cards",
+       "swatch": [
+        "#fbf6ee",
+        "#fffdf8",
+        "#9b5b32",
+        "#1f3a5f",
+        "#201914"
+       ]
+      },
+      {
+       "id": "bento",
+       "label": "Bento",
+       "blurb": "Mosaic of rounded tiles on cool paper, blue-led accents.",
+       "family": "cards",
+       "swatch": [
+        "#f5f8ff",
+        "#ffffff",
+        "#2563eb",
+        "#7c3aed",
+        "#0891b2",
+        "#101828"
+       ]
+      },
+      {
+       "id": "blueprint",
+       "label": "Blueprint",
+       "blurb": "Deep navy grid, white hairlines, monospace labels.",
+       "family": "cards",
+       "swatch": [
+        "#0b2545",
+        "#102e52",
+        "#7fb2ff",
+        "#ffd166",
+        "#eaf2ff"
+       ]
+      },
+      {
+       "id": "terminal",
+       "label": "Terminal",
+       "blurb": "Near-black, phosphor blue, monospace, prompt rules.",
+       "family": "rows",
+       "swatch": [
+        "#070b12",
+        "#101826",
+        "#38bdf8",
+        "#22c55e",
+        "#e6edf6"
+       ]
+      },
+      {
+       "id": "neon",
+       "label": "Neon",
+       "blurb": "Black-violet field with glowing magenta and cyan accents.",
+       "family": "poster",
+       "swatch": [
+        "#070711",
+        "#111126",
+        "#c084fc",
+        "#22d3ee",
+        "#f472b6",
+        "#f8f7ff"
+       ]
+      },
+      {
+       "id": "brutalist",
+       "label": "Brutalist",
+       "blurb": "Hard black borders, no radius, acid-yellow highlight.",
+       "family": "cards",
+       "swatch": [
+        "#f5f1e8",
+        "#ffffff",
+        "#ffef5a",
+        "#ff8c00",
+        "#000000"
+       ]
+      },
+      {
+       "id": "retro",
+       "label": "Retro Print",
+       "blurb": "Cream stock, halftone dots, warm 70s palette.",
+       "family": "cards",
+       "swatch": [
+        "#fff4cf",
+        "#fffaf0",
+        "#d24b1f",
+        "#1f6f5c",
+        "#2a4b8d",
+        "#2a1810"
+       ]
+      },
+      {
+       "id": "risograph",
+       "label": "Risograph",
+       "blurb": "Two-ink overprint on cream, deliberately off-register.",
+       "family": "cards",
+       "swatch": [
+        "#f6f1e7",
+        "#fbf7ef",
+        "#1b3a8f",
+        "#ff4f2e",
+        "#f2c230",
+        "#16223b"
+       ]
+      },
+      {
+       "id": "kraft",
+       "label": "Kraft",
+       "blurb": "Taped paper cards on kraft stock, brown ink, soft serif.",
+       "family": "cards",
+       "swatch": [
+        "#faf3df",
+        "#fffaf0",
+        "#8f5d24",
+        "#6b7a4f",
+        "#211b12"
+       ]
+      },
+      {
+       "id": "chalkboard",
+       "label": "Chalkboard",
+       "blurb": "Slate green board, chalk white, wobbly hand rules.",
+       "family": "rows",
+       "swatch": [
+        "#22302a",
+        "#22302a",
+        "#f2e9a0",
+        "#a9d8c0",
+        "#f0b4b4",
+        "#eef2ea"
+       ]
+      },
+      {
+       "id": "dashboard",
+       "label": "Dashboard",
+       "blurb": "Cool grey-white KPI tiles with bar meters and deltas.",
+       "family": "kpi",
+       "swatch": [
+        "#f4f7fb",
+        "#ffffff",
+        "#0ea5e9",
+        "#22c55e",
+        "#f59e0b",
+        "#111827"
+       ]
+      },
+      {
+       "id": "mission",
+       "label": "Mission Control",
+       "blurb": "Dark console: blue, amber and green telemetry tiles.",
+       "family": "kpi",
+       "swatch": [
+        "#090b12",
+        "#121722",
+        "#60a5fa",
+        "#fbbf24",
+        "#34d399",
+        "#f8fafc"
+       ]
+      }
      ]
     }
    ]

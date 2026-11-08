@@ -657,7 +657,19 @@ function GenPill({ kind, art, started, nbId, onOpen, onGenerate }) {
   const [cfgOpen, setCfgOpen] = useState(false)
   const [notes, setNotes] = useState(null)
   const [notesBusy, setNotesBusy] = useState(false)
+  const [thumbs, setThumbs] = useState(null)        // style id -> data: URL
   const optSpecs = kind.options || []
+  // Opening the options dialog asks the backend for one thumbnail per style, drawn
+  // by the same renderer that will draw the artifact — so the choice is made on the
+  // real thing, using this notebook's own last infographic when it has one.
+  useEffect(() => {
+    if (!cfgOpen || !nbId) return undefined
+    let live = true
+    api(`/infographic_styles?previews=1&${qs({ notebook: nbId })}`, { timeoutMs: 120000 })
+      .then((out) => { if (live && out && out.previews) setThumbs(out.previews) })
+      .catch(() => {})
+    return () => { live = false }
+  }, [cfgOpen, nbId])
   useEffect(() => {
     if (!started) return undefined
     const t = setInterval(() => force((n) => n + 1), 1000)
@@ -702,52 +714,90 @@ function GenPill({ kind, art, started, nbId, onOpen, onGenerate }) {
         })
       : null,
     cfgOpen && optSpecs.length
-      ? el('div', { className: 'nb-genpop', role: 'dialog', 'aria-label': `${kind.label} options` },
-          optSpecs.map((spec) => el('div', { key: spec.id, className: 'nb-genopt' },
-            el('div', { className: 'nb-genopt-label', children: spec.label }),
-            spec.kind === 'text'
-              ? el('input', {
-                  className: 'nb-genopt-text', type: 'text',
-                  placeholder: spec.placeholder || '',
-                  value: opts[spec.id] || '',
-                  onChange: (e) => pick(spec.id, e.target.value)
-                })
-              : el(Seg, {
-                  value: opts[spec.id] || spec.choices[0],
-                  onChange: (v) => pick(spec.id, v),
-                  options: spec.choices.map((c) => ({
-                    id: c, label: c.replace(/_/g, ' ').replace(/\b\w/g, (ch) => ch.toUpperCase())
-                  }))
-                }))),
-          kind.id === 'video_overview' && nbId
-            ? el('div', { style: { borderTop: `1px solid ${T.lineSoft}`, paddingTop: '10px', display: 'grid', gap: '8px' } },
-                jsx(Btn, {
-                  size: 'sm', icon: 'doc', disabled: notesBusy || started,
-                  onClick: async () => {
-                    setNotesBusy(true)
-                    try {
-                      const out = await api('/video_notes', {
-                        method: 'POST',
-                        body: { notebook: nbId, style: opts.style || 'cinematic', length: opts.length || 'short' },
-                        timeoutMs: 180000
+      // Sixteen looks do not fit an inline popover in a 330px rail: the options
+      // open as a real dialog, sized for the choice list rather than the card.
+      ? jsx(Dialog, {
+          open: true, title: `${kind.label} options`, width: 560,
+          onClose: () => setCfgOpen(false),
+          children: el('div', { style: { display: 'grid', gap: '16px' } },
+            optSpecs.map((spec) => el('div', { key: spec.id, className: 'nb-genopt' },
+              el('div', { className: 'nb-genopt-label', children: spec.label }),
+              spec.kind === 'text'
+                ? el('input', {
+                    className: 'nb-genopt-text', type: 'text',
+                    placeholder: spec.placeholder || '',
+                    value: opts[spec.id] || '',
+                    onChange: (e) => pick(spec.id, e.target.value)
+                  })
+                : spec.kind === 'select'
+                  ? el('div', { className: 'nb-stylewrap' },
+                      el('div', { className: 'nb-stylegrid', role: 'radiogroup', 'aria-label': spec.label },
+                        (spec.items || (spec.choices || []).map((c) => ({ id: c, label: c }))).map((it) => {
+                          const cur = (opts[spec.id] || spec.default || (spec.choices || [])[0]) === it.id
+                          const src = thumbs && thumbs[it.id]
+                          return el('button', {
+                            key: it.id, type: 'button', role: 'radio',
+                            'aria-checked': cur ? 'true' : 'false',
+                            className: 'nb-styleopt', 'data-on': cur ? 'true' : 'false',
+                            title: it.blurb || it.label,
+                            onClick: () => pick(spec.id, it.id),
+                            children: [
+                              el('span', { className: 'nb-stylethumb', 'data-empty': src ? undefined : 'true' },
+                                src ? el('img', { src, alt: `${it.label} infographic style`, loading: 'lazy' }) : null,
+                                cur ? el('span', { className: 'nb-stylecheck', 'aria-hidden': 'true', children: '✓' }) : null),
+                              el('span', { className: 'nb-stylelabel', children: it.label })
+                            ]
+                          })
+                        })),
+                      el('div', { className: 'nb-stylehint',
+                                  children: thumbs
+                                    ? 'Previews are this notebook’s own last infographic, drawn in each style.'
+                                    : 'Drawing previews…' }))
+                  : el(Seg, {
+                      value: opts[spec.id] || spec.choices[0],
+                      onChange: (v) => pick(spec.id, v),
+                      options: spec.choices.map((c) => ({
+                        id: c, label: c.replace(/_/g, ' ').replace(/\b\w/g, (ch) => ch.toUpperCase())
+                      }))
+                    }))),
+            kind.id === 'video_overview' && nbId
+              ? el('div', { style: { borderTop: `1px solid ${T.lineSoft}`, paddingTop: '12px', display: 'grid', gap: '8px' } },
+                  jsx(Btn, {
+                    size: 'sm', icon: 'doc', disabled: notesBusy || started,
+                    onClick: async () => {
+                      setNotesBusy(true)
+                      try {
+                        const out = await api('/video_notes', {
+                          method: 'POST',
+                          body: { notebook: nbId, style: opts.style || 'cinematic', length: opts.length || 'short' },
+                          timeoutMs: 180000
+                        })
+                        setNotes(out)
+                      } catch (e) {
+                        setNotes({ error: e.message || String(e) })
+                      } finally {
+                        setNotesBusy(false)
+                      }
+                    },
+                    children: notesBusy ? 'Writing script…' : 'Review script first'
+                  }),
+                  notes && !notes.error
+                    ? jsx(Btn, {
+                        size: 'sm', variant: 'primary', disabled: started,
+                        onClick: () => { setCfgOpen(false); onGenerate({ ...opts, notes }) },
+                        children: `Render with these notes (${(notes.beats || []).length} beats)`
                       })
-                      setNotes(out)
-                    } catch (e) {
-                      setNotes({ error: e.message || String(e) })
-                    } finally {
-                      setNotesBusy(false)
-                    }
-                  },
-                  children: notesBusy ? 'Writing script…' : 'Review script first'
-                }),
-                notes && !notes.error
-                  ? jsx(Btn, {
-                      size: 'sm', variant: 'primary', disabled: started,
-                      onClick: () => { setCfgOpen(false); onGenerate({ ...opts, notes }) },
-                      children: `Render with these notes (${(notes.beats || []).length} beats)`
-                    })
-                  : null)
-            : null)
+                    : null)
+              : null,
+            el('div', { style: { display: 'flex', justifyContent: 'flex-end', gap: '8px',
+                                 borderTop: `1px solid ${T.lineSoft}`, paddingTop: '12px' } },
+              jsx(Btn, { size: 'sm', onClick: () => setCfgOpen(false), children: 'Cancel' }),
+              jsx(Btn, {
+                size: 'sm', variant: 'primary', disabled: !!started,
+                onClick: () => { setCfgOpen(false); onGenerate(opts) },
+                children: art ? 'Regenerate' : 'Generate'
+              })))
+        })
       : null,
     notes
       ? jsx(Dialog, {

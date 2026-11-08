@@ -64,6 +64,7 @@ const state = JSON.parse(readFileSync(join(tmp, 'state.json'), 'utf8'))
 const fleet = existsSync(join(tmp, 'ops-fleet.json')) ? readFileSync(join(tmp, 'ops-fleet.json'), 'utf8') : '{"hosts":[]}'
 const services = existsSync(join(tmp, 'ops-services.json')) ? readFileSync(join(tmp, 'ops-services.json'), 'utf8') : '{"units":[]}'
 const audit = existsSync(join(tmp, 'ops-audit.json')) ? readFileSync(join(tmp, 'ops-audit.json'), 'utf8') : '{"entries":[]}'
+const styles = existsSync(join(tmp, 'styles.json')) ? readFileSync(join(tmp, 'styles.json'), 'utf8') : '{"ok":true,"styles":[],"previews":{}}'
 const exec = existsSync(join(tmp, 'ops-exec.json')) ? readFileSync(join(tmp, 'ops-exec.json'), 'utf8') : '{"ok":false,"result":{"ok":false,"out":"","err":"no captured run"}}'
 writeFileSync(join(tmp, 'payloads.mjs'), `
 export const STATE = ${JSON.stringify(state)}
@@ -71,13 +72,14 @@ export const FLEET = ${fleet}
 export const SERVICES = ${services}
 export const AUDIT = ${audit}
 export const EXEC = ${exec}
+export const STYLES = ${styles}
 `)
 
 writeFileSync(join(tmp, 'preview-entry.mjs'), `
 import React from 'react'
 import { createRoot } from 'react-dom/client'
 import { App, OpsDeck, plugin } from './preview.mjs'
-import { STATE, FLEET, SERVICES, AUDIT, EXEC } from './payloads.mjs'
+import { STATE, FLEET, SERVICES, AUDIT, EXEC, STYLES } from './payloads.mjs'
 
 window.React = React
 
@@ -106,6 +108,7 @@ const rest = async (path, opts) => {
   // the harness renders the page as it appears with the agent half registered;
   // the dumped payload comes from a process where it is not.
   if (route === 'state') return { ...STATE, model_ready: true }
+  if (route === 'infographic_styles') return { ...STYLES, ok: true }
   if (route === 'health') return { ok: true, model_ready: true, data_root: STATE.notebook ? '/home/decrux/.hermes/plugin-data/hermes-notebook' : '', kinds: (STATE.kinds || []).map((k) => k.id) }
   if (route === 'artifact') {
     const name = params.get('name')

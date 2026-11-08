@@ -76,8 +76,8 @@ NOTEBOOK_GENERATE = {
     "description": (
         "Generate a study artifact from ALL the notebook's sources and save it as "
         "a file: summary, briefing_doc, study_guide, faq, timeline (markdown), or "
-        "mind_map, flashcards, quiz (structured → markdown + JSON). Returns the "
-        "file path."
+        "mind_map, flashcards, quiz, slides, data_table, or infographic (a "
+        "1200x900 PNG poster in one of 16 bundled looks). Returns the file path."
     ),
     "parameters": {"type": "object", "properties": {
         "notebook": _NB,
@@ -91,6 +91,20 @@ NOTEBOOK_GENERATE = {
                        "description": "Optional amount hint, e.g. '10 cards', 'short'"},
         "format": {"type": "string", "enum": ["md", "csv"],
                    "description": "flashcards only: 'csv' writes an Anki-importable CSV instead of markdown"},
+        "style": {"type": "string",
+                  "enum": ["sections", "editorial", "poster", "swiss", "magazine",
+                           "bento", "blueprint", "terminal", "neon", "brutalist",
+                           "retro", "risograph", "kraft", "chalkboard", "dashboard",
+                           "mission"],
+                  "description": ("infographic only: which bundled look to draw. "
+                                  "sections (default, warm cards), editorial (huge "
+                                  "numerals), poster (dark cover), swiss (strict red "
+                                  "grid), magazine (cream serif), bento (rounded "
+                                  "mosaic), blueprint (navy technical grid), terminal "
+                                  "(mono on black), neon (glow), brutalist (hard "
+                                  "black borders), retro (halftone), risograph "
+                                  "(overprint), kraft (taped paper), chalkboard "
+                                  "(slate board), dashboard / mission (KPI tiles).")},
     }, "required": ["kind"]},
 }
 

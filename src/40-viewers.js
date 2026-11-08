@@ -654,6 +654,9 @@ function InfographicView({ src, data }) {
         jsx(Btn, { size: 'sm', onClick: () => setZoom((z) => Math.min(2, z + 0.15)), children: '+' }),
         el('span', { className: 'nb-hint', children: `${Math.round(zoom * 100)}%` }),
         el('span', { style: { flex: 1 } }),
+        data && data._style
+          ? el('span', { className: 'nb-chip', title: 'Infographic style',
+                         children: data._style.label }) : null,
         data && data.takeaway ? el('span', { className: 'nb-chip', 'data-tone': 'accent', children: data.takeaway }) : null))
   )
 }

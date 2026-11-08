@@ -41,12 +41,14 @@ renders that sentence.
 
 from __future__ import annotations
 
+import base64
+import io
 import json
 import mimetypes
 import sys
 import time
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Tuple
 
 from fastapi import APIRouter, Body, HTTPException, Query
 from fastapi.responses import FileResponse, JSONResponse, PlainTextResponse
@@ -59,6 +61,7 @@ for _p in (_PLUGIN_ROOT, _HERE):
         sys.path.insert(0, _p)
 
 from hermes_notebook import runtime, store, artifacts as artifacts_mod  # noqa: E402
+from hermes_notebook import igstyles  # noqa: E402
 
 router = APIRouter(tags=["hermes-notebook"])
 
@@ -99,8 +102,12 @@ KINDS: List[Dict[str, Any]] = [
      "blurb": "Self-contained deck, arrow keys", "secs": 22},
     {"id": "infographic", "label": "Infographic", "group": "visual", "ext": "png",
      "blurb": "One dense poster of the thesis", "secs": 20,
-     "options": [{"id": "style", "label": "Style",
-                  "choices": ["sections", "poster", "editorial"]}]},
+     "options": [{"id": "style", "label": "Style", "kind": "select",
+                  "default": "sections",
+                  "choices": [s["id"] for s in igstyles.catalog()],
+                  "items": [{"id": s["id"], "label": s["label"], "blurb": s["blurb"],
+                             "family": s["family"], "swatch": s["swatch"]}
+                            for s in igstyles.catalog()]}]},
     {"id": "data_table", "label": "Data Table", "group": "docs", "ext": "csv",
      "blurb": "Structured rows, exports to Sheets", "secs": 14},
 ]
@@ -251,6 +258,71 @@ def health() -> Dict[str, Any]:
         root = f"unresolved: {exc}"
     return {"ok": True, "plugin": runtime.PLUGIN_ID, "data_root": root,
             "model_ready": _model_ready(), "kinds": [k["id"] for k in KINDS]}
+
+
+@router.get("/infographic_styles")
+def infographic_styles(previews: int = Query(0, description="1 = include base64 thumbnails"),
+                       notebook: str = Query("", description="preview with this notebook's own last infographic")) -> Dict[str, Any]:
+    """The bundled infographic look pack: one row per style with its palette
+    swatch, layout family and the kind of content it suits.
+
+    `previews=1` adds a 240x180 PNG per style, drawn by the same renderer that will
+    draw the real artifact. The picker uses the notebook's own last infographic as
+    the sample when there is one, so the choice is judged on real content.
+    """
+    out: Dict[str, Any] = {"ok": True, "default": igstyles.DEFAULT_STYLE,
+                           "count": len(igstyles.STYLES), "styles": igstyles.catalog()}
+    if previews:
+        data, title = _preview_source(notebook)
+        out["previews"] = {s["id"]: _style_thumb(data, title, s["id"])
+                           for s in out["styles"]}
+    return out
+
+
+# Thumbnails are deterministic for a given (sample, style), so one render per style
+# is enough per process — and a notebook's own sample is cached under its digest.
+_THUMB_CACHE: Dict[Tuple[str, str], str] = {}
+
+
+def _preview_source(notebook: str) -> Tuple[Dict[str, Any], str]:
+    """The payload previews are drawn from: the notebook's latest infographic JSON
+    when it has one, otherwise the built-in sample."""
+    try:
+        nb_id = store.resolve_notebook(notebook) if (notebook or "").strip() else ""
+        if not nb_id:
+            return igstyles.SAMPLE_DATA, "Tidal power"
+        arts = store._nb_dir(nb_id) / "artifacts"
+        if arts.is_dir():
+            jsons = sorted(arts.glob("*-infographic.json"), reverse=True)
+            if jsons:
+                data = json.loads(jsons[0].read_text(encoding="utf-8"))
+                if isinstance(data, dict) and data.get("stats"):
+                    data.pop("_style", None)
+                    return data, str(data.get("title") or "Infographic")
+    except Exception:
+        pass
+    return igstyles.SAMPLE_DATA, "Tidal power"
+
+
+def _style_thumb(data: Dict[str, Any], title: str, style_id: str) -> str:
+    key = (style_id, str(abs(hash(json.dumps(data, sort_keys=True, default=str))))[-12:])
+    hit = _THUMB_CACHE.get(key)
+    if hit:
+        return hit
+    from hermes_notebook import igrender
+    img = igrender.render(data, title, style_id)
+    resample = getattr(igrender.Image, "Resampling", igrender.Image).LANCZOS
+    small = img.resize((240, 180), resample)
+    # 128 colours keeps a thumbnail under ~10 KB while the gradients stay smooth
+    small = small.quantize(colors=128, method=igrender.Image.MEDIANCUT,
+                           dither=igrender.Image.FLOYDSTEINBERG)
+    buf = io.BytesIO()
+    small.save(buf, "PNG", optimize=True)
+    out = "data:image/png;base64," + base64.b64encode(buf.getvalue()).decode("ascii")
+    if len(_THUMB_CACHE) > 64:
+        _THUMB_CACHE.clear()
+    _THUMB_CACHE[key] = out
+    return out
 
 
 @router.get("/state")

@@ -77,13 +77,46 @@ control, a file browser and Proxmox VM snapshots for the selected host.
 | User notes | `notebook_note` — your annotations become first-class searchable sources |
 | Source lifecycle | `notebook_refresh` re-fetches url/file sources, `notebook_delete_source` removes one |
 | Suggestions | `notebook_suggest` — questions worth asking, artifacts worth making, source gaps (optional `kinds` filter) |
-| Artifacts | `notebook_generate` — summary, briefing doc, study guide, FAQ, timeline, **mind map**, flashcards (md or Anki CSV), quiz, **slide deck** (self-contained HTML), **infographic** (PNG) |
+| Artifacts | `notebook_generate` — summary, briefing doc, study guide, FAQ, timeline, **mind map**, flashcards (md or Anki CSV), quiz, **slide deck** (self-contained HTML), **infographic** (PNG in **16 bundled styles**), data table (CSV) |
 | Audio Overview | `notebook_audio` — two-host conversational podcast (edge-tts voices + ffmpeg), with transcript |
 | Video Overview | `notebook_video` — cinematic narrated mp4, `style=cinematic|explainer`, Pillow cards + ffmpeg |
 | Web discovery | `notebook_discover` — web_search for candidate sources to add |
 | Notebook management | `notebook_update` rename/describe, `notebook_export` whole notebook as zip |
 | — desktop surface — | `/notebook` route, sidebar row, three palette commands, status-bar chip, `::notebook{name="…"}` transcript directive, settings page |
 | — Hermes extras — | `/notebook` slash command, `hermes notebook` CLI, bundled skill, auxiliary task slot, per-notebook persistent storage |
+
+## Infographic styles
+
+The Infographic artifact is not one look. Sixteen bundled styles span four layout families
+and are rendered deterministically (exact text, exact numbers) to a 1200×900 PNG.
+
+![infographic styles](assets/infographic-styles.png)
+
+| | light | | dark |
+|---|---|---|---|
+| **default** | `sections` warm paper cards | | `poster` gradient cover |
+| **editorial** | `editorial` oversized numerals · `swiss` strict red grid · `magazine` cream serif | | `neon` glowing accents |
+| **data** | `dashboard` KPI tiles · `bento` rounded mosaic | | `mission` console telemetry |
+| **technical** | `blueprint` navy spec grid | | `terminal` mono on black |
+| **print** | `retro` halftone · `risograph` overprint · `kraft` taped paper | | `chalkboard` slate board |
+| **loud** | `brutalist` hard black borders | | |
+
+The picker draws every style as a live thumbnail — the same renderer, using the notebook's
+own last infographic — so the choice is made on the real thing rather than on a swatch.
+
+Pick one in the page (sliders icon on the Infographic card) or in a tool call:
+
+```python
+notebook_generate(notebook="fusion-2026", kind="infographic", style="blueprint")
+```
+
+```bash
+curl -s "$GATEWAY/api/plugins/hermes-notebook/infographic_styles" | jq '.styles[] | {id, label, blurb}'
+```
+
+Details: `docs/INFOGRAPHIC-STYLES.md` for the design rules, `skills/notebook-infographics/`
+for the choosing guide and the illustrated (image-model) path, `tools/make_style_sheet.py`
+to re-render the contact sheet after adding a style.
 
 ## Install
 
