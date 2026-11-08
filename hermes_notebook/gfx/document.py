@@ -130,6 +130,11 @@ def canvas_for(orientation: Any = "landscape",
     return ORIENTATIONS.get(key, ORIENTATIONS["landscape"])
 
 
+def preset_id_ok(p: Preset) -> bool:
+    """True when the preset resolved (unknown names fall back to `sections`)."""
+    return getattr(p, "default_template", "") in templates.TEMPLATES
+
+
 def _defs(f: templates.Frame, p: Preset) -> List[str]:
     out: List[str] = list(illustrate.defs_for(p))
     if "grid" in p.decor:
@@ -171,8 +176,10 @@ def _background(f: templates.Frame, p: Preset, tpl: str = "") -> List[str]:
         if tpl in _GRID_TEMPLATES:
             # a scrim keeps the art as texture instead of competing with the type;
             # a photographed surface keeps more of its light than a cartoon sky does
+            scrim = {"plate": 0.30, "mesh": 0.10, "clay": 0.12, "sumi": 0.10,
+                     "deco": 0.10, "dither": 0.08, "hud": 0.08}.get(p.art, 0.58)
             art.append(core.rect(0, 0, f.w, f.h, fill=core.shade(p.paper, -0.02),
-                                 opacity=0.30 if p.art == "plate" else 0.58))
+                                 opacity=scrim))
         return art
     if p.family == "poster":
         return [core.gradient("poster", p.paper, core.shade(p.paper, -0.55)),
@@ -239,7 +246,10 @@ def render(graphic: Any, template: str = "infographic", preset: Optional[str] = 
         desc: accessible description; a summary is generated when empty.
     """
     g = normalise_graphic(graphic)
-    tpl_name = template if template in templates.TEMPLATES else "infographic"
+    requested = (template or "auto").strip().lower()
+    if requested in ("", "auto", "default") and preset_id_ok(p):
+        requested = p.default_template
+    tpl_name = requested if requested in templates.TEMPLATES else "infographic"
     p = _themed(resolve_preset(preset or DEFAULT_PRESET), theme)
     detail = detail if detail in DETAIL_LEVELS else "standard"
 

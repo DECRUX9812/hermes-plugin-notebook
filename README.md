@@ -77,7 +77,7 @@ control, a file browser and Proxmox VM snapshots for the selected host.
 | User notes | `notebook_note` — your annotations become first-class searchable sources |
 | Source lifecycle | `notebook_refresh` re-fetches url/file sources, `notebook_delete_source` removes one |
 | Suggestions | `notebook_suggest` — questions worth asking, artifacts worth making, source gaps (optional `kinds` filter) |
-| Artifacts | `notebook_generate` — summary, briefing doc, study guide, FAQ, timeline, **mind map**, flashcards (md or Anki CSV), quiz, **slide deck** (self-contained HTML), **infographic** (SVG: 18 looks × 9 layouts), data table (CSV) |
+| Artifacts | `notebook_generate` — summary, briefing doc, study guide, FAQ, timeline, **mind map**, flashcards (md or Anki CSV), quiz, **slide deck** (self-contained HTML), **infographic** (SVG: 33 looks × 9 layouts), data table (CSV) |
 | Audio Overview | `notebook_audio` — two-host conversational podcast (edge-tts voices + ffmpeg), with transcript |
 | Video Overview | `notebook_video` — cinematic narrated mp4, `style=cinematic|explainer`, Pillow cards + ffmpeg |
 | Web discovery | `notebook_discover` — web_search for candidate sources to add |
@@ -106,10 +106,10 @@ answer. Every thread still cites the same sources.
 ## Graphics library
 
 Every visual artifact is drawn by a reusable library, not one-off code:
-**18 looks × 9 templates × 3 shapes × 3 detail levels**, composed from primitives and
+**33 looks × 9 templates × 3 shapes × 3 detail levels**, composed from primitives and
 emitted as SVG (5–15 KB, crisp at any zoom, real text, accessible).
 
-![18 looks](assets/infographic-styles.png)
+![33 looks](assets/infographic-styles.png)
 ![templates](assets/graphics-templates.png)
 
 ```python

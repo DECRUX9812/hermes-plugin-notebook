@@ -13,7 +13,7 @@ metadata:
 
 # Notebook Infographics
 
-The `hermes-notebook` plugin ships a graphics library: **18 looks × 9 templates ×
+The `hermes-notebook` plugin ships a graphics library: **33 looks × 9 templates ×
 3 shapes × 3 detail levels**, emitted as SVG by `hermes_notebook.gfx`. This skill is
 how to choose a look and a layout, how to call it, and — when the user wants
 something painted rather than typeset — how to fall back to the image model.
@@ -51,6 +51,29 @@ summaries — those are their own artifact kinds.
 | `chalkboard` | slate board, chalk white, wobbly rules | teaching, lecture summaries, study posters | rows |
 | `cartoon` | sky, sun, hills, outlined figures, offset shadows | explainers, kids, anything non-specialist | feature |
 | `realistic` | studio light: key, rim, horizon, grain, vignette | reports, product paint, "photographed" feel | feature |
+
+### Second and third waves (15 more, each with its own composition)
+
+| id | Look | Best for | default layout |
+|---|---|---|---|
+| `newspaper` | FT salmon, serif, black rules | policy, investigations, "went to press" | infographic |
+| `annual` | white grid, navy + gold, small caps | board material, year-in-review, audited | stat_grid |
+| `museum` | gallery label, hairline rules, tiny caps | objects, places, one idea given room | quote_card |
+| `film` | condensed caps on black, one red, spotlight | launches, screenings, a poster not a page | cover |
+| `data-desk` | white sheet, annotation red, tick marks | benchmarks, a story told by a chart | comparison |
+| `deco` | black + gold, framed, rayed | anniversaries, galas, premium covers | cover |
+| `glass` | mesh gradient, frosted panels | product, AI, SaaS launches | stat_grid |
+| `clay` | matte tiles, real shadows, tactile | friendly explainers, onboarding | infographic |
+| `sumi` | rice paper, two brush strokes, vermilion seal | philosophy, craft, history | quote_card |
+| `hud` | reticle green on black glass | systems, telemetry, mission status | key_figure |
+| `dither` | sepia stock, dot screen, halftone band | zines, retro tech, printed feel | timeline |
+| `verge` | black, neon pink, yellow | reviews, launches, opinion | cover |
+| `carbon` | IBM structure: 1px grid, one blue | enterprise, engineering, process docs | process |
+| `arc` | warm pastel mesh, soft white panels | product explainers, onboarding | infographic |
+| `aero` | black, hairline, mono specs | hardware, spacecraft, launch sequences | key_figure |
+
+`hud`, `dither`, `verge`, `carbon`, `arc` and `aero` take their palettes from Open
+Design's design-token files, not from taste.
 
 Full palettes, geometry and decoration rules: `references/style-pack.md`.
 Contact sheet: `assets/infographic-styles.png` in the plugin repo.

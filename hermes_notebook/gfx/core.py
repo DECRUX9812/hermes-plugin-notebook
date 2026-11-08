@@ -28,6 +28,8 @@ FONT_STACK = {
     "sans": "'Inter var','Inter','DejaVu Sans','Helvetica Neue',Arial,sans-serif",
     "serif": "'Iowan Old Style','Charter','DejaVu Serif',Georgia,serif",
     "mono": "'JetBrains Mono','DejaVu Sans Mono',ui-monospace,monospace",
+    "condensed": "'Inter Tight','Liberation Sans Narrow','Archivo Narrow',"
+                 "'DejaVu Sans Condensed',Arial Narrow,sans-serif",
 }
 
 _METRIC_PATHS = {
@@ -37,6 +39,9 @@ _METRIC_PATHS = {
     ("serif", True): "/usr/share/fonts/truetype/dejavu/DejaVuSerif-Bold.ttf",
     ("mono", False): "/usr/share/fonts/truetype/dejavu/DejaVuSansMono.ttf",
     ("mono", True): "/usr/share/fonts/truetype/dejavu/DejaVuSansMono-Bold.ttf",
+    # measured with the WIDE fallback on purpose: narrow faces then leave slack
+    ("condensed", False): "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf",
+    ("condensed", True): "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf",
 }
 
 _METRICS: Dict[Tuple[str, bool, int], Any] = {}

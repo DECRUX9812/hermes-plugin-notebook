@@ -47,7 +47,7 @@ def test_public_api_exists():
 def test_presets_include_both_house_treatments():
     arts = {p["art"] for p in gfx.preset_catalog()}
     assert "cartoon" in arts and "plate" in arts
-    assert len(gfx.PRESETS) >= 18
+    assert len(gfx.PRESETS) >= 33
 
 
 def test_manifest_is_complete():

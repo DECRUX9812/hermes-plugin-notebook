@@ -14,6 +14,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import math
 import re
 import subprocess
 import sys
@@ -114,16 +115,20 @@ def main() -> int:
     for preset in gfx.PRESETS:
         # illustrated treatments are shown as covers: an infographic scrim would
         # hide the very artwork that makes them different
-        tpl = "cover" if preset.art != "none" else "infographic"
-        svg = gfx.render(SAMPLE, preset=preset.id, template=tpl)
+        # each tile shows the look in the composition that look reaches for
+        tpl = preset.default_template
+        svg = gfx.render(SAMPLE, preset=preset.id, template=tpl or "auto")
         (style_dir / f"{preset.id}.svg").write_text(svg)
         kind = preset.art if preset.art != "none" else preset.family
         tiles.append((f"styles/{preset.id}.svg", preset.label, f"{preset.id} · {kind}"))
-    html = _sheet_html(tiles, 4, 600, 450, "hermes-notebook · 18 looks",
-                       "one invented sample payload, eighteen bundled looks — "
-                       "cartoon and realistic add the illustrated treatments")
+    cols = 4
+    rows = math.ceil(len(tiles) / cols)
+    html = _sheet_html(tiles, cols, 600, 450, "hermes-notebook · 33 looks",
+                       "one invented sample payload · type-led, illustrated and "
+                       "Open Design-derived looks, each in its own composition")
     (assets / "styles.html").write_text(html)
-    _shoot(html, assets / "infographic-styles.png", 4 * 614 + 14, 5 * 500 + 96)
+    # the shot has to be as tall as the sheet — a clipped sheet silently drops rows
+    _shoot(html, assets / "infographic-styles.png", cols * 614 + 14, rows * 500 + 96)
     print(f"wrote {len(tiles)} style SVGs + assets/infographic-styles.png")
 
     if "--templates" in args or "--examples" in args:

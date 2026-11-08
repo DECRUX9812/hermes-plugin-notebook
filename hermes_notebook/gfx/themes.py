@@ -22,7 +22,7 @@ from . import core
 RGB = Tuple[int, int, int]
 
 #: Art treatments a preset may ask for. `none` = type and colour only.
-ART = ("none", "cartoon", "plate")
+ART = ("none", "cartoon", "plate", "mesh", "clay", "sumi", "deco", "dither", "hud")
 
 #: Layout families the templates know how to fill.
 FAMILIES = ("cards", "rows", "poster", "kpi", "feature", "strip")
@@ -33,13 +33,14 @@ class Preset:
 
     __slots__ = ("id", "label", "blurb", "best_for", "family", "base", "paper", "ink",
                  "muted", "card", "accents", "border", "radius", "typeface", "decor",
-                 "kicker", "tone", "art")
+                 "kicker", "tone", "art", "default_template")
 
     def __init__(self, id: str, label: str, blurb: str, best_for: str, family: str,
                  base: str, paper: RGB, ink: RGB, muted: RGB, card: RGB,
                  accents: List[RGB], border: Optional[RGB] = None, radius: int = 0,
                  typeface: str = "sans", decor: Tuple[str, ...] = (),
-                 kicker: str = "INFOGRAPHIC", tone: str = "light", art: str = "none"):
+                 kicker: str = "INFOGRAPHIC", tone: str = "light", art: str = "none",
+                 default_template: str = "infographic"):
         self.id = id
         self.label = label
         self.blurb = blurb
@@ -58,6 +59,7 @@ class Preset:
         self.kicker = kicker
         self.tone = tone
         self.art = art if art in ART else "none"
+        self.default_template = default_template
 
     # -- derived ---------------------------------------------------------
     @property
@@ -102,8 +104,7 @@ _HOUSE: List[Preset] = [
         accents=[(0xFF, 0x6B, 0x35), (0x2E, 0x86, 0xE0), (0x39, 0xB5, 0x7A),
                  (0xF2, 0xC0, 0x3D)],
         border=(0x1B, 0x1B, 0x2A), radius=22, typeface="sans",
-        decor=("outline", "art"), kicker="IN PICTURES", tone="light", art="cartoon",
-    ),
+        decor=("outline", "art"), kicker="IN PICTURES", tone="light", art="cartoon", default_template="cover"),
     Preset(
         "realistic", "Realistic", "Deep neutrals, layered light, soft shadow and film grain.",
         "Reports, product paint, anything that should look photographed rather than drawn.",
@@ -111,11 +112,141 @@ _HOUSE: List[Preset] = [
         muted=(0xC2, 0xC9, 0xD3), card=(0x24, 0x2B, 0x35),
         accents=[(0x6E, 0xE7, 0xFF), (0xFF, 0xB4, 0x5C), (0x9C, 0xF5, 0xC0)],
         border=(0x3E, 0x4A, 0x5C), radius=14, typeface="sans",
-        decor=("plate", "art"), kicker="OBSERVED", tone="dark", art="plate",
-    ),
+        decor=("plate", "art"), kicker="OBSERVED", tone="dark", art="plate", default_template="infographic"),
 ]
 
-PRESETS: List[Preset] = [_from_style(s) for s in igstyles.STYLES] + _HOUSE
+#: The second wave. Each one is a different design language, not a recolour: a
+#: newspaper page, an annual report, a museum label, a film poster, a data desk, art
+#: deco, and three modern treatments (glass, clay, ink wash). Added because "more
+#: looks" is only worth anything if the looks are actually different.
+_MORE: List[Preset] = [
+    Preset(
+        "newspaper", "Newspaper", "Salmon stock, serif headline, black rules, one deep red.",
+        "Investigations, policy, anything that should read like it went to press.",
+        "cards", "ft-salmon", paper=(0xFF, 0xF1, 0xE5), ink=(0x1A, 0x1A, 0x1A),
+        muted=(0x5C, 0x55, 0x4D), card=(0xFF, 0xF8, 0xF0),
+        accents=[(0x9E, 0x2B, 0x25), (0x0F, 0x54, 0x60)], border=(0xE2, 0xCE, 0xB8),
+        radius=0, typeface="serif", decor=("hairline",), kicker="THE BRIEF", default_template="infographic"),
+    Preset(
+        "annual", "Annual Report", "White grid, navy and gold, small caps, footnoted calm.",
+        "Board material, year-in-review, anything that must look audited.",
+        "kpi", "annual-report", paper=(0xFF, 0xFF, 0xFF), ink=(0x0E, 0x11, 0x16),
+        muted=(0x54, 0x5C, 0x67), card=(0xF7, 0xF8, 0xFA),
+        accents=[(0x1F, 0x4E, 0x79), (0xC8, 0xA1, 0x5A), (0x2F, 0x6F, 0x5F)],
+        border=(0xDF, 0xE3, 0xE8), radius=0, decor=("hairline", "ticks"),
+        kicker="ANNUAL REVIEW", default_template="stat_grid"),
+    Preset(
+        "museum", "Museum", "Gallery label: hairline rules, tiny caps, enormous margins.",
+        "Objects, places, one idea given room — where restraint is the point.",
+        "rows", "museum-label", paper=(0xF4, 0xF1, 0xEA), ink=(0x17, 0x16, 0x14),
+        muted=(0x6B, 0x63, 0x57), card=(0xFB, 0xF9, 0xF4),
+        accents=[(0x7A, 0x6A, 0x55), (0x8C, 0x3B, 0x2E)], border=(0xDD, 0xD6, 0xC7),
+        radius=0, decor=("hairline",), kicker="PLATE 01", default_template="quote_card"),
+    Preset(
+        "film", "Film Poster", "Condensed caps on black, one red accent, a single spotlight.",
+        "A launch, a screening, a story with a poster instead of a page.",
+        "poster", "film-poster", paper=(0x0B, 0x0B, 0x0C), ink=(0xF5, 0xF3, 0xEE),
+        muted=(0xB9, 0xB4, 0xAB), card=(0x15, 0x15, 0x17),
+        accents=[(0xE8, 0x45, 0x2B), (0xF5, 0xD0, 0x6F)], border=(0x2C, 0x2C, 0x31),
+        radius=0, typeface="condensed", decor=(), kicker="A FILM ABOUT", tone="dark",
+        art="plate", default_template="cover"),
+    Preset(
+        "data-desk", "Data Desk", "White sheet, annotation red, tick marks, chart discipline.",
+        "Investigations with numbers, benchmarks, a story told by a chart.",
+        "kpi", "data-journalism", paper=(0xFF, 0xFF, 0xFF), ink=(0x10, 0x10, 0x10),
+        muted=(0x5A, 0x5A, 0x5A), card=(0xF3, 0xF4, 0xF6),
+        accents=[(0xD7, 0x26, 0x3D), (0x1B, 0x99, 0x8B), (0x2B, 0x4C, 0x7E)],
+        border=(0xE5, 0xE7, 0xEB), radius=4, decor=("hairline", "ticks"),
+        kicker="DATA DESK", default_template="comparison"),
+    Preset(
+        "deco", "Art Deco", "Black and gold: framed, rayed, symmetrical, theatrical.",
+        "Anniversaries, galas, premium covers — when it should feel engraved.",
+        "poster", "art-deco", paper=(0x0E, 0x0D, 0x0B), ink=(0xF3, 0xE9, 0xD2),
+        muted=(0xC4, 0xB6, 0x92), card=(0x16, 0x14, 0x0F),
+        accents=[(0xC9, 0xA2, 0x27), (0xE8, 0xD8, 0xA6)], border=(0x3A, 0x33, 0x24),
+        radius=2, typeface="serif", decor=(), kicker="MMXXVI", tone="dark", art="deco", default_template="cover"),
+    Preset(
+        "glass", "Glass", "Mesh gradient behind frosted panels — modern product light.",
+        "Product, AI, SaaS launches; a screenshot that looks like an app.",
+        "cards", "mesh-gradient", paper=(0x0B, 0x10, 0x20), ink=(0xF2, 0xF5, 0xFF),
+        muted=(0xB6, 0xC2, 0xE0), card=(0x1B, 0x24, 0x40),
+        accents=[(0x7C, 0x9C, 0xFF), (0x6E, 0xE7, 0xB7), (0xF0, 0xAB, 0xFC)],
+        border=(0x39, 0x46, 0x6B), radius=22, decor=(), kicker="PRODUCT NOTE",
+        tone="dark", art="mesh", default_template="stat_grid"),
+    Preset(
+        "clay", "Clay", "Soft matte tiles with real shadows — tactile, not flat.",
+        "Friendly product explainers, onboarding, anything meant to feel touchable.",
+        "cards", "claymorphism", paper=(0xF6, 0xEF, 0xE9), ink=(0x2B, 0x21, 0x1C),
+        muted=(0x6B, 0x5A, 0x50), card=(0xFF, 0xF9, 0xF4),
+        accents=[(0xE8, 0x87, 0x5E), (0x6F, 0xA8, 0x9A), (0x9A, 0x7E, 0xB8)],
+        border=None, radius=26, decor=(), kicker="IN SHORT", tone="light", art="clay", default_template="infographic"),
+    Preset(
+        "sumi", "Ink Wash", "Rice paper, two brush strokes, vermilion seal, serif.",
+        "Philosophy, craft, history — material that benefits from silence.",
+        "rows", "sumi-e", paper=(0xF7, 0xF4, 0xEC), ink=(0x1A, 0x1A, 0x18),
+        muted=(0x63, 0x5D, 0x53), card=(0xFD, 0xFB, 0xF5),
+        accents=[(0x2F, 0x3B, 0x45), (0xA3, 0x3B, 0x2B)], border=(0xD9, 0xD2, 0xC3),
+        radius=0, typeface="serif", decor=("hairline",), kicker="NOTES", tone="light",
+        art="sumi", default_template="quote_card"),
+]
+
+#: Third wave, palettes lifted from Open Design's own token files (hud, dithered,
+#: theverge, ibm, arc, spacex) rather than invented here. Each keeps that system's
+#: signature: HUD brackets, a dot screen, tabloid neon, Carbon structure, Arc warmth,
+#: aerospace mono.
+_OPEN_DESIGN: List[Preset] = [
+    Preset(
+        "hud", "HUD", "Phosphor green on black glass, reticle grid, corner brackets.",
+        "Systems, telemetry, mission status — data read at a glance.",
+        "kpi", "hud", paper=(0x09, 0x0B, 0x12), ink=(0xF8, 0xFA, 0xFC),
+        muted=(0x94, 0xA3, 0xB8), card=(0x12, 0x17, 0x22),
+        accents=[(0x22, 0xC5, 0x5E), (0xFB, 0xBF, 0x24), (0x60, 0xA5, 0xFA)],
+        border=(0x1D, 0x26, 0x36), radius=2, typeface="mono", decor=("ticks",),
+        kicker="SYS // STATUS", tone="dark", art="hud", default_template="key_figure"),
+    Preset(
+        "dither", "Dithered", "Sepia stock, dot screen, halftone band — a two-colour print.",
+        "Zines, retro tech, anything that should look printed on an old machine.",
+        "poster", "dithered", paper=(0xFF, 0xF4, 0xCF), ink=(0x2A, 0x18, 0x10),
+        muted=(0x59, 0x36, 0x25), card=(0xFF, 0xFA, 0xF0),
+        accents=[(0xD2, 0x4B, 0x1F), (0x3D, 0x8F, 0x4F), (0xF2, 0xA9, 0x3B)],
+        border=(0xD9, 0xAA, 0x7A), radius=0, decor=(), kicker="PRINTED 1-BIT",
+        tone="light", art="dither", default_template="timeline"),
+    Preset(
+        "verge", "Tabloid", "Black, neon pink, yellow — a technology cover that shouts.",
+        "Reviews, launches, opinion — where the cover is the argument.",
+        "poster", "theverge", paper=(0x05, 0x05, 0x05), ink=(0xFF, 0xFF, 0xFF),
+        muted=(0x9C, 0xA3, 0xAF), card=(0x11, 0x11, 0x11),
+        accents=[(0xFF, 0x00, 0xA8), (0xFA, 0xCC, 0x15), (0x22, 0xC5, 0x5E)],
+        border=(0x2B, 0x2B, 0x2B), radius=0, decor=(), kicker="THE COVER STORY",
+        tone="dark", default_template="cover"),
+    Preset(
+        "carbon", "Carbon", "IBM structure: white sheet, 1px grid, one blue, mono labels.",
+        "Enterprise, engineering, process documentation that must look exact.",
+        "rows", "ibm", paper=(0xFF, 0xFF, 0xFF), ink=(0x16, 0x16, 0x16),
+        muted=(0x52, 0x52, 0x52), card=(0xF4, 0xF4, 0xF4),
+        accents=[(0x0F, 0x62, 0xFE), (0x24, 0xA1, 0x48), (0xF1, 0xC2, 0x1B)],
+        border=(0xE0, 0xE0, 0xE0), radius=0, typeface="sans",
+        decor=("hairline", "ticks", "grid"), kicker="CARBON", default_template="process"),
+    Preset(
+        "arc", "Arc", "Warm pastel mesh behind soft white panels — friendly and modern.",
+        "Product explainers, onboarding, anything that should feel inviting.",
+        "cards", "arc", paper=(0xFD, 0xF3, 0xEC), ink=(0x1A, 0x1A, 0x1F),
+        muted=(0x54, 0x54, 0x5A), card=(0xFF, 0xFF, 0xFF),
+        accents=[(0xFF, 0x5F, 0x5F), (0xFF, 0x7E, 0x5F), (0xFE, 0xB4, 0x7B)],
+        border=(0xEC, 0xE5, 0xDB), radius=18, decor=(), kicker="A SHORT TOUR",
+        tone="light", art="mesh", default_template="infographic"),
+    Preset(
+        "aero", "Aerospace", "Black, hairline, mono specs — a mission sheet that says nothing extra.",
+        "Hardware, spacecraft, launch sequences, industrial previews.",
+        "kpi", "spacex", paper=(0x00, 0x00, 0x00), ink=(0xF0, 0xF0, 0xFA),
+        muted=(0xA8, 0xA8, 0xB8), card=(0x0A, 0x0A, 0x0C),
+        accents=[(0x16, 0xA3, 0x4A), (0xEA, 0xB3, 0x08), (0xDC, 0x26, 0x26)],
+        border=(0x1A, 0x1A, 0x1E), radius=0, typeface="mono",
+        decor=("hairline", "ticks"), kicker="MISSION // TIDAL", tone="dark", default_template="key_figure"),
+]
+
+PRESETS: List[Preset] = ([_from_style(s) for s in igstyles.STYLES] + _HOUSE + _MORE
+                         + _OPEN_DESIGN)
 BY_ID: Dict[str, Preset] = {p.id: p for p in PRESETS}
 
 #: Words people and agents actually type, mapped onto ids.
@@ -125,6 +256,21 @@ ALIASES.update({
     "picture": "cartoon", "kids": "cartoon", "storybook": "cartoon",
     "photo": "realistic", "photographic": "realistic", "cinematic": "realistic",
     "editorial-photo": "realistic", "premium": "realistic", "lux": "realistic",
+    "ft": "newspaper", "financial": "newspaper", "press": "newspaper", "broadsheet": "newspaper",
+    "report": "annual", "corporate-report": "annual", "investor": "annual",
+    "gallery": "museum", "label": "museum", "minimal-museum": "museum",
+    "filmposter": "film", "cinema": "film", "screening": "film", "noir": "film",
+    "data": "data-desk", "journalism": "data-desk", "pudding": "data-desk",
+    "gatsby": "deco", "artdeco": "deco", "gala": "deco", "gold": "deco",
+    "frosted": "glass", "saas": "glass", "product": "glass", "mesh": "glass",
+    "claymorphism": "clay", "soft": "clay", "tactile": "clay",
+    "ink": "sumi", "wash": "sumi", "zen": "sumi", "brush": "sumi",
+    "jet": "hud", "cockpit": "hud", "telemetry": "hud", "fighter": "hud",
+    "1bit": "dither", "halftone": "dither", "zine": "dither", "printer": "dither",
+    "the-verge": "verge", "tabloid": "verge", "neon-pink": "verge",
+    "ibm-carbon": "carbon", "enterprise": "carbon", "carbon-grid": "carbon",
+    "arc-browser": "arc", "pastel": "arc", "soft-gradient": "arc",
+    "spacex": "aero", "space": "aero", "launch": "aero", "rocket": "aero",
 })
 
 DEFAULT_PRESET = "sections"
@@ -165,3 +311,24 @@ def with_art(art: str) -> List[Preset]:
 def house_presets() -> List[Preset]:
     """The two treatments this library adds over a plain style pack."""
     return list(_HOUSE)
+
+#: Which composition a look reaches for when the caller does not choose one. Without
+#: this, 33 looks are three layouts in 33 skins.
+_TEMPLATE_FOR = {
+    "newspaper": "infographic", "annual": "stat_grid", "museum": "quote_card",
+    "film": "cover", "data-desk": "comparison", "deco": "cover", "glass": "stat_grid",
+    "clay": "infographic", "sumi": "quote_card", "hud": "key_figure",
+    "dither": "timeline", "verge": "cover", "carbon": "process", "arc": "infographic",
+    "aero": "key_figure", "cartoon": "cover", "realistic": "infographic",
+    "editorial": "infographic", "poster": "cover", "swiss": "process",
+    "magazine": "quote_card", "bento": "stat_grid", "blueprint": "process",
+    "terminal": "key_figure", "neon": "cover", "brutalist": "stat_grid",
+    "retro": "timeline", "risograph": "comparison", "kraft": "quote_card",
+    "chalkboard": "timeline", "dashboard": "stat_grid", "mission": "key_figure",
+    "sections": "infographic",
+}
+
+for _p in PRESETS:
+    _t = _TEMPLATE_FOR.get(_p.id)
+    if _t and _p.default_template != _t:
+        _p.default_template = _t

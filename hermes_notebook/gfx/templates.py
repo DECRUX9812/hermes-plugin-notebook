@@ -130,7 +130,8 @@ def takeaway(f: Frame, p: Preset, text: str, band_y: int) -> List[str]:
     face = _face(p)
     tint = 0.10 if p.tone == "light" else 0.16
     rule_led = "hairline" in p.decor and p.tone == "light"
-    bg = p.card if rule_led else core.mix(p.paper, p.accents[0], tint)
+    bg = (p.card if rule_led
+          else core.mix(core.shade(p.paper, 0.14), p.accents[0], tint))
     out: List[str] = []
     if rule_led:
         out += [core.line(f.m, band_y, f.w - f.m, band_y, p.ink, 2),
@@ -199,7 +200,21 @@ def tile(f: Frame, p: Preset, box: Tuple[float, float, float, float],
 
     if "offset-shadow" in p.decor:
         out.append(core.rect(x0 + 7, y0 + 7, w, h, fill=p.ink))
-    out.append(core.rect(x0, y0, w, h, fill=card, r=p.radius, extra=shadow))
+    if p.art == "mesh":
+        # frosted panel over the mesh: translucent white, hairline top light
+        out.append(core.rect(x0, y0, w, h, fill=core.mix(card, (255, 255, 255), 0.20),
+                             r=p.radius, opacity=0.92, extra=shadow))
+        out.append(core.rect(x0 + 0.5, y0 + 0.5, w - 1, h - 1, fill="none",
+                             stroke=(255, 255, 255), sw=1, r=p.radius, opacity=0.30))
+        # a bright top edge is what makes a panel read as glass rather than as tint
+        out.append(core.rect(x0 + 10, y0 + 1, w - 20, 1.4, fill="#ffffff", opacity=0.45, r=1))
+    else:
+        out.append(core.rect(x0, y0, w, h, fill=card, r=p.radius, extra=shadow))
+    if p.art == "clay":
+        # clay keeps a warm inner light at the top and a soft shadow at the bottom
+        out.append(core.rect(x0 + 2, y0 + 1.5, w - 4, 2, fill="#ffffff", opacity=0.55, r=1))
+        out.append(f'<ellipse cx="{x0 + w / 2:.0f}" cy="{y1 - 6:.0f}" rx="{w * 0.40:.0f}" '
+                   f'ry="7" fill="{core.hexed(core.shade(card, -0.18))}" opacity="0.35"/>')
     if p.art == "plate":
         # a gloss band and a 1px top light read as a lit surface; without them the
         # card is a rectangle of a slightly different dark
@@ -463,7 +478,7 @@ def _family_kpi(f: Frame, p: Preset, g: Dict[str, Any], y0: int, y1: int,
                              core.readable(p.ink, p.card), face, bold=True))
         ly = yy + 26 + vsize + 8 + 18
         for line in core.wrap(str(stat.get("label", "")), face, 23, tw - 36, limit=2):
-            out.append(core.text(x + 18, ly, line, 23, p.muted, face))
+            out.append(core.text(x + 18, ly, line, 23, core.readable(p.muted, p.card, 4.5), face))
             ly += 28
 
         num = nums[i]
@@ -514,7 +529,7 @@ def tpl_key_figure(f: Frame, p: Preset, g: Dict[str, Any], detail: str = "standa
     rest = stats[1:4]
     face = _face(p)
     els, y0 = header(f, p, str(g.get("title") or "Key figure"),
-                     meta=_meta_line(p, len(stats)))
+                     meta=f"{p.label} · key figure")
 
     acc = p.accents[0]
     value = str(hero.get("value", "")).strip() or "—"
@@ -533,12 +548,14 @@ def tpl_key_figure(f: Frame, p: Preset, g: Dict[str, Any], detail: str = "standa
         ly += 40
 
     facts = core.sequence(g.get("quotes"), 2)
-    band_h = 0
+    take = str(g.get("takeaway") or "").strip()
+    _s0, band_h0, _l0 = takeaway_measure(f, p, take)
+    reserve = (band_h0 + int(f.m * 0.5) + 18) if band_h0 else f.m
     if rest:
         cols = len(rest)
         tw = (f.inner - (cols - 1) * f.gap) // cols
         th = 120
-        yy = f.h - f.m - th
+        yy = f.h - reserve - th
         for i, stat in enumerate(rest):
             x = f.m + i * (tw + f.gap)
             els += tile(f, p, (x, yy, x + tw, yy + th), stat, p.accent_on(i + 1), dense=True)
@@ -557,20 +574,21 @@ def tpl_stat_grid(f: Frame, p: Preset, g: Dict[str, Any], detail: str = "standar
     stats = core.sequence(g.get("stats"), cap)
     els, y0 = header(f, p, str(g.get("title") or "Snapshot"),
                      meta=_meta_line(p, len(stats)))
+    take = str(g.get("takeaway") or "").strip()
+    _s, band_h, _l = takeaway_measure(f, p, take)
+    band_y = f.h - int(f.m * 0.5) - band_h if band_h else f.h - f.m
     n = max(1, len(stats))
     cols = min(f.columns, n)
     nrows = int(math.ceil(n / cols))
     tw = (f.inner - (cols - 1) * f.gap) // cols
-    th = min(220, (f.h - f.m - y0 - (nrows - 1) * f.gap) // nrows)
+    # the closing band takes its space first — a takeaway must never sit on a tile
+    th = min(220, (band_y - 22 - y0 - (nrows - 1) * f.gap) // nrows)
     for i, stat in enumerate(stats):
         r, c = divmod(i, cols)
         x = f.m + c * (tw + f.gap)
         yy = y0 + r * (th + f.gap)
         els += tile(f, p, (x, yy, x + tw, yy + th), stat, p.accent_on(i), dense=nrows > 1)
-    take = str(g.get("takeaway") or "").strip()
-    _s, band_h, _l = takeaway_measure(f, p, take)
-    band_y = f.h - int(f.m * 0.5) - band_h if band_h else f.h
-    return els, band_y, band_h
+    return els, (band_y if band_h else f.h), band_h
 
 
 def tpl_quote_card(f: Frame, p: Preset, g: Dict[str, Any], detail: str = "standard",

@@ -1,11 +1,11 @@
 # The graphics library
 
-`hermes_notebook/gfx` is a reusable HTML/SVG graphics library: **18 looks × 9
+`hermes_notebook/gfx` is a reusable HTML/SVG graphics library: **33 looks × 9
 templates × 3 shapes × 3 detail levels**, composed from primitives instead of
 hand-built one-offs. It renders NotebookLM-class artifact visuals without an image
 model, so every numeral on the sheet is the numeral that came out of the sources.
 
-![18 looks](../assets/infographic-styles.png)
+![33 looks](../assets/infographic-styles.png)
 
 ![templates](../assets/graphics-templates.png)
 
@@ -141,14 +141,41 @@ and `data-template` / `data-preset` / `data-detail` for tooling.
 
 ### Presets
 
-Sixteen type-led looks (`sections`, `editorial`, `poster`, `swiss`, `magazine`,
-`bento`, `blueprint`, `terminal`, `neon`, `brutalist`, `retro`, `risograph`, `kraft`,
-`chalkboard`, `dashboard`, `mission`) plus two illustrated treatments:
+**33 looks**, in three waves. Every look carries its own palette, typeface, radius,
+decoration set, art treatment **and default composition** — because 33 looks that all
+draw the same card grid are three looks in 33 skins.
 
-| preset | what it is | built from |
+| wave | looks | provenance |
 |---|---|---|
-| `cartoon` | picture-book scene: sky wash, sun with glow and rays, three puffy outlined clouds, three overlapping hill bands, flags and a figure; type sits on a plate below, so words never land on the art | flat fills + 3px ink outlines + offset shadows |
-| `realistic` | studio-lit surface: key light upper-left, rim light opposite, a soft light pool instead of a floor seam, vignette and film grain; cards carry a gloss band, a 1px top light and a real cast shadow | layered radial/linear gradients + `feGaussianBlur` + `feTurbulence` |
+| 1 · type-led (16) | `sections`, `editorial`, `poster`, `swiss`, `magazine`, `bento`, `blueprint`, `terminal`, `neon`, `brutalist`, `retro`, `risograph`, `kraft`, `chalkboard`, `dashboard`, `mission` | palettes borrowed from Open Design's design systems (`bento`, `editorial`, `wired`, `brutalism`, `mission-control`, …) |
+| 2 · editorial + illustrated (2 + 9) | `cartoon`, `realistic`; `newspaper`, `annual`, `museum`, `film`, `data-desk`, `deco`, `glass`, `clay`, `sumi` | the illustrated two are drawn, not photographed; the nine are named design languages (FT salmon, annual report, museum label, film poster, data desk, art deco, mesh glass, claymorphism, sumi-e) |
+| 3 · Open Design tokens (6) | `hud`, `dither`, `verge`, `carbon`, `arc`, `aero` | palettes taken from Open Design's `design-tokens.json` for `hud`, `dithered`, `theverge`, `ibm`, `arc`, `spacex` |
+
+Treatments behind them (`Preset.art`):
+
+| art | used by | how it is drawn |
+|---|---|---|
+| `cartoon` | `cartoon` | picture-book scene: sky wash, sun with glow and rays, three puffy outlined clouds, three overlapping hill bands, flags and a figure; type sits on a plate below, so words never land on the art |
+| `plate` | `realistic`, `film` | studio-lit surface: key light upper-left, rim light opposite, a soft light pool instead of a floor seam, vignette and film grain; cards carry a gloss band, a 1px top light and a real cast shadow |
+| `mesh` | `glass`, `arc` | three huge blurred colour fields over a gradient — reads as a mesh, never as circles; panels are translucent with a bright top edge |
+| `clay` | `clay` | warm matte surface, single soft light, per-card inner highlight and soft bottom shadow |
+| `sumi` | `sumi` | two ink-wash strokes (blurred twin under a hard shape) plus a vermilion seal dot |
+| `deco` | `deco` | gold double frame, thirteen-ray fan, all strokes |
+| `dither` | `dither` | 6px and 10px dot screens plus scan rules — the two-colour print trick for a midtone |
+| `hud` | `hud` | 48px reticle grid, corner brackets, header rule, grain |
+
+Default compositions (`Preset.default_template`; `template="auto"` uses it):
+
+| composition | looks |
+|---|---|
+| `infographic` | sections, editorial, newspaper, clay, arc, realistic |
+| `cover` | poster, neon, film, deco, verge, cartoon |
+| `key_figure` | terminal, mission, hud, aero |
+| `stat_grid` | bento, dashboard, brutalist, annual, glass |
+| `quote_card` | magazine, kraft, museum, sumi |
+| `process` | swiss, blueprint, carbon |
+| `timeline` | retro, chalkboard, dither |
+| `comparison` | risograph, data-desk |
 
 Quality rules learned by looking at the output (not by taste):
 
@@ -163,6 +190,9 @@ Quality rules learned by looking at the output (not by taste):
 - **Titles wrap balanced, not greedy.** `core.wrap_balanced` narrows the measure until
   the lines are close to equal, so a headline never leaves one word alone.
 - **Figures use tabular numerals** (`tnum`), so columns of numbers line up.
+- **A look is also a composition.** Without `default_template`, fifteen styles drew
+  the same KPI grid; the sheet read as recolours. `template="auto"` gives each look
+  the layout its name promises.
 - **The cartoon treatment is a scene, not a diagram.** It does not know the topic; if a
   brief needs the subject drawn (water, turbines, a city), that is the image-model path,
   and the docs say so.

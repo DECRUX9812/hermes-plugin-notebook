@@ -328,7 +328,7 @@ def generate(notebook: str, kind: str, *, focus: str = "", count_hint: str = "",
         # can never be re-typeset by accident, and the file is a few KB.
         template = (fmt or "").strip().lower()
         if template not in gfx.TEMPLATES:
-            template = "infographic"
+            template = "auto"
         orientation = str(options.get("orientation") or "landscape").lower()
         detail = str(options.get("detail") or "standard").lower()
         parsed["_style"] = {"id": style_spec.id, "label": style_spec.label,

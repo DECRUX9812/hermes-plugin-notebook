@@ -102,7 +102,7 @@ KINDS: List[Dict[str, Any]] = [
     {"id": "slides", "label": "Slides", "group": "visual", "ext": "html",
      "blurb": "Self-contained deck, arrow keys", "secs": 22},
     {"id": "infographic", "label": "Infographic", "group": "visual", "ext": "svg",
-     "blurb": "Vector poster — 18 looks, 9 layouts", "secs": 20,
+     "blurb": "Vector poster — 33 looks, 9 layouts", "secs": 20,
      "options": [
          {"id": "style", "label": "Look", "kind": "select",
           "default": gfx_themes.DEFAULT_PRESET,
@@ -110,10 +110,13 @@ KINDS: List[Dict[str, Any]] = [
           "items": [{"id": p["id"], "label": p["label"], "blurb": p["blurb"],
                      "family": p["family"], "swatch": p["swatch"]}
                     for p in gfx_themes.catalog()]},
-         {"id": "template", "label": "Layout", "kind": "select", "default": "infographic",
-          "choices": ["infographic", "key_figure", "stat_grid", "timeline",
+         # "auto" lets the look choose its own composition — a cover look draws a
+         # cover, a key-figure look draws its hero
+         {"id": "template", "label": "Layout", "kind": "select", "default": "auto",
+          "choices": ["auto", "infographic", "key_figure", "stat_grid", "timeline",
                       "comparison", "process", "quote_card", "cover", "illustration"],
-          "items": [{"id": t, "label": t.replace("_", " ").title()}
+          "items": [{"id": "auto", "label": "Auto · match the look"}] +
+                   [{"id": t, "label": t.replace("_", " ").title()}
                     for t in ["infographic", "key_figure", "stat_grid", "timeline",
                               "comparison", "process", "quote_card", "cover",
                               "illustration"]]},

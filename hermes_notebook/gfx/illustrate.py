@@ -240,7 +240,144 @@ def specular_streak(w: int, h: int, p: Preset) -> List[str]:
                           core.mix(p.accents[0], (255, 255, 255), 0.7)), opacity=0.05)]
 
 
+# ------------------------------------------------------- glass / clay / sumi / deco
+
+
+def mesh_background(w: int, h: int, p: Preset) -> List[str]:
+    """Modern SaaS mesh: three huge blurred colour fields over a deep base. Reads as
+    a gradient because the blobs are far larger than the sheet, never as circles."""
+    base = core.shade(p.paper, -0.10)
+    out: List[str] = [core.gradient("meshBase", core.shade(p.paper, 0.06), base),
+                      f'<rect width="{w}" height="{h}" fill="url(#meshBase)"/>']
+    blobs = ((0.18, 0.10, 0.55, p.accents[0]), (0.86, 0.22, 0.48, p.accents[1 % len(p.accents)]),
+             (0.62, 0.92, 0.60, p.accents[2 % len(p.accents)]), (0.04, 0.82, 0.42,
+                                                                 p.accents[0]))
+    for fx, fy, fr, col in blobs:
+        out.append(core.radial("meshBlob", core.mix(col, p.paper, 0.10), base))
+        out.append(f'<ellipse cx="{w * fx:.0f}" cy="{h * fy:.0f}" rx="{w * fr:.0f}" '
+                   f'ry="{h * fr:.0f}" fill="url(#meshBlob)" opacity="0.55" '
+                   f'filter="url(#soften)"/>')
+    out.append(f'<rect width="{w}" height="{h}" filter="url(#grain)" opacity="0.6"/>')
+    return out
+
+
+def clay_background(w: int, h: int, p: Preset) -> List[str]:
+    """Claymorphism: a warm, almost matte surface with a single soft light from the
+    top and a faint warm bounce at the bottom."""
+    out: List[str] = [
+        core.gradient("clayBase", core.shade(p.paper, 0.10), core.shade(p.paper, -0.06)),
+        f'<rect width="{w}" height="{h}" fill="url(#clayBase)"/>',
+        core.radial("clayLight", core.shade(p.paper, 0.30), core.shade(p.paper, -0.05)),
+        f'<ellipse cx="{w * 0.30:.0f}" cy="{h * -0.05:.0f}" rx="{w * 0.70:.0f}" '
+        f'ry="{h * 0.45:.0f}" fill="url(#clayLight)" opacity="0.55" filter="url(#soften)"/>',
+        f'<ellipse cx="{w * 0.80:.0f}" cy="{h * 1.02:.0f}" rx="{w * 0.45:.0f}" '
+        f'ry="{h * 0.30:.0f}" fill="{core.hexed(core.mix(p.accents[1 % len(p.accents)], p.paper, 0.7))}" '
+        f'opacity="0.35" filter="url(#soften)"/>',
+    ]
+    return out
+
+
+def sumi_background(w: int, h: int, p: Preset) -> List[str]:
+    """Ink wash: two soft brush strokes in the corner, paper tone, nothing else. The
+    stroke is a filled path with a blurred twin underneath, which is how a wash reads
+    as pigment rather than as a shape."""
+    ink = core.mix(p.ink, p.paper, 0.55)
+    vermilion = core.mix(p.accents[1 % len(p.accents)], p.paper, 0.35)
+    out: List[str] = [
+        core.gradient("sumiPaper", core.shade(p.paper, 0.04), core.shade(p.paper, -0.04)),
+        f'<rect width="{w}" height="{h}" fill="url(#sumiPaper)"/>',
+        f'<g filter="url(#soften)"><path d="M{w * 0.06:.0f} {h * 0.20:.0f} '
+        f'Q {w * 0.30:.0f} {h * 0.02:.0f} {w * 0.58:.0f} {h * 0.16:.0f} '
+        f'Q {w * 0.34:.0f} {h * 0.20:.0f} {w * 0.06:.0f} {h * 0.24:.0f} Z" '
+        f'fill="{core.hexed(ink)}" opacity="0.20"/></g>',
+        f'<g filter="url(#soften)"><path d="M{w * 0.94:.0f} {h * 0.94:.0f} '
+        f'Q {w * 0.62:.0f} {h * 0.86:.0f} {w * 0.40:.0f} {h * 1.02:.0f} '
+        f'Q {w * 0.70:.0f} {h * 0.98:.0f} {w * 0.94:.0f} {h * 0.98:.0f} Z" '
+        f'fill="{core.hexed(ink)}" opacity="0.14"/></g>',
+        core.circle(w * 0.90, h * 0.16, h * 0.018, fill=vermilion, opacity=0.85),
+        f'<rect width="{w}" height="{h}" filter="url(#grain)" opacity="0.5"/>',
+    ]
+    return out
+
+
+def deco_background(w: int, h: int, p: Preset) -> List[str]:
+    """Art deco: a gold frame, a fan of rays behind the type, and double rules. All
+    strokes, no fills — the restraint is the style."""
+    gold = p.accents[0]
+    out: List[str] = [
+        core.gradient("decoBase", core.shade(p.paper, 0.06), p.paper),
+        f'<rect width="{w}" height="{h}" fill="url(#decoBase)"/>',
+    ]
+    inset = int(min(w, h) * 0.035)
+    out += [core.rect(inset, inset, w - 2 * inset, h - 2 * inset, fill="none",
+                      stroke=gold, sw=1.2, opacity=0.55),
+            core.rect(inset + 7, inset + 7, w - 2 * (inset + 7), h - 2 * (inset + 7),
+                      fill="none", stroke=gold, sw=0.8, opacity=0.30)]
+    # fan of rays, anchored below the top edge
+    cx, cy = w * 0.5, h * 0.06
+    for i in range(13):
+        a = math.pi * (i / 12)
+        out.append(core.line(cx, cy, cx + math.cos(a) * w * 0.55, cy + math.sin(a) * h * 0.55,
+                             gold, 0.9, 0.16))
+    out.append(core.circle(cx, cy, h * 0.035, fill="none", stroke=gold, sw=1.2, opacity=0.5))
+    return out
+
+
+def dither_background(w: int, h: int, p: Preset) -> List[str]:
+    """One-bit pretence: a dot screen and a halftone band, exactly the trick a
+    two-colour print uses to fake a midtone."""
+    ink = p.ink
+    out: List[str] = [
+        core.gradient("dithBase", core.shade(p.paper, 0.08), core.shade(p.paper, -0.03)),
+        f'<rect width="{w}" height="{h}" fill="url(#dithBase)"/>',
+        '<pattern id="dots" width="6" height="6" patternUnits="userSpaceOnUse">'
+        f'<circle cx="1.5" cy="1.5" r="1.3" fill="{core.hexed(ink)}" opacity="0.16"/></pattern>',
+        '<pattern id="dotsBig" width="10" height="10" patternUnits="userSpaceOnUse">'
+        f'<circle cx="3" cy="3" r="2.4" fill="{core.hexed(p.accents[0])}" opacity="0.12"/>'
+        '</pattern>',
+        f'<rect width="{w}" height="{h}" fill="url(#dots)"/>',
+        f'<rect y="{int(h * 0.62)}" width="{w}" height="{h - int(h * 0.62)}" fill="url(#dotsBig)"/>',
+    ]
+    for i in range(9):
+        y = h * (0.10 + i * 0.030)
+        out.append(core.line(0, y, w, y, ink, 1, 0.05))
+    return out
+
+
+def hud_background(w: int, h: int, p: Preset) -> List[str]:
+    """Heads-up display: warm-black glass, a 48px reticle grid, corner brackets and a
+    header readout. Everything thin, green, and perfectly aligned."""
+    green = p.accents[0]
+    out: List[str] = [
+        core.gradient("hudBase", core.shade(p.paper, 0.06), core.shade(p.paper, -0.12)),
+        f'<rect width="{w}" height="{h}" fill="url(#hudBase)"/>',
+    ]
+    step = 48
+    for x in range(0, w, step):
+        out.append(core.line(x, 0, x, h, green, 0.7, 0.055))
+    for y in range(0, h, step):
+        out.append(core.line(0, y, w, y, green, 0.7, 0.055))
+    arm, off = 54, 26
+    for cx, cy, sx, sy in ((off, off, 1, 1), (w - off, off, -1, 1),
+                           (off, h - off, 1, -1), (w - off, h - off, -1, -1)):
+        out.append(core.path(f"M{cx} {cy + sy * arm} L {cx} {cy} L {cx + sx * arm} {cy}",
+                             stroke=green, sw=2, fill="none", opacity=0.55))
+    out.append(core.line(0, off - 10, w, off - 10, green, 1, 0.18))
+    out.append(f'<rect width="{w}" height="{h}" filter="url(#grain)" opacity="0.35"/>')
+    return out
+
+
 # ------------------------------------------------------------------- shared
+
+
+_BACKDROPS = {
+    "dither": dither_background,
+    "hud": hud_background,
+    "mesh": mesh_background,
+    "clay": clay_background,
+    "sumi": sumi_background,
+    "deco": deco_background,
+}
 
 
 def backdrop(w: int, h: int, p: Preset, horizon: float = 0.62) -> List[str]:
@@ -254,11 +391,18 @@ def backdrop(w: int, h: int, p: Preset, horizon: float = 0.62) -> List[str]:
         return cartoon_sky(w, h, p, horizon) + cartoon_props(w, h, p, horizon + 0.08)
     if p.art == "plate":
         return plate_background(w, h, p) + specular_streak(w, h, p)
-    return []
+    fn = _BACKDROPS.get(p.art)
+    return fn(w, h, p) if fn else []
 
 
 def defs_for(p: Preset) -> List[str]:
     out: List[str] = []
+    if p.art in ("mesh", "sumi", "clay", "deco", "dither", "hud"):
+        out += [core.filter_blur("soften", 60), core.filter_grain("grain", strength=0.05)]
+        if p.art == "clay":
+            out += [core.filter_soft_shadow("clay", dy=18, blur=26, strength=0.20)]
+        if p.art == "mesh":
+            out += [core.filter_soft_shadow("soft", dy=12, blur=24, strength=0.35)]
     if p.art == "plate":
         out += [core.filter_grain("grain", frequency=0.9, strength=0.10),
                 core.filter_blur("soften", 60),
@@ -277,6 +421,10 @@ def card_shadow_attr(p: Preset) -> str:
     """Attributes a card should carry so it sits on the artwork rather than on it."""
     if p.art == "plate":
         return 'filter="url(#soft)"'
+    if p.art == "mesh":
+        return 'filter="url(#soft)"'
+    if p.art == "clay":
+        return 'filter="url(#clay)"'
     if p.art == "cartoon":
         return 'filter="url(#stick)"'
     return ""

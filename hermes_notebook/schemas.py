@@ -73,6 +73,20 @@ NOTEBOOK_ASK = {
     }, "required": ["question"]},
 }
 
+def _style_ids() -> list:
+    """The look ids, read from the graphics catalogue. A hardcoded copy of this list
+    goes stale the first time a style is added; the catalogue cannot."""
+    try:
+        from . import gfx
+        return [p.id for p in gfx.PRESETS]
+    except Exception:  # pragma: no cover - the tool schema must still import
+        return ["sections", "editorial", "poster", "swiss", "magazine", "bento",
+                "blueprint", "terminal", "neon", "brutalist", "retro", "risograph",
+                "kraft", "chalkboard", "dashboard", "mission", "cartoon", "realistic"]
+
+
+_STYLE_IDS = _style_ids()
+
 NOTEBOOK_GENERATE = {
     "name": "notebook_generate",
     "description": (
@@ -94,11 +108,9 @@ NOTEBOOK_GENERATE = {
         "format": {"type": "string", "enum": ["md", "csv"],
                    "description": "flashcards only: 'csv' writes an Anki-importable CSV instead of markdown"},
         "style": {"type": "string",
-                  "enum": ["sections", "editorial", "poster", "swiss", "magazine",
-                           "bento", "blueprint", "terminal", "neon", "brutalist",
-                           "retro", "risograph", "kraft", "chalkboard", "dashboard",
-                           "mission", "cartoon", "realistic"],
-                  "description": ("infographic only: which bundled look to draw. "
+                  # built from the catalogue so the schema can never drift from it
+                  "enum": _STYLE_IDS,
+                  "description": ("infographic only: which of the 33 bundled looks to draw. "
                                   "sections (default, warm cards), editorial (huge "
                                   "numerals), poster (dark cover), swiss (strict red "
                                   "grid), magazine (cream serif), bento (rounded "
