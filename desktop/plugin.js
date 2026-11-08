@@ -4158,7 +4158,7 @@ function TranscriptLine({ line, first, active, seekable, segStart, onSeek }) {
     onClick: seekable ? onSeek : undefined,
     onKeyDown: seekable ? (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onSeek() } } : undefined,
     style: {
-      display: 'grid', gridTemplateColumns: '26px 1fr', gap: '10px',
+      display: 'grid', gridTemplateColumns: seekable ? '26px 1fr 44px' : '26px 1fr', gap: '10px',
       padding: '7px 10px', margin: '0 -10px', borderRadius: '8px',
       borderTop: first ? 'none' : `1px solid ${T.lineSoft}`,
       cursor: seekable ? 'pointer' : undefined,
@@ -4173,7 +4173,17 @@ function TranscriptLine({ line, first, active, seekable, segStart, onSeek }) {
     },
     children: line.who || '·'
   }),
-  jsx('span', { style: { fontSize: '15px', lineHeight: 1.55, color: T.text2 }, children: line.text }))
+  jsx('span', { style: { fontSize: '15px', lineHeight: 1.55, color: T.text2 }, children: line.text }),
+  seekable
+    ? jsx('span', {
+        style: {
+          fontSize: '11px', color: T.text4, textAlign: 'right',
+          fontFamily: 'var(--ui-font-mono, ui-monospace, monospace)',
+          paddingTop: '3px', fontVariantNumeric: 'tabular-nums'
+        },
+        children: fmtTime(segStart)
+      })
+    : null)
 }
 
 const fmtTime = (s) => {
