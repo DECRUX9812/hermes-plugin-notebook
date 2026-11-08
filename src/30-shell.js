@@ -81,9 +81,15 @@ function App() {
     if (!notebook) return
     setBusy((b) => ({ ...b, [kind]: Date.now() }))
     try {
+      const body = { notebook: notebook.id, kind, length: 'short', ...(opts || {}) }
+      // NotebookLM's "turn this conversation into …": when the card's popover
+      // says so, the open thread becomes the brief. No thread → sources alone.
+      if (body.from_chat === 'chat' || body.from_chat === 'conversation') {
+        body.thread = threadName || notebook.thread_name || 'default'
+      }
       await api('/generate', {
         method: 'POST',
-        body: { notebook: notebook.id, kind, length: 'short', ...(opts || {}) },
+        body,
         timeoutMs: 240000
       })
       const fresh = await studio.reload(true)
@@ -96,7 +102,7 @@ function App() {
     } finally {
       setBusy((b) => { const n = { ...b }; delete n[kind]; return n })
     }
-  }, [notebook, studio, say])
+  }, [notebook, studio, say, threadName])
 
   // NotebookLM-style tagging: one click re-runs the model's auto-label pass
   // over anything that arrived without labels (the /label route).

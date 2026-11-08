@@ -1753,7 +1753,7 @@ function AddSourceDialog({ open, onClose, notebook, onDone, initialMode, seedQue
                       el('input', {
                         value, onChange: (e) => setValue(e.target.value), autoFocus: true,
                         onKeyDown: (e) => { if (e.key === 'Enter') submit() },
-                        placeholder: mode === 'url' ? 'https://… or a YouTube link' : '/home/you/doc.pdf',
+                        placeholder: mode === 'url' ? 'https://… or a YouTube link' : '/home/you/doc.pdf — or a recording (.mp3/.mp4)',
                         'aria-label': mode === 'url' ? 'Source URL' : 'File path'
                       })),
                 el('div', { className: 'nb-field', style: { height: '40px' } },
@@ -1769,7 +1769,7 @@ function AddSourceDialog({ open, onClose, notebook, onDone, initialMode, seedQue
                 el('input', {
                   ref: fileRef, type: 'file', hidden: true,
                   onChange: onFile,
-                  accept: '.pdf,.docx,.pptx,.xlsx,.epub,.ipynb,.txt,.md,.csv,.json,.png,.jpg,.jpeg,.webp,.mp3,.wav,.m4a'
+                  accept: '.pdf,.docx,.pptx,.xlsx,.epub,.ipynb,.txt,.md,.csv,.json,.png,.jpg,.jpeg,.webp,.mp3,.wav,.m4a,.mp4,.mov,.webm,.ogg,.flac'
                 }),
                 jsx(Btn, {
                   icon: 'folder', disabled: busy || !notebook,

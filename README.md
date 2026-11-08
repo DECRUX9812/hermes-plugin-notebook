@@ -70,20 +70,48 @@ control, a file browser and Proxmox VM snapshots for the selected host.
 
 | NotebookLM feature | Hermes Notebook |
 |---|---|
-| Sources (files, PDFs, Office docs, web, YouTube) | `notebook_add_source` — path / URL / pasted text / images (vision-described) |
+| Sources (files, PDFs, Office docs, EPUB, web, YouTube) | `notebook_add_source` — path / URL / pasted text / images (vision-described) / **recordings** (mp3, m4a, wav, flac, ogg, mp4, mov, webm — transcribed, see below) |
 | Chat with sources + citations | `notebook_ask` — BM25 retrieval, `[S1]`-style citations, **many named conversations per notebook** (`thread=`), each with its own memory |
+| Configure chat | in the chat: style, focus and source scope; answers stay grounded to the scope you set |
+| **Turn this chat into an artifact** | every studio card's popover has `Brief from: sources / conversation` — the open thread sets the angle, audience and emphasis while facts still come only from the sources (`notebook_generate(thread=…)`) |
+| **Output language** | `language` on any card, `notebook_generate(language="French")` — the whole artifact is written in it; source titles and quoted strings stay verbatim |
 | Auto-labeling / source chips | Every source gets 2–5 topic labels + a one-line summary on ingest; duplicates detected by content hash |
 | Source search | `notebook_search` — ranked full-text hits with snippets across all sources and notes |
 | User notes | `notebook_note` — your annotations become first-class searchable sources |
 | Source lifecycle | `notebook_refresh` re-fetches url/file sources, `notebook_delete_source` removes one |
 | Suggestions | `notebook_suggest` — questions worth asking, artifacts worth making, source gaps (optional `kinds` filter) |
-| Artifacts | `notebook_generate` — summary, briefing doc, study guide, FAQ, timeline, **mind map**, flashcards (md or Anki CSV), quiz, **slide deck** (self-contained HTML), **infographic** (SVG: 18 looks × 9 layouts), data table (CSV) |
-| Audio Overview | `notebook_audio` — two-host conversational podcast (edge-tts voices + ffmpeg), with transcript |
-| Video Overview | `notebook_video` — cinematic narrated mp4, `style=cinematic|explainer`, Pillow cards + ffmpeg |
-| Web discovery | `notebook_discover` — web_search for candidate sources to add |
+| Artifacts | `notebook_generate` — summary, briefing doc, study guide, FAQ, timeline, **mind map**, flashcards (md or Anki CSV), quiz, **slide deck** (self-contained HTML **+ real .pptx export**), **infographic** (SVG: 18 looks × 9 layouts), data table (CSV) |
+| Audio Overview | `notebook_audio` — Deep Dive / Brief / Critique / Debate, short/medium/long, any language; two-host conversation (edge-tts + ffmpeg) with transcript |
+| Video Overview | `notebook_video` — narrated mp4, `style=cinematic|explainer`, focus/goals script review, language, length |
+| Web discovery | `notebook_discover` — search the notebook's own gaps; **deep=true** adds a second (and third) research round that reads what round one found and asks different questions |
 | Notebook management | `notebook_update` rename/describe, `notebook_export` whole notebook as zip |
 | — desktop surface — | `/notebook` route, sidebar row, three palette commands, status-bar chip, `::notebook{name="…"}` transcript directive, settings page |
 | — Hermes extras — | `/notebook` slash command, `hermes notebook` CLI, bundled skill, auxiliary task slot, per-notebook persistent storage |
+
+## Recordings as sources
+
+Meetings, interviews, lectures and recorded demos are material people already
+have, and NotebookLM takes audio/video uploads. This does too:
+
+- ffmpeg decodes to 16 kHz mono mp3 in 10-minute segments (no new Python
+  dependency; only the ffmpeg binary), and Groq `whisper-large-v3-turbo`
+  transcribes each segment. The segment muxer stops at end-of-stream, so a short
+  file costs one upload, not dozens.
+- Key lookup, in order: `GROQ_API_KEY` in the environment, `groq_api_key` in
+  plugin settings, then the `GROQ_API_KEY` line of `$HERMES_HOME/.env`.
+- The transcript *is* the source body — labelled, chunked, searchable and
+  citable like any other source, so "what did we decide on that call" is a
+  normal `notebook_ask`.
+- Failures are sentences, never silence: no ffmpeg, no key, an HTTP body, or a
+  recording with no audible speech each say which one happened.
+
+## Deck export
+
+A deck is presentable in the viewer (arrow keys, `present` for fullscreen) and
+downloadable as a real `.pptx` built from the same stored deck JSON: 16:9, cover
+slide with subtitle, bullets as paragraphs, speaker notes on their own pages,
+`Key takeaways` closing slide. It opens in PowerPoint, Keynote, LibreOffice and
+Google Slides.
 
 ## Conversations
 
@@ -195,13 +223,13 @@ CLI equivalents: `hermes notebook list|new|add|ask|generate|audio|video|suggest|
 - `notebook_note` — save a user note as a searchable source
 - `notebook_refresh` — re-fetch a url/file source in place (re-labels + re-summarizes)
 - `notebook_delete_source` — remove one source and its stored text
-- `notebook_generate` — artifacts to `<notebook>/artifacts/`; `format=csv` for Anki-importable flashcards
+- `notebook_generate` — artifacts to `<notebook>/artifacts/`; `format=csv` for Anki-importable flashcards, `thread=<name>` to brief the artifact from a conversation, `language` to write it in another language
 - `notebook_audio` — mp3 + transcript + script JSON
 - `notebook_video` — mp4 + transcript + script JSON; `style=cinematic|explainer`
 - `notebook_suggest` — next-step recommendations; optional `kinds` filter
 - `notebook_update` — rename a notebook / change its description
 - `notebook_export` — zip the notebook (sources, index, artifacts, chat) under `plugin-data/exports/`
-- `notebook_discover` — web_search candidate sources for a topic (does not add them)
+- `notebook_discover` — candidate sources for a topic; `deep=true` runs extra research rounds (reads round one, asks different questions)
 - `notebook_delete` — destructive, requires `confirm=true`
 
 ## Backend routes
@@ -218,6 +246,8 @@ POST /ask                        { notebook, question, thread? } -> answer + cit
 POST /generate                   { notebook, kind, focus?, length? }
 POST /label                      { notebook, force? }
 GET  /artifact?notebook=&name=&b64=1
+GET  /artifact/pptx?notebook=&name=&b64=1   -> the deck as .pptx
+POST /discover                   { notebook, query?, deep?, rounds? } -> candidates
 POST /search
 GET  /ops/fleet  /ops/services  /ops/files  /ops/file  /ops/snapshots  /ops/audit
 POST /ops/exec   /ops/action    /ops/service  /ops/snapshot
@@ -237,6 +267,8 @@ Under `plugins.entries.hermes-notebook.settings` (or `hermes plugins config`):
 | `video_voice` / `video_voice_rate` | `en-US-AndrewNeural` / `-4%` | narrator voice + pace for videos |
 | `audio_tts_concurrency` | `4` | parallel TTS segment workers |
 | `audio_voice_host_a` / `audio_voice_host_b` | `en-US-AndrewNeural` / `en-US-EmmaNeural` | edge-tts voice names |
+| `groq_api_key` | `""` | Whisper key for recording transcription; falls back to `GROQ_API_KEY` / `$HERMES_HOME/.env` |
+| `discover_rounds` | `2` | Research rounds a deep Discover pass may run (1–3) |
 
 Cheap calls (source labeling, suggestions) route through the plugin's own `auxiliary.notebook` task slot — pin a model there if you want labels on a smaller/faster model.
 
@@ -297,6 +329,14 @@ bar, rail), `35-main` (chat, studio panel, status bar, dialogs), `40-viewers`
 
 ## Honest limits
 
+- **Interactive Audio Overview** (interrupting the hosts mid-episode) is not
+  implemented; neither is Google Drive/Workspace import — download the file and
+  add it as a path.
+- Recording transcription needs ffmpeg and a Groq key: the Whisper call is
+  Groq's hosted `whisper-large-v3-turbo`, not a local model.
+- `.pptx` export is written by the plugin's own OOXML writer (zero dependencies).
+  It is verified by python-pptx and by LibreOffice rendering, not by Microsoft
+  PowerPoint itself.
 - The demo notebook under `tests/` is assembled from six real public sources; its
   model-written artifacts were authored by the agent because the CLI path to the
   configured provider had no credits at build time. `tests/gen_artifacts.py`

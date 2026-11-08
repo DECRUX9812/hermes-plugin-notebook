@@ -34,11 +34,11 @@ Don't use for: general web research with no fixed source set (use `web_search`/`
 Everything goes through the notebook tools — there is no shell pipeline. Typical flow:
 
 1. `notebook_create` (or reuse an existing one from `notebook_list`).
-2. `notebook_add_source` once per source — `path=`, `url=` (articles, docs, YouTube), or `text=` for pasted content. Each source is auto-labeled with topic tags and a one-line summary; report those labels to the user.
+2. `notebook_add_source` once per source — `path=`, `url=` (articles, docs, YouTube), or `text=` for pasted content. Recordings (mp3/m4a/wav/mp4/mov/webm…) are transcribed, so "here is the meeting audio" is a source. Each source is auto-labeled with topic tags and a one-line summary; report those labels to the user.
 3. `notebook_ask` for questions — answers come back with `[S1]`-style citations mapped to source titles. Pass `thread=` so the conversation has memory; use a **different thread per line of enquiry** (they do not share history). `notebook_threads` lists / starts / renames / deletes them.
 4. `notebook_search` for "where does X say Y" lookups; `notebook_note` to pin user annotations as searchable sources.
-5. `notebook_discover` when the user wants more sources on a topic — it returns candidates, then confirm before `notebook_add_source`.
-6. `notebook_generate` for artifacts — `summary`, `briefing_doc`, `study_guide`, `faq`, `timeline`, `mind_map`, `flashcards` (md or `format=csv` for Anki), `quiz`, `slides` (HTML deck), `infographic` (PNG in 16 bundled styles — pass `style=`; see the `notebook-infographics` skill), `data_table` (CSV).
+5. `notebook_discover` when the user wants more sources on a topic — it returns candidates, then confirm before `notebook_add_source`. Add `deep=true` when they want a real source set: it runs a second research round that reads what round one found and asks different questions.
+6. `notebook_generate` for artifacts — `summary`, `briefing_doc`, `study_guide`, `faq`, `timeline`, `mind_map`, `flashcards` (md or `format=csv` for Anki), `quiz`, `slides` (HTML deck, exportable to `.pptx` in the viewer), `infographic` (PNG in 16 bundled styles — pass `style=`; see the `notebook-infographics` skill), `data_table` (CSV). `thread=<name>` briefs the artifact from that conversation; `language="French"` writes the whole artifact in it.
 7. `notebook_audio`/`notebook_video` for overviews (slow: minutes — warn first; video takes `style=cinematic|explainer`).
 8. `notebook_suggest` when the user is unsure what to do next; `notebook_refresh` re-pulls changed urls/files; `notebook_update` renames; `notebook_export` zips everything.
 

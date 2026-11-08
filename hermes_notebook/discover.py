@@ -140,6 +140,7 @@ def rank_candidates(rows: Iterable[Dict[str, Any]], *, existing: Iterable[str] =
             "score": score,
             "tags": list(dict.fromkeys([t for t in words if t in focus_set]))[:4],
             "provider": str(row.get("provider") or "web"),
+            "round": int(row.get("round") or 1),
         })
 
     scored.sort(key=lambda r: (-r["score"], r["domain"]))
@@ -275,11 +276,80 @@ def plan_queries(meta: Dict[str, Any], src_lines: str, focus: str = "") -> Dict[
     return {"gaps": gaps, "queries": queries}
 
 
+def can_read_rounds() -> int:
+    """How many research rounds this build is willing to run: 2 unless the
+    person asked for a deeper pass (capped at 3 so a click cannot spend an
+    unbounded amount of search quota)."""
+    try:
+        return max(1, min(3, int(runtime.config("discover_rounds", 2) or 2)))
+    except Exception:
+        return 2
+
+
+_REFINE_SCHEMA = {
+    "type": "object",
+    "properties": {
+        "queries": {"type": "array", "items": {"type": "string"},
+                    "description": "2-4 NEW web search queries that go deeper than the first pass"},
+        "still_missing": {"type": "array", "items": {"type": "string"},
+                          "description": "what the first pass failed to find, <= 10 words each"},
+    },
+    "required": ["queries"],
+}
+
+
+def refine_queries(meta: Dict[str, Any], focus: str, found: List[Dict[str, Any]],
+                   gaps: List[str], tried: List[str], round_no: int) -> List[str]:
+    """Second-pass planning, the half NotebookLM's Deep Research has and a
+    one-shot search does not: read what the first pass *did* return, name what
+    it missed, and write different queries — other vocabulary, primary sources,
+    data, the counter-argument — instead of re-asking the same words."""
+    titles = "\n".join(
+        f"- {c.get('title')} ({c.get('domain')}) — {c.get('snippet', '')[:140]}"
+        for c in found[:10]) or "(nothing usable came back)"
+    tried_lines = "\n".join(f"- {q}" for q in tried[:8]) or "(none)"
+    gap_lines = "\n".join(f"- {g}" for g in gaps[:6]) or "(none named)"
+    parsed = llmio.structured(
+        instructions=("You are a research strategist running the second round of a "
+                      "deep-research pass. The first round's queries and results are "
+                      "below. Write 2-4 NEW queries that reach material the first "
+                      "round could not: different terminology, primary sources, "
+                      "datasets, expert or dissenting views. Never repeat a query "
+                      "already tried, and do not just reword one."),
+        input=[{"type": "text", "text":
+                f"Notebook: {meta.get('title')}\nResearch focus: {focus or meta.get('description', '')}\n"
+                f"Gaps still open:\n{gap_lines}\n\nQueries already tried:\n{tried_lines}\n\n"
+                f"Round {round_no - 1} results:\n{titles}\n\n"
+                "Return only new queries."}],
+        json_schema=_REFINE_SCHEMA,
+        schema_name="notebook.discover_refine",
+        system_prompt="Output only the JSON. No commentary.",
+        purpose="hermes-notebook.discover.refine",
+        max_tokens=900, temperature=0.6, timeout=120.0,
+    )
+    if not parsed:
+        return []
+    seen = {q.strip().lower() for q in tried}
+    out = []
+    for q in (parsed.get("queries") or []):
+        q = str(q).strip()
+        if q and q.lower() not in seen:
+            out.append(q)
+    return out[:4]
+
+
 # ------------------------------------------------------------------- public
 
 def discover(notebook: str, *, query: str = "", max_results: int = 12,
-             per_domain: int = 2, plan: bool = True) -> Dict[str, Any]:
-    """One discovery pass. Returns candidates; adds nothing."""
+             per_domain: int = 2, plan: bool = True, deep: bool = False,
+             rounds: Optional[int] = None) -> Dict[str, Any]:
+    """One discovery pass — or a deep-research pass when `deep` is set.
+
+    Round 1 is the plan/fanout/rank pass. In deep mode each further round reads
+    what round 1 returned, asks the model for genuinely different queries, and
+    merges the new rows into the same ranked list. Nothing is added to the
+    notebook either way: the page shows candidates and the person picks.
+    """
     nb_id = store.resolve_notebook(notebook)
     meta = store.get_meta(nb_id)
     sources = store.list_sources(nb_id)
@@ -306,18 +376,46 @@ def discover(notebook: str, *, query: str = "", max_results: int = 12,
     queries = [q for q in queries if q][:5]
 
     rows = search_all(queries, per_query=max(4, max_results))
+    for row in rows:
+        if isinstance(row, dict):
+            row.setdefault("round", 1)
     candidates = rank_candidates(
         rows, existing=existing, focus_terms=focus_terms + plan_info["gaps"],
         per_domain=per_domain, limit=max_results)
+    all_queries = list(queries)
+    rounds_run = 1
+
+    want_rounds = max(1, min(3, rounds)) if rounds else (can_read_rounds() if deep else 1)
+    while deep and rounds_run < want_rounds:
+        rounds_run += 1
+        try:
+            new_queries = refine_queries(meta, focus_text, candidates,
+                                         plan_info["gaps"], all_queries, rounds_run)
+        except Exception:
+            new_queries = []
+        if not new_queries:
+            break
+        all_queries.extend(new_queries)
+        more = search_all(new_queries, per_query=max(4, max_results))
+        for row in more:
+            if isinstance(row, dict):
+                row["round"] = rounds_run
+        rows.extend(more)
+        candidates = rank_candidates(
+            rows, existing=existing,
+            focus_terms=focus_terms + plan_info["gaps"],
+            per_domain=per_domain, limit=max_results)
 
     return {
         "ok": True,
         "notebook": nb_id,
         "query": base_query or (queries[0] if queries else ""),
-        "queries": queries,
+        "queries": all_queries,
         "gaps": plan_info["gaps"],
         "providers": providers(),
         "candidates": candidates,
         "searched": len(rows),
+        "deep": bool(deep),
+        "rounds": rounds_run,
         "hint": "Nothing was added — POST /sources with the urls you keep.",
     }

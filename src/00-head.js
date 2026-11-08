@@ -694,7 +694,17 @@ const CSS = `
 .nb-gen:hover .nb-gen-cfg,.nb-gen-cfg[data-active="true"]{opacity:1}
 .nb-genpop{position:absolute;top:calc(100% + 6px);left:0;right:0;z-index:30;
   background:${T.card};border:1px solid ${T.line};border-radius:14px;
+  /* The theme's card surface is translucent by design (it sits on a panel). A
+     popover floats over other cards instead, so it frosts what is behind it —
+     otherwise the card titles underneath read through the labels. */
+  -webkit-backdrop-filter:blur(16px) saturate(1.15);
+  backdrop-filter:blur(16px) saturate(1.15);
+  /* grid items default to min-content, and a long placeholder would push the
+     popover wider than the card it is anchored to. */
+  grid-template-columns:minmax(0,1fr);
+  max-height:min(58vh,420px);overflow:auto;overscroll-behavior:contain;
   box-shadow:var(--nb-shadow-lift);padding:12px;display:grid;gap:12px}
+.nb-genopt{min-width:0}
 .nb-genopt-label{font-size:11px;font-weight:600;color:${T.text3};margin-bottom:6px;
   text-transform:uppercase;letter-spacing:.06em}
 .nb-genopt .nb-seg{width:100%}

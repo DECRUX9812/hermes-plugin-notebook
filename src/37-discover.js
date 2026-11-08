@@ -34,6 +34,7 @@ function DiscoverCard({ c, on, onToggle }) {
 function DiscoverPanel({ notebook, onSay, reload }) {
   const [q, setQ] = useState('')
   const [busy, setBusy] = useState(false)
+  const [deep, setDeep] = useState(false)
   const [res, setRes] = useState(null)
   const [picked, setPicked] = useState({})
   const [adding, setAdding] = useState(false)
@@ -56,7 +57,7 @@ function DiscoverPanel({ notebook, onSay, reload }) {
     try {
       const out = await api('/discover', {
         method: 'POST',
-        body: { notebook: nbId, query: (query != null ? query : q) || '', max_results: 12 },
+        body: { notebook: nbId, query: (query != null ? query : q) || '', max_results: 12, deep },
         timeoutMs: 180000
       })
       setRes(out)
@@ -131,6 +132,13 @@ function DiscoverPanel({ notebook, onSay, reload }) {
       jsx(Btn, {
         variant: 'primary', icon: 'search', onClick: () => run(), disabled: busy || !nbId,
         children: busy ? 'Scouting…' : 'Search'
+      }),
+      jsx(Btn, {
+        size: 'sm', icon: 'sparkle', variant: deep ? 'primary' : undefined,
+        onClick: () => setDeep((d) => !d), disabled: busy,
+        title: 'Deep research — a second pass that reads what round one found and asks different questions',
+        'aria-label': `Deep research ${deep ? 'on' : 'off'}`,
+        children: deep ? 'Deep · 2 rounds' : 'Deep'
       })),
 
     ((res && res.gaps) || []).length
@@ -163,6 +171,17 @@ function DiscoverPanel({ notebook, onSay, reload }) {
     res
       ? el('div', { className: 'nb-disc-meta' },
           el('span', { children: `${res.searched || 0} results → ${candidates.length} kept` }),
+          (res.rounds || 1) > 1
+            ? el('span', { children: `${res.rounds} research rounds` })
+            : null,
+          candidates.length
+            ? jsx(Btn, {
+                size: 'sm',
+                onClick: () => setPicked(chosen.length === candidates.length
+                  ? {} : Object.fromEntries(candidates.map((c) => [c.canonical || c.url, true]))),
+                children: chosen.length === candidates.length ? 'Clear' : `Select all ${candidates.length}`
+              })
+            : null,
           el('span', { children: `providers: ${(res.providers || ['web']).join(' · ')}` }),
           ((res.queries) || []).length
             ? el('span', { children: `queries: ${res.queries.slice(0, 3).join(' | ')}` })

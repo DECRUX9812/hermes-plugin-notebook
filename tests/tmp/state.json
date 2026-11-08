@@ -1,35 +1,8 @@
 {
  "ok": true,
- "generated_at": "2026-11-08T17:14:02Z",
+ "generated_at": "2026-11-08T18:18:02Z",
  "model_ready": false,
  "notebooks": [
-  {
-   "id": "t-2",
-   "title": "T",
-   "description": "d",
-   "updated_at": "2026-11-08T17:11:02+00:00",
-   "sources": 0,
-   "artifacts": 0,
-   "chars": 0
-  },
-  {
-   "id": "t",
-   "title": "T",
-   "description": "d",
-   "updated_at": "2026-11-08T17:10:55+00:00",
-   "sources": 0,
-   "artifacts": 0,
-   "chars": 0
-  },
-  {
-   "id": "business-analyst-job-interview-you-know-thanks",
-   "title": "Business Analyst Job Interview you know. Thanks",
-   "description": "",
-   "updated_at": "2026-11-07T18:34:28+00:00",
-   "sources": 0,
-   "artifacts": 0,
-   "chars": 0
-  },
   {
    "id": "commercial-fusion-2026",
    "title": "Commercial Fusion Energy in 2026",
@@ -646,7 +619,7 @@
      "id": "focus",
      "label": "Focus",
      "kind": "text",
-     "placeholder": "e.g. only the cost and timeline sections"
+     "placeholder": "e.g. only the costs"
     }
    ]
   },
@@ -687,7 +660,7 @@
      "id": "focus",
      "label": "Focus",
      "kind": "text",
-     "placeholder": "e.g. only the cost and timeline sections"
+     "placeholder": "e.g. only the costs"
     }
    ]
   },
@@ -703,7 +676,22 @@
      "id": "focus",
      "label": "Focus",
      "kind": "text",
-     "placeholder": "e.g. only the cost and timeline sections"
+     "placeholder": "e.g. only the costs"
+    },
+    {
+     "id": "language",
+     "label": "Language",
+     "kind": "text",
+     "placeholder": "e.g. French, Espa\u00f1ol"
+    },
+    {
+     "id": "from_chat",
+     "label": "Brief from",
+     "kind": "seg",
+     "choices": [
+      "sources",
+      "chat"
+     ]
     }
    ]
   },
@@ -719,7 +707,22 @@
      "id": "focus",
      "label": "Focus",
      "kind": "text",
-     "placeholder": "e.g. only the cost and timeline sections"
+     "placeholder": "e.g. only the costs"
+    },
+    {
+     "id": "language",
+     "label": "Language",
+     "kind": "text",
+     "placeholder": "e.g. French, Espa\u00f1ol"
+    },
+    {
+     "id": "from_chat",
+     "label": "Brief from",
+     "kind": "seg",
+     "choices": [
+      "sources",
+      "chat"
+     ]
     }
    ]
   },
@@ -735,7 +738,22 @@
      "id": "focus",
      "label": "Focus",
      "kind": "text",
-     "placeholder": "e.g. only the cost and timeline sections"
+     "placeholder": "e.g. only the costs"
+    },
+    {
+     "id": "language",
+     "label": "Language",
+     "kind": "text",
+     "placeholder": "e.g. French, Espa\u00f1ol"
+    },
+    {
+     "id": "from_chat",
+     "label": "Brief from",
+     "kind": "seg",
+     "choices": [
+      "sources",
+      "chat"
+     ]
     }
    ]
   },
@@ -751,7 +769,22 @@
      "id": "focus",
      "label": "Focus",
      "kind": "text",
-     "placeholder": "e.g. only the cost and timeline sections"
+     "placeholder": "e.g. only the costs"
+    },
+    {
+     "id": "language",
+     "label": "Language",
+     "kind": "text",
+     "placeholder": "e.g. French, Espa\u00f1ol"
+    },
+    {
+     "id": "from_chat",
+     "label": "Brief from",
+     "kind": "seg",
+     "choices": [
+      "sources",
+      "chat"
+     ]
     }
    ]
   },
@@ -767,7 +800,22 @@
      "id": "focus",
      "label": "Focus",
      "kind": "text",
-     "placeholder": "e.g. only the cost and timeline sections"
+     "placeholder": "e.g. only the costs"
+    },
+    {
+     "id": "language",
+     "label": "Language",
+     "kind": "text",
+     "placeholder": "e.g. French, Espa\u00f1ol"
+    },
+    {
+     "id": "from_chat",
+     "label": "Brief from",
+     "kind": "seg",
+     "choices": [
+      "sources",
+      "chat"
+     ]
     }
    ]
   },
@@ -783,7 +831,22 @@
      "id": "focus",
      "label": "Focus",
      "kind": "text",
-     "placeholder": "e.g. only the cost and timeline sections"
+     "placeholder": "e.g. only the costs"
+    },
+    {
+     "id": "language",
+     "label": "Language",
+     "kind": "text",
+     "placeholder": "e.g. French, Espa\u00f1ol"
+    },
+    {
+     "id": "from_chat",
+     "label": "Brief from",
+     "kind": "seg",
+     "choices": [
+      "sources",
+      "chat"
+     ]
     }
    ]
   },
@@ -799,7 +862,22 @@
      "id": "focus",
      "label": "Focus",
      "kind": "text",
-     "placeholder": "e.g. only the cost and timeline sections"
+     "placeholder": "e.g. only the costs"
+    },
+    {
+     "id": "language",
+     "label": "Language",
+     "kind": "text",
+     "placeholder": "e.g. French, Espa\u00f1ol"
+    },
+    {
+     "id": "from_chat",
+     "label": "Brief from",
+     "kind": "seg",
+     "choices": [
+      "sources",
+      "chat"
+     ]
     }
    ]
   },
@@ -815,7 +893,22 @@
      "id": "focus",
      "label": "Focus",
      "kind": "text",
-     "placeholder": "e.g. only the cost and timeline sections"
+     "placeholder": "e.g. only the costs"
+    },
+    {
+     "id": "language",
+     "label": "Language",
+     "kind": "text",
+     "placeholder": "e.g. French, Espa\u00f1ol"
+    },
+    {
+     "id": "from_chat",
+     "label": "Brief from",
+     "kind": "seg",
+     "choices": [
+      "sources",
+      "chat"
+     ]
     }
    ]
   },
@@ -831,7 +924,22 @@
      "id": "focus",
      "label": "Focus",
      "kind": "text",
-     "placeholder": "e.g. only the cost and timeline sections"
+     "placeholder": "e.g. only the costs"
+    },
+    {
+     "id": "language",
+     "label": "Language",
+     "kind": "text",
+     "placeholder": "e.g. French, Espa\u00f1ol"
+    },
+    {
+     "id": "from_chat",
+     "label": "Brief from",
+     "kind": "seg",
+     "choices": [
+      "sources",
+      "chat"
+     ]
     }
    ]
   },
@@ -1191,7 +1299,22 @@
      "id": "focus",
      "label": "Focus",
      "kind": "text",
-     "placeholder": "e.g. only the cost and timeline sections"
+     "placeholder": "e.g. only the costs"
+    },
+    {
+     "id": "language",
+     "label": "Language",
+     "kind": "text",
+     "placeholder": "e.g. French, Espa\u00f1ol"
+    },
+    {
+     "id": "from_chat",
+     "label": "Brief from",
+     "kind": "seg",
+     "choices": [
+      "sources",
+      "chat"
+     ]
     }
    ]
   },
@@ -1207,7 +1330,22 @@
      "id": "focus",
      "label": "Focus",
      "kind": "text",
-     "placeholder": "e.g. only the cost and timeline sections"
+     "placeholder": "e.g. only the costs"
+    },
+    {
+     "id": "language",
+     "label": "Language",
+     "kind": "text",
+     "placeholder": "e.g. French, Espa\u00f1ol"
+    },
+    {
+     "id": "from_chat",
+     "label": "Brief from",
+     "kind": "seg",
+     "choices": [
+      "sources",
+      "chat"
+     ]
     }
    ]
   }

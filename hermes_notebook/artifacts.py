@@ -234,8 +234,12 @@ def _write_artifact(notebook_id: str, kind: str, ext: str, content: str) -> Path
     return path
 
 
+MAX_CONVERSATION_CHARS = 9000
+
+
 def generate(notebook: str, kind: str, *, focus: str = "", count_hint: str = "",
-             fmt: str = "md", style: str = "", options: Optional[dict] = None) -> dict:
+             fmt: str = "md", style: str = "", options: Optional[dict] = None,
+             conversation: str = "", language: str = "") -> dict:
     """Generate one artifact; returns {path, kind, preview} or raises.
     fmt='csv' switches flashcards to an Anki-importable CSV.
     style picks the look of the visual kinds — see `hermes_notebook.igstyles`
@@ -260,6 +264,22 @@ def generate(notebook: str, kind: str, *, focus: str = "", count_hint: str = "",
     )
     focus_line = f"\nFocus/topic requested by the user: {focus.strip()}\n" if focus.strip() else ""
     count_line = f"\nRequested amount: {count_hint.strip()}\n" if count_hint.strip() else ""
+    conv_text = (conversation or "").strip()
+    if len(conv_text) > MAX_CONVERSATION_CHARS:
+        conv_text = conv_text[:MAX_CONVERSATION_CHARS] + "\n[... conversation trimmed ...]"
+    conv_line = (
+        "\nThe user worked this request out in a conversation with the notebook. "
+        "Use it as the brief: it decides the angle, the audience and what to "
+        "emphasise. Facts still come only from the sources — anything the "
+        "conversation asserts that no source supports is the user's own position "
+        "and must be attributed to them, never restated as fact.\n"
+        f"CONVERSATION SO FAR:\n{conv_text}\n"
+    ) if conv_text else ""
+    lang_line = (
+        f"\nWRITE THE ENTIRE OUTPUT IN {language.strip()}. Translate the task, "
+        "headings and all prose into that language; keep source titles, "
+        "identifiers and quoted strings in their original form.\n"
+    ) if language.strip() else ""
 
     if kind in MD_KINDS:
         messages = [
@@ -269,7 +289,7 @@ def generate(notebook: str, kind: str, *, focus: str = "", count_hint: str = "",
              "something is uncertain, say so. Markdown output only."},
             {"role": "user", "content":
              f"Notebook: {meta.get('title')}\nDescription: {meta.get('description', '')}\n"
-             f"Sources:\n{src_lines}\n{focus_line}{count_line}\n"
+             f"Sources:\n{src_lines}\n{focus_line}{count_line}{conv_line}{lang_line}\n"
              f"Task: {_MD_PROMPTS[kind]}\n\nSources content:\n{digest}"},
         ]
         text = llmio.complete(
@@ -299,7 +319,7 @@ def generate(notebook: str, kind: str, *, focus: str = "", count_hint: str = "",
         instructions=instructions,
         input=[{"type": "text", "text":
                 f"Notebook: {meta.get('title')}\nSources:\n{src_lines}\n"
-                f"{focus_line}{count_line}\nSources content:\n{digest}"}],
+                f"{focus_line}{count_line}{conv_line}{lang_line}\nSources content:\n{digest}"}],
         json_schema=_STRUCT_SCHEMAS[kind],
         schema_name=f"notebook.{kind}",
         system_prompt=(

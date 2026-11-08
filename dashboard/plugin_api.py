@@ -49,7 +49,7 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional
 
 from fastapi import APIRouter, Body, HTTPException, Query
-from fastapi.responses import FileResponse, JSONResponse, PlainTextResponse
+from fastapi.responses import FileResponse, JSONResponse, PlainTextResponse, Response
 from starlette.concurrency import run_in_threadpool
 
 _PLUGIN_ROOT = str(Path(__file__).resolve().parent.parent)
@@ -129,7 +129,15 @@ KIND_INDEX = {k["id"]: k for k in KINDS}
 # Every generator accepts a free-text focus — surfaced as a universal option
 # so each studio card's customize popover can narrow the run ("only costs").
 _FOCUS_OPTION = {"id": "focus", "label": "Focus", "kind": "text",
-                 "placeholder": "e.g. only the cost and timeline sections"}
+                 "placeholder": "e.g. only the costs"}
+_LANG_OPTION = {"id": "language", "label": "Language", "kind": "text",
+                "placeholder": "e.g. French, Español"}
+#: NotebookLM lets you turn the conversation you just had into an artifact. The
+#: card's popover offers the same choice: the sources alone, or the open chat as
+#: the brief (angle, audience, emphasis) with facts still coming from sources.
+_FROM_CHAT_OPTION = {"id": "from_chat", "label": "Brief from", "kind": "seg",
+                     "choices": ["sources", "chat"]}
+_MEDIA_KINDS = {"video_overview", "audio_overview"}
 
 
 def _kinds_payload() -> list:
@@ -139,9 +147,18 @@ def _kinds_payload() -> list:
         opts = list(kk.get("options") or [])
         if not any(o.get("id") == "focus" for o in opts):
             opts.append(dict(_FOCUS_OPTION))
+        if not any(o.get("id") == "language" for o in opts):
+            opts.append(dict(_LANG_OPTION))
+        if kk["id"] not in _MEDIA_KINDS and not any(o.get("id") == "from_chat" for o in opts):
+            opts.append(dict(_FROM_CHAT_OPTION))
         kk["options"] = opts
         out.append(kk)
     return out
+
+
+def _conversation_text(nb_id: str, thread: str, limit: int = 9000) -> str:
+    """The open chat as a brief for an artifact (see store.thread_as_brief)."""
+    return store.thread_as_brief(nb_id, thread, limit=limit)
 MEDIA_EXT = {"mp4": "video/mp4", "mp3": "audio/mpeg", "png": "image/png",
              "html": "text/html", "webm": "video/webm", "wav": "audio/wav",
              "svg": "image/svg+xml"}
@@ -491,6 +508,8 @@ def discover(payload: Dict[str, Any] = Body(...)) -> Any:
             max_results=max(4, min(30, int(payload.get("max_results") or 12))),
             per_domain=max(1, min(4, int(payload.get("per_domain") or 2))),
             plan=bool(payload.get("plan", True)),
+            deep=bool(payload.get("deep", False)),
+            rounds=int(payload["rounds"]) if str(payload.get("rounds") or "").isdigit() else None,
         )
     except Exception as exc:
         return _fail(f"{type(exc).__name__}: {exc}", 500)
@@ -931,6 +950,9 @@ async def generate(payload: Dict[str, Any] = Body(...)) -> Any:
                 language=str(payload.get("language") or ""),
                 notes=payload.get("notes") if isinstance(payload.get("notes"), dict) else None)
         else:
+            conversation = ""
+            if str(payload.get("from_chat") or "") in ("chat", "conversation"):
+                conversation = _conversation_text(nb_id, str(payload.get("thread") or ""))
             out = await run_in_threadpool(
                 lambda: artifacts_mod.generate(
                     nb_id, kind,
@@ -938,6 +960,8 @@ async def generate(payload: Dict[str, Any] = Body(...)) -> Any:
                     count_hint=str(payload.get("count_hint") or ""),
                     style=str(payload.get("style") or ""),
                     fmt=str(payload.get("template") or ""),
+                    conversation=conversation,
+                    language=str(payload.get("language") or ""),
                     options={"orientation": payload.get("orientation") or "landscape",
                              "detail": payload.get("detail") or "standard"}))
     except Exception as exc:
@@ -946,7 +970,7 @@ async def generate(payload: Dict[str, Any] = Body(...)) -> Any:
     # can show the artifact was tailored
     opts_used = {k: str(payload.get(k) or "").strip()
                  for k in ("focus", "count_hint", "format", "length", "language", "style",
-                           "template", "orientation", "detail")}
+                           "template", "orientation", "detail", "from_chat")}
     opts_used = {k: v for k, v in opts_used.items() if v}
     if opts_used:
         try:
@@ -1160,6 +1184,44 @@ def artifact(notebook: str = Query(...), name: str = Query(...),
                                  media_type="text/plain; charset=utf-8")
     guessed = mimetypes.guess_type(path.name)[0] or "application/octet-stream"
     return FileResponse(str(path), media_type=guessed, filename=path.name)
+
+
+@router.get("/artifact/pptx")
+def artifact_pptx(notebook: str = Query(...), name: str = Query(...),
+                  b64: int = Query(0, description="1 = return base64 JSON (the page's blob path")) -> Any:
+    """The slide deck as a real .pptx — NotebookLM ships PPTX/Slides export and a
+    deck that can only be presented inside Hermes is half a deliverable.
+
+    Built from the stored deck JSON by `hermes_notebook.pptx_export`, so the
+    file always matches what the viewer shows (no second model pass, no drift).
+    """
+    from hermes_notebook import pptx_export
+    try:
+        nb_id = store.resolve_notebook(notebook)
+        path = store.artifact_path(nb_id, name)
+    except Exception as exc:
+        return _fail(str(exc), 404)
+    if not path.exists():
+        return _fail(f"{name} is not in this notebook", 404)
+    try:
+        deck = json.loads(path.read_text(encoding="utf-8", errors="replace"))
+    except ValueError:
+        return _fail(f"{name} is not deck JSON — open the slides artifact's events file", 400)
+    slides = deck.get("slides") if isinstance(deck, dict) else None
+    if not isinstance(slides, list) or not slides:
+        return _fail(f"{name} has no slides to export", 400)
+    meta = store.get_meta(nb_id)
+    title = str(deck.get("title") or meta.get("title") or nb_id)
+    subtitle = str(deck.get("subtitle") or deck.get("framing") or meta.get("description") or "")
+    data = pptx_export.build_pptx(title, slides, subtitle=subtitle)
+    filename = runtime.slugify(title, limit=40) + ".pptx"
+    mime = "application/vnd.openxmlformats-officedocument.presentationml.presentation"
+    if b64:
+        import base64 as _b64
+        return {"ok": True, "name": filename, "ext": "pptx", "mime": mime,
+                "bytes": len(data), "b64": _b64.b64encode(data).decode("ascii")}
+    return Response(content=data, media_type=mime,
+                    headers={"content-disposition": f'attachment; filename="{filename}"'})
 
 
 @router.get("/export")

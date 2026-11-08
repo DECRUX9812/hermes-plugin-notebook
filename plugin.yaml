@@ -1,5 +1,5 @@
 name: hermes-notebook
-version: 1.4.0
+version: 1.5.0
 manifest_version: 2
 api_version: 1
 description: >-
@@ -10,12 +10,16 @@ description: >-
   FAQ, timeline, mind map, flashcards, quiz, slides, infographic — an SVG
   graphics library: 18 looks x 9 layouts x 3 shapes x 3 detail levels) and a
   Lab Ops surface that measures a fleet over audited ssh and drives a
-  terminal, services, files and VM snapshots. Agent half: gather sources
-  (files, PDFs, Office docs, web pages, YouTube, pasted text, images, notes),
-  ask questions answered only from those sources (in any number of separate
-  conversations per notebook), search, auto-label, generate
-  artifacts, produce audio/video overviews, discover and refresh sources, and
-  export notebooks.
+  terminal, services, files and VM snapshots. Parity pack: recordings
+  (mp3/m4a/wav/mp4/mov/webm…) become sources by transcription, any studio
+  card can be briefed from the open conversation, every artifact can be
+  written in another language, slide decks export to real .pptx, and Discover
+  runs multi-round deep research. Agent half: gather sources (files, PDFs,
+  Office docs, epub, web pages, YouTube, pasted text, images, audio/video
+  recordings, notes), ask questions answered only from those sources (in any
+  number of separate conversations per notebook), search, auto-label,
+  generate artifacts, produce audio/video overviews, discover and refresh
+  sources, and export notebooks.
 author: Ritesh Patel
 license: MIT
 homepage: https://github.com/DECRUX9812/hermes-plugin-notebook

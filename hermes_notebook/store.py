@@ -471,6 +471,31 @@ def get_thread(notebook_id: str, name: str = DEFAULT_THREAD) -> list[dict]:
     return _read_thread_file(_thread_path(notebook_id, name))["messages"]
 
 
+def thread_as_brief(notebook_id: str, name: str = DEFAULT_THREAD, limit: int = 9000) -> str:
+    """The tail of one conversation, rendered as a brief an artifact prompt can
+    use ("User: … / Assistant: …"), newest last. Empty when the thread does not
+    exist or has no content. This is what "turn this chat into a deck" feeds."""
+    name = (name or "").strip()
+    if not name:
+        return ""
+    try:
+        msgs = get_thread(notebook_id, name)
+    except Exception:
+        return ""
+    lines, used = [], 0
+    for m in reversed(msgs or []):
+        role = "User" if str(m.get("role")) == "user" else "Assistant"
+        body = " ".join(str(m.get("content") or "").split())
+        if not body:
+            continue
+        line = f"{role}: {body}"
+        if used + len(line) + 1 > limit:
+            break
+        lines.append(line)
+        used += len(line) + 1
+    return "\n".join(reversed(lines))
+
+
 def read_thread(notebook_id: str, name: str = DEFAULT_THREAD) -> dict:
     """One thread with its header: {name, title, created, updated, messages}."""
     nb_id = resolve_notebook(notebook_id)
