@@ -98,12 +98,17 @@ function Main({ notebook, kinds, tab, setTab, picked, setPicked, busy, generate,
     ),
 
     tab === 'peek' && peek
-      ? jsx(SourcePeek, {
-          source: peek, notebook,
-          onClose: () => { setPeek(null); setTab('chat') },
-          onAskAbout: (s) => { setAskScope({ ids: [s.id], title: s.title }); setTab('chat') },
-          onRefresh: onRefreshSource ? () => onRefreshSource(peek) : null
-        })
+      ? (() => {
+          const pi = sources.findIndex((s) => s.id === peek.id)
+          return jsx(SourcePeek, {
+            source: peek, notebook,
+            onClose: () => { setPeek(null); setTab('chat') },
+            onAskAbout: (s) => { setAskScope({ ids: [s.id], title: s.title }); setTab('chat') },
+            onRefresh: onRefreshSource ? () => onRefreshSource(peek) : null,
+            onPrev: pi > 0 ? () => setPeek(sources[pi - 1]) : null,
+            onNext: pi >= 0 && pi < sources.length - 1 ? () => setPeek(sources[pi + 1]) : null
+          })
+        })()
       : tab === 'view' && picked
         ? jsx(Viewer, {
             artifact: picked, notebook, onSearch: () => {},
@@ -833,7 +838,7 @@ function Msg({ msg, onCite, notebook, canRetry, onRetry }) {
 
 /* ---------------------------------------------------------------- peek */
 
-function SourcePeek({ source, notebook, onClose, onAskAbout, onRefresh }) {
+function SourcePeek({ source, notebook, onClose, onAskAbout, onRefresh, onPrev, onNext }) {
   const [text, setText] = useState('')
   const [err, setErr] = useState('')
   const [refreshing, setRefreshing] = useState(false)
@@ -873,6 +878,8 @@ function SourcePeek({ source, notebook, onClose, onAskAbout, onRefresh }) {
             }
           })
         : null,
+      onPrev ? jsx(IconBtn, { icon: 'arrowLeft', label: `Previous source — S${source.n - 1}`, onClick: onPrev }) : null,
+      onNext ? jsx(IconBtn, { icon: 'arrowRight', label: `Next source — S${source.n + 1}`, onClick: onNext }) : null,
       jsx(IconBtn, { icon: 'close', label: 'Close source', onClick: onClose })
     ),
     el('div', { className: 'nb-view-body' },
