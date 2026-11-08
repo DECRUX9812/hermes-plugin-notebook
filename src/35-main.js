@@ -465,6 +465,27 @@ function Chat({ notebook, kinds, askOpen, onSay, modelReady, onCite, onOpenSourc
               setCfgOpen(true)
             }
           }),
+          jsx(IconBtn, {
+            icon: 'download', label: 'Export this chat (.md)', disabled: !msgs.length,
+            onClick: () => {
+              const lines = [
+                `# ${notebook.title} — chat`, '',
+                `*${thrLabel} · exported ${new Date().toISOString().slice(0, 10)}*`, ''
+              ]
+              for (const m of msgs) {
+                lines.push(m.role === 'user' ? '## You' : '## Hermes Notebook', '', m.content || '', '')
+                if (m.citations && m.citations.length) {
+                  lines.push('Sources: ' + m.citations.map((c) => `[S${c.n}] ${c.title}`).join(' · '), '')
+                }
+              }
+              const blob = new Blob([lines.join('\n')], { type: 'text/markdown' })
+              const a = document.createElement('a')
+              a.href = URL.createObjectURL(blob)
+              a.download = `${String(notebook.title || 'chat').replace(/[^\w]+/g, '-').toLowerCase()}-chat.md`
+              document.body.appendChild(a); a.click(); a.remove()
+              setTimeout(() => URL.revokeObjectURL(a.href), 4000)
+            }
+          }),
           el('span', { className: 'nb-hint', style: { marginLeft: 'auto' },
             children: modelReady ? '⏎ send · ⇧⏎ newline' : 'model offline — enable the plugin and restart the gateway' }),
           el('button', {
@@ -784,6 +805,12 @@ function SourcePeek({ source, notebook, onClose, onAskAbout, onRefresh }) {
           children: `${kindLabel(source.kind)} · ${nfmt(source.chars)} chars · ${source.origin || 'stored text'}` })),
       source.origin && source.origin.startsWith('http')
         ? jsx(IconBtn, { icon: 'external', label: 'Open the original', onClick: () => host.openLink ? host.openLink(source.origin) : window.open(source.origin, '_blank') })
+        : null,
+      text
+        ? jsx(IconBtn, {
+            icon: 'copy', label: 'Copy source text',
+            onClick: () => { try { if (navigator.clipboard) navigator.clipboard.writeText(text) } catch { /* clipboard unavailable */ } }
+          })
         : null,
       onRefresh && !['note', 'text'].includes(source.kind)
         ? jsx(IconBtn, {
