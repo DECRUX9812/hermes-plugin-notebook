@@ -134,9 +134,11 @@ const rest = async (path, opts) => {
   }
   if (route === 'source_state') {
     const sid = (opts && opts.body && opts.body.source_id) || ''
+    const sids = (opts && opts.body && Array.isArray(opts.body.source_ids)) ? opts.body.source_ids : null
     const enabled = !!(opts && opts.body && opts.body.enabled)
+    const wanted = sids && sids.length ? new Set(sids.map(String)) : new Set([sid])
     for (const s of (STATE.notebook && STATE.notebook.sources) || []) {
-      if (s.id === sid) s.active = enabled
+      if (wanted.has(s.id)) s.active = enabled
     }
     return { ok: true, source_id: sid, active: enabled, state: STATE.notebook }
   }

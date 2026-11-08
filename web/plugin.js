@@ -1372,21 +1372,37 @@ function App() {
     } catch (e) { say(`could not update source: ${e.message || e}`) }
   }, [nb, studio, say])
 
+  // one /source_state call for a whole set — folder checkboxes and select-all
+  // share it (the reply carries the fresh notebook payload like toggleSource)
+  const applySourceStates = useCallback(async (list, enabled) => {
+    if (!nb || !list || !list.length) return
+    try {
+      const out = await api('/source_state', {
+        method: 'POST',
+        body: { notebook: nb, source_ids: list.map((s) => s.id), enabled },
+        timeoutMs: 30000
+      })
+      if (out && out.state && studio.data) {
+        studio.setData({ ...studio.data, notebook: out.state })
+      } else {
+        await studio.reload(true)
+      }
+    } catch (e) { say(`could not update sources: ${e.message || e}`) }
+  }, [nb, studio, say])
+
   const toggleAllSources = useCallback(async () => {
     const sources = (notebook && notebook.sources) || []
-    if (!nb || !sources.length) return
+    if (!sources.length) return
     const allOn = sources.every((s) => s.active !== false)
-    try {
-      for (const s of sources) {
-        await api('/source_state', {
-          method: 'POST',
-          body: { notebook: nb, source_id: s.id, enabled: !allOn },
-          timeoutMs: 30000
-        })
-      }
-      await studio.reload(true)
-    } catch (e) { say(`could not update sources: ${e.message || e}`) }
-  }, [nb, notebook, studio, say])
+    await applySourceStates(sources, !allOn)
+  }, [notebook, applySourceStates])
+
+  // folder checkbox: all-on turns the folder off; anything else turns it on
+  const toggleGroupSources = useCallback(async (list) => {
+    if (!list || !list.length) return
+    const allOn = list.every((s) => s.active !== false)
+    await applySourceStates(list, !allOn)
+  }, [applySourceStates])
 
   // removing a source/artifact returns the fresh notebook payload — merge it
   // like toggleSource does, and close any viewer pointed at the deleted thing.
@@ -1571,6 +1587,7 @@ function App() {
                   data, notebook,
                   onAddSource: () => openAddSource(), onOpenSource: openSource,
                   onToggleSource: toggleSource, onToggleAll: toggleAllSources,
+                  onToggleGroup: toggleGroupSources,
                   onDeleteSource: deleteSource,
                   onLabel: labelSources, onCollapse: () => setRailOpen(false),
                   onGoHome: () => setMode('home'), onSay: say, onDropFiles: dropSources,
@@ -1805,7 +1822,7 @@ function PanelToggles({ side, onShow }) {
 /* -------------------------------------------------------------------- rail */
 
 function Rail({ data, notebook, onAddSource, onOpenSource, onToggleSource,
-               onToggleAll, onDeleteSource, onLabel, onCollapse, onGoHome, onSay, onDropFiles, loading, error, reload }) {
+               onToggleAll, onToggleGroup, onDeleteSource, onLabel, onCollapse, onGoHome, onSay, onDropFiles, loading, error, reload }) {
   const sources = (notebook && notebook.sources) || []
   const labels = (notebook && notebook.labels) || []
   const [q, setQ] = useState('')
@@ -1988,18 +2005,39 @@ function Rail({ data, notebook, onAddSource, onOpenSource, onToggleSource,
               : el('div', { style: { display: 'flex', flexDirection: 'column', gap: '2px' } },
                   groups.map(([g, list]) => {
                     const isClosed = !!closed[g]
+                    const gAllOn = list.every((s) => s.active !== false)
+                    const gSomeOn = list.some((s) => s.active !== false)
                     return el('div', { key: g },
-                      el('button', {
-                        type: 'button', className: 'nb-srcgroup',
-                        'data-closed': isClosed ? 'true' : 'false',
-                        'aria-expanded': !isClosed,
-                        onClick: () => setClosed((c) => ({ ...c, [g]: !c[g] })),
-                        children: [
-                          jsx(Glyph, { name: 'chevron', size: 13 }),
-                          el('span', { style: { textTransform: 'capitalize' }, children: g }),
-                          el('em', { children: `${list.filter((s) => s.active !== false).length}/${list.length}` })
-                        ]
-                      }),
+                      el('div', {
+                        style: { display: 'flex', alignItems: 'center', gap: '2px' }
+                      },
+                        el('button', {
+                          type: 'button', className: 'nb-srccheck', role: 'checkbox',
+                          'aria-checked': gAllOn ? 'true' : (gSomeOn ? 'mixed' : 'false'),
+                          'data-mixed': gSomeOn && !gAllOn ? 'true' : 'false',
+                          'aria-label': `${gAllOn ? 'Exclude' : 'Include'} all sources in “${g}”`,
+                          title: gAllOn
+                            ? `Exclude all ${list.length} sources in “${g}”`
+                            : `Include all ${list.length} sources in “${g}”`,
+                          onClick: () => onToggleGroup && onToggleGroup(list),
+                          children: gAllOn
+                            ? jsx(Glyph, { name: 'check', size: 12 })
+                            : (gSomeOn ? el('span', { 'aria-hidden': 'true',
+                                style: { fontSize: '11px', fontWeight: 700, lineHeight: 1 },
+                                children: '–' }) : null)
+                        }),
+                        el('button', {
+                          type: 'button', className: 'nb-srcgroup',
+                          'data-closed': isClosed ? 'true' : 'false',
+                          'aria-expanded': !isClosed,
+                          onClick: () => setClosed((c) => ({ ...c, [g]: !c[g] })),
+                          style: { flex: 1 },
+                          children: [
+                            jsx(Glyph, { name: 'chevron', size: 13 }),
+                            el('span', { style: { textTransform: 'capitalize' }, children: g }),
+                            el('em', { children: `${list.filter((s) => s.active !== false).length}/${list.length}` })
+                          ]
+                        })),
                       isClosed ? null : el('div', { className: 'nb-srcgroup-list' }, list.map(srcRow))
                     )
                   }))

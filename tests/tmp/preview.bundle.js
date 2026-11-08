@@ -16049,23 +16049,34 @@ function App() {
       say(`could not update source: ${e.message || e}`);
     }
   }, [nb, studio, say]);
-  const toggleAllSources = (0, import_react.useCallback)(async () => {
-    const sources = notebook && notebook.sources || [];
-    if (!nb || !sources.length) return;
-    const allOn = sources.every((s) => s.active !== false);
+  const applySourceStates = (0, import_react.useCallback)(async (list, enabled) => {
+    if (!nb || !list || !list.length) return;
     try {
-      for (const s of sources) {
-        await api("/source_state", {
-          method: "POST",
-          body: { notebook: nb, source_id: s.id, enabled: !allOn },
-          timeoutMs: 3e4
-        });
+      const out = await api("/source_state", {
+        method: "POST",
+        body: { notebook: nb, source_ids: list.map((s) => s.id), enabled },
+        timeoutMs: 3e4
+      });
+      if (out && out.state && studio.data) {
+        studio.setData({ ...studio.data, notebook: out.state });
+      } else {
+        await studio.reload(true);
       }
-      await studio.reload(true);
     } catch (e) {
       say(`could not update sources: ${e.message || e}`);
     }
-  }, [nb, notebook, studio, say]);
+  }, [nb, studio, say]);
+  const toggleAllSources = (0, import_react.useCallback)(async () => {
+    const sources = notebook && notebook.sources || [];
+    if (!sources.length) return;
+    const allOn = sources.every((s) => s.active !== false);
+    await applySourceStates(sources, !allOn);
+  }, [notebook, applySourceStates]);
+  const toggleGroupSources = (0, import_react.useCallback)(async (list) => {
+    if (!list || !list.length) return;
+    const allOn = list.every((s) => s.active !== false);
+    await applySourceStates(list, !allOn);
+  }, [applySourceStates]);
   const deleteSource = (0, import_react.useCallback)(async (s) => {
     if (!nb || !s || !s.id) return;
     try {
@@ -16286,6 +16297,7 @@ function App() {
         onOpenSource: openSource,
         onToggleSource: toggleSource,
         onToggleAll: toggleAllSources,
+        onToggleGroup: toggleGroupSources,
         onDeleteSource: deleteSource,
         onLabel: labelSources,
         onCollapse: () => setRailOpen(false),
@@ -16669,6 +16681,7 @@ function Rail({
   onOpenSource,
   onToggleSource,
   onToggleAll,
+  onToggleGroup,
   onDeleteSource,
   onLabel,
   onCollapse,
@@ -16909,21 +16922,45 @@ function Rail({
           { style: { display: "flex", flexDirection: "column", gap: "2px" } },
           groups.map(([g, list]) => {
             const isClosed = !!closed[g];
+            const gAllOn = list.every((s) => s.active !== false);
+            const gSomeOn = list.some((s) => s.active !== false);
             return el(
               "div",
               { key: g },
-              el("button", {
-                type: "button",
-                className: "nb-srcgroup",
-                "data-closed": isClosed ? "true" : "false",
-                "aria-expanded": !isClosed,
-                onClick: () => setClosed((c) => ({ ...c, [g]: !c[g] })),
-                children: [
-                  (0, import_jsx_runtime.jsx)(Glyph, { name: "chevron", size: 13 }),
-                  el("span", { style: { textTransform: "capitalize" }, children: g }),
-                  el("em", { children: `${list.filter((s) => s.active !== false).length}/${list.length}` })
-                ]
-              }),
+              el(
+                "div",
+                {
+                  style: { display: "flex", alignItems: "center", gap: "2px" }
+                },
+                el("button", {
+                  type: "button",
+                  className: "nb-srccheck",
+                  role: "checkbox",
+                  "aria-checked": gAllOn ? "true" : gSomeOn ? "mixed" : "false",
+                  "data-mixed": gSomeOn && !gAllOn ? "true" : "false",
+                  "aria-label": `${gAllOn ? "Exclude" : "Include"} all sources in \u201C${g}\u201D`,
+                  title: gAllOn ? `Exclude all ${list.length} sources in \u201C${g}\u201D` : `Include all ${list.length} sources in \u201C${g}\u201D`,
+                  onClick: () => onToggleGroup && onToggleGroup(list),
+                  children: gAllOn ? (0, import_jsx_runtime.jsx)(Glyph, { name: "check", size: 12 }) : gSomeOn ? el("span", {
+                    "aria-hidden": "true",
+                    style: { fontSize: "11px", fontWeight: 700, lineHeight: 1 },
+                    children: "\u2013"
+                  }) : null
+                }),
+                el("button", {
+                  type: "button",
+                  className: "nb-srcgroup",
+                  "data-closed": isClosed ? "true" : "false",
+                  "aria-expanded": !isClosed,
+                  onClick: () => setClosed((c) => ({ ...c, [g]: !c[g] })),
+                  style: { flex: 1 },
+                  children: [
+                    (0, import_jsx_runtime.jsx)(Glyph, { name: "chevron", size: 13 }),
+                    el("span", { style: { textTransform: "capitalize" }, children: g }),
+                    el("em", { children: `${list.filter((s) => s.active !== false).length}/${list.length}` })
+                  ]
+                })
+              ),
               isClosed ? null : el("div", { className: "nb-srcgroup-list" }, list.map(srcRow))
             );
           })
@@ -24001,9 +24038,11 @@ var rest = async (path, opts) => {
   }
   if (route === "source_state") {
     const sid = opts && opts.body && opts.body.source_id || "";
+    const sids = opts && opts.body && Array.isArray(opts.body.source_ids) ? opts.body.source_ids : null;
     const enabled = !!(opts && opts.body && opts.body.enabled);
+    const wanted = sids && sids.length ? new Set(sids.map(String)) : /* @__PURE__ */ new Set([sid]);
     for (const s of STATE.notebook && STATE.notebook.sources || []) {
-      if (s.id === sid) s.active = enabled;
+      if (wanted.has(s.id)) s.active = enabled;
     }
     return { ok: true, source_id: sid, active: enabled, state: STATE.notebook };
   }

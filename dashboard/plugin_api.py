@@ -443,12 +443,24 @@ def add_sources(payload: Dict[str, Any] = Body(...)) -> Any:
 @router.post("/source_state")
 def source_state(payload: Dict[str, Any] = Body(...)) -> Any:
     """NotebookLM's per-source checkbox: active sources feed answers and
-    generation; unchecked ones stay stored but out of the context window."""
+    generation; unchecked ones stay stored but out of the context window.
+    `source_ids` (list) bulk-toggles a whole folder/group in one call."""
     nb = str(payload.get("notebook") or "")
-    sid = str(payload.get("source_id") or "")
     enabled = bool(payload.get("enabled", True))
     try:
         nb_id = store.resolve_notebook(nb)
+        sids = payload.get("source_ids")
+        if isinstance(sids, list) and sids:
+            ids = [str(x) for x in sids]
+            known = {s.get("id") for s in store.list_sources(nb_id)}
+            missing = [x for x in ids if x not in known]
+            if missing:
+                return _fail(f"sources not in this notebook: {missing[:3]}", 404)
+            for sid in ids:
+                store.set_source_enabled(nb_id, sid, enabled)
+            return {"ok": True, "active": enabled, "count": len(ids),
+                    "state": _notebook_payload(store.resolve_notebook(nb))}
+        sid = str(payload.get("source_id") or "")
         if not store.get_source(nb_id, sid):
             return _fail(f"source {sid!r} is not in this notebook", 404)
         store.set_source_enabled(nb_id, sid, enabled)
