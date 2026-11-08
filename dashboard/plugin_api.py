@@ -14,6 +14,13 @@ notebook generated in chat shows up in the studio and vice versa.
     GET  /state?notebook=<id|slug>   notebooks, sources, artifacts, thread, stats
     POST /notebook                   {title, description} -> create
     POST /source                     {notebook, path|url|text, title?} -> ingest
+    POST /discover                   {notebook, query?, max_results?} -> web-search candidates
+    POST /sources                    {notebook, urls[]} -> batch ingest the picked candidates
+    POST /source_state               {notebook, source_id, enabled} -> include/exclude a source
+    POST /note                       {notebook, text, title?} -> quick note as a source
+    POST /suggest                    {notebook} -> questions/artifacts/gaps from the model
+    POST /overview                   {notebook} -> one-paragraph executive summary
+    POST /notebook/delete            {notebook, confirm} -> delete a notebook
     POST /ask                        {notebook, question, thread?} -> cited answer
     POST /generate                   {notebook, kind, focus?, count_hint?}
     POST /label                      {notebook, force?} -> auto-labels via the model
@@ -167,7 +174,7 @@ def _collect_artifacts(notebook_id: str) -> List[Dict[str, Any]]:
     return out
 
 
-def _source_row(source: Dict[str, Any], index: int) -> Dict[str, Any]:
+def _source_row(source: Dict[str, Any], index: int, active: bool = True) -> Dict[str, Any]:
     return {
         "n": index + 1,
         "id": source.get("id", ""),
@@ -179,12 +186,15 @@ def _source_row(source: Dict[str, Any], index: int) -> Dict[str, Any]:
         "summary": source.get("summary") or "",
         "added_at": source.get("added_at", ""),
         "refreshed_at": source.get("refreshed_at", ""),
+        "active": bool(active),
     }
 
 
 def _notebook_payload(notebook_id: str) -> Dict[str, Any]:
     meta = store.get_meta(notebook_id)
-    sources = [_source_row(s, i) for i, s in enumerate(store.list_sources(notebook_id))]
+    disabled = store.disabled_sources(notebook_id)
+    sources = [_source_row(s, i, s.get("id") not in disabled)
+               for i, s in enumerate(store.list_sources(notebook_id))]
     label_counts: Dict[str, int] = {}
     for s in sources:
         for label in s["labels"]:
@@ -208,6 +218,7 @@ def _notebook_payload(notebook_id: str) -> Dict[str, Any]:
             "chars": sum(s["chars"] for s in sources),
             "labels": len(labels),
             "unlabeled": sum(1 for s in sources if not s["labels"]),
+            "active": sum(1 for s in sources if s["active"]),
             "artifacts": len(arts),
             "kinds": sorted({a["kind"] for a in arts}),
         },
@@ -303,6 +314,183 @@ def add_source(payload: Dict[str, Any] = Body(...)) -> Any:
     if not out.get("ok"):
         return _fail(out.get("error") or "ingest failed", 422, detail=out)
     return {"ok": True, "source": out, "state": _notebook_payload(store.resolve_notebook(nb))}
+
+
+@router.post("/discover")
+def discover(payload: Dict[str, Any] = Body(...)) -> Any:
+    """NotebookLM-style "describe it": web-search candidate sources for a query
+    (empty query falls back to the notebook's own title + description inside
+    the tool). Nothing is added — the page shows the candidates and the user
+    picks, then POSTs the kept urls to /sources."""
+    from hermes_notebook import tools as tools_mod
+    nb = str(payload.get("notebook") or "")
+    args: Dict[str, Any] = {"notebook": nb}
+    query = str(payload.get("query") or "").strip()
+    if query:
+        args["query"] = query
+    if payload.get("max_results"):
+        args["max_results"] = int(payload["max_results"])
+    _ensure_model()
+    try:
+        out = json.loads(tools_mod.notebook_discover(args))
+    except Exception as exc:
+        return _fail(f"{type(exc).__name__}: {exc}", 500)
+    if not out.get("ok"):
+        return _fail(out.get("error") or "search failed", 422, detail=out)
+    return {"ok": True, "query": out.get("query") or "",
+            "candidates": out.get("candidates") or []}
+
+
+@router.post("/sources")
+def add_sources(payload: Dict[str, Any] = Body(...)) -> Any:
+    """Batch-add the urls a discover pass produced. Each url goes through the
+    same ingest path as POST /source (extract → dedupe → auto-label), and the
+    reply says per-url what landed so the page can report it honestly."""
+    from hermes_notebook import tools as tools_mod
+    nb = str(payload.get("notebook") or "")
+    urls = []
+    for u in (payload.get("urls") or []):
+        u = str(u or "").strip()
+        if u and u not in urls:
+            urls.append(u)
+    urls = urls[:10]
+    if not urls:
+        return _fail("no urls to add")
+    _ensure_model()
+    results = []
+    for url in urls:
+        try:
+            out = json.loads(tools_mod.notebook_add_source({"notebook": nb, "url": url}))
+        except Exception as exc:
+            results.append({"url": url, "ok": False,
+                            "error": f"{type(exc).__name__}: {exc}"})
+            continue
+        if out.get("skipped") == "duplicate":
+            results.append({"url": url, "ok": True, "duplicate": True,
+                            "title": (out.get("duplicate_of") or {}).get("title") or url})
+        elif out.get("ok"):
+            results.append({"url": url, "ok": True, "duplicate": False,
+                            "source_id": out.get("source_id"),
+                            "title": out.get("title"), "kind": out.get("kind"),
+                            "labels": out.get("labels") or []})
+        else:
+            results.append({"url": url, "ok": False,
+                            "error": out.get("error") or "ingest failed"})
+    added = sum(1 for r in results if r.get("ok") and not r.get("duplicate"))
+    dupes = sum(1 for r in results if r.get("duplicate"))
+    try:
+        state = _notebook_payload(store.resolve_notebook(nb))
+    except Exception:
+        state = None
+    return {"ok": True, "added": added, "duplicates": dupes,
+            "results": results, "state": state}
+
+
+@router.post("/source_state")
+def source_state(payload: Dict[str, Any] = Body(...)) -> Any:
+    """NotebookLM's per-source checkbox: active sources feed answers and
+    generation; unchecked ones stay stored but out of the context window."""
+    nb = str(payload.get("notebook") or "")
+    sid = str(payload.get("source_id") or "")
+    enabled = bool(payload.get("enabled", True))
+    try:
+        nb_id = store.resolve_notebook(nb)
+        if not store.get_source(nb_id, sid):
+            return _fail(f"source {sid!r} is not in this notebook", 404)
+        store.set_source_enabled(nb_id, sid, enabled)
+    except Exception as exc:
+        return _fail(f"{type(exc).__name__}: {exc}", 500)
+    return {"ok": True, "source_id": sid, "active": enabled,
+            "state": _notebook_payload(store.resolve_notebook(nb))}
+
+
+@router.post("/note")
+def add_note(payload: Dict[str, Any] = Body(...)) -> Any:
+    """Quick note → a first-class searchable source (kind='note'). No model
+    needed — notes skip the auto-label pass by design."""
+    from hermes_notebook import tools as tools_mod
+    nb = str(payload.get("notebook") or "")
+    args: Dict[str, Any] = {"notebook": nb, "text": str(payload.get("text") or "")}
+    if str(payload.get("title") or "").strip():
+        args["title"] = str(payload["title"]).strip()
+    if not args["text"].strip():
+        return _fail("note text is required")
+    try:
+        out = json.loads(tools_mod.notebook_note(args))
+    except Exception as exc:
+        return _fail(f"{type(exc).__name__}: {exc}", 500)
+    if not out.get("ok"):
+        return _fail(out.get("error") or "could not save the note", 422, detail=out)
+    return {"ok": True, "source": out,
+            "state": _notebook_payload(store.resolve_notebook(nb))}
+
+
+@router.post("/suggest")
+def suggest(payload: Dict[str, Any] = Body(...)) -> Any:
+    """NotebookLM's 'what to ask next': questions, artifact ideas and source
+    gaps, generated from the notebook digest by the model."""
+    from hermes_notebook import tools as tools_mod
+    nb = str(payload.get("notebook") or "")
+    _ensure_model()
+    try:
+        out = json.loads(tools_mod.notebook_suggest({"notebook": nb}))
+    except Exception as exc:
+        return _fail(f"{type(exc).__name__}: {exc}", 500)
+    if not out.get("ok"):
+        return _fail(out.get("error") or "no suggestions", 422, detail=out)
+    return {"ok": True, "title": out.get("title"),
+            "suggestions": out.get("suggestions") or {}}
+
+
+@router.post("/overview")
+async def overview(payload: Dict[str, Any] = Body(...)) -> Any:
+    """The hero card's executive summary: one grounded paragraph over the
+    ACTIVE sources only (unchecked ones stay out, like everywhere else)."""
+    from hermes_notebook import llmio, retrieve
+    nb = str(payload.get("notebook") or "")
+    _ensure_model()
+    try:
+        nb_id = store.resolve_notebook(nb)
+    except Exception as exc:
+        return _fail(str(exc), 404)
+    digest = retrieve.notebook_digest(nb_id, max_chars=16000)
+    if not digest.strip():
+        return _fail("no active sources to summarize — check some sources first", 422)
+    started = time.time()
+
+    def _run() -> str:
+        return llmio.complete(
+            [
+                {"role": "system", "content": (
+                    "You write the opening overview of a research notebook. One tight "
+                    "paragraph of 3-5 sentences synthesizing what the sources actually "
+                    "say — the thesis, the strongest findings, and what is contested. "
+                    "Mark load-bearing terms with **bold** so they scan. No preamble, "
+                    "no sign-off, no invented facts.")},
+                {"role": "user", "content": f"Notebook source excerpts:\n\n{digest}"},
+            ],
+            purpose="hermes-notebook.overview",
+            max_tokens=600, temperature=0.4,
+        )
+
+    try:
+        text = await run_in_threadpool(_run)
+    except Exception as exc:
+        return _fail(f"{type(exc).__name__}: {exc}", 500)
+    return {"ok": True, "overview": (text or "").strip(),
+            "seconds": round(time.time() - started, 1)}
+
+
+@router.post("/notebook/delete")
+def delete_notebook(payload: Dict[str, Any] = Body(...)) -> Any:
+    nb = str(payload.get("notebook") or "")
+    if not payload.get("confirm"):
+        return _fail("deletion needs confirm=true — confirm with the user first")
+    try:
+        out = store.delete_notebook(nb)
+    except Exception as exc:
+        return _fail(f"{type(exc).__name__}: {exc}", 500)
+    return {"ok": True, **out}
 
 
 @router.post("/ask")

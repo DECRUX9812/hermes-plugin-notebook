@@ -8,16 +8,19 @@
  *            auto-labels; search and label filters narrow them
  *   main     grounded Q&A with numbered citations that open the source they
  *            cite, or the viewer for whatever artifact is selected
- *   studio   the twelve outputs, each with the state it is actually in
- *            (not generated / writing / ready, with its real timestamp)
+ *   studio   the twelve outputs as preview cards — each carries its own colour,
+ *            a real thumbnail when the artifact exists (infographic image,
+ *            document lines, audio waveform), and the state it is actually in
  *
  * The second surface is the lab: the same shell, the same status bar, and a
  * fleet deck that measures eight hosts over the audited ssh transport — a
  * terminal, service control, a file browser and VM snapshots, all of which
  * report the real exit code instead of a green tick.
  *
- * Every pixel here resolves through the app's theme variables, so the page
- * follows dark/light and the user's accent without a second stylesheet.
+ * The system is deliberately NotebookLM-soft: rounded cards, pill controls,
+ * quiet labels and per-output colour, all resolved through the app's theme
+ * variables so the page follows dark/light and the user's accent. Media
+ * stages and the terminal stay dark in both themes, like a player.
  */
 import * as SDK from '@hermes/plugin-sdk'
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
@@ -61,395 +64,558 @@ const T = {
 
 const CSS = `
 /* ============================================================================
-   SYSTEM: "Filed" — editorial-technical instrument.
-   Adapted from Open Design packages "tom-modern" (structure: sharp 0-radius
-   geometry, hairline rules, hard offset elevation, mono eyebrows, single accent,
-   graph-paper ground) and "atelier-zero" (editorial metadata: plate numbers,
-   filed-under stamps, Roman-numeral index, one accent period per heading).
-   Every value still resolves through the app's own tokens, so the page follows
-   the user's light/dark theme and accent. No pinned surface hexes.
+   SYSTEM: "Studio" — NotebookLM-soft.
+   Cards, pills and previews instead of rules and plates: every surface is a
+   rounded, softly-elevated card; controls are pills; the twelve studio outputs
+   each carry their own colour (--kc) and show a real thumbnail once generated.
+   Values resolve through the app's theme variables so the page follows the
+   user's light/dark theme and accent; media stages and the terminal pin a dark
+   surface in both themes, the way a player does.
    ========================================================================== */
 
 .nb-root{
-  --nb-rail: 300px; --nb-studio: 392px;
-  --nb-hair: color-mix(in srgb, ${T.text} 19%, transparent);
-  --nb-hair-soft: color-mix(in srgb, ${T.text} 11%, transparent);
-  --nb-wash: color-mix(in srgb, ${T.text} 3.5%, transparent);
-  --nb-wash-2: color-mix(in srgb, ${T.text} 6%, transparent);
-  --nb-gridline: color-mix(in srgb, ${T.text} 5.5%, transparent);
+  --nb-rail: 300px; --nb-studio: 396px;
+  --nb-hair: color-mix(in srgb, ${T.text} 10%, transparent);
+  --nb-hair-soft: color-mix(in srgb, ${T.text} 6%, transparent);
+  --nb-wash: color-mix(in srgb, ${T.text} 4%, transparent);
+  --nb-wash-2: color-mix(in srgb, ${T.text} 7.5%, transparent);
+  --nb-card: ${T.card};
+  --nb-shadow: 0 1px 2px rgba(8,10,18,.05), 0 14px 34px -20px rgba(8,10,18,.30);
+  --nb-shadow-lift: 0 2px 6px rgba(8,10,18,.07), 0 20px 44px -18px rgba(8,10,18,.38);
+  --nb-media: linear-gradient(155deg,#20243a 0%,#12151f 100%);
   display:flex; flex-direction:column; height:100%; min-height:0;
   color:${T.text}; font-size:16px; line-height:1.5;
   font-variant-numeric: tabular-nums;
 }
 .nb-root *{box-sizing:border-box}
-.nb-root :focus-visible{outline:2px solid ${T.accent}; outline-offset:2px; border-radius:0}
+.nb-root :focus-visible{outline:2px solid ${T.accent}; outline-offset:2px; border-radius:8px}
 .nb-mono{font-family:var(--ui-font-mono,ui-monospace,SFMono-Regular,Menlo,monospace);font-variant-ligatures:none}
 .nb-num{font-family:var(--ui-font-mono,ui-monospace,SFMono-Regular,Menlo,monospace);font-variant-numeric:tabular-nums}
 
-/* every section label on the page is the same mono eyebrow */
-.nb-meta{font-family:var(--ui-font-mono,ui-monospace,monospace);font-size:10.5px;letter-spacing:.18em;
-  text-transform:uppercase;color:${T.text3};font-weight:600}
+/* quiet section label — small and calm, never telemetry */
+.nb-meta{font-size:12px;letter-spacing:0;text-transform:none;color:${T.text3};font-weight:600}
+.nb-hint{font-size:11.5px;color:${T.text3};letter-spacing:.01em;line-height:1.5}
 
 /* ------------------------------------------------------------------ app bar */
-.nb-bar{display:flex;align-items:center;gap:16px;height:52px;flex:0 0 52px;
-  padding:0 18px;border-bottom:1px solid var(--nb-hair)}
-.nb-brand{display:flex;align-items:center;gap:12px;min-width:0}
-.nb-mark{width:24px;height:24px;display:grid;place-items:center;flex:0 0 auto;
-  background:transparent;border:1px solid color-mix(in srgb,${T.accent} 60%, transparent);color:${T.accent}}
-.nb-brandname{font-family:var(--ui-font-mono,ui-monospace,monospace);font-weight:700;letter-spacing:.2em;
-  font-size:11.5px;text-transform:uppercase;color:${T.text}}
-.nb-crumb{font-family:var(--ui-font-mono,ui-monospace,monospace);color:${T.text3};font-size:11.5px;
-  letter-spacing:.06em;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
-  border-left:1px solid var(--nb-hair);padding-left:12px}
+.nb-bar{display:flex;align-items:center;gap:14px;height:56px;flex:0 0 56px;
+  padding:0 18px;border-bottom:1px solid var(--nb-hair-soft)}
+.nb-brand{display:flex;align-items:center;gap:11px;min-width:0}
+.nb-mark{width:27px;height:27px;display:grid;place-items:center;flex:0 0 auto;border-radius:9px;
+  background:color-mix(in srgb,${T.accent} 15%, transparent);color:${T.accent}}
+.nb-brandname{font-size:14.5px;font-weight:700;letter-spacing:-.01em;color:${T.text}}
+.nb-crumb{font-size:12.5px;color:${T.text3};white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:42ch}
 .nb-crumb b{color:${T.text2};font-weight:600}
 .nb-spacer{flex:1 1 auto}
-.nb-actions{display:flex;align-items:center;gap:10px}
+.nb-actions{display:flex;align-items:center;gap:8px}
 
 /* ---------------------------------------------------------------- controls */
 .nb-btn{display:inline-flex;align-items:center;justify-content:center;gap:8px;
-  min-height:32px;padding:0 14px;border-radius:0;cursor:pointer;
-  font-size:12.5px;font-weight:650;letter-spacing:.06em;text-transform:uppercase;
-  font-family:var(--ui-font-mono,ui-monospace,monospace);
-  border:1px solid var(--nb-hair);background:transparent;color:${T.text};
-  transition:background .12s ease,border-color .12s ease,box-shadow .12s ease}
-.nb-btn:hover{background:var(--nb-wash-2);border-color:color-mix(in srgb,${T.text} 30%, transparent)}
+  min-height:36px;padding:0 18px;border-radius:99px;cursor:pointer;
+  font-size:13px;font-weight:600;letter-spacing:0;text-transform:none;font-family:inherit;
+  border:1px solid var(--nb-hair);background:var(--nb-wash);color:${T.text};
+  transition:background .14s ease,border-color .14s ease,box-shadow .14s ease,transform .1s ease}
+.nb-btn:hover{background:var(--nb-wash-2);border-color:color-mix(in srgb,${T.text} 22%, transparent)}
 .nb-btn:active{transform:translateY(1px)}
-.nb-btn[disabled]{opacity:.4;cursor:not-allowed}
-.nb-btn[data-variant=primary]{background:${T.accent};border-color:${T.accent};
-  color:#0b0c11;font-weight:700}
-.nb-btn[data-variant=primary]:hover{background:color-mix(in srgb,${T.accent} 86%, ${T.text});
-  border-color:color-mix(in srgb,${T.accent} 86%, ${T.text});box-shadow:3px 3px 0 color-mix(in srgb,${T.text} 12%, transparent)}
-.nb-btn[data-variant=primary][disabled]{background:transparent;border-color:var(--nb-hair);color:${T.text3}}
-.nb-btn[data-variant=primary][disabled]:hover{box-shadow:none}
+.nb-btn[disabled]{opacity:.45;cursor:not-allowed}
+.nb-btn[data-variant=primary]{background:${T.accent};border-color:transparent;color:#0d0e15;font-weight:650;
+  box-shadow:0 6px 18px -8px color-mix(in srgb,${T.accent} 80%, transparent)}
+.nb-btn[data-variant=primary]:hover{background:color-mix(in srgb,${T.accent} 88%, ${T.text})}
+.nb-btn[data-variant=primary][disabled]{background:var(--nb-wash);border-color:var(--nb-hair);color:${T.text3};box-shadow:none}
 .nb-btn[data-variant=ghost]{background:transparent;border-color:transparent;color:${T.text2}}
 .nb-btn[data-variant=ghost]:hover{background:var(--nb-wash-2);color:${T.text}}
-.nb-btn[data-size=sm]{min-height:28px;padding:0 10px;font-size:11px}
-.nb-icon{width:32px;height:32px;min-height:32px;padding:0;border-radius:0;display:grid;place-items:center;
-  cursor:pointer;border:1px solid transparent;background:transparent;color:${T.text3}}
-.nb-icon:hover{border-color:var(--nb-hair);background:var(--nb-wash);color:${T.text}}
-.nb-icon[data-active=true]{border-color:color-mix(in srgb,${T.accent} 50%, transparent);color:${T.accent}}
+.nb-btn[data-size=sm]{min-height:32px;padding:0 12px;font-size:12.5px;border-radius:9px}
+.nb-icon{width:36px;height:36px;min-height:36px;padding:0;border-radius:99px;display:grid;place-items:center;
+  cursor:pointer;border:1px solid transparent;background:transparent;color:${T.text3};
+  transition:background .13s ease,color .13s ease,border-color .13s ease}
+.nb-icon:hover{background:var(--nb-wash-2);color:${T.text}}
+.nb-icon[data-active=true]{background:color-mix(in srgb,${T.accent} 14%, transparent);color:${T.accent}}
 
-.nb-seg{display:inline-flex;border:1px solid var(--nb-hair);background:transparent;padding:0}
+/* segmented control — a pill track with a lifted thumb */
+.nb-seg{display:inline-flex;gap:2px;padding:3px;border-radius:13px;
+  border:1px solid var(--nb-hair);background:var(--nb-wash)}
 .nb-seg[data-fill="true"]{display:flex;width:100%}
 .nb-seg[data-fill="true"] > button{flex:1;justify-content:center}
-.nb-seg > button{min-height:32px;padding:0 12px;border:0;border-right:1px solid var(--nb-hair-soft);
-  background:transparent;color:${T.text3};cursor:pointer;
-  font-family:var(--ui-font-mono,ui-monospace,monospace);font-size:10.5px;font-weight:650;
-  letter-spacing:.14em;text-transform:uppercase;
-  display:inline-flex;align-items:center;justify-content:center;gap:6px;
-  transition:background .12s ease,color .12s ease}
-.nb-seg > button:last-child{border-right:0}
-.nb-seg > button:hover{color:${T.text};background:var(--nb-wash)}
-.nb-seg > button[aria-selected=true]{background:color-mix(in srgb,${T.text} 10%, transparent);color:${T.text};
-  box-shadow:inset 0 -2px 0 ${T.accent}}
+.nb-seg > button{min-height:32px;padding:0 14px;border:0;border-radius:10px;background:transparent;
+  color:${T.text3};cursor:pointer;font-family:inherit;font-size:12.5px;font-weight:600;letter-spacing:0;
+  display:inline-flex;align-items:center;justify-content:center;gap:7px;
+  transition:background .13s ease,color .13s ease,box-shadow .13s ease}
+.nb-seg > button:hover{color:${T.text};background:color-mix(in srgb,${T.text} 6%, transparent)}
+.nb-seg > button[aria-selected=true]{background:${T.card};color:${T.text};box-shadow:var(--nb-shadow)}
 
-.nb-field{display:flex;align-items:center;gap:9px;height:34px;padding:0 10px;border-radius:0;
-  border:1px solid var(--nb-hair);background:transparent;color:${T.text3}}
-.nb-field:focus-within{border-color:color-mix(in srgb,${T.accent} 55%, transparent)}
+.nb-field{display:flex;align-items:center;gap:9px;height:38px;padding:0 12px;border-radius:12px;
+  border:1px solid var(--nb-hair);background:var(--nb-wash);color:${T.text3}}
+.nb-field:focus-within{border-color:color-mix(in srgb,${T.accent} 55%, transparent);
+  box-shadow:0 0 0 3px color-mix(in srgb,${T.accent} 16%, transparent)}
 .nb-field input{flex:1;min-width:0;height:100%;border:0;outline:0;background:transparent;
   color:${T.text};font-size:14px;font-family:inherit}
 .nb-field input::placeholder{color:${T.text4}}
 
 /* ------------------------------------------------------------------- body */
-.nb-body{flex:1 1 auto;display:grid;grid-template-columns:var(--nb-rail) minmax(0,1fr) var(--nb-studio);
-  min-height:0;overflow:hidden}
-.nb-col{min-width:0;min-height:0;display:flex;flex-direction:column}
-/* The graph-paper ground belongs to the title block (chrome), not to the
-   reading surface: long-form text and a transcript read better on a flat
-   canvas, and the grid still sets the page's character at the top. */
-.nb-body > main{background:transparent}
-.nb-main-head{background-image:
-  linear-gradient(var(--nb-gridline) 1px, transparent 1px),
-  linear-gradient(90deg, var(--nb-gridline) 1px, transparent 1px);
-  background-size:24px 24px;background-position:-1px -1px}
-.nb-rail{position:relative;border-right:1px solid var(--nb-hair)}
-.nb-studio{position:relative;border-left:1px solid var(--nb-hair);background:var(--nb-wash)}
-.nb-fade{position:absolute;left:0;right:0;bottom:0;height:38px;pointer-events:none;
-  background:linear-gradient(to top, color-mix(in srgb, ${T.text} 5%, ${T.card}), transparent)}
-.nb-pane-head{display:flex;align-items:center;gap:8px;height:40px;flex:0 0 40px;padding:0 14px;
-  border-bottom:1px solid var(--nb-hair)}
+/* NotebookLM's spatial model: the canvas stays dark, the three surfaces are
+   floating rounded panels with real gaps between them. */
+.nb-body{flex:1 1 auto;display:flex;gap:12px;min-height:0;overflow:hidden;
+  padding:12px}
+.nb-col{min-width:0;min-height:0;display:flex;flex-direction:column;position:relative}
+.nb-body > .nb-col{background:var(--nb-card);border:1px solid var(--nb-hair-soft);
+  border-radius:24px;overflow:hidden}
+.nb-rail{flex:0 0 var(--nb-rail)}
+.nb-main-col{flex:1 1 auto}
+.nb-studio{flex:0 0 var(--nb-studio)}
+.nb-fade{position:absolute;left:0;right:0;bottom:0;height:44px;pointer-events:none;
+  background:linear-gradient(to top, color-mix(in srgb, ${T.text} 6%, ${T.card}), transparent)}
+.nb-pane-head{display:flex;align-items:center;gap:8px;height:52px;flex:0 0 52px;padding:0 18px}
+.nb-pane-title{font-size:15px;font-weight:650;letter-spacing:-.01em;color:${T.text}}
 .nb-pane-head .nb-meta{flex:1}
 .nb-scroll{flex:1;min-height:0;overflow:auto;overscroll-behavior:contain;scrollbar-width:thin}
-.nb-pad{padding:12px}
+.nb-pad{padding:12px 14px}
 
 /* ------------------------------------------------------------------- rail */
-.nb-nbrow{display:grid;grid-template-columns:24px minmax(0,1fr);gap:12px;align-items:start;width:100%;
-  text-align:left;cursor:pointer;border:0;border-left:2px solid transparent;background:transparent;
-  border-radius:0;padding:10px 12px 11px 10px;color:${T.text};
-  border-bottom:1px solid var(--nb-hair-soft)}
-.nb-nbrow:hover{background:var(--nb-wash)}
-.nb-nbrow[aria-current=true]{background:var(--nb-wash-2);border-left-color:${T.accent}}
-.nb-nbtitle{font-size:14px;font-weight:600;line-height:1.32;color:${T.text2};letter-spacing:-.005em;
+.nb-nbrow{display:flex;align-items:center;gap:12px;width:100%;
+  text-align:left;cursor:pointer;border:0;border-radius:13px;background:transparent;
+  padding:9px 10px;color:${T.text};transition:background .12s ease}
+.nb-nbrow:hover{background:var(--nb-wash-2)}
+.nb-nbrow[aria-current=true]{background:color-mix(in srgb,${T.accent} 11%, transparent)}
+.nb-nbtitle{font-size:13.5px;font-weight:600;line-height:1.32;color:${T.text2};letter-spacing:-.005em;
   overflow:hidden;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical}
 .nb-nbrow[aria-current=true] .nb-nbtitle{color:${T.text}}
-.nb-nbsub{font-family:var(--ui-font-mono,ui-monospace,monospace);font-size:10.5px;letter-spacing:.04em;
-  color:${T.text3};margin-top:4px;display:block}
-.nb-avatar{width:24px;height:24px;flex:0 0 auto;display:grid;place-items:center;
-  font-family:var(--ui-font-mono,ui-monospace,monospace);font-size:10.5px;font-weight:600;
-  letter-spacing:.04em;color:${T.text3};border:1px solid var(--nb-hair);background:transparent}
-.nb-nbrow[aria-current=true] .nb-avatar{color:${T.accent};border-color:color-mix(in srgb,${T.accent} 55%, transparent)}
+.nb-nbsub{font-size:11.5px;color:${T.text3};margin-top:2px;display:block}
+.nb-avatar{width:36px;height:36px;flex:0 0 auto;display:grid;place-items:center;border-radius:11px;
+  background:var(--nb-wash-2);color:${T.text2};font-size:13px;font-weight:700}
+.nb-nbrow[aria-current=true] .nb-avatar{background:color-mix(in srgb,${T.accent} 20%, transparent);color:${T.accent}}
 
-.nb-src{display:grid;grid-template-columns:26px minmax(0,1fr);gap:10px;width:100%;text-align:left;
-  cursor:pointer;border:0;border-left:2px solid transparent;border-radius:0;
-  padding:9px 12px 10px 10px;background:transparent;color:${T.text};
-  border-bottom:1px solid var(--nb-hair-soft)}
-.nb-src:hover{background:var(--nb-wash)}
-.nb-src[data-on=true]{border-left-color:${T.accent};background:var(--nb-wash-2)}
-.nb-cite{font-family:var(--ui-font-mono,ui-monospace,monospace);font-size:10.5px;font-weight:600;
-  letter-spacing:.04em;color:${T.text3};padding-top:3px}
-.nb-src[data-on=true] .nb-cite{color:${T.accent}}
-.nb-src-title{font-size:13.5px;font-weight:550;line-height:1.36;color:${T.text};
+.nb-src{display:flex;align-items:center;gap:4px;width:100%;border-radius:13px;
+  padding:5px 8px 5px 5px;position:relative;transition:background .12s ease}
+.nb-src:hover{background:var(--nb-wash-2)}
+.nb-src[data-on=true]{background:color-mix(in srgb,${T.accent} 10%, transparent)}
+.nb-src[data-off=true]{opacity:.55}
+.nb-src-open{flex:1;min-width:0;display:grid;grid-template-columns:36px minmax(0,1fr);gap:11px;
+  align-items:center;text-align:left;background:transparent;border:0;padding:4px;border-radius:11px;
+  color:${T.text};cursor:pointer;font-family:inherit}
+.nb-src-ico{position:relative;width:36px;height:36px;border-radius:11px;display:grid;place-items:center;
+  background:var(--nb-wash-2);color:${T.text2};flex:0 0 auto}
+.nb-src[data-on=true] .nb-src-ico{background:color-mix(in srgb,${T.accent} 18%, transparent);color:${T.accent}}
+/* the citation number rides the icon's corner, like a source badge */
+.nb-cite{position:absolute;right:-6px;bottom:-6px;min-width:18px;height:18px;padding:0 5px;
+  border-radius:99px;display:grid;place-items:center;background:${T.accent};color:#0d0e15;
+  font-size:10px;font-weight:700;
+  box-shadow:0 1px 4px rgba(8,10,18,.4)}
+.nb-src-title{font-size:13px;font-weight:600;line-height:1.35;color:${T.text};
   overflow:hidden;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical}
-.nb-src-meta{display:flex;align-items:center;gap:8px;margin-top:5px;flex-wrap:wrap}
+.nb-src-meta{display:flex;align-items:center;gap:6px;margin-top:5px;flex-wrap:wrap}
+/* NotebookLM's per-source checkbox: a rounded box at the row's right edge */
+.nb-srccheck{width:32px;height:32px;flex:0 0 auto;border-radius:10px;cursor:pointer;
+  border:1.5px solid var(--nb-hair);background:transparent;color:#0d0e15;
+  display:grid;place-items:center;padding:0;transition:all .13s ease}
+.nb-srccheck:hover{border-color:color-mix(in srgb,${T.accent} 55%, transparent)}
+.nb-srccheck[aria-checked=true]{background:${T.accent};border-color:${T.accent}}
+.nb-selall{display:flex;align-items:center;gap:9px;padding:2px 6px}
+.nb-selall .nb-srccheck{width:32px;height:32px;border-radius:10px}
+.nb-srcgroup{display:flex;align-items:center;gap:8px;width:100%;text-align:left;
+  padding:9px 10px;border:0;border-radius:11px;background:transparent;color:${T.text3};
+  font-size:12px;font-weight:650;letter-spacing:.01em;cursor:pointer;font-family:inherit}
+.nb-srcgroup:hover{background:var(--nb-wash-2);color:${T.text2}}
+.nb-srcgroup svg{transition:transform .15s ease}
+.nb-srcgroup[data-closed=true] svg{transform:rotate(-90deg)}
+.nb-srcgroup em{margin-left:auto;font-style:normal;font-weight:500;color:${T.text4};font-size:11px}
+.nb-srcgroup-list{display:flex;flex-direction:column;gap:2px;padding-left:14px}
 
-/* chips are labels, not pills: mono, hairline, square */
-.nb-chip{display:inline-flex;align-items:center;gap:5px;height:20px;padding:0 6px;border-radius:0;
-  font-family:var(--ui-font-mono,ui-monospace,monospace);font-size:10px;font-weight:600;
-  letter-spacing:.12em;text-transform:uppercase;color:${T.text3};
-  background:transparent;border:1px solid var(--nb-hair-soft);white-space:nowrap}
-.nb-chip[data-tone=accent]{color:${T.accent};background:transparent;
-  border-color:color-mix(in srgb,${T.accent} 50%, transparent)}
-.nb-chip[data-tone=ok]{color:${T.ok};background:transparent;
-  border-color:color-mix(in srgb,${T.ok} 40%, transparent)}
-.nb-chip[data-tone=warn]{color:${T.warn};background:transparent;
-  border-color:color-mix(in srgb,${T.warn} 42%, transparent)}
-.nb-chip[data-tone=danger]{color:${T.danger};background:transparent;
-  border-color:color-mix(in srgb,${T.danger} 42%, transparent)}
-.nb-citechip{text-transform:none;letter-spacing:.02em;font-size:10.5px;height:24px;
-  font-family:inherit;font-weight:550;color:${T.text2};gap:6px}
-.nb-citechip b{font-family:var(--ui-font-mono,ui-monospace,monospace);color:${T.accent};font-weight:650;
-  letter-spacing:.06em;font-size:10.5px}
-.nb-chip[data-click=true]{cursor:pointer;min-height:32px;height:32px;padding:0 10px;font-size:10px}
-.nb-chip[data-click=true]:hover{background:var(--nb-wash-2);color:${T.text};border-color:var(--nb-hair)}
-.nb-chip[data-click=true][data-tone=accent]:hover{color:${T.accent}}
-.nb-chip[data-click=true][aria-pressed=true]{background:color-mix(in srgb,${T.accent} 16%, transparent);color:${T.accent};
-  border-color:color-mix(in srgb,${T.accent} 55%, transparent)}
+/* the web-research box inside the sources panel */
+.nb-finder{margin:0 14px 10px;border-radius:16px;border:1px solid var(--nb-hair-soft);
+  background:var(--nb-wash);padding:10px}
+.nb-finder-row{display:flex;align-items:center;gap:8px}
+.nb-finder-row input{flex:1;min-width:0;height:34px;border:0;outline:0;background:transparent;
+  color:${T.text};font-size:13px;font-family:inherit}
+.nb-finder-row input::placeholder{color:${T.text4}}
+.nb-finder-go{width:32px;height:32px;flex:0 0 auto;border-radius:99px;border:0;cursor:pointer;
+  background:${T.accent};color:#0d0e15;display:grid;place-items:center;padding:0}
+.nb-addsrc{width:100%;justify-content:flex-start}
+.nb-paneltog{flex:0 0 44px;display:flex;flex-direction:column;align-items:center;
+  gap:10px;padding-top:16px}
+.nb-finder-go[disabled]{opacity:.45;cursor:not-allowed}
+.nb-fcand[disabled]{cursor:default}
+.nb-fcand[disabled]:not([data-added=true]){opacity:.55}
+.nb-fcand{display:flex;align-items:center;gap:10px;width:100%;text-align:left;
+  padding:9px 10px;border-radius:12px;border:0;background:transparent;color:${T.text};
+  cursor:pointer;font-family:inherit}
+.nb-fcand:hover{background:var(--nb-wash-2)}
+.nb-fcand-main{flex:1;min-width:0}
+.nb-fcand-title{display:block;font-size:12.5px;font-weight:600;line-height:1.35;color:${T.text};
+  overflow:hidden;white-space:nowrap;text-overflow:ellipsis}
+.nb-fcand-sub{display:block;font-size:11px;color:${T.text3};margin-top:2px;
+  overflow:hidden;white-space:nowrap;text-overflow:ellipsis}
+.nb-fcand-add{width:28px;height:28px;flex:0 0 auto;border-radius:99px;cursor:pointer;
+  border:1.5px solid var(--nb-hair);background:transparent;color:${T.text2};
+  display:grid;place-items:center;padding:0}
+.nb-fcand-add:hover{border-color:${T.accent};color:${T.accent}}
+.nb-fcand-add[data-added=true]{background:color-mix(in srgb,${T.ok} 15%, transparent);
+  border-color:color-mix(in srgb,${T.ok} 50%, transparent);color:${T.ok};cursor:default}
+
+/* chips are soft pills; clickable ones are full 32px targets */
+.nb-chip{display:inline-flex;align-items:center;gap:5px;height:22px;padding:0 9px;border-radius:99px;
+  font-size:11px;font-weight:600;letter-spacing:.01em;color:${T.text3};
+  background:var(--nb-wash-2);border:1px solid transparent;white-space:nowrap;font-family:inherit}
+.nb-chip[data-tone=accent]{color:${T.accent};background:color-mix(in srgb,${T.accent} 13%, transparent)}
+.nb-chip[data-tone=ok]{color:${T.ok};background:color-mix(in srgb,${T.ok} 13%, transparent)}
+.nb-chip[data-tone=warn]{color:${T.warn};background:color-mix(in srgb,${T.warn} 14%, transparent)}
+.nb-chip[data-tone=danger]{color:${T.danger};background:color-mix(in srgb,${T.danger} 13%, transparent)}
+.nb-citechip{height:32px;min-height:32px;padding:0 7px 0 9px;border-radius:99px;gap:7px;
+  background:var(--nb-card);border-color:var(--nb-hair);color:${T.text2};font-size:12px;font-weight:500}
+.nb-citechip:hover{border-color:color-mix(in srgb,${T.accent} 50%, transparent)}
+.nb-citechip b{font-family:var(--ui-font-mono,ui-monospace,monospace);color:${T.accent};font-weight:700;
+  font-size:10.5px;background:color-mix(in srgb,${T.accent} 14%, transparent);border-radius:99px;
+  padding:3px 7px;flex:0 0 auto}
+.nb-citechip span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0;max-width:300px}
+.nb-chip[data-click=true]{cursor:pointer;min-height:32px;height:32px;padding:0 13px;font-size:12px;
+  background:var(--nb-card);border-color:var(--nb-hair)}
+.nb-chip[data-click=true]:hover{background:var(--nb-wash-2);color:${T.text};
+  border-color:color-mix(in srgb,${T.text} 20%, transparent)}
+.nb-chip[data-click=true][aria-pressed=true]{background:color-mix(in srgb,${T.accent} 14%, transparent);
+  color:${T.accent};border-color:color-mix(in srgb,${T.accent} 45%, transparent)}
+
+/* discover candidates — the "find for me" picker inside the add-source sheet */
+.nb-cand-list{display:flex;flex-direction:column;gap:8px;max-height:308px;overflow:auto;padding:2px}
+.nb-cand{display:flex;gap:11px;align-items:flex-start;width:100%;text-align:left;
+  padding:11px 12px;border-radius:13px;border:1px solid var(--nb-hair-soft);
+  background:var(--nb-card);cursor:pointer;font-family:inherit;color:inherit}
+.nb-cand:hover{border-color:color-mix(in srgb,${T.text} 20%, transparent);background:var(--nb-wash-2)}
+.nb-cand[data-on=true]{border-color:color-mix(in srgb,${T.accent} 45%, transparent);
+  background:color-mix(in srgb,${T.accent} 8%, transparent)}
+.nb-cand-check{width:20px;height:20px;flex:0 0 auto;margin-top:2px;border-radius:7px;
+  border:1.5px solid var(--nb-hair);display:grid;place-items:center;color:#0d0e15}
+.nb-cand[data-on=true] .nb-cand-check{background:${T.accent};border-color:${T.accent}}
+.nb-cand-title{display:block;font-size:13.5px;font-weight:600;line-height:1.35;color:${T.text}}
+.nb-cand-sub{display:flex;gap:7px;align-items:flex-start;margin-top:5px;font-size:12px;
+  color:${T.text3};line-height:1.5}
+.nb-cand-sub .nb-chip{flex:0 0 auto;margin-top:1px}
+.nb-cand-sub > span:last-child{display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;
+  overflow:hidden;min-width:0}
 
 /* ------------------------------------------------------- title block (main) */
-.nb-main-head{padding:18px 26px 0;border-bottom:1px solid var(--nb-hair);flex:0 0 auto;position:relative;
-  background:color-mix(in srgb, ${T.text} 1.5%, transparent)}
-.nb-filed{display:flex;align-items:center;gap:10px;margin-bottom:12px;
-  font-family:var(--ui-font-mono,ui-monospace,monospace);font-size:10.5px;font-weight:600;
-  letter-spacing:.2em;text-transform:uppercase;color:${T.text3}}
-.nb-filed b{color:${T.text2};font-weight:600}
-.nb-filed i{flex:1;height:1px;background:var(--nb-hair);display:block}
-.nb-h1{font-size:30px;font-weight:700;letter-spacing:-.035em;line-height:1.06;margin:0;max-width:26ch;
+.nb-main-head{padding:24px 30px 0;border-bottom:1px solid var(--nb-hair-soft);flex:0 0 auto;position:relative}
+.nb-hero{display:flex;align-items:flex-start;gap:16px;margin-bottom:16px}
+.nb-hero-emoji{width:52px;height:52px;flex:0 0 auto;display:grid;place-items:center;font-size:30px;
+  border-radius:16px;background:var(--nb-wash-2);border:1px solid var(--nb-hair-soft)}
+.nb-hero-main{min-width:0;flex:1}
+.nb-hero-main .nb-h1{margin-bottom:6px}
+.nb-h1{font-size:27px;font-weight:700;letter-spacing:-.025em;line-height:1.15;margin:0;max-width:30ch;
   text-wrap:balance}
-.nb-h1::after{content:"";display:inline-block;width:6px;height:6px;margin-left:9px;
-  background:${T.accent};vertical-align:baseline;position:relative;bottom:2px}
-.nb-sub{color:${T.text2};font-size:14px;line-height:1.55;margin:10px 0 0;max-width:66ch}
-.nb-strip{display:flex;align-items:stretch;margin:16px 0 0;border-top:1px solid var(--nb-hair);
-  border-bottom:1px solid var(--nb-hair);background:transparent;border-radius:0}
-.nb-cell{flex:1;padding:10px 14px 11px;border-right:1px solid var(--nb-hair-soft);min-width:0}
-.nb-cell:first-child{padding-left:0}
-.nb-cell:last-child b,.nb-cell:last-child span{text-align:right}
-.nb-cell:last-child{border-right:0;padding-right:0}
-.nb-cell b{display:block;font-family:var(--ui-font-mono,ui-monospace,monospace);font-size:20px;font-weight:600;
-  letter-spacing:-.02em;line-height:1;font-variant-numeric:tabular-nums}
-.nb-cell span{display:block;font-family:var(--ui-font-mono,ui-monospace,monospace);font-size:10px;
-  letter-spacing:.16em;text-transform:uppercase;color:${T.text3};margin-top:8px;font-weight:600}
-.nb-tabs{display:flex;gap:24px;align-items:flex-end;margin:16px 0 0;position:relative;bottom:-1px}
-.nb-tab{min-height:36px;padding:0 0 10px;border:0;border-bottom:2px solid transparent;border-radius:0;
-  background:transparent;color:${T.text2};font-size:13.5px;font-weight:600;cursor:pointer;
-  display:inline-flex;align-items:center;gap:7px;letter-spacing:.01em}
-.nb-tab:hover{color:${T.text}}
-.nb-tab[aria-selected=true]{color:${T.text};border-bottom-color:${T.accent}}
+.nb-sub{color:${T.text2};font-size:14px;line-height:1.55;margin:0;max-width:70ch}
+.nb-hero-side{display:flex;align-items:center;gap:8px;flex:0 0 auto;padding-top:6px}
+/* ops host-measurement strip (Lab Ops only) */
+.nb-strip{display:flex;align-items:stretch;gap:8px;margin:14px 0 0;flex-wrap:wrap}
+.nb-cell{flex:1;min-width:90px;padding:10px 14px 11px;border-radius:12px;
+  border:1px solid var(--nb-hair-soft);background:var(--nb-wash)}
+.nb-cell b{display:block;font-size:17px;font-weight:650;letter-spacing:-.02em;
+  line-height:1.1;font-variant-numeric:tabular-nums}
+.nb-cell span{display:block;font-size:11px;color:${T.text3};margin-top:6px;font-weight:600}
+.nb-tabs{display:flex;gap:4px;align-items:flex-end;margin:16px 0 0;position:relative;bottom:-1px}
+.nb-tab{min-height:38px;padding:0 14px 11px;border:0;border-bottom:2px solid transparent;
+  border-radius:10px 10px 0 0;background:transparent;color:${T.text2};font-size:13.5px;
+  font-weight:600;cursor:pointer;display:inline-flex;align-items:center;gap:7px;letter-spacing:0;
+  font-family:inherit;transition:background .12s ease,color .12s ease}
+.nb-tab:hover{color:${T.text};background:var(--nb-wash)}
+.nb-tab[aria-selected=true]{color:${T.text};border-bottom-color:${T.accent};background:var(--nb-wash)}
 .nb-tab[disabled]{opacity:.45;cursor:default}
 
 /* ------------------------------------------------------------------- chat */
 .nb-chat{flex:1;min-height:0;display:flex;flex-direction:column}
-.nb-thread{flex:1;min-height:0;overflow:auto;padding:26px 26px 10px;display:flex;flex-direction:column;gap:26px}
-.nb-msg{max-width:70ch}
-.nb-msg[data-role=assistant]{display:grid;grid-template-columns:28px minmax(0,1fr);gap:14px;align-self:flex-start}
-.nb-msg[data-role=user]{align-self:flex-end;max-width:60ch;border-left:2px solid ${T.accent};
-  padding:2px 0 2px 14px}
+.nb-thread{flex:1;min-height:0;overflow:auto;padding:28px 28px 12px;display:flex;flex-direction:column;gap:24px}
+.nb-msg{max-width:72ch}
+.nb-msg[data-role=assistant]{display:grid;grid-template-columns:30px minmax(0,1fr);gap:14px;align-self:flex-start}
+.nb-msg[data-role=user]{align-self:flex-end;max-width:62ch}
 .nb-msg-body{min-width:0}
-.nb-msg[data-role=user] .nb-bubble{font-size:15px;line-height:1.55;color:${T.text2}}
+.nb-msg[data-role=user] .nb-bubble{background:var(--nb-wash-2);border:1px solid var(--nb-hair-soft);
+  border-radius:18px;padding:11px 17px;font-size:15px;line-height:1.55;color:${T.text}}
 .nb-msg[data-role=assistant] .nb-bubble{font-size:16px;line-height:1.66;color:${T.text}}
-.nb-msg[data-role=assistant] .nb-avatar{width:28px;height:28px;margin-top:2px}
-.nb-who{font-family:var(--ui-font-mono,ui-monospace,monospace);font-size:10px;letter-spacing:.16em;
-  text-transform:uppercase;color:${T.text3};font-weight:650;margin-bottom:9px}
+.nb-msg[data-role=assistant] .nb-avatar{width:30px;height:30px;margin-top:2px}
+.nb-avatar{width:36px;height:36px;flex:0 0 auto;display:grid;place-items:center;border-radius:11px;
+  background:var(--nb-wash-2);color:${T.text2};font-size:13px;font-weight:700}
+.nb-nbrow[aria-current=true] .nb-avatar{background:color-mix(in srgb,${T.accent} 20%, transparent);color:${T.accent}}
+.nb-msg .nb-avatar{width:30px;height:30px;border-radius:99px;
+  background:color-mix(in srgb,${T.accent} 16%, transparent);color:${T.accent};font-size:11px;letter-spacing:.02em}
+.nb-who{font-size:11.5px;letter-spacing:.02em;color:${T.text3};font-weight:600;margin-bottom:8px}
+.nb-msg[data-role=user] .nb-who{color:${T.text4}}
 .nb-md p{margin:0 0 11px}
 .nb-md p:last-child{margin-bottom:0}
-.nb-md h2{font-size:16.5px;margin:20px 0 8px;letter-spacing:-.015em;padding-bottom:6px;
-  border-bottom:1px solid var(--nb-hair-soft)}
-.nb-md h3{font-size:14.5px;margin:16px 0 6px;color:${T.text2};letter-spacing:.01em}
-.nb-md ul{margin:0 0 11px;padding-left:18px}
+.nb-md h2{font-size:17px;margin:20px 0 8px;letter-spacing:-.015em}
+.nb-md h3{font-size:15px;margin:16px 0 6px;color:${T.text2};font-weight:700}
+.nb-md ul{margin:0 0 11px;padding-left:20px}
 .nb-md li{margin:5px 0}
 .nb-md li::marker{color:${T.accent}}
-.nb-md code{font-family:var(--ui-font-mono,ui-monospace,monospace);font-size:13px;
-  background:var(--nb-wash-2);padding:1px 5px;border:1px solid var(--nb-hair-soft)}
+.nb-md code{font-family:var(--ui-font-mono,ui-monospace,monospace);font-size:12.5px;
+  background:var(--nb-wash-2);padding:1.5px 6px;border-radius:6px}
 .nb-md strong{font-weight:650;color:${T.text}}
-.nb-md blockquote{margin:12px 0;padding:2px 0 2px 14px;border-left:2px solid ${T.accent};color:${T.text2}}
-/* inline citations are plate references: superscript mono, underlined, no pill */
-.nb-inline-cite{display:inline-flex;align-items:center;min-height:16px;padding:0 3px;margin:0 1px;
-  border:0;background:color-mix(in srgb,${T.accent} 10%, transparent);
-  font-family:var(--ui-font-mono,ui-monospace,monospace);font-size:11px;font-weight:650;
-  color:${T.accent};cursor:pointer;vertical-align:super;line-height:1;
-  text-decoration:underline;text-underline-offset:3px;text-decoration-thickness:1px}
-.nb-inline-cite:hover{background:color-mix(in srgb,${T.accent} 18%, transparent)}
-.nb-composer{flex:0 0 auto;padding:14px 26px 18px;border-top:1px solid var(--nb-hair)}
-.nb-askbox{display:flex;flex-direction:column;gap:9px;border:1px solid var(--nb-hair);border-radius:0;
-  background:color-mix(in srgb, ${T.text} 2.5%, transparent);padding:11px 13px;transition:border-color .12s ease}
-.nb-askbox:focus-within{border-color:color-mix(in srgb,${T.accent} 60%, transparent);
-  box-shadow:3px 3px 0 color-mix(in srgb,${T.text} 8%, transparent)}
+.nb-md blockquote{margin:12px 0;padding:10px 16px;border-radius:12px;color:${T.text2};
+  background:var(--nb-wash);border-left:3px solid color-mix(in srgb,${T.accent} 55%, transparent)}
+/* inline citations are quiet accent pills with the source number */
+.nb-inline-cite{display:inline-flex;align-items:center;min-height:20px;padding:0 8px;margin:0 2px;
+  border-radius:99px;border:1px solid color-mix(in srgb,${T.accent} 30%, transparent);
+  background:color-mix(in srgb,${T.accent} 10%, transparent);
+  font-size:11px;font-weight:700;letter-spacing:.01em;
+  color:${T.accent};cursor:pointer;vertical-align:1px;line-height:1}
+.nb-inline-cite:hover{background:color-mix(in srgb,${T.accent} 20%, transparent)}
+.nb-composer{flex:0 0 auto;padding:14px 30px 20px}
+.nb-askbox{display:flex;flex-direction:column;gap:10px;border:1px solid var(--nb-hair);
+  border-radius:26px;background:var(--nb-card);padding:14px 16px;box-shadow:var(--nb-shadow);
+  transition:border-color .15s ease,box-shadow .15s ease}
+.nb-askbox:focus-within{border-color:color-mix(in srgb,${T.accent} 55%, transparent);
+  box-shadow:0 0 0 4px color-mix(in srgb,${T.accent} 15%, transparent), var(--nb-shadow)}
 .nb-askbox textarea{width:100%;min-height:44px;max-height:150px;resize:none;border:0;outline:0;
-  background:transparent;color:${T.text};font-size:16px;line-height:1.5;font-family:inherit}
+  background:transparent;color:${T.text};font-size:15px;line-height:1.5;font-family:inherit}
 .nb-askbox textarea::placeholder{color:${T.text3}}
 .nb-askfoot{display:flex;align-items:center;gap:8px}
-.nb-hint{font-family:var(--ui-font-mono,ui-monospace,monospace);font-size:10.5px;letter-spacing:.06em;
-  color:${T.text3}}
+.nb-sendbtn{width:38px;height:38px;flex:0 0 auto;border-radius:99px;border:0;cursor:pointer;
+  background:${T.accent};color:#0d0e15;display:grid;place-items:center;padding:0;
+  transition:opacity .13s ease,transform .1s ease}
+.nb-sendbtn:hover{transform:scale(1.05)}
+.nb-sendbtn[disabled]{opacity:.4;cursor:not-allowed;transform:none}
+.nb-disclaimer{font-size:11px;color:${T.text3};text-align:center;margin-top:9px}
+
+/* ------------------------------------------------- overview + suggestions */
+.nb-overview{border:1px solid var(--nb-hair-soft);border-radius:18px;background:var(--nb-card);
+  padding:18px 20px;display:grid;gap:10px}
+.nb-overview-head{display:flex;align-items:center;gap:8px}
+.nb-overview-head .nb-meta{flex:1}
+.nb-overview-body{font-size:14.5px;line-height:1.66;color:${T.text2}}
+.nb-overview-body .nb-md strong{color:${T.text}}
+.nb-suggest-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px}
+.nb-suggest{display:flex;flex-direction:column;justify-content:space-between;gap:10px;
+  min-height:104px;text-align:left;padding:14px;border-radius:16px;cursor:pointer;
+  border:1px solid var(--nb-hair-soft);background:var(--nb-card);color:${T.text};
+  font-family:inherit;font-size:13px;line-height:1.45;transition:border-color .14s ease,
+  background .14s ease,transform .14s ease}
+.nb-suggest:hover{border-color:color-mix(in srgb,${T.accent} 45%, transparent);
+  background:var(--nb-wash-2);transform:translateY(-1px)}
+.nb-suggest-q{font-weight:550}
+.nb-suggest-go{color:${T.text4};display:flex;justify-content:flex-end}
+.nb-gaprow{display:flex;gap:6px;flex-wrap:wrap;align-items:center}
+.nb-gaprow .nb-chip[data-click=true]{border-style:dashed}
 
 /* --------------------------------------------------------- studio (index) */
-.nb-grid{display:flex;flex-direction:column;gap:0;padding:0 0 30px}
-.nb-grouprow{display:flex;align-items:center;gap:10px;padding:12px 14px 6px}
-.nb-grouprow span{font-family:var(--ui-font-mono,ui-monospace,monospace);font-size:10px;font-weight:650;
-  letter-spacing:.2em;text-transform:uppercase;color:${T.text2}}
-.nb-grouprow i{flex:1;height:1px;background:var(--nb-hair-soft);display:block}
-.nb-grouprow em{font-family:var(--ui-font-mono,ui-monospace,monospace);font-size:9.5px;font-style:normal;
-  letter-spacing:.1em;color:${T.text4}}
-.nb-card{display:grid;grid-template-columns:22px minmax(0,1fr) auto;gap:11px;align-items:start;
-  width:100%;min-height:52px;padding:9px 14px 10px;border:0;border-bottom:1px solid var(--nb-hair-soft);
-  border-radius:0;background:transparent;cursor:pointer;text-align:left;color:${T.text};
-  position:relative;transition:background .1s ease}
-.nb-card:hover{background:var(--nb-wash-2)}
-.nb-card:hover .nb-card-state{color:${T.accent}}
-.nb-card[data-ready=true]{background:transparent}
-.nb-card[data-ready=true] .nb-plate{color:${T.text2}}
-.nb-card[data-busy=true]{background:color-mix(in srgb,${T.accent} 7%, transparent)}
-.nb-card-main{min-width:0;display:block}
-.nb-card-main > *{display:block}
-.nb-plate{font-family:var(--ui-font-mono,ui-monospace,monospace);font-size:10px;font-weight:600;
-  letter-spacing:.06em;color:${T.text4};padding-top:3px;font-variant-numeric:tabular-nums}
-.nb-card[data-ready=true] .nb-plate::before{content:"●";display:block;font-size:6px;line-height:1;
-  color:${T.ok};margin-bottom:4px}
-.nb-card-name{display:flex;align-items:center;gap:7px;font-size:13.5px;font-weight:620;
-  letter-spacing:-.005em;line-height:1.25;color:${T.text}}
-.nb-card-name svg{color:${T.text4};flex:0 0 auto;margin-top:1px}
-.nb-card-blurb{display:block;font-size:11.5px;line-height:1.42;color:${T.text3};margin-top:3px;
+.nb-grid{display:flex;flex-direction:column;gap:10px;padding:12px 14px 26px}
+/* the generator bento: compact 2-col pills, each tinted by its kind colour */
+.nb-gen-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+
+/* each output pill carries its own colour (--kc) */
+.nb-card{--kc:${T.accent};
+  display:flex;align-items:center;gap:10px;width:100%;padding:11px 12px;
+  border:1px solid var(--nb-hair-soft);border-radius:14px;
+  background:var(--nb-card);cursor:pointer;text-align:left;color:${T.text};
+  transition:background .13s ease,border-color .13s ease,transform .13s ease}
+.nb-card:hover{background:var(--nb-wash-2);border-color:color-mix(in srgb,var(--kc) 42%, var(--nb-hair));
+  transform:translateY(-1px)}
+.nb-card[data-ready=true]{border-color:color-mix(in srgb,var(--kc) 30%, var(--nb-hair-soft))}
+.nb-card[data-busy=true]{border-color:color-mix(in srgb,var(--kc) 50%, transparent);
+  background:color-mix(in srgb,var(--kc) 6%, var(--nb-card))}
+.nb-card-ico{width:32px;height:32px;flex:0 0 auto;border-radius:10px;display:grid;place-items:center;
+  background:color-mix(in srgb,var(--kc) 14%, transparent);color:var(--kc)}
+.nb-card[data-kind=video_overview],.nb-art[data-kind=video_overview]{--kc:#81c995}
+.nb-card[data-kind=audio_overview],.nb-art[data-kind=audio_overview]{--kc:#a8c7fa}
+.nb-card[data-kind=summary],.nb-art[data-kind=summary]{--kc:#aecbfa}
+.nb-card[data-kind=briefing_doc],.nb-art[data-kind=briefing_doc]{--kc:#f28b82}
+.nb-card[data-kind=study_guide],.nb-art[data-kind=study_guide]{--kc:#81c995}
+.nb-card[data-kind=faq],.nb-art[data-kind=faq]{--kc:#fde293}
+.nb-card[data-kind=timeline],.nb-art[data-kind=timeline]{--kc:#c58af9}
+.nb-card[data-kind=mind_map],.nb-art[data-kind=mind_map]{--kc:#c58af9}
+.nb-card[data-kind=flashcards],.nb-art[data-kind=flashcards]{--kc:#fde293}
+.nb-card[data-kind=quiz],.nb-art[data-kind=quiz]{--kc:#c58af9}
+.nb-card[data-kind=slides],.nb-art[data-kind=slides]{--kc:#f28b82}
+.nb-card[data-kind=infographic],.nb-art[data-kind=infographic]{--kc:#fde293}
+.nb-card-main{min-width:0;flex:1;display:flex;flex-direction:column;gap:3px}
+.nb-card-name{display:flex;align-items:center;gap:6px;font-size:12.5px;font-weight:600;
+  letter-spacing:0;line-height:1.25;color:${T.text}}
+.nb-card-name svg{color:var(--kc);flex:0 0 auto}
+.nb-card-blurb{display:block;font-size:11px;line-height:1.4;color:${T.text3};
   overflow:hidden;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical}
-.nb-card-state{display:flex;align-items:center;gap:6px;justify-self:end;padding-top:4px;white-space:nowrap;
-  font-family:var(--ui-font-mono,ui-monospace,monospace);font-size:10px;letter-spacing:.1em;
-  text-transform:uppercase;color:${T.text3};font-weight:600}
-.nb-card[data-ready=false] .nb-card-state{color:${T.text4}}
-.nb-card[data-ready=false] .nb-card-state::after{content:"→";margin-left:2px;color:${T.accent}}
-.nb-bar-track{height:2px;margin-top:8px;background:color-mix(in srgb,${T.text} 12%, transparent);overflow:hidden;display:block}
-.nb-bar-fill{height:100%;background:${T.accent};transition:width .4s ease}
-.nb-dot{width:5px;height:5px;border-radius:99px;background:${T.ok};display:inline-block;flex:0 0 auto}
-.nb-card[data-ready=false] .nb-dot{background:${T.text4}}
+.nb-card-foot{display:flex;align-items:center;gap:8px;margin-top:auto;padding-top:5px}
+.nb-card-state{display:inline-flex;align-items:center;gap:6px;white-space:nowrap;
+  font-size:10.5px;font-weight:600;color:${T.text3}}
+.nb-card[data-ready=true] .nb-card-state{color:${T.ok};background:color-mix(in srgb,${T.ok} 13%, transparent)}
+.nb-card[data-busy=true] .nb-card-state{color:var(--kc);background:color-mix(in srgb,var(--kc) 13%, transparent)}
+.nb-dot{width:6px;height:6px;border-radius:99px;background:${T.text4};display:inline-block;flex:0 0 auto}
+.nb-card[data-ready=true] .nb-dot{background:${T.ok}}
+.nb-card[data-busy=true] .nb-dot{background:var(--kc);animation:nb-pulse 1.2s ease-in-out infinite}
+.nb-bar-track{height:4px;margin-top:2px;background:var(--nb-wash-2);border-radius:99px;overflow:hidden;display:block;flex:1;max-width:120px}
+.nb-bar-fill{height:100%;background:var(--kc);border-radius:99px;transition:width .4s ease}
+@keyframes nb-pulse{0%,100%{opacity:1}50%{opacity:.35}}
+
+/* the generated-artifacts list: tinted icon tile + title + meta */
+.nb-artlist{display:flex;flex-direction:column;gap:4px}
+.nb-art{display:flex;align-items:center;gap:11px;width:100%;text-align:left;
+  padding:8px 10px;border-radius:13px;border:0;background:transparent;color:${T.text};
+  cursor:pointer;font-family:inherit;transition:background .12s ease}
+.nb-art:hover{background:var(--nb-wash-2)}
+.nb-art-ico{width:40px;height:40px;flex:0 0 auto;border-radius:12px;position:relative;overflow:hidden;
+  display:grid;place-items:center;
+  background:color-mix(in srgb,var(--kc) 13%, transparent);
+  color:color-mix(in srgb,var(--kc) 70%, ${T.text});
+  border:1px solid color-mix(in srgb,var(--kc) 22%, transparent)}
+.nb-art-ico svg{opacity:.9}
+.nb-art-main{flex:1;min-width:0}
+.nb-art-title{display:block;font-size:13px;font-weight:600;line-height:1.3;color:${T.text};
+  overflow:hidden;white-space:nowrap;text-overflow:ellipsis}
+.nb-art-sub{display:block;font-size:11px;color:${T.text3};margin-top:2px;
+  overflow:hidden;white-space:nowrap;text-overflow:ellipsis}
+
+/* thumb content inside the artifact icon tile */
+.nb-art-ico .nb-thumb-img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;display:block}
+.nb-art-ico .nb-thumb-wave{display:flex;align-items:center;gap:1.5px;height:70%;width:80%}
+.nb-art-ico .nb-thumb-wave i{flex:1 1 0;min-width:1.5px;border-radius:99px;background:var(--kc);opacity:.8}
 
 /* ----------------------------------------------------------------- viewer */
 .nb-view{flex:1;min-height:0;display:flex;flex-direction:column}
-.nb-view-head{display:flex;align-items:center;gap:12px;padding:12px 26px;border-bottom:1px solid var(--nb-hair);
-  background:color-mix(in srgb, ${T.text} 1.5%, transparent)}
-.nb-view-title{font-size:15px;font-weight:650;letter-spacing:-.01em}
+.nb-view-head{display:flex;align-items:center;gap:12px;padding:12px 24px;
+  border-bottom:1px solid var(--nb-hair-soft)}
+.nb-view-title{font-size:15.5px;font-weight:650;letter-spacing:-.01em}
 .nb-view-body{flex:1;min-height:0;overflow:auto;padding:26px}
-.nb-doc{max-width:68ch;font-size:16px;line-height:1.68}
-.nb-doc h1{font-size:22px;line-height:1.2;letter-spacing:-.025em;margin:0 0 14px;text-wrap:balance}
+.nb-doc{max-width:70ch;font-size:15.5px;line-height:1.68}
+.nb-doc h1{font-size:23px;line-height:1.2;letter-spacing:-.025em;margin:0 0 14px;text-wrap:balance}
 .nb-doc em{color:${T.text2}}
-.nb-doc hr{border:0;border-top:1px solid var(--nb-hair);margin:22px 0}
-.nb-doc h2{font-size:19px;margin:26px 0 10px;letter-spacing:-.02em;padding-bottom:8px;
-  border-bottom:1px solid var(--nb-hair)}
+.nb-doc hr{border:0;border-top:1px solid var(--nb-hair-soft);margin:22px 0}
+.nb-doc h2{font-size:19px;margin:26px 0 10px;letter-spacing:-.02em}
 .nb-doc h2:first-child{margin-top:0}
-.nb-doc h3{font-size:15px;margin:20px 0 6px;color:${T.text2};
-  font-family:var(--ui-font-mono,ui-monospace,monospace);letter-spacing:.08em;text-transform:uppercase}
-.nb-doc ul,.nb-doc ol{padding-left:20px;margin:0 0 12px}
+.nb-doc h3{font-size:15px;margin:20px 0 6px;color:${T.text2};font-weight:700}
+.nb-doc ul,.nb-doc ol{padding-left:22px;margin:0 0 12px}
 .nb-doc li{margin:5px 0}
-.nb-doc table{border-collapse:collapse;width:100%;font-size:14px;margin:14px 0}
-.nb-doc th,.nb-doc td{border:1px solid var(--nb-hair-soft);padding:8px 10px;text-align:left}
-.nb-doc th{background:var(--nb-wash-2);font-family:var(--ui-font-mono,ui-monospace,monospace);
-  font-size:10px;letter-spacing:.12em;text-transform:uppercase;font-weight:650;color:${T.text2}}
-.nb-doc pre{background:color-mix(in srgb, ${T.text} 5%, transparent);border:1px solid var(--nb-hair-soft);
-  padding:14px;overflow:auto;font-size:13.5px}
+.nb-doc table{border-collapse:separate;border-spacing:0;width:100%;font-size:14px;margin:14px 0;
+  border:1px solid var(--nb-hair-soft);border-radius:12px;overflow:hidden}
+.nb-doc th,.nb-doc td{border-bottom:1px solid var(--nb-hair-soft);padding:9px 12px;text-align:left}
+.nb-doc td+td,.nb-doc th+th{border-left:1px solid var(--nb-hair-soft)}
+.nb-doc tr:last-child td{border-bottom:0}
+.nb-doc th{background:var(--nb-wash-2);font-size:11px;letter-spacing:.05em;text-transform:uppercase;
+  font-weight:700;color:${T.text2}}
+.nb-doc pre{background:var(--nb-wash);border:1px solid var(--nb-hair-soft);border-radius:12px;
+  padding:14px;overflow:auto;font-size:13px}
 
 /* -------------------------------------------------------------- stage/media */
 .nb-stage{display:flex;flex-direction:column;gap:16px}
-.nb-screen{position:relative;overflow:hidden;background:color-mix(in srgb, ${T.text} 6%, transparent);
-  border:1px solid var(--nb-hair);aspect-ratio:16/9;display:grid;place-items:center}
-.nb-screen video,.nb-screen iframe{width:100%;height:100%;border:0;display:block;background:color-mix(in srgb, ${T.text} 6%, transparent)}
-.nb-screen-audio{aspect-ratio:auto;padding:20px;display:flex;flex-direction:column;gap:16px;
-  place-items:stretch;width:100%;background:color-mix(in srgb, ${T.text} 4%, transparent)}
-.nb-wave{display:flex;align-items:center;gap:2px;height:64px;width:100%}
-.nb-wave i{flex:1 1 0;min-width:2px;background:${T.text3};opacity:.4}
+.nb-screen{position:relative;overflow:hidden;border-radius:18px;border:1px solid var(--nb-hair);
+  background:var(--nb-media);aspect-ratio:16/9;display:grid;place-items:center;box-shadow:var(--nb-shadow)}
+.nb-screen video,.nb-screen iframe{width:100%;height:100%;border:0;display:block;background:#000}
+.nb-screen-audio{aspect-ratio:auto;padding:22px;display:flex;flex-direction:column;gap:16px;
+  place-items:stretch;width:100%}
+.nb-wave{display:flex;align-items:center;gap:2.5px;height:72px;width:100%}
+.nb-wave i{flex:1 1 0;min-width:2px;height:100%;border-radius:99px;background:rgba(235,238,245,.42)}
 .nb-wave i[data-past=true]{background:${T.accent};opacity:1}
 .nb-ctrl{display:flex;align-items:center;gap:10px}
-.nb-timeline{display:flex;flex-direction:column;gap:0;margin:0;padding:0;list-style:none}
-.nb-tl{display:grid;grid-template-columns:96px 1fr;gap:16px;padding:11px 0;border-top:1px solid var(--nb-hair-soft)}
+.nb-timeline{display:flex;flex-direction:column;gap:0;margin:0;padding:0;list-style:none;position:relative}
+.nb-timeline::before{content:'';position:absolute;left:7px;top:10px;bottom:10px;width:2px;
+  border-radius:2px;background:var(--nb-hair-soft)}
+.nb-tl{display:grid;grid-template-columns:110px 1fr;gap:16px;padding:13px 0 13px 24px;
+  border-top:1px solid var(--nb-hair-soft);position:relative}
 .nb-tl:first-child{border-top:0}
-.nb-tl-when{font-family:var(--ui-font-mono,ui-monospace,monospace);font-size:10.5px;font-weight:650;
-  color:${T.accent};letter-spacing:.1em;text-transform:uppercase;padding-top:3px}
+.nb-tl::before{content:'';position:absolute;left:2px;top:20px;width:11px;height:11px;border-radius:99px;
+  background:${T.accent};box-shadow:0 0 0 3px color-mix(in srgb,${T.accent} 18%, transparent)}
+.nb-tl-when{font-family:var(--ui-font-mono,ui-monospace,monospace);font-size:10.5px;font-weight:700;
+  color:${T.accent};letter-spacing:.06em;text-transform:uppercase;padding-top:3px}
 .nb-tl-what{font-size:15px;color:${T.text2}}
 
 /* ---------------------------------------------------------------- mind map */
-.nb-map{width:100%;height:100%;min-height:320px;display:block;cursor:grab;
-  border:1px solid var(--nb-hair-soft);background:
-  radial-gradient(circle at 50% 45%, color-mix(in srgb,${T.accent} 8%, transparent), transparent 60%)}
+.nb-map{width:100%;height:100%;min-height:340px;display:block;cursor:grab;border-radius:16px;
+  border:1px solid var(--nb-hair-soft);
+  background:radial-gradient(circle at 50% 45%, color-mix(in srgb,${T.accent} 9%, transparent), transparent 62%), var(--nb-card)}
 .nb-map:active{cursor:grabbing}
 
 /* -------------------------------------------------------------- flashcards */
-.nb-deck{display:flex;flex-direction:column;gap:16px;max-width:620px;margin:0 auto}
-.nb-flip{perspective:1400px;cursor:pointer;border:0;background:transparent;padding:0}
-.nb-flip-inner{position:relative;width:100%;min-height:300px;transition:transform .5s cubic-bezier(.2,.7,.2,1);
+.nb-deck{display:flex;flex-direction:column;gap:16px;max-width:640px;margin:0 auto;width:100%}
+.nb-flip{perspective:1400px;cursor:pointer;border:0;background:transparent;padding:0;width:100%}
+.nb-flip-inner{position:relative;width:100%;min-height:310px;transition:transform .5s cubic-bezier(.2,.7,.2,1);
   transform-style:preserve-3d}
 .nb-flip[data-flipped=true] .nb-flip-inner{transform:rotateY(180deg)}
-.nb-face{position:absolute;inset:0;backface-visibility:hidden;border:1px solid var(--nb-hair);
-  background:color-mix(in srgb, ${T.text} 4%, transparent);padding:28px;display:flex;flex-direction:column;
-  justify-content:center;gap:10px;font-size:19px;line-height:1.45}
-.nb-face[data-side=back]{transform:rotateY(180deg);border-left:2px solid ${T.accent};
-  background:color-mix(in srgb,${T.accent} 9%, transparent)}
-.nb-face .nb-meta{position:absolute;top:16px;left:20px}
-.nb-face-hint{font-family:var(--ui-font-mono,ui-monospace,monospace);font-size:10px;letter-spacing:.14em;
-  text-transform:uppercase;color:${T.text4};margin-top:auto}
+.nb-face{position:absolute;inset:0;backface-visibility:hidden;border-radius:20px;
+  border:1px solid var(--nb-hair);background:var(--nb-card);box-shadow:var(--nb-shadow);
+  padding:30px;display:flex;flex-direction:column;justify-content:center;gap:12px;
+  font-size:19px;line-height:1.5}
+.nb-face[data-side=back]{transform:rotateY(180deg);border-color:color-mix(in srgb,${T.accent} 45%, transparent);
+  background:linear-gradient(160deg, color-mix(in srgb,${T.accent} 14%, var(--nb-card)), var(--nb-card))}
+.nb-face .nb-meta{position:absolute;top:17px;left:22px}
+.nb-face-hint{font-size:11.5px;color:${T.text4};margin-top:auto;letter-spacing:.02em}
 
 /* -------------------------------------------------------------------- ops */
-.nb-fleet{display:flex;flex-direction:column;gap:0;padding:6px 0}
-.nb-frow{display:grid;grid-template-columns:8px minmax(0,1fr) auto;align-items:center;gap:12px;
-  padding:8px 14px;border:0;border-left:2px solid transparent;border-bottom:1px solid var(--nb-hair-soft);
-  background:transparent;cursor:pointer;text-align:left;color:${T.text};min-height:46px}
-.nb-frow:hover{background:var(--nb-wash)}
-.nb-frow[aria-current=true]{border-left-color:${T.accent};background:var(--nb-wash-2)}
+.nb-fleet{display:flex;flex-direction:column;gap:8px;padding:8px 0}
+.nb-frow{display:grid;grid-template-columns:10px minmax(0,1fr) auto;align-items:center;gap:12px;
+  padding:11px 14px;border:1px solid var(--nb-hair-soft);border-radius:13px;background:var(--nb-card);
+  cursor:pointer;text-align:left;color:${T.text};min-height:54px;
+  transition:border-color .13s ease,box-shadow .13s ease,transform .13s ease}
+.nb-frow:hover{border-color:color-mix(in srgb,${T.text} 20%, transparent);box-shadow:var(--nb-shadow)}
+.nb-frow[aria-current=true]{border-color:color-mix(in srgb,${T.accent} 55%, transparent);
+  background:color-mix(in srgb,${T.accent} 9%, var(--nb-card))}
 .nb-fname{font-size:14px;font-weight:600;line-height:1.25}
-.nb-frole{font-family:var(--ui-font-mono,ui-monospace,monospace);font-size:9.5px;color:${T.text3};
-  text-transform:uppercase;letter-spacing:.14em;font-weight:600}
-.nb-term{font-family:var(--ui-font-mono,ui-monospace,monospace);font-size:13.5px;line-height:1.55;flex:1 1 auto;
-  background:color-mix(in srgb, ${T.text} 5%, transparent);color:${T.text2};
-  border:1px solid var(--nb-hair);padding:14px;min-height:120px;max-height:none;overflow:auto;
-  white-space:pre-wrap;word-break:break-word}
+.nb-frole{font-size:10.5px;color:${T.text3};text-transform:uppercase;letter-spacing:.06em;font-weight:600}
+.nb-term{font-family:var(--ui-font-mono,ui-monospace,monospace);font-size:13px;line-height:1.55;flex:1 1 auto;
+  background:#101320;color:#c9cede;border-radius:14px;padding:16px;min-height:130px;max-height:none;overflow:auto;
+  white-space:pre-wrap;word-break:break-word;border:1px solid rgba(255,255,255,.09);
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.05)}
 .nb-term-in{display:flex;gap:8px;align-items:center;margin-top:10px}
-.nb-term-in input{flex:1;height:36px;border-radius:0;border:1px solid var(--nb-hair);
-  background:transparent;color:${T.text};padding:0 12px;font-size:13.5px;
+.nb-term-in input{flex:1;height:38px;border-radius:11px;border:1px solid var(--nb-hair);
+  background:var(--nb-wash);color:${T.text};padding:0 13px;font-size:13.5px;
   font-family:var(--ui-font-mono,ui-monospace,monospace);outline:0}
 .nb-term-in input:focus{border-color:color-mix(in srgb,${T.accent} 55%, transparent)}
 
 /* -------------------------------------------------------------- status bar */
-.nb-status{flex:0 0 30px;height:30px;display:flex;align-items:center;gap:18px;padding:0 16px;
-  border-top:1px solid var(--nb-hair);background:var(--nb-wash);
-  font-family:var(--ui-font-mono,ui-monospace,monospace);font-size:10.5px;letter-spacing:.05em;
-  color:${T.text3}}
+.nb-status{flex:0 0 32px;height:32px;display:flex;align-items:center;gap:18px;padding:0 18px;
+  border-top:1px solid var(--nb-hair-soft);background:transparent;
+  font-size:11.5px;color:${T.text3}}
 .nb-status b{color:${T.text2};font-weight:600}
-.nb-sdot{width:6px;height:6px;border-radius:99px;display:inline-block;margin-right:7px;vertical-align:middle}
-.nb-void{display:grid;place-items:center;height:100%;padding:36px;text-align:center;color:${T.text3}}
-.nb-void h3{color:${T.text};font-size:22px;margin:0 0 10px;letter-spacing:-.02em;font-weight:700}
+.nb-sdot{width:8px;height:8px;border-radius:99px;display:inline-block;margin-right:8px;vertical-align:middle}
+.nb-void{display:grid;place-items:center;height:100%;padding:40px;text-align:center;color:${T.text3}}
+.nb-void h3{color:${T.text};font-size:21px;margin:0 0 10px;letter-spacing:-.02em;font-weight:700}
 .nb-void p{margin:0;max-width:48ch;font-size:14px;line-height:1.62}
 
+/* ------------------------------------------------------------ home (directory) */
+.nb-home{flex:1;min-height:0;display:flex;flex-direction:column}
+.nb-home-scroll{flex:1;min-height:0;overflow:auto;padding:26px 30px 30px;overscroll-behavior:contain}
+.nb-home-head{display:flex;align-items:flex-end;gap:16px;margin-bottom:24px;flex-wrap:wrap}
+.nb-home-title{font-size:26px;font-weight:700;letter-spacing:-.02em;margin:0;line-height:1.2}
+.nb-home-sub{font-size:13.5px;color:${T.text2};margin:5px 0 0}
+.nb-home-search{width:260px;margin-left:auto}
+.nb-feature-row{display:flex;gap:14px;overflow-x:auto;padding:2px 2px 12px;margin-bottom:26px;
+  scrollbar-width:thin}
+.nb-feature{flex:0 0 290px;height:170px;border-radius:20px;padding:18px;position:relative;
+  overflow:hidden;display:flex;flex-direction:column;justify-content:space-between;
+  text-align:left;cursor:pointer;color:${T.text};font-family:inherit;
+  border:1px solid var(--nb-hair-soft);
+  background:linear-gradient(135deg, color-mix(in srgb,var(--kc) 30%, var(--nb-card)), var(--nb-card) 72%);
+  transition:transform .15s ease,box-shadow .15s ease}
+.nb-feature:hover{transform:translateY(-2px);box-shadow:var(--nb-shadow-lift)}
+.nb-feature::after{content:'';position:absolute;right:-46px;bottom:-58px;width:190px;height:190px;
+  border-radius:99px;background:color-mix(in srgb,var(--kc) 22%, transparent);pointer-events:none}
+.nb-feature-emoji{font-size:30px;line-height:1}
+.nb-feature-title{font-size:15.5px;font-weight:650;line-height:1.3;max-width:24ch;position:relative}
+.nb-feature-meta{font-size:11.5px;color:${T.text3};position:relative}
+.nb-home-sec{display:flex;align-items:center;gap:12px;margin:0 0 14px}
+.nb-home-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(215px,1fr));gap:13px;
+  align-content:start}
+.nb-nbcard-wrap{position:relative;height:170px}
+.nb-nbcard{height:100%;position:relative;border-radius:18px;padding:16px;display:flex;
+  flex-direction:column;justify-content:space-between;text-align:left;cursor:pointer;
+  color:${T.text};font-family:inherit;
+  border:1px solid var(--nb-hair-soft);background:var(--nb-card);
+  transition:border-color .14s ease,transform .14s ease,box-shadow .14s ease}
+.nb-nbcard:hover{border-color:color-mix(in srgb,${T.accent} 42%, var(--nb-hair));
+  transform:translateY(-2px);box-shadow:var(--nb-shadow-lift)}
+.nb-nbcard-emoji{font-size:32px;line-height:1}
+.nb-nbcard-del{position:absolute;top:9px;right:7px}
+.nb-nbcard-title{font-size:14.5px;font-weight:650;line-height:1.35;padding-right:28px}
+.nb-nbcard-meta{font-size:11.5px;color:${T.text3};margin-top:8px}
+
 @media (max-width:1280px){
-  .nb-root{--nb-rail:268px; --nb-studio:344px}
-  .nb-h1{font-size:27px}
+  .nb-root{--nb-rail:250px; --nb-studio:320px}
+  .nb-body{padding:10px;gap:10px}
+  .nb-h1{font-size:24px}
 }
 @media (max-width:1100px){
-  .nb-body{grid-template-columns:248px minmax(0,1fr)}
   .nb-studio{display:none}
-  .nb-thread{padding:22px 20px 10px}
+  .nb-thread{padding:22px 20px 12px}
   .nb-main-head{padding:20px 20px 0}
   .nb-composer{padding:12px 20px 16px}
+  .nb-home-scroll{padding:20px 18px 24px}
 }
 @media (max-width:820px){
-  .nb-body{grid-template-columns:minmax(0,1fr)}
   .nb-rail{display:none}
-  .nb-h1{font-size:24px}
-  .nb-strip{flex-wrap:wrap}
-  .nb-cell{flex:1 1 40%;border-top:1px solid var(--nb-hair-soft)}
-  .nb-cell:nth-child(1),.nb-cell:nth-child(2){border-top:0}
+  .nb-h1{font-size:21px}
+  .nb-body{padding:8px;gap:8px}
+  .nb-suggest-grid{grid-template-columns:1fr}
 }
 `
 
@@ -552,7 +718,10 @@ const P = {
   send: 'M4 12l16-8-6 16-3-6-7-2Z',
   keyboard: 'M3 6h18v12H3V6Zm3 3h.01M9 9h.01M12 9h.01M15 9h.01M18 9h.01M6.5 15h11',
   grid: 'M4 4h7v7H4V4Zm9 0h7v7h-7V4ZM4 13h7v7H4v-7Zm9 0h7v7h-7v-7Z',
-  stop: 'M7 7h10v10H7V7Z'
+  stop: 'M7 7h10v10H7V7Z',
+  tag: 'M4 4h6.6L20 13.4a2 2 0 0 1 0 2.8l-3.8 3.8a2 2 0 0 1-2.8 0L4 10.6V4Zm4.6 3.4a1.3 1.3 0 1 0 0 2.6 1.3 1.3 0 0 0 0-2.6Z',
+  more: 'M5 12h.01M12 12h.01M19 12h.01',
+  pin: 'M9 4h6l-1 6 3 3v2H7v-2l3-3-1-6Z'
 }
 
 function Glyph({ name, size = 16, stroke = 1.7 }) {
@@ -567,19 +736,19 @@ function Glyph({ name, size = 16, stroke = 1.7 }) {
 
 /* -------------------------------------------------------------- primitives */
 
-function Btn({ children, icon, variant, size, onClick, disabled, title, type = 'button', ...rest }) {
+function Btn({ children, icon, variant, size, onClick, disabled, title, type = 'button', className, style, ...rest }) {
   return el('button', {
-    type, className: 'nb-btn', 'data-variant': variant, 'data-size': size,
-    onClick, disabled, title, 'aria-label': rest['aria-label'],
+    type, className: cx('nb-btn', className), 'data-variant': variant, 'data-size': size,
+    onClick, disabled, title, style, 'aria-label': rest['aria-label'],
     children: [icon ? jsx(Glyph, { name: icon, size: size === 'sm' ? 14 : 15 }) : null,
                children ? el('span', { children }) : null].filter(Boolean)
   })
 }
 
-function IconBtn({ icon, label, onClick, active, size = 16 }) {
+function IconBtn({ icon, label, onClick, active, size = 16, disabled, className }) {
   return el('button', {
-    type: 'button', className: 'nb-icon', onClick, title: label, 'aria-label': label,
-    'data-active': active ? 'true' : 'false',
+    type: 'button', className: cx('nb-icon', className), onClick, title: label, 'aria-label': label,
+    disabled, 'data-active': active ? 'true' : 'false',
     children: jsx(Glyph, { name: icon, size })
   })
 }
@@ -691,8 +860,8 @@ function Dialog({ open, onClose, title, children, width = 520 }) {
     style: {
       width: `min(${width}px, 100%)`, maxHeight: '84vh', overflow: 'auto',
       background: 'var(--ui-bg-elevated, var(--ui-bg-primary, #14151b))',
-      border: `1px solid ${T.line}`, borderRadius: 0, padding: '20px',
-      boxShadow: '8px 8px 0 color-mix(in srgb, currentColor 10%, transparent), 0 24px 60px rgba(0,0,0,.45)'
+      border: `1px solid ${T.line}`, borderRadius: '18px', padding: '22px',
+      boxShadow: '0 24px 70px rgba(0,0,0,.45), 0 4px 14px rgba(0,0,0,.25)'
     }
   },
   el('div', { style: { display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '14px' } },
@@ -912,7 +1081,28 @@ const KIND_ICON = {
 
 const SRC_ICON = {
   url: 'globe', youtube: 'video', file: 'file', text: 'note', image: 'image',
-  pdf: 'file', note: 'note', audio: 'audio'
+  pdf: 'file', note: 'note', audio: 'audio',
+  docx: 'doc', pptx: 'slides', xlsx: 'chart', epub: 'book', ipynb: 'notebook',
+  code: 'terminal', markdown: 'doc', csv: 'chart'
+}
+
+/** What a person calls the source's type — NotebookLM shows "Website",
+ *  "YouTube", "PDF"…; ours are the extractor's kind ids. */
+const KIND_LABEL = {
+  url: 'web', youtube: 'youtube', note: 'note', text: 'pasted text',
+  pdf: 'pdf', docx: 'docx', pptx: 'slides', xlsx: 'sheet', epub: 'ebook',
+  ipynb: 'notebook', image: 'image', file: 'file', audio: 'audio'
+}
+const kindLabel = (k) => KIND_LABEL[k] || k || 'file'
+
+/** NotebookLM-style identity: a stable 3D-emoji per notebook id. */
+const NB_EMOJI = ['📓', '🧠', '🔬', '📚', '🛰️', '⚛️', '🌱', '🏛️', '🎧', '🧪',
+  '📈', '🗺️', '🧭', '💡', '🏥', '⚖️']
+const hashStr = (s) => { let h = 0; for (const c of String(s)) h = (h * 31 + c.charCodeAt(0)) >>> 0; return h }
+const emojiFor = (id) => NB_EMOJI[hashStr(id || 'nb') % NB_EMOJI.length]
+const dshort = (stamp) => {
+  const d = stamp ? new Date(stamp) : null
+  return d && !isNaN(d) ? d.toLocaleDateString(undefined, { day: 'numeric', month: 'short', year: 'numeric' }) : ''
 }
 
 const FILTERS = [
@@ -935,19 +1125,20 @@ function latestByKind(artifacts) {
 /* ------------------------------------------------------------------ shell */
 
 function App() {
-  const [mode, setMode] = useState(() => persist.get('mode', 'studio'))
+  const [mode, setMode] = useState(() => persist.get('mode', 'home'))
   const [nb, setNb] = useState(() => persist.get('notebook', ''))
   const studio = useStudio(nb)
   const [picked, setPicked] = useState(null)       // artifact run selected in the viewer
   const [tab, setTab] = useState('chat')
   const [busy, setBusy] = useState({})             // kind -> startedAt (ms)
-  const [toast, setToast] = useState('')
+  const [note, setNote] = useState('')
   const [askOpen, setAskOpen] = useState(0)        // bump to focus the composer
-  const [addSource, setAddSource] = useState(false)
+  const [srcDialog, setSrcDialog] = useState(null) // {mode?, seed?} | null
   const [newNb, setNewNb] = useState(false)
   const [filter, setFilter] = useState('all')
-  const [q, setQ] = useState('')
-  const [note, setNote] = useState('')
+  const [peek, setPeek] = useState(null)           // source lifted so the rail can open it
+  const [railOpen, setRailOpen] = useState(() => persist.get('rail', '1') !== '0')
+  const [studioOpen, setStudioOpen] = useState(() => persist.get('studio', '1') !== '0')
   const [opsStats, setOpsStats] = useState(null)
 
   const say = useCallback((msg) => {
@@ -958,6 +1149,8 @@ function App() {
 
   useEffect(() => { persist.set('mode', mode) }, [mode])
   useEffect(() => { persist.set('notebook', nb) }, [nb])
+  useEffect(() => { persist.set('rail', railOpen ? '1' : '0') }, [railOpen])
+  useEffect(() => { persist.set('studio', studioOpen ? '1' : '0') }, [studioOpen])
 
   const data = studio.data
   const notebook = data && data.notebook
@@ -988,7 +1181,6 @@ function App() {
         body: { notebook: notebook.id, kind, length: 'short' },
         timeoutMs: 240000
       })
-      await studio.reload(true)
       const fresh = await studio.reload(true)
       const target = fresh && fresh.notebook && fresh.notebook.artifacts
         ? fresh.notebook.artifacts.find((a) => a.kind === kind) : null
@@ -1001,7 +1193,73 @@ function App() {
     }
   }, [notebook, studio, say])
 
+  // NotebookLM-style tagging: one click re-runs the model's auto-label pass
+  // over anything that arrived without labels (the /label route).
+  const labelSources = useCallback(async () => {
+    if (!nb) return
+    try {
+      await api('/label', { method: 'POST', body: { notebook: nb }, timeoutMs: 180000 })
+      await studio.reload(true)
+      say('sources labelled')
+    } catch (e) {
+      say(`labelling failed: ${e.message || e}`)
+    }
+  }, [nb, studio, say])
+
+  const openSource = useCallback((s) => { setPeek(s); setTab('peek') }, [])
+  const openAddSource = useCallback((opts) => setSrcDialog(opts || { mode: 'find' }), [])
+
+  // NotebookLM's per-source checkbox: the /source_state reply carries the fresh
+  // notebook payload — merge it over the current state instead of a full reload.
+  const toggleSource = useCallback(async (s) => {
+    if (!nb || !s || !s.id) return
+    try {
+      const out = await api('/source_state', {
+        method: 'POST',
+        body: { notebook: nb, source_id: s.id, enabled: s.active === false },
+        timeoutMs: 30000
+      })
+      if (out && out.state && studio.data) {
+        studio.setData({ ...studio.data, notebook: out.state })
+      } else {
+        await studio.reload(true)
+      }
+    } catch (e) { say(`could not update source: ${e.message || e}`) }
+  }, [nb, studio, say])
+
+  const toggleAllSources = useCallback(async () => {
+    const sources = (notebook && notebook.sources) || []
+    if (!nb || !sources.length) return
+    const allOn = sources.every((s) => s.active !== false)
+    try {
+      for (const s of sources) {
+        await api('/source_state', {
+          method: 'POST',
+          body: { notebook: nb, source_id: s.id, enabled: !allOn },
+          timeoutMs: 30000
+        })
+      }
+      await studio.reload(true)
+    } catch (e) { say(`could not update sources: ${e.message || e}`) }
+  }, [nb, notebook, studio, say])
+
+  const deleteNotebook = useCallback(async (id) => {
+    try {
+      await api('/notebook/delete', {
+        method: 'POST', body: { notebook: id, confirm: true }, timeoutMs: 30000
+      })
+      if (nb === id) setNb('')
+      await studio.reload(true)
+      say('notebook deleted')
+    } catch (e) { say(`delete failed: ${e.message || e}`) }
+  }, [nb, studio, say])
+
+  const openNotebook = useCallback((id) => {
+    setNb(id); setPicked(null); setPeek(null); setTab('chat'); setMode('studio')
+  }, [])
+
   const ops = mode === 'ops'
+  const home = mode === 'home'
 
   return el('div', { className: 'nb-root', 'data-mode': mode, 'data-plugin': ID },
     el('style', { dangerouslySetInnerHTML: { __html: CSS } }),
@@ -1012,48 +1270,71 @@ function App() {
         el('span', { className: 'nb-crumb' },
           ops
             ? el('b', { children: 'Lab Ops' })
-            : el('span', null, '/ ', el('b', { children: notebook ? notebook.title : 'no notebook' })))
+            : home
+              ? el('b', { children: 'All notebooks' })
+              : el('span', null, '/ ', el('b', { children: notebook ? notebook.title : 'no notebook' })))
       ),
       el('div', { className: 'nb-spacer' }),
       jsx(Seg, {
         label: 'Surface', value: mode, onChange: (v) => setMode(v),
         options: [
+          { id: 'home', label: 'Home', icon: 'grid' },
           { id: 'studio', label: 'Studio', icon: 'notebook' },
           { id: 'ops', label: 'Lab Ops', icon: 'server' }
         ]
       }),
       el('div', { className: 'nb-actions' },
-        ops ? null : jsx(Btn, {
-          icon: 'plus', variant: 'primary', onClick: () => setAddSource(true),
+        mode === 'studio' ? jsx(Btn, {
+          icon: 'plus', variant: 'primary', onClick: () => openAddSource(),
           disabled: !notebook, children: 'Add source'
-        }))
+        }) : null)
     ),
 
     ops
       ? jsx(OpsDeck, { onSay: say, onStats: setOpsStats })
-      : el('div', { className: 'nb-body' },
-          jsx(Rail, {
-            data, nb, setNb, q, setQ, filter, setFilter,
-            onNewNotebook: () => setNewNb(true), onAddSource: () => setAddSource(true),
-            loading: studio.loading, error: studio.error, reload: studio.reload
-          }),
-          jsx(Main, {
-            notebook, kinds, tab, setTab, picked, setPicked, busy, generate,
-            onAsk: () => setAskOpen((n) => n + 1), askOpen, onSay: say,
-            reload: studio.reload, modelReady: data && data.model_ready,
-            error: studio.error, loading: studio.loading, onAddSource: () => setAddSource(true)
-          }),
-          jsx(StudioPanel, {
-            kinds, notebook, busy, generate, filter, setFilter, picked, setPicked,
-            onOpen: (art) => { setPicked(art); setTab('view') }
+      : home
+        ? jsx(HomeDashboard, {
+            data, onOpen: openNotebook, onNew: () => setNewNb(true),
+            onDelete: deleteNotebook
           })
-        ),
+        : el('div', { className: 'nb-body' },
+            railOpen
+              ? jsx(Rail, {
+                  data, notebook,
+                  onAddSource: () => openAddSource(), onOpenSource: openSource,
+                  onToggleSource: toggleSource, onToggleAll: toggleAllSources,
+                  onLabel: labelSources, onCollapse: () => setRailOpen(false),
+                  onGoHome: () => setMode('home'), onSay: say,
+                  loading: studio.loading, error: studio.error, reload: studio.reload
+                })
+              : jsx(PanelToggles, { side: 'left', onShow: () => setRailOpen(true) }),
+            jsx(Main, {
+              notebook, kinds, tab, setTab, picked, setPicked, busy, generate,
+              onAsk: () => setAskOpen((n) => n + 1), askOpen, onSay: say,
+              reload: studio.reload, modelReady: data && data.model_ready,
+              error: studio.error, loading: studio.loading,
+              peek, setPeek, onOpenSource: openSource,
+              onAddSource: openAddSource, onNewNotebook: () => setNewNb(true),
+              onFindSources: (seed) => openAddSource({ mode: 'find', seed: seed || '' })
+            }),
+            studioOpen
+              ? jsx(StudioPanel, {
+                  kinds, notebook, busy, generate, filter, setFilter,
+                  onOpen: (art) => { setPicked(art); setTab('view') },
+                  onCollapse: () => setStudioOpen(false),
+                  onAddNote: () => openAddSource({ mode: 'note' })
+                })
+              : jsx(PanelToggles, { side: 'right', onShow: () => setStudioOpen(true) })
+          ),
 
     jsx(StatusBar, { mode, notebook, data, note, opsStats }),
 
     jsx(AddSourceDialog, {
-      open: addSource, onClose: () => setAddSource(false), notebook,
-      onDone: async (msg) => { setAddSource(false); await studio.reload(true); if (msg) say(msg) }
+      open: !!srcDialog, onClose: () => setSrcDialog(null), notebook,
+      initialMode: srcDialog && srcDialog.mode,
+      seedQuery: srcDialog && srcDialog.seed,
+      noteOnly: !!(srcDialog && srcDialog.mode === 'note'),
+      onDone: async (msg) => { setSrcDialog(null); await studio.reload(true); if (msg) say(msg) }
     }),
     jsx(NewNotebookDialog, {
       open: newNb, onClose: () => setNewNb(false),
@@ -1062,110 +1343,396 @@ function App() {
   )
 }
 
+/* --------------------------------------------------------- home dashboard */
+
+function HomeDashboard({ data, onOpen, onNew, onDelete }) {
+  const [query, setQuery] = useState('')
+  const [del, setDel] = useState(null)
+  const notebooks = (data && data.notebooks) || []
+  const needle = query.trim().toLowerCase()
+  const shown = notebooks.filter((n) =>
+    !needle || `${n.title} ${n.description || ''}`.toLowerCase().includes(needle))
+  const featured = [...notebooks]
+    .sort((a, b) => (b.artifacts || 0) - (a.artifacts || 0))
+    .slice(0, 3)
+  const hues = ['#81c995', '#a8c7fa', '#f28b82', '#c58af9', '#fde293']
+
+  return el('div', { className: 'nb-home' },
+    el('div', { className: 'nb-home-scroll' },
+      el('div', { className: 'nb-home-head' },
+        el('div', null,
+          el('h1', { className: 'nb-home-title', children: 'Notebooks' }),
+          el('p', { className: 'nb-home-sub',
+            children: `${notebooks.length} notebook${notebooks.length === 1 ? '' : 's'} · every answer and artifact is grounded in your sources` })),
+        el('div', { className: 'nb-home-search' },
+          jsx(SearchField, { value: query, onChange: setQuery,
+            placeholder: 'Search notebooks', label: 'Search notebooks' }))
+      ),
+
+      featured.length
+        ? el('div', { className: 'nb-feature-row', role: 'list', 'aria-label': 'Featured notebooks' },
+            featured.map((n, i) => el('button', {
+              key: n.id, type: 'button', role: 'listitem', className: 'nb-feature',
+              style: { '--kc': hues[i % hues.length] },
+              onClick: () => onOpen(n.id),
+              'aria-label': `Open notebook ${n.title}`,
+              children: [
+                el('span', { className: 'nb-feature-emoji', 'aria-hidden': 'true',
+                  children: emojiFor(n.id) }),
+                el('span', { className: 'nb-feature-title', children: n.title }),
+                el('span', { className: 'nb-feature-meta',
+                  children: `${dshort(n.updated_at)} · ${n.sources} source${n.sources === 1 ? '' : 's'} · ${n.artifacts} artifact${n.artifacts === 1 ? '' : 's'}` })
+              ]
+            }, n.id)))
+        : null,
+
+      el('div', { className: 'nb-home-sec' },
+        el('span', { className: 'nb-meta', children: 'Recent notebooks' }),
+        el('span', { style: { flex: 1 } }),
+        jsx(Btn, { icon: 'plus', variant: 'primary', onClick: onNew, children: 'New notebook' })
+      ),
+
+      shown.length === 0
+        ? el('div', { className: 'nb-void', style: { height: 'auto', padding: '30px 8px' } },
+            el('div', null,
+              el('h3', { children: notebooks.length ? 'Nothing matches' : 'No notebooks yet' }),
+              el('p', { children: notebooks.length
+                ? 'Try a different search.'
+                : 'A notebook is a set of sources. Create one, then describe what you need — Hermes finds, labels and grounds everything in them.' }),
+              !notebooks.length
+                ? el('div', { style: { marginTop: '14px' } },
+                    jsx(Btn, { variant: 'primary', icon: 'plus', onClick: onNew, children: 'New notebook' }))
+                : null))
+        : el('div', { className: 'nb-home-grid', role: 'list' },
+            shown.map((n) => el('div', { key: n.id, className: 'nb-nbcard-wrap', role: 'listitem' },
+              el('button', {
+                type: 'button', className: 'nb-nbcard',
+                onClick: () => onOpen(n.id),
+                'aria-label': `Open notebook ${n.title}`,
+                children: [
+                  el('span', { className: 'nb-nbcard-emoji', 'aria-hidden': 'true',
+                    children: emojiFor(n.id) }),
+                  el('span', { className: 'nb-nbcard-title', children: n.title }),
+                  el('span', { className: 'nb-nbcard-meta',
+                    children: `${dshort(n.updated_at)} · ${n.sources} source${n.sources === 1 ? '' : 's'}` })
+                ]
+              }, n.id),
+              jsx(IconBtn, {
+                icon: 'trash', label: `Delete notebook ${n.title}`, size: 14,
+                className: 'nb-nbcard-del',
+                onClick: (e) => { e.stopPropagation(); setDel(n) }
+              })
+            )))
+    ),
+
+    del ? jsx(Dialog, {
+      open: true, onClose: () => setDel(null), title: 'Delete notebook', width: 420,
+      children: el('div', null,
+        el('p', { style: { margin: '0 0 16px', color: T.text2, fontSize: '14.5px', lineHeight: 1.55 },
+          children: `“${del.title}” and its sources, thread and artifacts will be removed. This cannot be undone.` }),
+        el('div', { style: { display: 'flex', gap: '8px', justifyContent: 'flex-end' } },
+          jsx(Btn, { onClick: () => setDel(null), children: 'Cancel' }),
+          jsx(Btn, {
+            variant: 'primary', icon: 'trash',
+            onClick: () => { const id = del.id; setDel(null); onDelete(id) },
+            children: 'Delete'
+          })))
+    }) : null
+  )
+}
+
+/* --------------------------------------------------------------- panel tog */
+
+function PanelToggles({ side, onShow }) {
+  return el('div', { className: 'nb-paneltog' },
+    jsx(IconBtn, {
+      icon: side === 'left' ? 'arrowRight' : 'arrowLeft',
+      label: side === 'left' ? 'Show sources panel' : 'Show studio panel',
+      onClick: onShow
+    })
+  )
+}
+
 /* -------------------------------------------------------------------- rail */
 
-function Rail({ data, nb, setNb, q, setQ, filter, setFilter, onNewNotebook, onAddSource, loading, error, reload }) {
-  const notebooks = (data && data.notebooks) || []
-  const notebook = data && data.notebook
+function Rail({ data, notebook, onAddSource, onOpenSource, onToggleSource,
+               onToggleAll, onLabel, onCollapse, onGoHome, onSay, loading, error, reload }) {
   const sources = (notebook && notebook.sources) || []
   const labels = (notebook && notebook.labels) || []
+  const [q, setQ] = useState('')
+  const [srcFilter, setSrcFilter] = useState('all')
+  const [closed, setClosed] = useState({})
 
   const shown = useMemo(() => {
-    const needle = q.trim().toLowerCase()
+    const needle = (q || '').trim().toLowerCase()
     return sources.filter((s) => {
-      if (filter !== 'all' && !(s.labels || []).some((l) => l.toLowerCase().includes(filter))) return false
+      if (srcFilter !== 'all' && !(s.labels || []).some((l) => l.toLowerCase() === srcFilter)) return false
       if (!needle) return true
       return (s.title + ' ' + (s.origin || '') + ' ' + (s.labels || []).join(' '))
         .toLowerCase().includes(needle)
     })
-  }, [sources, q, filter])
+  }, [sources, q, srcFilter])
 
-  return el('aside', { className: 'nb-col nb-rail', 'aria-label': 'Notebooks and sources' },
-    el('div', { className: 'nb-pane-head' },
-      el('span', { className: 'nb-meta', children: `Notebooks · ${notebooks.length}` }),
-      jsx(IconBtn, { icon: 'plus', label: 'New notebook', onClick: onNewNotebook })
-    ),
-    el('div', { className: 'nb-scroll', style: { flex: '0 1 auto', maxHeight: '38%' } },
-      el('div', { className: 'nb-pad', style: { paddingTop: '8px' } },
-        loading && !notebooks.length
-          ? el('div', { className: 'nb-hint', style: { padding: '8px' }, children: 'reading notebooks…' })
-          : notebooks.length === 0
-            ? el('div', { className: 'nb-hint', style: { padding: '8px', lineHeight: 1.5 } },
-                'No notebooks yet. Create one, then add sources — every answer and artifact is derived from them.')
-            : notebooks.map((item, i) =>
-                el('button', {
-                  type: 'button', className: 'nb-nbrow', 'aria-current': item.id === nb ? 'true' : 'false',
-                  onClick: () => setNb(item.id), title: item.description || item.title,
-                  children: [
-                    el('span', { className: 'nb-avatar', children: roman(i + 1) }),
-                    el('span', { style: { minWidth: 0, flex: 1 } },
-                      el('span', { className: 'nb-nbtitle', children: item.title }),
-                      el('span', { className: 'nb-nbsub' },
-                        `${item.sources} source${item.sources === 1 ? '' : 's'} · ${item.artifacts} artifact${item.artifacts === 1 ? '' : 's'}`))
-                  ]
-                }, item.id))
-      )
-    ),
+  // NotebookLM groups the list by topic; the first auto-label is the topic.
+  const groups = useMemo(() => {
+    const map = new Map()
+    for (const s of shown) {
+      const g = (((s.labels || [])[0]) || kindLabel(s.kind) || 'other').toLowerCase()
+      if (!map.has(g)) map.set(g, [])
+      map.get(g).push(s)
+    }
+    return [...map.entries()].sort((a, b) => b[1].length - a[1].length || a[0].localeCompare(b[0]))
+  }, [shown])
 
-    el('div', { className: 'nb-pane-head', style: { borderTop: `1px solid ${T.lineSoft}` } },
-      el('span', { className: 'nb-meta', children: `Sources · ${sources.length}` }),
-      jsx(IconBtn, { icon: 'refresh', label: 'Refresh sources', onClick: () => reload(true) })
-    ),
-    el('div', { className: 'nb-pad', style: { paddingBottom: '6px' } },
-      jsx(SearchField, { value: q, onChange: setQ, placeholder: 'Search sources', label: 'Search sources' })
-    ),
-    el('div', {
-      className: 'nb-pad',
-      style: { display: 'flex', gap: '6px', flexWrap: 'wrap', paddingTop: 0, paddingBottom: '10px' },
-      role: 'group', 'aria-label': 'Filter sources by label'
+  const allOn = sources.length > 0 && sources.every((s) => s.active !== false)
+  const activeCount = sources.filter((s) => s.active !== false).length
+
+  const srcRow = (s) => {
+    const on = s.active !== false
+    return el('div', {
+      className: 'nb-src', key: s.id,
+      'data-on': pickedCite === s.n ? 'true' : 'false',
+      'data-off': on ? 'false' : 'true'
     },
-    labels.slice(0, 6).map((l) =>
-      jsx(Chip, {
-        key: l.label, tone: filter === l.label.toLowerCase() ? 'accent' : undefined,
-        pressed: filter === l.label.toLowerCase(),
-        onClick: () => setFilter(filter === l.label.toLowerCase() ? 'all' : l.label.toLowerCase()),
-        title: `${l.count} source${l.count === 1 ? '' : 's'} labelled ${l.label}`,
-        children: `${l.label} ${l.count}`
-      }))
+      el('button', {
+        type: 'button', className: 'nb-src-open',
+        onClick: () => onOpenSource(s),
+        'aria-label': `Open source ${s.n} — ${s.title}`,
+        title: s.summary || s.origin || s.title,
+        children: [
+          el('span', { className: 'nb-src-ico' },
+            jsx(Glyph, { name: SRC_ICON[s.kind] || 'file', size: 15 }),
+            el('b', { className: 'nb-cite', children: `S${s.n}` })),
+          el('span', { style: { minWidth: 0, flex: 1 } },
+            el('span', { className: 'nb-src-title', children: s.title }),
+            el('span', { className: 'nb-src-meta' },
+              el('span', { className: 'nb-chip', children: `${kindLabel(s.kind)} · ${nfmt(s.chars)}` }),
+              (s.labels || []).slice(0, 2).map((l) => el('span', { className: 'nb-chip', children: l }, l)),
+              (s.labels || []).length > 2
+                ? el('span', {
+                    className: 'nb-chip',
+                    title: `Also tagged: ${s.labels.slice(2).join(', ')}`,
+                    children: `+${s.labels.length - 2}`
+                  })
+                : null))
+        ]
+      }),
+      el('button', {
+        type: 'button', className: 'nb-srccheck', role: 'checkbox',
+        'aria-checked': on,
+        'aria-label': `${on ? 'Exclude' : 'Include'} “${s.title}” ${on ? 'from' : 'in'} answers`,
+        title: on ? 'Included in answers — click to exclude' : 'Excluded from answers — click to include',
+        onClick: () => onToggleSource(s),
+        children: on ? jsx(Glyph, { name: 'check', size: 14 }) : null
+      })
+    )
+  }
+
+  return el('aside', { className: 'nb-col nb-rail', 'aria-label': 'Sources' },
+    el('div', { className: 'nb-pane-head' },
+      el('span', { className: 'nb-pane-title', children: 'Sources' }),
+      el('span', { className: 'nb-meta', children: `${activeCount}/${sources.length}` }),
+      jsx(IconBtn, {
+        icon: 'sparkle', label: 'Auto-label unlabelled sources', onClick: onLabel,
+        disabled: !(notebook && notebook.stats && notebook.stats.unlabeled)
+      }),
+      jsx(IconBtn, { icon: 'refresh', label: 'Refresh sources', onClick: () => reload(true) }),
+      jsx(IconBtn, { icon: 'arrowLeft', label: 'Hide sources panel', onClick: onCollapse })
     ),
+
+    el('div', { className: 'nb-pad', style: { paddingTop: '10px', paddingBottom: '8px' } },
+      notebook
+        ? el('button', {
+            type: 'button', className: 'nb-nbrow', 'aria-current': 'true',
+            onClick: onGoHome, title: 'Back to all notebooks',
+            children: [
+              el('span', { className: 'nb-avatar', 'aria-hidden': 'true' },
+                jsx(Glyph, { name: 'notebook', size: 15 })),
+              el('span', { style: { minWidth: 0, flex: 1 } },
+                el('span', { className: 'nb-nbtitle', children: notebook.title }),
+                el('span', { className: 'nb-nbsub',
+                  children: `${sources.length} source${sources.length === 1 ? '' : 's'} · ${(notebook.artifacts || []).length} artifact${(notebook.artifacts || []).length === 1 ? '' : 's'}` })),
+              jsx(Glyph, { name: 'arrowLeft', size: 14 })
+            ]
+          })
+        : el('div', { className: 'nb-hint', style: { padding: '6px 4px', lineHeight: 1.5 } },
+            'Pick a notebook on Home first — sources belong to one.')),
+
+    el('div', { className: 'nb-pad', style: { paddingBottom: '8px' } },
+      jsx(Btn, {
+        icon: 'plus', onClick: onAddSource, disabled: !notebook,
+        className: 'nb-addsrc', children: 'Add sources'
+      })),
+
+    notebook ? jsx(WebFinder, { notebook, onAdded: () => reload(true), onSay: onSay }) : null,
+
+    el('div', { className: 'nb-pad', style: { paddingBottom: '8px' } },
+      jsx(SearchField, { value: q || '', onChange: setQ, placeholder: 'Search sources', label: 'Search sources' })
+    ),
+
+    labels.length
+      ? el('div', {
+          className: 'nb-pad',
+          style: { display: 'flex', gap: '6px', flexWrap: 'wrap', paddingTop: 0, paddingBottom: '10px' },
+          role: 'group', 'aria-label': 'Filter sources by label'
+        },
+          labels.slice(0, 6).map((l) =>
+            jsx(Chip, {
+              key: l.label, tone: srcFilter === l.label.toLowerCase() ? 'accent' : undefined,
+              pressed: srcFilter === l.label.toLowerCase(),
+              onClick: () => setSrcFilter(srcFilter === l.label.toLowerCase() ? 'all' : l.label.toLowerCase()),
+              title: `${l.count} source${l.count === 1 ? '' : 's'} labelled ${l.label}`,
+              children: `${l.label} ${l.count}`
+            }))
+        )
+      : null,
 
     el('div', { className: 'nb-scroll', 'aria-label': 'Source list' },
-      el('div', { className: 'nb-pad', style: { paddingTop: 0, display: 'flex', flexDirection: 'column', gap: '2px' } },
+      el('div', { className: 'nb-pad', style: { paddingTop: 0, paddingBottom: '12px' } },
+        sources.length
+          ? el('div', { className: 'nb-selall' },
+              el('button', {
+                type: 'button', className: 'nb-srccheck', role: 'checkbox',
+                'aria-checked': allOn,
+                'aria-label': allOn ? 'Exclude all sources from answers' : 'Include all sources in answers',
+                title: allOn ? 'Exclude every source' : 'Include every source',
+                onClick: onToggleAll,
+                children: allOn ? jsx(Glyph, { name: 'check', size: 12 }) : null
+              }),
+              el('span', { className: 'nb-src-title', style: { fontSize: '12.5px' },
+                children: 'All sources' }),
+              el('span', { className: 'nb-hint', style: { marginLeft: 'auto' },
+                children: `${activeCount} of ${sources.length}` }))
+          : null,
         error
           ? el('div', { className: 'nb-hint', style: { padding: '10px', color: T.danger }, children: error })
-          : shown.length === 0
-            ? el('div', { className: 'nb-void', style: { height: 'auto', padding: '24px 8px' } },
-                el('div', null,
-                  el('h3', { style: { fontSize: '15px' }, children: sources.length ? 'Nothing matches' : 'No sources yet' }),
-                  el('p', { style: { fontSize: '13.5px' }, children: sources.length
-                    ? 'Clear the filter or the search to see every source.'
-                    : 'Add a file, a URL or pasted text and it becomes citable.' })))
-            : shown.map((s) =>
-                el('button', {
-                  type: 'button', className: 'nb-src', 'data-on': pickedCite === s.n ? 'true' : 'false',
-                  onClick: () => setPickedCite(s.n),
-                  title: s.summary || s.origin || s.title,
-                  children: [
-                    el('span', { className: 'nb-cite', children: `S${s.n}` }),
-                    el('span', { style: { minWidth: 0, flex: 1 } },
-                      el('span', { className: 'nb-src-title', children: s.title }),
-                      el('span', { className: 'nb-src-meta' },
-                        el('span', { className: 'nb-chip', children: `${s.kind} · ${nfmt(s.chars)}` }),
-                        (s.labels || []).slice(0, 2).map((l) => el('span', { className: 'nb-chip', children: l }, l))
-                      ))
-                  ]
-                }, s.id))
+          : !notebook
+            ? null
+            : shown.length === 0
+              ? el('div', { className: 'nb-void', style: { height: 'auto', padding: '24px 8px' } },
+                  el('div', null,
+                    el('h3', { style: { fontSize: '15px' }, children: sources.length ? 'Nothing matches' : 'No sources yet' }),
+                    el('p', { style: { fontSize: '13.5px' }, children: sources.length
+                      ? 'Clear the filter or the search to see every source.'
+                      : 'Add a file, a URL or pasted text — or describe the topic and let Hermes find sources for you.' })))
+              : el('div', { style: { display: 'flex', flexDirection: 'column', gap: '2px' } },
+                  groups.map(([g, list]) => {
+                    const isClosed = !!closed[g]
+                    return el('div', { key: g },
+                      el('button', {
+                        type: 'button', className: 'nb-srcgroup',
+                        'data-closed': isClosed ? 'true' : 'false',
+                        'aria-expanded': !isClosed,
+                        onClick: () => setClosed((c) => ({ ...c, [g]: !c[g] })),
+                        children: [
+                          jsx(Glyph, { name: 'chevron', size: 13 }),
+                          el('span', { style: { textTransform: 'capitalize' }, children: g }),
+                          el('em', { children: `${list.filter((s) => s.active !== false).length}/${list.length}` })
+                        ]
+                      }),
+                      isClosed ? null : el('div', { className: 'nb-srcgroup-list' }, list.map(srcRow))
+                    )
+                  }))
       )
-    ),
-    el('div', { style: { borderTop: `1px solid ${T.lineSoft}`, padding: '10px' } },
-      jsx(Btn, { icon: 'plus', variant: 'ghost', onClick: onAddSource, disabled: !notebook, children: 'Add source' })
     )
   )
 }
 
-/* An index, not an avatar row: I, II, III … (atelier-zero's Roman-numeral walk). */
-const ROMAN = ['I', 'II', 'III', 'IV', 'V', 'VI', 'VII', 'VIII', 'IX', 'X', 'XI', 'XII']
-const roman = (n) => ROMAN[n - 1] || String(n)
+/* ------------------------------------------------------------- web finder */
+
+/** The "describe it" box: live web search inside the sources panel. Candidates
+ *  come from the real /discover route; each adds through /sources one at a
+ *  time so failures are reported per url, never hidden. */
+function WebFinder({ notebook, onAdded, onSay }) {
+  const [q, setQ] = useState('')
+  const [busy, setBusy] = useState(false)
+  const [cands, setCands] = useState(null)
+  const [err, setErr] = useState('')
+  const [added, setAdded] = useState({})
+  const [adding, setAdding] = useState('')
+
+  const search = async () => {
+    const query = q.trim()
+    if (!query || busy || !notebook) return
+    setBusy(true); setErr(''); setCands(null); setAdded({})
+    try {
+      const out = await api('/discover', {
+        method: 'POST',
+        body: { notebook: notebook.id, query, max_results: 6 },
+        timeoutMs: 90000
+      })
+      const list = out.candidates || []
+      setCands(list)
+      if (!list.length) setErr('Nothing found — try different words.')
+    } catch (e) {
+      setErr(e.message || String(e))
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  const addOne = async (c) => {
+    if (adding || added[c.url] || !notebook) return
+    setAdding(c.url); setErr('')
+    try {
+      await api('/sources', {
+        method: 'POST', body: { notebook: notebook.id, urls: [c.url] }, timeoutMs: 120000
+      })
+      setAdded((a) => ({ ...a, [c.url]: true }))
+      if (onAdded) onAdded()
+    } catch (e) {
+      setErr(e.message || String(e))
+      if (onSay) onSay(e.message || 'could not add source')
+    } finally {
+      setAdding('')
+    }
+  }
+
+  return el('div', { className: 'nb-finder' },
+    el('div', { className: 'nb-finder-row' },
+      jsx(Glyph, { name: 'search', size: 14 }),
+      el('input', {
+        value: q, placeholder: 'Search the web for new sources',
+        'aria-label': 'Search the web for new sources',
+        onChange: (e) => setQ(e.target.value),
+        onKeyDown: (e) => { if (e.key === 'Enter') search() },
+        disabled: !notebook || busy, spellCheck: false
+      }),
+      el('button', {
+        type: 'button', className: 'nb-finder-go',
+        'aria-label': 'Find sources', title: 'Find sources',
+        disabled: !q.trim() || busy || !notebook, onClick: search,
+        children: jsx(Glyph, { name: 'arrowRight', size: 15 })
+      })
+    ),
+    busy ? el('div', { className: 'nb-hint', style: { fontSize: '11.5px', padding: '7px 4px 0' },
+      children: 'searching the web…' }) : null,
+    err ? el('div', { className: 'nb-hint', style: { fontSize: '11.5px', padding: '7px 4px 0', color: T.danger },
+      children: err }) : null,
+    cands && cands.length
+      ? el('div', { style: { marginTop: '8px', display: 'flex', flexDirection: 'column', gap: '2px' } },
+          cands.map((c) => {
+            const host = hostOf(c.url)
+            const isAdded = !!added[c.url]
+            return el('button', {
+              key: c.url, type: 'button', className: 'nb-fcand',
+              onClick: () => addOne(c),
+              disabled: isAdded || !!adding,
+              'aria-label': `${isAdded ? 'Added' : 'Add'} source: ${c.title || c.url}`,
+              title: c.snippet || c.url,
+              children: [
+                el('span', { className: 'nb-fcand-main' },
+                  el('span', { className: 'nb-fcand-title', children: c.title || c.url }),
+                  el('span', { className: 'nb-fcand-sub',
+                    children: `${host}${c.snippet ? ` · ${String(c.snippet).slice(0, 90)}` : ''}` })),
+                el('span', { className: 'nb-fcand-add', 'data-added': isAdded ? 'true' : 'false', 'aria-hidden': 'true' },
+                  jsx(Glyph, { name: isAdded ? 'check' : adding === c.url ? 'refresh' : 'plus', size: 13 }))
+              ]
+            }, c.url)
+          }))
+      : null
+  )
+}
 
 // citation focus is shared state: a [S3] click in the answer highlights S3 here
 let pickedCite = 0
@@ -1174,19 +1741,19 @@ const setPickedCite = (n) => { pickedCite = n }
 /* -------------------------------------------------------------------- main */
 
 function Main({ notebook, kinds, tab, setTab, picked, setPicked, busy, generate, onAsk,
-                askOpen, onSay, reload, modelReady, error, loading, onAddSource }) {
-  const [peek, setPeek] = useState(null)
+                askOpen, onSay, reload, modelReady, error, loading,
+                peek, setPeek, onOpenSource, onAddSource, onNewNotebook, onFindSources }) {
   const sources = (notebook && notebook.sources) || []
 
   if (loading && !notebook) {
-    return el('main', { className: 'nb-col' },
+    return el('main', { className: 'nb-col nb-main-col' },
       el('div', { className: 'nb-void' },
         el('div', null,
           el('h3', { children: 'Opening the notebook' }),
           el('p', { children: 'Reading sources and artifacts from the plugin store…' }))))
   }
   if (error && !notebook) {
-    return el('main', { className: 'nb-col' },
+    return el('main', { className: 'nb-col nb-main-col' },
       el('div', { className: 'nb-void' },
         el('div', null,
           el('h3', { children: 'The notebook backend did not answer' }),
@@ -1199,13 +1766,15 @@ function Main({ notebook, kinds, tab, setTab, picked, setPicked, busy, generate,
     )
   }
   if (!notebook) {
-    return el('main', { className: 'nb-col' },
+    return el('main', { className: 'nb-col nb-main-col' },
       el('div', { className: 'nb-void' },
         el('div', null,
           el('h3', { children: 'Start a notebook' }),
           el('p', { children: 'A notebook is a set of sources. Everything the studio makes — answers, a podcast, a mind map, slides — is derived from those sources and cites them by number.' }),
-          el('div', { style: { marginTop: '16px' } },
-            jsx(Btn, { variant: 'primary', icon: 'plus', onClick: onAddSource, children: 'Add your first source' })
+          el('div', { style: { marginTop: '16px', display: 'flex', gap: '8px', justifyContent: 'center' } },
+            jsx(Btn, { variant: 'primary', icon: 'plus', onClick: onNewNotebook, children: 'New notebook' }),
+            jsx(Btn, { icon: 'sparkle', onClick: () => onAddSource && onAddSource(), disabled: true,
+              title: 'Create a notebook first', children: 'Add sources' })
           )
         )
       )
@@ -1213,27 +1782,22 @@ function Main({ notebook, kinds, tab, setTab, picked, setPicked, busy, generate,
   }
 
   const viewName = picked ? picked.label : ''
-  const art = picked
   const stats = notebook.stats || {}
+  const activeCount = stats.active !== undefined ? stats.active : sources.length
 
-  return el('main', { className: 'nb-col' },
+  return el('main', { className: 'nb-col nb-main-col' },
     el('div', { className: 'nb-main-head' },
-      el('div', { className: 'nb-filed' },
-        el('b', { children: 'Notebook' }),
-        el('span', { className: 'nb-mono', children: notebook.id }),
-        el('i', { 'aria-hidden': 'true' }),
-        el('span', { children: modelReady ? 'grounded · every line cites a source' : 'model offline' })),
-      el('h1', { className: 'nb-h1', children: notebook.title }),
-      notebook.description ? el('p', { className: 'nb-sub', children: notebook.description })
-        : el('p', { className: 'nb-sub', children: 'Answers are generated only from the sources on the left; each citation opens the source it came from.' }),
-      el('div', { className: 'nb-strip', role: 'group', 'aria-label': 'Notebook totals' },
-        el('div', { className: 'nb-cell' }, el('b', { children: stats.sources || 0 }), el('span', { children: 'sources' })),
-        el('div', { className: 'nb-cell' }, el('b', { children: nfmt(stats.chars) }), el('span', { children: 'chars indexed' })),
-        el('div', { className: 'nb-cell' }, el('b', { children: stats.labels || 0 }), el('span', { children: 'labels' })),
-        el('div', { className: 'nb-cell' }, el('b', { children: stats.artifacts || 0 }), el('span', { children: 'artifacts' })),
-        el('div', { className: 'nb-cell' },
-          el('b', { style: { color: modelReady ? T.ok : T.warn }, children: modelReady ? 'ready' : 'offline' }),
-          el('span', { children: 'model' }))
+      el('div', { className: 'nb-hero' },
+        el('span', { className: 'nb-hero-emoji', 'aria-hidden': 'true', children: emojiFor(notebook.id) }),
+        el('div', { className: 'nb-hero-main' },
+          el('h1', { className: 'nb-h1', children: notebook.title }),
+          el('p', { className: 'nb-sub', children:
+            `${sources.length} source${sources.length === 1 ? '' : 's'} · ${activeCount} active · ${stats.labels || 0} topics · updated ${ago(notebook.updated_at) || 'recently'}` })),
+        el('div', { className: 'nb-hero-side' },
+          el('span', {
+            className: 'nb-chip', 'data-tone': modelReady ? 'ok' : 'warn',
+            children: modelReady ? 'grounded' : 'model offline'
+          }))
       ),
       el('div', { className: 'nb-tabs', role: 'tablist', 'aria-label': 'Notebook views' },
         el('button', {
@@ -1262,12 +1826,13 @@ function Main({ notebook, kinds, tab, setTab, picked, setPicked, busy, generate,
             if (src) { setPeek(src); setTab('peek') }
           } })
         : jsx(Chat, {
-            notebook, askOpen, onSay, modelReady,
+            notebook, askOpen, onSay, modelReady, reload,
             onCite: (n) => {
               const src = sources.find((s) => s.n === n)
               if (src) { setPeek(src); setTab('peek') }
             },
-            onOpenSource: (s) => { setPeek(s); setTab('peek') }
+            onOpenSource,
+            onFindSources
           })
   )
 }
@@ -1280,17 +1845,74 @@ const SUGGEST = [
   'What is missing that I should go and find?'
 ]
 
-function Chat({ notebook, askOpen, onSay, modelReady, onCite, onOpenSource }) {
+/* overview + suggestions are fetched once per notebook-content version and
+   cached for the session — tab switches must not re-bill the model. */
+const ovCache = new Map()
+
+function Chat({ notebook, askOpen, onSay, modelReady, onCite, onOpenSource, onFindSources, reload }) {
   const [msgs, setMsgs] = useState(() => (notebook.thread || []).map((m, i) => ({ ...m, k: `t${i}` })))
   const [text, setText] = useState('')
   const [pending, setPending] = useState(null)
+  const [ov, setOv] = useState('')
+  const [sugg, setSugg] = useState(null)
   const threadRef = useRef(null)
   const boxRef = useRef(null)
+  const stats = notebook.stats || {}
+  const activeCount = stats.active !== undefined ? stats.active : (notebook.sources || []).length
+  const cacheKey = `${notebook.id}:${stats.sources || 0}:${activeCount}`
 
   useEffect(() => {
     const stored = (notebook.thread || []).map((m, i) => ({ ...m, k: `t${i}` }))
     setMsgs(stored)
   }, [notebook.id, notebook.thread && notebook.thread.length])
+
+  useEffect(() => {
+    const cached = ovCache.get(notebook.id)
+    if (cached && cached.key === cacheKey) { setOv(cached.ov || ''); setSugg(cached.sugg || null); return undefined }
+    let live = true
+    setOv(''); setSugg(null)
+    api('/overview', { method: 'POST', body: { notebook: notebook.id }, timeoutMs: 120000 })
+      .then((o) => {
+        if (!live) return
+        const text = o.overview || ''
+        setOv(text)
+        const c = ovCache.get(notebook.id) || { key: cacheKey }
+        ovCache.set(notebook.id, { key: cacheKey, ov: text, sugg: c.sugg || null })
+      })
+      .catch(() => {})
+    api('/suggest', { method: 'POST', body: { notebook: notebook.id }, timeoutMs: 120000 })
+      .then((o) => {
+        if (!live) return
+        const s = o.suggestions || null
+        setSugg(s)
+        const c = ovCache.get(notebook.id) || { key: cacheKey }
+        ovCache.set(notebook.id, { key: cacheKey, ov: c.ov || '', sugg: s })
+      })
+      .catch(() => {})
+    return () => { live = false }
+  }, [notebook.id, cacheKey])
+
+  const saveNote = async () => {
+    if (!ov.trim()) return
+    try {
+      await api('/note', {
+        method: 'POST',
+        body: { notebook: notebook.id, text: ov, title: `Overview — ${notebook.title}` },
+        timeoutMs: 60000
+      })
+      if (onSay) onSay('overview saved as a note — it is searchable now')
+      if (reload) await reload(true)
+    } catch (e) { if (onSay) onSay(`could not save note: ${e.message || e}`) }
+  }
+
+  const copyOv = () => {
+    try {
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(ov)
+        if (onSay) onSay('overview copied')
+      }
+    } catch { /* clipboard is a nicety */ }
+  }
 
   useEffect(() => { if (askOpen) { const n = boxRef.current; if (n) n.focus() } }, [askOpen])
 
@@ -1338,8 +1960,20 @@ function Chat({ notebook, askOpen, onSay, modelReady, onCite, onOpenSource }) {
 
   return el('div', { className: 'nb-chat' },
     el('div', { className: 'nb-thread', ref: threadRef, role: 'log', 'aria-live': 'polite', 'aria-label': 'Conversation' },
+      ov
+        ? el('div', { className: 'nb-overview' },
+            el('div', { className: 'nb-overview-head' },
+              jsx(Glyph, { name: 'sparkle', size: 14 }),
+              el('span', { className: 'nb-meta', children: 'Overview' }),
+              el('span', { style: { flex: 1 } }),
+              jsx(Btn, { size: 'sm', icon: 'copy', onClick: copyOv, children: 'Copy' }),
+              jsx(Btn, { size: 'sm', icon: 'pin', onClick: saveNote, children: 'Save to note' })
+            ),
+            el('div', { className: 'nb-overview-body' },
+              jsx(Markdown, { text: ov })))
+        : null,
       msgs.length === 0 && !pending
-        ? el('div', { style: { margin: 'auto', textAlign: 'center', maxWidth: '54ch' } },
+        ? el('div', { style: { margin: msgs.length || ov ? '0' : 'auto', textAlign: 'center', maxWidth: '54ch' } },
             el('div', { style: { display: 'grid', placeItems: 'center', gap: '10px' } },
               el('span', { className: 'nb-mark', style: { width: '38px', height: '38px' } },
                 jsx(Glyph, { name: 'sparkle', size: 19 })),
@@ -1348,6 +1982,29 @@ function Chat({ notebook, askOpen, onSay, modelReady, onCite, onOpenSource }) {
                 style: { color: T.text3, fontSize: '14.5px', lineHeight: 1.6 },
                 children: 'Every answer is built from this notebook and cites the source it came from. If the sources do not cover it, the answer says so.'
               })))
+        : null,
+      msgs.length === 0 && !pending && sugg && (sugg.questions || []).length
+        ? el('div', { style: { marginTop: ov ? '18px' : '0' } },
+            el('div', { className: 'nb-meta', style: { marginBottom: '10px' }, children: 'Suggested questions' }),
+            el('div', { className: 'nb-suggest-grid' },
+              sugg.questions.slice(0, 3).map((question) => el('button', {
+                key: question, type: 'button', className: 'nb-suggest',
+                onClick: () => send(question),
+                'aria-label': `Ask: ${question}`,
+                children: [
+                  el('span', { className: 'nb-suggest-q', children: question }),
+                  el('span', { className: 'nb-suggest-go', 'aria-hidden': 'true' },
+                    jsx(Glyph, { name: 'arrowRight', size: 14 }))
+                ]
+              }, question))),
+            (sugg.gaps || []).length
+              ? el('div', { className: 'nb-gaprow', style: { marginTop: '14px' } },
+                  el('span', { className: 'nb-meta', children: 'Source gaps' }),
+                  sugg.gaps.slice(0, 3).map((g) => jsx(Chip, {
+                    key: g, onClick: () => onFindSources && onFindSources(g),
+                    title: 'Find sources for this gap', children: g
+                  })))
+              : null)
         : null,
       msgs.map((m) => jsx(Msg, { msg: m, onCite, onOpenSource }, m.k)),
       pending
@@ -1372,19 +2029,27 @@ function Chat({ notebook, askOpen, onSay, modelReady, onCite, onOpenSource }) {
       el('div', { className: 'nb-askbox' },
         el('textarea', {
           ref: boxRef, value: text, onChange: (e) => setText(e.target.value), onKeyDown: onKey,
-          placeholder: 'Ask anything — the answer cites the source it came from',
+          placeholder: 'Ask a question or create something',
           'aria-label': 'Ask the notebook',
           rows: 2
         }),
         el('div', { className: 'nb-askfoot' },
-          el('span', { className: 'nb-hint' },
-            modelReady ? '⏎ send · ⇧⏎ newline' : 'model offline — enable the plugin and restart the gateway'),
-          el('span', { style: { flex: 1 } }),
-          jsx(Btn, {
-            variant: 'primary', icon: 'send', onClick: () => send(), disabled: !text.trim() || !!pending,
-            children: pending ? 'Asking…' : 'Send'
+          jsx(Chip, {
+            title: `${activeCount} of ${stats.sources || 0} sources are in context`,
+            children: `${activeCount} source${activeCount === 1 ? '' : 's'}`
+          }),
+          el('span', { className: 'nb-hint', style: { marginLeft: 'auto' },
+            children: modelReady ? '⏎ send · ⇧⏎ newline' : 'model offline — enable the plugin and restart the gateway' }),
+          el('button', {
+            type: 'button', className: 'nb-sendbtn',
+            onClick: () => send(), disabled: !text.trim() || !!pending,
+            'aria-label': pending ? 'Asking…' : 'Send question',
+            title: pending ? 'Asking…' : 'Send',
+            children: jsx(Glyph, { name: 'send', size: 15 })
           }))
-      )
+      ),
+      el('div', { className: 'nb-disclaimer',
+        children: 'Hermes Notebook can make mistakes — double-check it.' })
     )
   )
 }
@@ -1436,13 +2101,24 @@ function SourcePeek({ source, notebook, onClose }) {
       el('div', { style: { flex: 1, minWidth: 0 } },
         el('div', { className: 'nb-view-title', children: source.title }),
         el('div', { style: { fontSize: '12.5px', color: T.text4, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' },
-          children: `${source.kind} · ${nfmt(source.chars)} chars · ${source.origin || 'stored text'}` })),
+          children: `${kindLabel(source.kind)} · ${nfmt(source.chars)} chars · ${source.origin || 'stored text'}` })),
       source.origin && source.origin.startsWith('http')
         ? jsx(IconBtn, { icon: 'external', label: 'Open the original', onClick: () => host.openLink ? host.openLink(source.origin) : window.open(source.origin, '_blank') })
         : null,
       jsx(IconBtn, { icon: 'close', label: 'Close source', onClick: onClose })
     ),
     el('div', { className: 'nb-view-body' },
+      (source.labels || []).length || source.summary
+        ? el('div', { style: { marginBottom: '14px', display: 'grid', gap: '8px' } },
+            source.summary
+              ? el('div', { style: { fontSize: '14px', color: T.text2, lineHeight: 1.55 }, children: source.summary })
+              : null,
+            (source.labels || []).length
+              ? el('div', { style: { display: 'flex', gap: '6px', flexWrap: 'wrap', alignItems: 'center' } },
+                  jsx(Glyph, { name: 'tag', size: 13 }),
+                  source.labels.map((l) => jsx(Chip, { key: l, children: l })))
+              : null)
+        : null,
       err
         ? el('div', { style: { color: T.danger }, children: err })
         : text
@@ -1457,13 +2133,16 @@ function SourcePeek({ source, notebook, onClose }) {
 
 /* --------------------------------------------------------------- studio panel */
 
-function StudioPanel({ kinds, notebook, busy, generate, filter, setFilter, picked, onOpen }) {
+function StudioPanel({ kinds, notebook, busy, generate, filter, setFilter, onOpen, onCollapse, onAddNote }) {
   const ready = latestByKind(notebook ? notebook.artifacts : [])
-  const shown = kinds.filter((k) => filter === 'all' || k.group === filter)
+  const arts = (notebook && notebook.artifacts) || []
+  const kindGroup = {}
+  for (const k of kinds) kindGroup[k.id] = k.group || 'other'
+  const shownArts = arts.filter((a) => filter === 'all' || kindGroup[a.kind] === filter)
   const scrollRef = useRef(null)
   const [canScroll, setCanScroll] = useState(false)
 
-  // A grid taller than the panel is fine, but a row sliced at the panel edge
+  // A list taller than the panel is fine, but a row sliced at the panel edge
   // with no affordance reads as broken: measure, then show the fade.
   useEffect(() => {
     const node = scrollRef.current
@@ -1474,74 +2153,66 @@ function StudioPanel({ kinds, notebook, busy, generate, filter, setFilter, picke
     if (ro) ro.observe(node)
     node.addEventListener('scroll', check, { passive: true })
     return () => { if (ro) ro.disconnect(); node.removeEventListener('scroll', check) }
-  }, [shown.length])
+  }, [shownArts.length, filter])
 
-  // The index is grouped like a table of contents: a section rule, then its
-  // plates. The backend's kind order interleaves groups (media, docs, study,
-  // docs…), so bucket first and walk the groups in a fixed reading order —
-  // a run-length scan would emit a header every time the group changed.
-  const buckets = new Map()
-  for (const k of shown) {
-    const g = k.group || 'other'
-    if (!buckets.has(g)) buckets.set(g, [])
-    buckets.get(g).push(k)
-  }
-  const groupOrder = GROUP_ORDER.filter((g) => buckets.has(g))
-    .concat([...buckets.keys()].filter((g) => !GROUP_ORDER.includes(g)))
-  let plate = 0
-  const rows = []
-  for (const g of groupOrder) {
-    const list = buckets.get(g)
-    if (filter === 'all') {
-      const readyHere = list.filter((x) => ready[x.id]).length
-      rows.push(el('div', { className: 'nb-grouprow', key: `g-${g}` },
-        el('span', { children: GROUP_LABEL[g] || 'Outputs' }),
-        el('i', { 'aria-hidden': 'true' }),
-        el('em', { children: `${readyHere}/${list.length}` })))
-    }
-    for (const k of list) {
-      plate += 1
-      rows.push(jsx(StudioCard, {
-        key: k.id, kind: k, art: ready[k.id], started: busy[k.id],
-        plate: String(plate).padStart(2, '0'),
-        onOpen: () => { const a = ready[k.id]; if (a) onOpen(a); else generate(k.id) },
-        onRegenerate: () => generate(k.id)
-      }))
-    }
-  }
-
-  return el('aside', { className: 'nb-col nb-studio', 'aria-label': 'Studio outputs' },
+  return el('aside', { className: 'nb-col nb-studio', 'aria-label': 'Studio' },
     el('div', { className: 'nb-pane-head' },
-      el('span', { className: 'nb-meta', children: 'Studio index' }),
+      el('span', { className: 'nb-pane-title', children: 'Studio' }),
       el('span', {
         className: 'nb-chip',
         'data-tone': Object.keys(ready).length ? 'ok' : undefined,
-        children: `${Object.keys(ready).length}/${kinds.length} ready`
-      })
+        children: `${Object.keys(ready).length}/${kinds.length}`
+      }),
+      jsx(IconBtn, { icon: 'arrowRight', label: 'Hide studio panel', onClick: onCollapse })
     ),
-    el('div', { className: 'nb-pad', style: { paddingBottom: 0 } },
-      jsx(Seg, {
-        label: 'Filter studio outputs', value: filter, onChange: setFilter, fill: true,
-        options: FILTERS.map((f) => ({
-          id: f.id,
-          label: f.id === 'all' ? 'All' : f.label,
-          title: `${f.label} outputs`
-        }))
-      })
-    ),
+    el('div', { className: 'nb-pad', style: { paddingBottom: '8px' } },
+      el('div', { className: 'nb-gen-grid' },
+        kinds.map((k) => jsx(GenPill, {
+          key: k.id, kind: k, art: ready[k.id], started: busy[k.id],
+          nbId: notebook && notebook.id,
+          onOpen: () => { const a = ready[k.id]; if (a) onOpen(a); else generate(k.id) },
+          onRegenerate: () => generate(k.id)
+        })))),
+    el('div', { className: 'nb-pad', style: { paddingTop: '10px', paddingBottom: '4px', borderTop: `1px solid ${T.lineSoft}` } },
+      el('div', { style: { display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' } },
+        el('span', { className: 'nb-meta', children: 'Artifacts' }),
+        el('span', { style: { flex: 1 } }),
+        FILTERS.map((f) => jsx(Chip, {
+          key: f.id, tone: filter === f.id ? 'accent' : undefined,
+          pressed: filter === f.id,
+          onClick: () => setFilter(f.id),
+          title: `${f.label} artifacts`, children: f.label
+        })))),
     el('div', { className: 'nb-scroll', ref: scrollRef, 'data-scrollable': canScroll ? 'true' : 'false' },
-      el('div', { className: 'nb-grid' }, rows)
-    ),
-    canScroll ? jsx('div', { className: 'nb-fade', 'aria-hidden': 'true' }) : null
+      el('div', { className: 'nb-artlist', style: { padding: '4px 8px 18px' } },
+        shownArts.length === 0
+          ? el('div', { className: 'nb-hint', style: { padding: '14px 8px', lineHeight: 1.5 } },
+              notebook && notebook.sources && notebook.sources.length
+                ? 'Nothing generated yet — pick an output above.'
+                : 'Add sources first — every artifact is built from them.')
+          : shownArts.map((a, i) => el('button', {
+              key: a.key || a.primary || i, type: 'button', className: 'nb-art',
+              'data-kind': a.kind,
+              onClick: () => onOpen(a),
+              'aria-label': `Open ${a.label || a.kind}`,
+              title: a.primary || a.label,
+              children: [
+                el('span', { className: 'nb-art-ico', 'aria-hidden': 'true' },
+                  i < 12 ? jsx(ArtThumb, { run: a, nbId: notebook && notebook.id })
+                    : jsx(Glyph, { name: KIND_ICON[a.kind] || 'doc', size: 17 })),
+                el('span', { className: 'nb-art-main' },
+                  el('span', { className: 'nb-art-title', children: a.label || a.kind }),
+                  el('span', { className: 'nb-art-sub',
+                    children: `${nfmt(a.bytes)} · ${ago(a.modified)}` }))
+              ]
+            }, a.key || a.primary || i)))),
+    canScroll ? jsx('div', { className: 'nb-fade', 'aria-hidden': 'true' }) : null,
+    el('div', { className: 'nb-pad', style: { borderTop: `1px solid ${T.lineSoft}`, display: 'flex', justifyContent: 'center', paddingTop: '10px', paddingBottom: '12px' } },
+      jsx(Btn, { icon: 'note', onClick: onAddNote, disabled: !notebook, children: 'Add note' }))
   )
 }
 
-const GROUP_ORDER = ['docs', 'study', 'media', 'visual']
-const GROUP_LABEL = {
-  docs: 'Documents', study: 'Study', media: 'Media', visual: 'Visual', other: 'Other'
-}
-
-function StudioCard({ kind, art, started, plate, onOpen, onRegenerate }) {
+function GenPill({ kind, art, started, nbId, onOpen, onRegenerate }) {
   const [, force] = useState(0)
   useEffect(() => {
     if (!started) return undefined
@@ -1552,32 +2223,80 @@ function StudioCard({ kind, art, started, plate, onOpen, onRegenerate }) {
   const state = started ? `writing · ${secs}s` : art ? `ready · ${ago(art.modified)}` : 'Generate'
   return el('button', {
     type: 'button', className: 'nb-card',
+    'data-kind': kind.id,
     'data-ready': art ? 'true' : 'false', 'data-busy': started ? 'true' : 'false',
     onClick: started ? undefined : onOpen,
     'aria-label': `${kind.label} — ${state}. ${art ? 'Open it' : 'Generate it'}`,
     title: art ? `${kind.label} · ${art.primary}` : `Generate ${kind.label}`,
     children: [
-      el('span', { className: 'nb-plate', children: plate }),
+      el('span', { className: 'nb-card-ico', 'aria-hidden': 'true' },
+        jsx(Glyph, { name: KIND_ICON[kind.id] || 'doc', size: 15 })),
       el('span', { className: 'nb-card-main' },
-        el('span', { className: 'nb-card-name' },
-          jsx(Glyph, { name: KIND_ICON[kind.id] || 'doc', size: 13 }),
-          el('span', { children: kind.label })),
-        el('span', { className: 'nb-card-blurb', children: kind.blurb }),
+        el('span', { className: 'nb-card-name', children: kind.label }),
+        el('span', { className: 'nb-card-state' },
+          el('span', {
+            className: 'nb-dot',
+            style: { background: started ? 'var(--kc)' : art ? T.ok : undefined }
+          }),
+          started ? `${secs}s` : art ? ago(art.modified) : 'generate'),
         started
-          ? el('span', { className: 'nb-bar-track' },
+          ? el('span', { className: 'nb-bar-track', style: { marginTop: '2px' } },
               el('span', {
                 className: 'nb-bar-fill',
                 style: { width: `${Math.min(96, 12 + secs * 2.2)}%`, opacity: 0.9 }
               }))
-          : null),
-      el('span', { className: 'nb-card-state' },
-        el('span', {
-          className: 'nb-dot',
-          style: { background: started ? T.accent : art ? T.ok : undefined }
-        }),
-        started ? `${secs}s` : art ? ago(art.modified) : 'generate')
+          : null)
     ]
   })
+}
+
+/* ------------------------------------------------------------- art thumbs
+ * Cheap previews inside the 40px artifact tile: infographic fetches its png
+ * once, audio gets a seeded waveform (no bytes), everything else is the kind
+ * glyph on its colour wash. Nothing here fabricates content.
+ */
+function ArtThumb({ run, nbId }) {
+  const ext = String(run.ext || (run.primary || '').split('.').pop() || '').toLowerCase()
+  if (ext === 'png') return jsx(ThumbImg, { nbId, name: run.primary, alt: run.label || '' })
+  if (ext === 'mp3') return jsx(WaveThumb, { seed: `${run.kind}:${run.key || run.primary}` })
+  return jsx(Glyph, { name: KIND_ICON[run.kind] || 'doc', size: 17 })
+}
+
+function ThumbImg({ nbId, name, alt }) {
+  const [url, setUrl] = useState('')
+  useEffect(() => {
+    if (!nbId || !name) return undefined
+    let live = true
+    let made = ''
+    api(`/artifact?${qs({ notebook: nbId, name, b64: 1 })}`, { timeoutMs: 30000 })
+      .then((out) => {
+        if (!live) return
+        const raw = atob(out.b64 || '')
+        const bytes = new Uint8Array(raw.length)
+        for (let i = 0; i < raw.length; i += 1) bytes[i] = raw.charCodeAt(i)
+        made = URL.createObjectURL(new Blob([bytes], { type: out.mime || 'image/png' }))
+        setUrl(made)
+      })
+      .catch(() => {})
+    return () => { live = false; if (made) URL.revokeObjectURL(made) }
+  }, [nbId, name])
+  return url ? el('img', { className: 'nb-thumb-img', src: url, alt: alt || '' }) : null
+}
+
+function WaveThumb({ seed }) {
+  const bars = useMemo(() => {
+    const n = 22
+    let x = 0
+    for (let i = 0; i < seed.length; i += 1) x = (x * 31 + seed.charCodeAt(i)) % 100000
+    const out = []
+    for (let i = 0; i < n; i += 1) {
+      x = (x * 1103515245 + 12345) % 2147483648
+      out.push(0.25 + ((x % 100) / 100) * 0.75)
+    }
+    return out
+  }, [seed])
+  return el('span', { className: 'nb-thumb-wave' },
+    bars.map((h, i) => jsx('i', { key: `w${i}`, style: { height: `${Math.round(h * 100)}%` } })))
 }
 
 /* -------------------------------------------------------------- status bar */
@@ -1585,6 +2304,8 @@ function StudioCard({ kind, art, started, plate, onOpen, onRegenerate }) {
 function StatusBar({ mode, notebook, data, note, opsStats }) {
   const ready = data && data.model_ready
   const ops = mode === 'ops'
+  const home = mode === 'home'
+  const notebooks = (data && data.notebooks) || []
   return el('footer', { className: 'nb-status', role: 'contentinfo' },
     ops
       ? el('span', null,
@@ -1595,15 +2316,20 @@ function StatusBar({ mode, notebook, data, note, opsStats }) {
           opsStats
             ? `${opsStats.hosts} hosts · ${opsStats.patched} patched · ${opsStats.exposed} fix available · ${opsStats.down} unreachable`
             : 'measuring the fleet…')
-      : el('span', null,
-          jsx('span', { className: 'nb-sdot', style: { background: ready ? T.ok : T.warn } }),
-          ready ? 'grounded · model ready' : 'model offline — enable the plugin'),
-    !ops && notebook
+      : home
+        ? el('span', null,
+            jsx('span', { className: 'nb-sdot', style: { background: ready ? T.ok : T.warn } }),
+            `${notebooks.length} notebook${notebooks.length === 1 ? '' : 's'} · `,
+            ready ? 'model ready' : 'model offline')
+        : el('span', null,
+            jsx('span', { className: 'nb-sdot', style: { background: ready ? T.ok : T.warn } }),
+            ready ? 'grounded · model ready' : 'model offline — enable the plugin'),
+    !ops && !home && notebook
       ? el('span', null, jsx('b', { children: notebook.stats.sources }), ' sources · ',
           jsx('b', { children: nfmt(notebook.stats.chars) }), ' chars · ',
           jsx('b', { children: notebook.stats.labels }), ' labels')
       : null,
-    !ops && notebook && notebook.stats.unlabeled
+    !ops && !home && notebook && notebook.stats.unlabeled
       ? jsx('span', {
           style: { color: T.warn },
           children: `${notebook.stats.unlabeled} source${notebook.stats.unlabeled === 1 ? '' : 's'} unlabeled — press “label” on the rail`
@@ -1621,19 +2347,93 @@ function StatusBar({ mode, notebook, data, note, opsStats }) {
 /* ---------------------------------------------------------------- dialogs */
 
 const SOURCE_MODES = [
+  { id: 'find', label: 'Find for me', icon: 'sparkle' },
   { id: 'url', label: 'Web URL', icon: 'link' },
   { id: 'path', label: 'File path', icon: 'file' },
   { id: 'text', label: 'Paste text', icon: 'note' }
 ]
 
-function AddSourceDialog({ open, onClose, notebook, onDone }) {
-  const [mode, setMode] = useState('url')
+const hostOf = (url) => {
+  try { return new URL(url).hostname.replace(/^www\./, '') } catch { return '' }
+}
+
+function AddSourceDialog({ open, onClose, notebook, onDone, initialMode, seedQuery, noteOnly }) {
+  const [mode, setMode] = useState(noteOnly ? 'note' : (initialMode || 'find'))
   const [value, setValue] = useState('')
   const [title, setTitle] = useState('')
   const [busy, setBusy] = useState(false)
   const [err, setErr] = useState('')
+  // the find flow: describe -> candidates -> pick -> batch ingest -> summary
+  const [cands, setCands] = useState(null)
+  const [sel, setSel] = useState({})
+  const [adding, setAdding] = useState(false)
+  const [added, setAdded] = useState(null)
+  const wasOpen = useRef(false)
+
+  // fresh state on every open; the find box starts from the caller's seed (a
+  // source gap, a describe prompt) or the notebook's own topic
+  useEffect(() => {
+    if (open && !wasOpen.current) {
+      setMode(noteOnly ? 'note' : (initialMode || 'find')); setValue(''); setTitle(''); setErr('')
+      setCands(null); setSel({}); setAdded(null)
+      setBusy(false); setAdding(false)
+      const seed = (seedQuery || '').trim()
+      if (seed) { setValue(seed); return }
+      if (notebook && !noteOnly) {
+        const t = `${notebook.title || ''}${notebook.description ? ` — ${notebook.description}` : ''}`.trim()
+        if (t) setValue(t)
+      }
+    }
+    wasOpen.current = open
+  }, [open, notebook, initialMode, seedQuery, noteOnly])
+
+  const pickMode = (m) => {
+    setMode(m)
+    if (m !== 'find') { setCands(null); setAdded(null); setErr('') }
+  }
+
+  const find = async () => {
+    const q = value.trim()
+    if (!q || busy || !notebook) return
+    setBusy(true); setErr(''); setAdded(null)
+    try {
+      const out = await api('/discover', {
+        method: 'POST',
+        body: { notebook: notebook.id, query: q, max_results: 8 },
+        timeoutMs: 90000
+      })
+      const list = out.candidates || []
+      setCands(list)
+      const all = {}
+      for (const c of list) all[c.url] = true
+      setSel(all)
+      if (!list.length) setErr('The search came back empty — try a broader description.')
+    } catch (e) {
+      setCands(null)
+      setErr(e.message || String(e))
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  const addPicked = async () => {
+    const urls = (cands || []).filter((c) => sel[c.url]).map((c) => c.url)
+    if (!urls.length || adding || !notebook) return
+    setAdding(true); setErr('')
+    try {
+      const out = await api('/sources', {
+        method: 'POST', body: { notebook: notebook.id, urls }, timeoutMs: 300000
+      })
+      setAdded(out)
+    } catch (e) {
+      setErr(e.message || String(e))
+    } finally {
+      setAdding(false)
+    }
+  }
+
   const submit = async () => {
-    if (!value.trim() || busy) return
+    if (!value.trim() || busy || !notebook) return
     setBusy(true); setErr('')
     try {
       const body = { notebook: notebook.id, [mode]: value.trim() }
@@ -1647,46 +2447,195 @@ function AddSourceDialog({ open, onClose, notebook, onDone }) {
       setBusy(false)
     }
   }
-  return jsx(Dialog, {
-    open, onClose, title: 'Add a source',
-    children: el('div', null,
-      el('p', { style: { margin: '0 0 14px', color: T.text3, fontSize: '14.5px', lineHeight: 1.55 },
-        children: 'A source is anything the notebook can cite: a URL, a file on this machine, or text you paste. It is extracted, labelled and indexed on the way in.' }),
-      jsx(Seg, { label: 'Source kind', value: mode, onChange: setMode, options: SOURCE_MODES }),
-      el('div', { style: { marginTop: '14px', display: 'grid', gap: '10px' } },
-        mode === 'text'
-          ? el('textarea', {
-              className: 'nb-mono', value, onChange: (e) => setValue(e.target.value), autoFocus: true,
-              placeholder: 'Paste notes, a transcript, a spec…', 'aria-label': 'Pasted source text',
-              style: {
-                minHeight: '160px', borderRadius: '10px', border: `1px solid ${T.line}`,
-                background: T.cardDeep, color: T.text, padding: '12px', fontSize: '14px',
-                lineHeight: 1.55, resize: 'vertical', outline: 'none'
-              }
-            })
-          : el('div', { className: 'nb-field', style: { height: '40px' } },
-              jsx(Glyph, { name: mode === 'url' ? 'link' : 'file', size: 14 }),
-              el('input', {
-                value, onChange: (e) => setValue(e.target.value), autoFocus: true,
-                onKeyDown: (e) => { if (e.key === 'Enter') submit() },
-                placeholder: mode === 'url' ? 'https://… or a YouTube link' : '/home/you/doc.pdf',
-                'aria-label': mode === 'url' ? 'Source URL' : 'File path'
-              })),
-        el('div', { className: 'nb-field', style: { height: '40px' } },
-          jsx(Glyph, { name: 'note', size: 14 }),
-          el('input', {
-            value: title, onChange: (e) => setTitle(e.target.value),
-            placeholder: 'Title (optional — derived when left blank)',
-            'aria-label': 'Source title'
+
+  const pickedCount = (cands || []).filter((c) => sel[c.url]).length
+  const finish = () => onDone(added && added.added
+    ? `added ${added.added} source${added.added === 1 ? '' : 's'}${added.duplicates ? ` · ${added.duplicates} already here` : ''}`
+    : null)
+
+  const findBody = () => {
+    if (added) {
+      const failed = (added.results || []).filter((r) => !r.ok)
+      return el('div', { style: { display: 'grid', gap: '12px' } },
+        el('div', { style: { display: 'flex', alignItems: 'center', gap: '11px' } },
+          el('span', { className: 'nb-avatar', 'aria-hidden': 'true',
+            style: { background: 'color-mix(in srgb, var(--ui-success, #3fb950) 16%, transparent)', color: 'var(--ui-success, #3fb950)' },
+            children: jsx(Glyph, { name: 'check', size: 16 }) }),
+          el('div', null,
+            el('div', { style: { fontWeight: 650, fontSize: '15px' },
+              children: `${added.added} source${added.added === 1 ? '' : 's'} added` }),
+            el('div', { className: 'nb-hint', children: added.duplicates
+              ? `${added.duplicates} candidate${added.duplicates === 1 ? '' : 's'} turned out to be already here — nothing was duplicated.`
+              : 'They are extracted, labelled and indexed — ask or generate away.' }))),
+        failed.length
+          ? el('div', { style: { display: 'grid', gap: '6px' } },
+              el('div', { className: 'nb-meta', children: 'Did not make it' }),
+              failed.map((r) => el('div', {
+                key: r.url, className: 'nb-hint',
+                style: { color: 'var(--ui-danger, #f85149)' },
+                children: `${hostOf(r.url) || r.url} — ${r.error || 'failed'}`
+              })))
+          : null,
+        el('div', { style: { display: 'flex', justifyContent: 'flex-end', marginTop: '6px' } },
+          jsx(Btn, { variant: 'primary', icon: 'check', onClick: finish, children: 'Done' }))
+      )
+    }
+    if (cands) {
+      return el('div', { style: { display: 'grid', gap: '10px' } },
+        el('div', { style: { display: 'flex', alignItems: 'center', gap: '8px' } },
+          el('span', { className: 'nb-meta', children: `Candidates · ${pickedCount} of ${cands.length} picked` }),
+          el('span', { style: { flex: 1 } }),
+          jsx(Btn, { size: 'sm', icon: 'refresh', onClick: () => { setCands(null); setErr('') },
+            children: 'Refine search' })),
+        el('div', { className: 'nb-cand-list', role: 'group', 'aria-label': 'Candidate sources' },
+          cands.map((c) => {
+            const on = !!sel[c.url]
+            const host = hostOf(c.url)
+            return el('button', {
+              type: 'button', className: 'nb-cand', 'data-on': on ? 'true' : 'false',
+              role: 'checkbox', 'aria-checked': on,
+              'aria-label': `${on ? 'Remove' : 'Add'} source: ${c.title || c.url}`,
+              onClick: () => setSel((s) => ({ ...s, [c.url]: !s[c.url] })),
+              children: [
+                el('span', { className: 'nb-cand-check', 'aria-hidden': 'true' },
+                  on ? jsx(Glyph, { name: 'check', size: 12 }) : null),
+                el('span', { style: { minWidth: 0, flex: 1 } },
+                  el('span', { className: 'nb-cand-title', children: c.title || c.url }),
+                  el('span', { className: 'nb-cand-sub' },
+                    host ? el('span', { className: 'nb-chip', children: host }) : null,
+                    el('span', { children: (c.snippet || '').slice(0, 200) })))
+              ]
+            }, c.url)
+          })),
+        el('div', { style: { display: 'flex', gap: '8px', justifyContent: 'flex-end' } },
+          jsx(Btn, { onClick: onClose, children: 'Cancel' }),
+          jsx(Btn, {
+            variant: 'primary', icon: 'plus', onClick: addPicked,
+            disabled: adding || !pickedCount,
+            children: adding ? 'Adding…' : `Add ${pickedCount} source${pickedCount === 1 ? '' : 's'}`
           }))
-      ),
-      err ? el('div', { style: { marginTop: '12px', color: T.danger, fontSize: '14px' }, children: err }) : null,
-      el('div', { style: { display: 'flex', gap: '8px', justifyContent: 'flex-end', marginTop: '16px' } },
+      )
+    }
+    return el('div', { style: { display: 'grid', gap: '10px' } },
+      el('div', { className: 'nb-field', style: { height: '42px' } },
+        jsx(Glyph, { name: 'sparkle', size: 15 }),
+        el('input', {
+          value, onChange: (e) => setValue(e.target.value), autoFocus: true,
+          onKeyDown: (e) => { if (e.key === 'Enter') find() },
+          placeholder: 'Describe what this notebook should know…',
+          'aria-label': 'Describe the sources to find'
+        })),
+      el('div', { className: 'nb-hint', style: { padding: '0 2px' },
+        children: 'Hermes searches the web and offers candidate sources — nothing joins the notebook until you pick it. Already-covered urls are skipped automatically.' }),
+      err ? el('div', { style: { color: T.danger, fontSize: '14px' }, children: err }) : null,
+      el('div', { style: { display: 'flex', gap: '8px', justifyContent: 'flex-end', marginTop: '4px' } },
         jsx(Btn, { onClick: onClose, children: 'Cancel' }),
         jsx(Btn, {
-          variant: 'primary', icon: 'plus', onClick: submit, disabled: busy || !value.trim(),
-          children: busy ? 'Ingesting…' : 'Add source'
+          variant: 'primary', icon: 'search', onClick: find,
+          disabled: busy || !value.trim() || !notebook,
+          children: busy ? 'Searching…' : 'Find sources'
         }))
+    )
+  }
+
+  const submitNote = async () => {
+    if (!value.trim() || busy || !notebook) return
+    setBusy(true); setErr('')
+    try {
+      const body = { notebook: notebook.id, text: value.trim() }
+      if (title.trim()) body.title = title.trim()
+      await api('/note', { method: 'POST', body, timeoutMs: 60000 })
+      setValue(''); setTitle('')
+      await onDone('note saved — it is searchable now')
+    } catch (e) {
+      setErr(e.message || String(e))
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  const noteBody = () => el('div', null,
+    el('p', { style: { margin: '0 0 14px', color: T.text3, fontSize: '14.5px', lineHeight: 1.55 },
+      children: 'A note becomes a first-class source — searchable, citable, and included in every answer and artifact.' }),
+    el('div', { style: { display: 'grid', gap: '10px' } },
+      el('textarea', {
+        value, onChange: (e) => setValue(e.target.value), autoFocus: true,
+        placeholder: 'Jot down the key points, a quote, a decision…',
+        'aria-label': 'Note text',
+        style: {
+          minHeight: '150px', borderRadius: '12px', border: `1px solid ${T.line}`,
+          background: T.cardDeep, color: T.text, padding: '12px', fontSize: '14.5px',
+          lineHeight: 1.55, resize: 'vertical', outline: 'none'
+        }
+      }),
+      el('div', { className: 'nb-field', style: { height: '40px' } },
+        jsx(Glyph, { name: 'note', size: 14 }),
+        el('input', {
+          value: title, onChange: (e) => setTitle(e.target.value),
+          placeholder: 'Title (optional)',
+          'aria-label': 'Note title'
+        }))),
+    err ? el('div', { style: { marginTop: '12px', color: T.danger, fontSize: '14px' }, children: err }) : null,
+    el('div', { style: { display: 'flex', gap: '8px', justifyContent: 'flex-end', marginTop: '16px' } },
+      jsx(Btn, { onClick: onClose, children: 'Cancel' }),
+      jsx(Btn, {
+        variant: 'primary', icon: 'check', onClick: submitNote,
+        disabled: busy || !value.trim() || !notebook,
+        children: busy ? 'Saving…' : 'Save note'
+      }))
+  )
+
+  return jsx(Dialog, {
+    open, onClose, title: noteOnly ? 'Add a note' : 'Add a source',
+    width: mode === 'find' && !noteOnly ? 620 : 520,
+    children: noteOnly
+      ? noteBody()
+      : el('div', null,
+      el('p', { style: { margin: '0 0 14px', color: T.text3, fontSize: '14.5px', lineHeight: 1.55 },
+        children: mode === 'find'
+          ? 'Describe what this notebook should know — Hermes searches the web and offers candidates. Nothing joins until you pick it.'
+          : 'A source is anything the notebook can cite: a URL, a file on this machine, or text you paste. It is extracted, labelled and indexed on the way in.' }),
+      jsx(Seg, { label: 'Source kind', value: mode, onChange: pickMode, options: SOURCE_MODES }),
+      el('div', { style: { marginTop: '14px' } },
+        mode === 'find'
+          ? findBody()
+          : el('div', null,
+              el('div', { style: { display: 'grid', gap: '10px' } },
+                mode === 'text'
+                  ? el('textarea', {
+                      className: 'nb-mono', value, onChange: (e) => setValue(e.target.value), autoFocus: true,
+                      placeholder: 'Paste notes, a transcript, a spec…', 'aria-label': 'Pasted source text',
+                      style: {
+                        minHeight: '160px', borderRadius: '10px', border: `1px solid ${T.line}`,
+                        background: T.cardDeep, color: T.text, padding: '12px', fontSize: '14px',
+                        lineHeight: 1.55, resize: 'vertical', outline: 'none'
+                      }
+                    })
+                  : el('div', { className: 'nb-field', style: { height: '40px' } },
+                      jsx(Glyph, { name: mode === 'url' ? 'link' : 'file', size: 14 }),
+                      el('input', {
+                        value, onChange: (e) => setValue(e.target.value), autoFocus: true,
+                        onKeyDown: (e) => { if (e.key === 'Enter') submit() },
+                        placeholder: mode === 'url' ? 'https://… or a YouTube link' : '/home/you/doc.pdf',
+                        'aria-label': mode === 'url' ? 'Source URL' : 'File path'
+                      })),
+                el('div', { className: 'nb-field', style: { height: '40px' } },
+                  jsx(Glyph, { name: 'note', size: 14 }),
+                  el('input', {
+                    value: title, onChange: (e) => setTitle(e.target.value),
+                    placeholder: 'Title (optional — derived when left blank)',
+                    'aria-label': 'Source title'
+                  }))
+              ),
+              err ? el('div', { style: { marginTop: '12px', color: T.danger, fontSize: '14px' }, children: err }) : null,
+              el('div', { style: { display: 'flex', gap: '8px', justifyContent: 'flex-end', marginTop: '16px' } },
+                jsx(Btn, { onClick: onClose, children: 'Cancel' }),
+                jsx(Btn, {
+                  variant: 'primary', icon: 'plus', onClick: submit,
+                  disabled: busy || !value.trim() || !notebook,
+                  children: busy ? 'Ingesting…' : 'Add source'
+                })))
+      )
     )
   })
 }
@@ -1958,7 +2907,11 @@ function AudioView({ src, json, text }) {
               if (a && dur) { a.currentTime = (Number(e.target.value) / 100) * dur }
             }
           }),
-          el('span', { className: 'nb-chip', children: '1.0×' })),
+          el('span', {
+            className: 'nb-chip',
+            style: { background: 'rgba(255,255,255,.12)', color: '#cfd3e0', borderColor: 'transparent' },
+            children: '1.0×'
+          })),
         el('audio', {
           ref: audioRef, src: src || undefined, preload: 'metadata',
           onTimeUpdate: (e) => setT(e.currentTarget.currentTime),
@@ -2366,8 +3319,8 @@ function InfographicView({ src, data }) {
     el('div', { className: 'nb-stage' },
       el('div', {
         style: {
-          border: `1px solid ${T.line}`, borderRadius: '14px', overflow: 'auto',
-          background: '#08090d', maxHeight: '62vh'
+          border: `1px solid ${T.line}`, borderRadius: '18px', overflow: 'auto',
+          background: '#0d1017', maxHeight: '62vh'
         }
       },
       src
@@ -2459,13 +3412,9 @@ function OpsDeck({ onSay, onStats }) {
   const down = hosts.filter((h) => h.reachable === false).length
 
   return el('div', {
-    className: 'nb-body', role: 'main', 'aria-label': 'Lab operations',
-    style: {
-      gridTemplateColumns: '330px minmax(0,1fr)',
-      background: 'transparent'
-    }
+    className: 'nb-body', role: 'main', 'aria-label': 'Lab operations'
   },
-  el('aside', { className: 'nb-col', style: { borderRight: `1px solid ${T.line}`, background: `color-mix(in srgb, ${T.text} 2%, transparent)` } },
+  el('aside', { className: 'nb-col', style: { flex: '0 0 330px' } },
     el('div', { className: 'nb-pane-head' },
       el('span', { className: 'nb-meta', children: `Fleet · ${hosts.length}` }),
       jsx(IconBtn, { icon: 'refresh', label: 'Re-measure the fleet', onClick: load })),
@@ -2519,7 +3468,7 @@ function OpsDeck({ onSay, onStats }) {
         children: state.measured_at ? `measured ${clock(state.measured_at)} · ssh, audited` : 'ssh · audited transport' }))
   ),
 
-  el('section', { className: 'nb-col', 'aria-label': 'Selected host' },
+  el('section', { className: 'nb-col nb-main-col', 'aria-label': 'Selected host' },
     host
       ? jsx(HostView, { host, tab, setTab, onSay, key: host.id })
       : el('div', { className: 'nb-void' },
@@ -2850,7 +3799,7 @@ function SnapshotsTab({ host, onSay }) {
                 ? el('div', { style: { display: 'flex', flexDirection: 'column', gap: '4px' } },
                     state.list.map((s) => el('div', {
                       key: s,
-                      style: { display: 'flex', alignItems: 'center', gap: '10px', padding: '8px 10px', border: `1px solid ${T.lineSoft}`, borderRadius: '9px', background: T.card }
+                      style: { display: 'flex', alignItems: 'center', gap: '10px', padding: '10px 12px', border: `1px solid ${T.lineSoft}`, borderRadius: '12px', background: T.card }
                     },
                     jsx(Glyph, { name: 'camera', size: 14 }),
                     el('span', { style: { fontSize: '14.5px', fontWeight: 560 }, children: s }),
@@ -2883,7 +3832,7 @@ function AuditTab({ onSay }) {
         : el('div', { className: 'nb-pad', style: { display: 'flex', flexDirection: 'column', gap: '6px' } },
             state.entries.map((e, i) => el('div', {
               key: `e${i}`,
-              style: { border: `1px solid ${T.lineSoft}`, borderRadius: '9px', padding: '9px 11px', background: T.card }
+              style: { border: `1px solid ${T.lineSoft}`, borderRadius: '12px', padding: '11px 13px', background: T.card }
             },
             el('div', { style: { display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' } },
               el('span', { className: 'nb-chip', 'data-tone': e.ok ? 'ok' : 'danger', children: e.ok ? 'ok' : 'failed' }),
@@ -2939,7 +3888,7 @@ function StatusChip() {
     onClick: () => host.navigate(ROUTE),
     style: {
       display: 'inline-flex', alignItems: 'center', gap: '5px', minHeight: '24px',
-      padding: '0 6px', border: 0, background: 'transparent', cursor: 'pointer',
+      padding: '0 7px', border: 0, borderRadius: '7px', background: 'transparent', cursor: 'pointer',
       color: 'var(--ui-text-tertiary)', fontSize: '11.5px',
       fontFamily: 'var(--ui-font-mono, ui-monospace, monospace)'
     },
@@ -3024,7 +3973,7 @@ function NotebookDirective({ attrs }) {
   return el('div', {
     style: {
       display: 'flex', alignItems: 'center', gap: '10px', margin: '8px 0',
-      padding: '10px 12px', borderRadius: '10px',
+      padding: '12px 14px', borderRadius: '14px',
       border: `1px solid ${T.line}`, background: T.card
     }
   },

@@ -136,7 +136,7 @@ async function functional(port) {
   await page.locator('.nb-tab', { hasText: 'Chat' }).click()
   await settle(page, 200)
   await page.locator('.nb-askbox textarea').fill('What do the sources say about funding?')
-  await page.locator('.nb-askbox .nb-btn[data-variant=primary]').click()
+  await page.locator('.nb-askbox .nb-sendbtn').click()
   await settle(page, 1600)
   const answers = page.locator('.nb-msg[data-role=assistant]')
   const lastAnswer = (await answers.last().innerText()).trim()
@@ -167,11 +167,11 @@ async function functional(port) {
   }
 
   // search narrows the rail
-  await page.locator('.nb-rail input').fill('ITER')
+  await page.locator('.nb-rail .nb-field input').fill('ITER')
   await settle(page, 300)
   const searched = await page.locator('.nb-src').count()
   ok('source search narrows the list', searched > 0 && searched < before, `${searched} of ${before}`)
-  await page.locator('.nb-rail input').fill('')
+  await page.locator('.nb-rail .nb-field input').fill('')
 
   // ops deck
   await page.keyboard.press('Escape')

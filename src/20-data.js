@@ -70,7 +70,28 @@ const KIND_ICON = {
 
 const SRC_ICON = {
   url: 'globe', youtube: 'video', file: 'file', text: 'note', image: 'image',
-  pdf: 'file', note: 'note', audio: 'audio'
+  pdf: 'file', note: 'note', audio: 'audio',
+  docx: 'doc', pptx: 'slides', xlsx: 'chart', epub: 'book', ipynb: 'notebook',
+  code: 'terminal', markdown: 'doc', csv: 'chart'
+}
+
+/** What a person calls the source's type — NotebookLM shows "Website",
+ *  "YouTube", "PDF"…; ours are the extractor's kind ids. */
+const KIND_LABEL = {
+  url: 'web', youtube: 'youtube', note: 'note', text: 'pasted text',
+  pdf: 'pdf', docx: 'docx', pptx: 'slides', xlsx: 'sheet', epub: 'ebook',
+  ipynb: 'notebook', image: 'image', file: 'file', audio: 'audio'
+}
+const kindLabel = (k) => KIND_LABEL[k] || k || 'file'
+
+/** NotebookLM-style identity: a stable 3D-emoji per notebook id. */
+const NB_EMOJI = ['📓', '🧠', '🔬', '📚', '🛰️', '⚛️', '🌱', '🏛️', '🎧', '🧪',
+  '📈', '🗺️', '🧭', '💡', '🏥', '⚖️']
+const hashStr = (s) => { let h = 0; for (const c of String(s)) h = (h * 31 + c.charCodeAt(0)) >>> 0; return h }
+const emojiFor = (id) => NB_EMOJI[hashStr(id || 'nb') % NB_EMOJI.length]
+const dshort = (stamp) => {
+  const d = stamp ? new Date(stamp) : null
+  return d && !isNaN(d) ? d.toLocaleDateString(undefined, { day: 'numeric', month: 'short', year: 'numeric' }) : ''
 }
 
 const FILTERS = [

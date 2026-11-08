@@ -219,7 +219,11 @@ function AudioView({ src, json, text }) {
               if (a && dur) { a.currentTime = (Number(e.target.value) / 100) * dur }
             }
           }),
-          el('span', { className: 'nb-chip', children: '1.0×' })),
+          el('span', {
+            className: 'nb-chip',
+            style: { background: 'rgba(255,255,255,.12)', color: '#cfd3e0', borderColor: 'transparent' },
+            children: '1.0×'
+          })),
         el('audio', {
           ref: audioRef, src: src || undefined, preload: 'metadata',
           onTimeUpdate: (e) => setT(e.currentTarget.currentTime),
@@ -627,8 +631,8 @@ function InfographicView({ src, data }) {
     el('div', { className: 'nb-stage' },
       el('div', {
         style: {
-          border: `1px solid ${T.line}`, borderRadius: '14px', overflow: 'auto',
-          background: '#08090d', maxHeight: '62vh'
+          border: `1px solid ${T.line}`, borderRadius: '18px', overflow: 'auto',
+          background: '#0d1017', maxHeight: '62vh'
         }
       },
       src

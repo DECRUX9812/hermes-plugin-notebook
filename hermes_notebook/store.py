@@ -158,6 +158,32 @@ def resolve_notebook(arg: str) -> str:
     raise ValueError(f"ambiguous notebook {arg!r}: {', '.join(hits)}")
 
 
+def disabled_sources(notebook_id: str) -> set:
+    """Source ids the user unchecked in the studio — excluded from answers and
+    generation, exactly like NotebookLM's source selection."""
+    try:
+        meta = get_meta(notebook_id)
+    except KeyError:
+        return set()
+    return {str(x) for x in (meta.get("disabled_sources") or [])}
+
+
+def set_source_enabled(notebook_id: str, source_id: str, enabled: bool) -> dict:
+    """Flip one source's active flag; returns the notebook meta."""
+    nb_id = resolve_notebook(notebook_id)
+    d = _nb_dir(nb_id)
+    meta = get_meta(nb_id)
+    cur = {str(x) for x in (meta.get("disabled_sources") or [])}
+    if enabled:
+        cur.discard(source_id)
+    else:
+        cur.add(source_id)
+    meta["disabled_sources"] = sorted(cur)
+    meta["updated_at"] = _iso(_now())
+    _write_json(d / "notebook.json", meta)
+    return meta
+
+
 def update_meta(notebook_id: str, *, title: Optional[str] = None,
                 description: Optional[str] = None) -> dict:
     """Rename / re-describe a notebook. Only provided fields change."""

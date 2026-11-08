@@ -49,7 +49,10 @@ const P = {
   send: 'M4 12l16-8-6 16-3-6-7-2Z',
   keyboard: 'M3 6h18v12H3V6Zm3 3h.01M9 9h.01M12 9h.01M15 9h.01M18 9h.01M6.5 15h11',
   grid: 'M4 4h7v7H4V4Zm9 0h7v7h-7V4ZM4 13h7v7H4v-7Zm9 0h7v7h-7v-7Z',
-  stop: 'M7 7h10v10H7V7Z'
+  stop: 'M7 7h10v10H7V7Z',
+  tag: 'M4 4h6.6L20 13.4a2 2 0 0 1 0 2.8l-3.8 3.8a2 2 0 0 1-2.8 0L4 10.6V4Zm4.6 3.4a1.3 1.3 0 1 0 0 2.6 1.3 1.3 0 0 0 0-2.6Z',
+  more: 'M5 12h.01M12 12h.01M19 12h.01',
+  pin: 'M9 4h6l-1 6 3 3v2H7v-2l3-3-1-6Z'
 }
 
 function Glyph({ name, size = 16, stroke = 1.7 }) {
@@ -64,19 +67,19 @@ function Glyph({ name, size = 16, stroke = 1.7 }) {
 
 /* -------------------------------------------------------------- primitives */
 
-function Btn({ children, icon, variant, size, onClick, disabled, title, type = 'button', ...rest }) {
+function Btn({ children, icon, variant, size, onClick, disabled, title, type = 'button', className, style, ...rest }) {
   return el('button', {
-    type, className: 'nb-btn', 'data-variant': variant, 'data-size': size,
-    onClick, disabled, title, 'aria-label': rest['aria-label'],
+    type, className: cx('nb-btn', className), 'data-variant': variant, 'data-size': size,
+    onClick, disabled, title, style, 'aria-label': rest['aria-label'],
     children: [icon ? jsx(Glyph, { name: icon, size: size === 'sm' ? 14 : 15 }) : null,
                children ? el('span', { children }) : null].filter(Boolean)
   })
 }
 
-function IconBtn({ icon, label, onClick, active, size = 16 }) {
+function IconBtn({ icon, label, onClick, active, size = 16, disabled, className }) {
   return el('button', {
-    type: 'button', className: 'nb-icon', onClick, title: label, 'aria-label': label,
-    'data-active': active ? 'true' : 'false',
+    type: 'button', className: cx('nb-icon', className), onClick, title: label, 'aria-label': label,
+    disabled, 'data-active': active ? 'true' : 'false',
     children: jsx(Glyph, { name: icon, size })
   })
 }
@@ -188,8 +191,8 @@ function Dialog({ open, onClose, title, children, width = 520 }) {
     style: {
       width: `min(${width}px, 100%)`, maxHeight: '84vh', overflow: 'auto',
       background: 'var(--ui-bg-elevated, var(--ui-bg-primary, #14151b))',
-      border: `1px solid ${T.line}`, borderRadius: 0, padding: '20px',
-      boxShadow: '8px 8px 0 color-mix(in srgb, currentColor 10%, transparent), 0 24px 60px rgba(0,0,0,.45)'
+      border: `1px solid ${T.line}`, borderRadius: '18px', padding: '22px',
+      boxShadow: '0 24px 70px rgba(0,0,0,.45), 0 4px 14px rgba(0,0,0,.25)'
     }
   },
   el('div', { style: { display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '14px' } },

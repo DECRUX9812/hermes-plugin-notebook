@@ -49,13 +49,9 @@ function OpsDeck({ onSay, onStats }) {
   const down = hosts.filter((h) => h.reachable === false).length
 
   return el('div', {
-    className: 'nb-body', role: 'main', 'aria-label': 'Lab operations',
-    style: {
-      gridTemplateColumns: '330px minmax(0,1fr)',
-      background: 'transparent'
-    }
+    className: 'nb-body', role: 'main', 'aria-label': 'Lab operations'
   },
-  el('aside', { className: 'nb-col', style: { borderRight: `1px solid ${T.line}`, background: `color-mix(in srgb, ${T.text} 2%, transparent)` } },
+  el('aside', { className: 'nb-col', style: { flex: '0 0 330px' } },
     el('div', { className: 'nb-pane-head' },
       el('span', { className: 'nb-meta', children: `Fleet · ${hosts.length}` }),
       jsx(IconBtn, { icon: 'refresh', label: 'Re-measure the fleet', onClick: load })),
@@ -109,7 +105,7 @@ function OpsDeck({ onSay, onStats }) {
         children: state.measured_at ? `measured ${clock(state.measured_at)} · ssh, audited` : 'ssh · audited transport' }))
   ),
 
-  el('section', { className: 'nb-col', 'aria-label': 'Selected host' },
+  el('section', { className: 'nb-col nb-main-col', 'aria-label': 'Selected host' },
     host
       ? jsx(HostView, { host, tab, setTab, onSay, key: host.id })
       : el('div', { className: 'nb-void' },
@@ -440,7 +436,7 @@ function SnapshotsTab({ host, onSay }) {
                 ? el('div', { style: { display: 'flex', flexDirection: 'column', gap: '4px' } },
                     state.list.map((s) => el('div', {
                       key: s,
-                      style: { display: 'flex', alignItems: 'center', gap: '10px', padding: '8px 10px', border: `1px solid ${T.lineSoft}`, borderRadius: '9px', background: T.card }
+                      style: { display: 'flex', alignItems: 'center', gap: '10px', padding: '10px 12px', border: `1px solid ${T.lineSoft}`, borderRadius: '12px', background: T.card }
                     },
                     jsx(Glyph, { name: 'camera', size: 14 }),
                     el('span', { style: { fontSize: '14.5px', fontWeight: 560 }, children: s }),
@@ -473,7 +469,7 @@ function AuditTab({ onSay }) {
         : el('div', { className: 'nb-pad', style: { display: 'flex', flexDirection: 'column', gap: '6px' } },
             state.entries.map((e, i) => el('div', {
               key: `e${i}`,
-              style: { border: `1px solid ${T.lineSoft}`, borderRadius: '9px', padding: '9px 11px', background: T.card }
+              style: { border: `1px solid ${T.lineSoft}`, borderRadius: '12px', padding: '11px 13px', background: T.card }
             },
             el('div', { style: { display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' } },
               el('span', { className: 'nb-chip', 'data-tone': e.ok ? 'ok' : 'danger', children: e.ok ? 'ok' : 'failed' }),
