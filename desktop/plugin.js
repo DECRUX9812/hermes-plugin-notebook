@@ -3876,29 +3876,55 @@ function AudioView({ src, json, text }) {
   const [rate, setRate] = useState(1)
   const speakers = new Set(((json && json.segments) || []).map((s) => s && s.speaker).filter(Boolean))
   const hostLabel = speakers.size > 1 ? 'TWO HOSTS' : speakers.size === 1 ? 'ONE NARRATOR' : 'AUDIO'
+  // segments carry start/end once audio.py stamps them — old artifacts don't
+  const segsTimed = useMemo(() => {
+    const segs = (json && json.segments) || []
+    return segs.length && segs.every((s) => s && typeof s.start === 'number') ? segs : null
+  }, [json])
 
   const lines = useMemo(() => {
     const out = []
+    let segN = -1
     for (const raw of String(text || '').split('\n')) {
       let l = raw.trim()
       if (!l) continue
-      if (/^#\s/.test(l)) { out.push({ who: '', text: l.replace(/^#\s*/, ''), head: true }); continue }
+      if (/^#\s/.test(l)) { out.push({ who: '', text: l.replace(/^#\s*/, ''), head: true, seg: -1 }); continue }
       if (/^[_*]{1,2}[^_*].*[_*]{1,2}$/.test(l) && l.length < 160) {
-        out.push({ who: '', text: l.replace(/^[_*]+|[_*]+$/g, ''), meta: true })
+        out.push({ who: '', text: l.replace(/^[_*]+|[_*]+$/g, ''), meta: true, seg: -1 })
         continue
       }
       // "**Host A:** text" and "Host A: text" both appear in the transcript file
       l = l.replace(/\*\*/g, '')
       const m = /^\[?\s*(host\s*[ab]|speaker\s*\d+)\s*\]?\s*[:—-]\s*(.*)$/i.exec(l)
       if (m) {
+        segN += 1
         const who = /b|2/i.test(m[1]) ? 'B' : 'A'
-        out.push({ who, text: m[2] })
+        out.push({ who, text: m[2], seg: segN })
         continue
       }
-      if (out.length) out.push({ who: out[out.length - 1].who, text: l })
+      if (out.length) out.push({ who: out[out.length - 1].who, text: l, seg: out[out.length - 1].seg })
     }
     return out
   }, [text])
+
+  const activeSeg = useMemo(() => {
+    if (!segsTimed) return -1
+    let idx = -1
+    for (let i = 0; i < segsTimed.length; i += 1) {
+      if (segsTimed[i].start <= t) idx = i
+      else break
+    }
+    return idx
+  }, [segsTimed, t])
+
+  const seekSeg = (i) => {
+    const a = audioRef.current
+    const seg = segsTimed && segsTimed[i]
+    if (!a || !seg) return
+    a.currentTime = seg.start
+    setT(seg.start)
+    if (a.paused) { a.play(); setPlaying(true) }
+  }
 
   const bars = useMemo(() => {
     const n = 64
@@ -3983,12 +4009,18 @@ function AudioView({ src, json, text }) {
       lines.length
         ? el('div', { className: 'nb-doc', style: { maxWidth: '100%' } },
             el('div', { className: 'nb-meta', style: { marginBottom: '10px' }, children: 'Transcript' }),
-            lines.map((l, i) => jsx(TranscriptLine, { line: l, first: i === 0 }, `l${i}`)))
+            lines.map((l, i) => jsx(TranscriptLine, {
+              line: l, first: i === 0,
+              active: segsTimed && l.seg === activeSeg,
+              seekable: !!segsTimed && l.seg >= 0,
+              segStart: segsTimed && l.seg >= 0 ? segsTimed[l.seg].start : 0,
+              onSeek: () => seekSeg(l.seg)
+            }, `l${i}`)))
         : null)
   )
 }
 
-function TranscriptLine({ line, first }) {
+function TranscriptLine({ line, first, active, seekable, segStart, onSeek }) {
   if (line.head) {
     return jsx('div', {
       style: { fontSize: '17px', fontWeight: 650, letterSpacing: '-.01em', margin: '0 0 6px' },
@@ -4002,9 +4034,17 @@ function TranscriptLine({ line, first }) {
     })
   }
   return el('div', {
+    role: seekable ? 'button' : undefined,
+    tabIndex: seekable ? 0 : undefined,
+    'aria-label': seekable ? `Play from ${fmtTime(segStart)}` : undefined,
+    onClick: seekable ? onSeek : undefined,
+    onKeyDown: seekable ? (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onSeek() } } : undefined,
     style: {
       display: 'grid', gridTemplateColumns: '26px 1fr', gap: '10px',
-      padding: '7px 0', borderTop: first ? 'none' : `1px solid ${T.lineSoft}`
+      padding: '7px 10px', margin: '0 -10px', borderRadius: '8px',
+      borderTop: first ? 'none' : `1px solid ${T.lineSoft}`,
+      cursor: seekable ? 'pointer' : undefined,
+      background: active ? `color-mix(in srgb, ${T.accent} 12%, transparent)` : undefined
     }
   },
   jsx('span', {

@@ -287,6 +287,14 @@ async def make_audio_overview(notebook: str, *, length: Optional[str] = None,
         raise RuntimeError(f"TTS failed for {len(errors)}/{len(segs)} segments: {errors[0]}")
 
     parts = [work / f"seg_{i:03d}.mp3" for i in range(len(segs))]
+    # per-segment timings while the parts still exist — the player uses them
+    # for a synced transcript (active line + click-to-seek)
+    timed = []
+    cursor = 0.0
+    for i, seg in enumerate(segs):
+        d = _probe_duration(parts[i]) or 0.0
+        timed.append({**seg, "start": round(cursor, 2), "end": round(cursor + d, 2)})
+        cursor += d
     mp3_path = nb_dir / "artifacts" / f"{stamp}-audio_overview.mp3"
     _concat_mp3(parts, mp3_path)
 
@@ -294,7 +302,7 @@ async def make_audio_overview(notebook: str, *, length: Optional[str] = None,
     transcript_lines = [f"# {ep_title}", "",
                         f"_Audio overview of “{meta.get('title')}” — {len(segs)} segments, "
                         f"voices: {voice_a} / {voice_b}_", ""]
-    for seg in segs:
+    for seg in timed:
         transcript_lines += [f"**{speaker_name[seg['speaker']]}:** {seg['text']}", ""]
     txt_path = nb_dir / "artifacts" / f"{stamp}-audio_overview.txt"
     txt_path.write_text("\n".join(transcript_lines), encoding="utf-8")
@@ -302,7 +310,7 @@ async def make_audio_overview(notebook: str, *, length: Optional[str] = None,
     script_path = nb_dir / "artifacts" / f"{stamp}-audio_overview.json"
     script_path.write_text(json.dumps(
         {"title": ep_title, "notebook": meta.get("title"), "length": length,
-         "voices": {"host_a": voice_a, "host_b": voice_b}, "segments": segs},
+         "voices": {"host_a": voice_a, "host_b": voice_b}, "segments": timed},
         indent=2, ensure_ascii=False), encoding="utf-8")
 
     # tidy: drop segment files, keep the episode artifacts
