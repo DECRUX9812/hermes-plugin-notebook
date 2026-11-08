@@ -187,6 +187,38 @@ _ASK_SYSTEM = (
 )
 
 
+_ASK_LENGTH_TOKENS = {"short": 1500, "medium": 4000, "long": 7000}
+
+_ASK_STYLES = {
+    "learning_guide": (
+        "- Teach, don't just answer: define each key term the first time it "
+        "appears, use a concrete example from the sources, and end with 2-3 "
+        "'Check your understanding' questions.\n"
+    ),
+}
+
+
+def _ask_system(nb_id: str) -> tuple[str, int]:
+    """Per-notebook chat options (notebook.json → options.chat_*): style adds a
+    stance to the system prompt; length sets the answer's token budget."""
+    try:
+        opts = (store.get_meta(nb_id).get("options") or {})
+    except Exception:
+        opts = {}
+    style = str(opts.get("chat_style") or "default")
+    length = str(opts.get("chat_length") or "medium")
+    system = _ASK_SYSTEM
+    if style == "custom":
+        custom = str(opts.get("chat_custom") or "").strip()
+        if custom:
+            system += ("\n- Additional instructions from the notebook owner "
+                       f"(follow these unless they conflict with grounding): {custom}")
+    else:
+        system += _ASK_STYLES.get(style, "")
+    tokens = _ASK_LENGTH_TOKENS.get(length, _ASK_LENGTH_TOKENS["medium"])
+    return system, tokens
+
+
 def notebook_ask(args: dict, **kw) -> str:
     nb_id = store.resolve_notebook(args.get("notebook") or "")
     question = (args.get("question") or "").strip()
@@ -209,7 +241,8 @@ def notebook_ask(args: dict, **kw) -> str:
     )
     # optional chat thread — prior exchanges ride along as context
     thread_name = (args.get("thread") or "").strip() or None
-    messages = [{"role": "system", "content": _ASK_SYSTEM}]
+    system_prompt, max_tokens = _ask_system(nb_id)
+    messages = [{"role": "system", "content": system_prompt}]
     if thread_name:
         history = store.get_thread(nb_id, thread_name)[-12:]
         for m in history:
@@ -220,7 +253,7 @@ def notebook_ask(args: dict, **kw) -> str:
         messages += [{"role": "user", "content": user}]
     answer = llmio.complete(
         messages,
-        purpose="hermes-notebook.ask", max_tokens=4000, temperature=0.3,
+        purpose="hermes-notebook.ask", max_tokens=max_tokens, temperature=0.3,
     )
     if thread_name:
         store.append_thread(nb_id, thread_name, "user", question)
@@ -240,6 +273,7 @@ def notebook_generate(args: dict, **kw) -> str:
         focus=args.get("focus") or "",
         count_hint=args.get("count_hint") or "",
         fmt=args.get("format") or "md",
+        style=args.get("style") or "",
     )
     return runtime.ok(**out)
 
@@ -259,6 +293,8 @@ async def notebook_audio(args: dict, **kw) -> str:
         args.get("notebook") or "",
         length=args.get("length") or None,
         focus=args.get("focus") or "",
+        fmt=args.get("format") or "deep_dive",
+        language=args.get("language") or "",
     )
     return runtime.ok(**{k: v for k, v in out.items() if k != "ok"})
 

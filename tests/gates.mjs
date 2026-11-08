@@ -113,7 +113,7 @@ async function functional(port) {
   await settle(page, 900)
 
   const cards = await page.locator('.nb-card').count()
-  ok('studio renders 12 outputs', cards === 12, `${cards} cards`)
+  ok('studio renders all outputs', cards === 13, `${cards} cards`)
 
   // a ready card opens the viewer for its own kind
   const ready = page.locator('.nb-card[data-ready="true"]').first()
@@ -136,7 +136,7 @@ async function functional(port) {
   await page.locator('.nb-tab', { hasText: 'Chat' }).click()
   await settle(page, 200)
   await page.locator('.nb-askbox textarea').fill('What do the sources say about funding?')
-  await page.locator('.nb-askbox .nb-btn[data-variant=primary]').click()
+  await page.locator('.nb-askbox .nb-sendbtn').click()
   await settle(page, 1600)
   const answers = page.locator('.nb-msg[data-role=assistant]')
   const lastAnswer = (await answers.last().innerText()).trim()
@@ -144,14 +144,25 @@ async function functional(port) {
   const cites = await page.locator('.nb-inline-cite').count()
   ok('answer carries inline citations', cites > 0, `${cites} markers`)
 
-  const citeBtn = page.locator('.nb-inline-cite').first()
+  // A citation only opens a source when its [S#] maps to a source row. The mock
+  // answer can name more sources than the notebook has, so pick the first marker
+  // that is actually bound to one — otherwise the check is a coin flip.
   if (cites) {
-    await citeBtn.click()
-    await settle(page, 500)
-    const peek = await page.locator('.nb-view-title').count()
-    ok('a citation opens the source it points at', peek > 0, 'source peek open')
-    await page.locator('.nb-tab', { hasText: 'Chat' }).click()
-    await settle(page, 200)
+    const srcCount = await page.locator('.nb-src').count()
+    const numbers = await page.locator('.nb-inline-cite').evaluateAll(
+      (nodes) => nodes.map((n) => Number(n.getAttribute('data-n')) || 0))
+    const idx = numbers.findIndex((n) => n >= 1 && n <= srcCount)
+    if (idx >= 0) {
+      await page.locator('.nb-inline-cite').nth(idx).click()
+      await settle(page, 500)
+      const peek = await page.locator('.nb-view-title').count()
+      ok('a citation opens the source it points at', peek > 0, `S${numbers[idx]} of ${srcCount}`)
+      await page.locator('.nb-tab', { hasText: 'Chat' }).click()
+      await settle(page, 200)
+    } else {
+      ok('a citation opens the source it points at', false,
+         `no marker maps to one of ${srcCount} sources (${numbers.join(',')})`)
+    }
   }
 
   // label filter narrows the rail
@@ -167,11 +178,11 @@ async function functional(port) {
   }
 
   // search narrows the rail
-  await page.locator('.nb-rail input').fill('ITER')
+  await page.locator('.nb-rail .nb-field input').fill('ITER')
   await settle(page, 300)
   const searched = await page.locator('.nb-src').count()
   ok('source search narrows the list', searched > 0 && searched < before, `${searched} of ${before}`)
-  await page.locator('.nb-rail input').fill('')
+  await page.locator('.nb-rail .nb-field input').fill('')
 
   // ops deck
   await page.keyboard.press('Escape')

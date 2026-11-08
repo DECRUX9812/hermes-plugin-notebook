@@ -40,7 +40,7 @@ function StatusChip() {
     onClick: () => host.navigate(ROUTE),
     style: {
       display: 'inline-flex', alignItems: 'center', gap: '5px', minHeight: '24px',
-      padding: '0 6px', border: 0, background: 'transparent', cursor: 'pointer',
+      padding: '0 7px', border: 0, borderRadius: '7px', background: 'transparent', cursor: 'pointer',
       color: 'var(--ui-text-tertiary)', fontSize: '11.5px',
       fontFamily: 'var(--ui-font-mono, ui-monospace, monospace)'
     },
@@ -125,7 +125,7 @@ function NotebookDirective({ attrs }) {
   return el('div', {
     style: {
       display: 'flex', alignItems: 'center', gap: '10px', margin: '8px 0',
-      padding: '10px 12px', borderRadius: '10px',
+      padding: '12px 14px', borderRadius: '14px',
       border: `1px solid ${T.line}`, background: T.card
     }
   },

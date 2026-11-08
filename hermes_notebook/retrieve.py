@@ -114,6 +114,13 @@ def retrieve(notebook_id: str, query: str, *, max_chars: int = 28000,
         wanted = set(only_ids)
         pairs = [(r, t) for r, t in pairs if r.get("id") in wanted]
         sources = [s for s in sources if s.get("id") in wanted]
+    else:
+        # unchecked sources stay out of the context window unless the caller
+        # names them explicitly
+        off = store.disabled_sources(notebook_id)
+        if off:
+            pairs = [(r, t) for r, t in pairs if r.get("id") not in off]
+            sources = [s for s in sources if s.get("id") not in off]
     empty = {"context": "", "sources_used": [], "chunks_used": 0, "total_chunks": 0}
     if not pairs:
         return empty
@@ -204,6 +211,9 @@ def notebook_digest(notebook_id: str, *, max_chars: int = 42000) -> str:
     """Broad-coverage digest for artifact/podcast prompts: head + tail slices of
     every source so generation sees the whole notebook, not just one query."""
     pairs = store.all_source_texts(notebook_id)
+    off = store.disabled_sources(notebook_id)
+    if off:
+        pairs = [(r, t) for r, t in pairs if r.get("id") not in off]
     if not pairs:
         return ""
     per_source = max(1500, max_chars // max(1, len(pairs)))

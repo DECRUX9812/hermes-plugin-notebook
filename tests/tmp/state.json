@@ -530,7 +530,8 @@
     "timeline",
     "video_overview"
    ]
-  }
+  },
+  "options": {}
  },
  "kinds": [
   {
@@ -539,15 +540,61 @@
    "group": "media",
    "ext": "mp4",
    "blurb": "Narrated slideshow, cinematic or explainer",
-   "secs": 60
+   "secs": 60,
+   "options": [
+    {
+     "id": "style",
+     "label": "Style",
+     "choices": [
+      "cinematic",
+      "explainer"
+     ]
+    },
+    {
+     "id": "length",
+     "label": "Length",
+     "choices": [
+      "short",
+      "medium",
+      "long"
+     ]
+    }
+   ]
   },
   {
    "id": "audio_overview",
    "label": "Audio Overview",
    "group": "media",
    "ext": "mp3",
-   "blurb": "Two hosts talking through the sources",
-   "secs": 90
+   "blurb": "Hosts talking through the sources",
+   "secs": 90,
+   "options": [
+    {
+     "id": "format",
+     "label": "Format",
+     "choices": [
+      "deep_dive",
+      "brief",
+      "critique",
+      "debate"
+     ]
+    },
+    {
+     "id": "length",
+     "label": "Length",
+     "choices": [
+      "short",
+      "medium",
+      "long"
+     ]
+    },
+    {
+     "id": "language",
+     "label": "Language",
+     "kind": "text",
+     "placeholder": "Auto (English)"
+    }
+   ]
   },
   {
    "id": "summary",
@@ -627,7 +674,26 @@
    "group": "visual",
    "ext": "png",
    "blurb": "One dense poster of the thesis",
-   "secs": 20
+   "secs": 20,
+   "options": [
+    {
+     "id": "style",
+     "label": "Style",
+     "choices": [
+      "sections",
+      "poster",
+      "editorial"
+     ]
+    }
+   ]
+  },
+  {
+   "id": "data_table",
+   "label": "Data Table",
+   "group": "docs",
+   "ext": "csv",
+   "blurb": "Structured rows, exports to Sheets",
+   "secs": 14
   }
  ]
 }

@@ -386,9 +386,60 @@ def _assemble_video(clips: list[Path], out_path: Path) -> None:
         raise RuntimeError(f"ffmpeg video assembly failed: {(r.stderr or '')[-400:]}")
 
 
+async def _video_script(nb_id: str, meta: dict, digest: str, length: str,
+                        focus: str, style: str) -> tuple[list[dict], str]:
+    """The LLM script stage only: parsed JSON → normalized beats + title."""
+    parsed = llmio.structured(
+        instructions="Write the full cinematic video-overview script as JSON.",
+        input=[{"type": "text", "text": _video_script_prompt(meta, digest, length, focus, style)}],
+        json_schema=_VIDEO_SCHEMA,
+        schema_name="notebook.video_script",
+        system_prompt=(
+            "You are a documentary scriptwriter. Output only the JSON script — "
+            "no markdown fences, no commentary."
+        ),
+        purpose="hermes-notebook.video_overview",
+        max_tokens=12000,
+        temperature=0.7,
+        timeout=600.0,
+    )
+    if parsed is None:
+        raise RuntimeError("model did not return a valid video script JSON")
+    segs, ep_title = _write_video_script(parsed)
+    if style == "explainer":
+        # brighter, faster-cutting palette rhythm for the explainer style
+        for i, seg in enumerate(segs):
+            seg["palette"] = _EXPLAINER_PALETTES[i % len(_EXPLAINER_PALETTES)]
+    return segs, ep_title
+
+
+async def video_notes(notebook: str, *, length: Optional[str] = None,
+                      focus: str = "", style: Optional[str] = None) -> dict:
+    """Producer notes only — the title + per-beat headline/narration/palette the
+    render WOULD use, before any frame or audio exists. The page shows these for
+    review; generate() accepts them back and skips the rewrite."""
+    nb_id = store.resolve_notebook(notebook)
+    meta = store.get_meta(nb_id)
+    if not store.list_sources(nb_id):
+        raise ValueError(f"notebook {nb_id!r} has no sources — add some first")
+    length = (length or str(runtime.config("video_length", default="medium")) or "medium").lower()
+    if length not in VIDEO_LENGTHS:
+        length = "medium"
+    style = (style or str(runtime.config("video_style", default="cinematic")) or "cinematic").lower()
+    if style not in STYLES:
+        style = "cinematic"
+    digest = retrieve.notebook_digest(nb_id, max_chars=int(runtime.config("podcast_context_chars", default=42000)))
+    segs, ep_title = await _video_script(nb_id, meta, digest, length, focus, style)
+    return {"title": ep_title, "length": length, "style": style,
+            "beats": [{"headline": s.get("headline", ""), "text": s.get("text", ""),
+                       "palette": s.get("palette", "")} for s in segs]}
+
+
 async def make_video_overview(notebook: str, *, length: Optional[str] = None,
-                              focus: str = "", style: Optional[str] = None) -> dict:
-    """Generate the cinematic video overview. Async — runs under an event loop."""
+                              focus: str = "", style: Optional[str] = None,
+                              notes: Optional[dict] = None) -> dict:
+    """Generate the cinematic video overview. Async — runs under an event loop.
+    notes: approved producer notes from video_notes() — skips the script rewrite."""
     if Image is None:
         raise RuntimeError(
             "video overviews need Pillow (a declared plugin dependency). "
@@ -416,27 +467,21 @@ async def make_video_overview(notebook: str, *, length: Optional[str] = None,
         ) from exc
 
     digest = retrieve.notebook_digest(nb_id, max_chars=int(runtime.config("podcast_context_chars", default=42000)))
-    parsed = llmio.structured(
-        instructions="Write the full cinematic video-overview script as JSON.",
-        input=[{"type": "text", "text": _video_script_prompt(meta, digest, length, focus, style)}],
-        json_schema=_VIDEO_SCHEMA,
-        schema_name="notebook.video_script",
-        system_prompt=(
-            "You are a documentary scriptwriter. Output only the JSON script — "
-            "no markdown fences, no commentary."
-        ),
-        purpose="hermes-notebook.video_overview",
-        max_tokens=12000,
-        temperature=0.7,
-        timeout=600.0,
-    )
-    if parsed is None:
-        raise RuntimeError("model did not return a valid video script JSON")
-    segs, ep_title = _write_video_script(parsed)
-    if style == "explainer":
-        # brighter, faster-cutting palette rhythm for the explainer style
-        for i, seg in enumerate(segs):
-            seg["palette"] = _EXPLAINER_PALETTES[i % len(_EXPLAINER_PALETTES)]
+    if notes and isinstance(notes.get("beats"), list) and notes["beats"]:
+        # reviewed producer notes come back verbatim — no second model pass
+        segs = [{"text": str(b.get("text") or "").strip(),
+                 "headline": str(b.get("headline") or "").strip()[:80],
+                 "palette": str(b.get("palette") or "")}
+                for b in notes["beats"] if isinstance(b, dict)]
+        segs = [s for s in segs if len(s["text"]) >= 3]
+        if not segs:
+            raise ValueError("the reviewed notes had no usable narration beats")
+        ep_title = str(notes.get("title") or meta.get("title") or "Video Overview").strip()
+        if style == "explainer":
+            for i, seg in enumerate(segs):
+                seg["palette"] = _EXPLAINER_PALETTES[i % len(_EXPLAINER_PALETTES)]
+    else:
+        segs, ep_title = await _video_script(nb_id, meta, digest, length, focus, style)
 
     voice = str(runtime.config("video_voice", default="en-US-AndrewNeural"))
     rate = str(runtime.config("video_voice_rate", default="-4%"))

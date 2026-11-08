@@ -24,6 +24,38 @@ LENGTHS = {
     "long": {"words": (2400, 3400), "label": "about 18 minutes"},
 }
 
+#: Audio Overview formats. `brief` is genuinely one narrator — _write_script
+#: rewrites any co-host the model invents back to host_a.
+FORMATS = ("deep_dive", "brief", "critique", "debate")
+
+_FORMAT_FRAMING = {
+    "deep_dive": (
+        "Two hosts (host_a and host_b) have a natural, warm, curious "
+        "conversation that explains the material the way NotebookLM does: they "
+        "introduce the topic, take turns explaining concepts in plain language, "
+        "react to interesting details, connect ideas across sources, and land "
+        "on practical takeaways."
+    ),
+    "brief": (
+        "A SINGLE narrator (host_a only — never host_b) delivers a tight, "
+        "well-paced brief: the headline findings first, then the supporting "
+        "details, then what to watch next. Every segment's speaker field must "
+        "be host_a."
+    ),
+    "critique": (
+        "Two hosts (host_a and host_b) do a critical review: they stress-test "
+        "the sources' claims, flag weak evidence and contradictions, weigh "
+        "what's solid versus speculative, and argue about the strongest and "
+        "weakest points. Skeptical but fair."
+    ),
+    "debate": (
+        "Two hosts (host_a and host_b) DEBATE the material: host_a argues the "
+        "proposition, host_b argues the counter — each must ground their side "
+        "in the sources, concede points when the sources force it, and land "
+        "on a synthesis neither side would have reached alone."
+    ),
+}
+
 _SCRIPT_SCHEMA = {
     "type": "object",
     "properties": {
@@ -56,8 +88,10 @@ def _norm_speaker(raw: Any, index: int, last: str) -> str:
     return "host_b" if last == "host_a" else "host_a"
 
 
-def _write_script(notebook_id: str, script: dict) -> tuple[list[dict], str]:
-    """Normalize model output into [{speaker,text}] with sane alternation."""
+def _write_script(notebook_id: str, script: dict, *, single_narrator: bool = False) -> tuple[list[dict], str]:
+    """Normalize model output into [{speaker,text}] with sane alternation.
+    single_narrator (the 'brief' format) forces every turn to host_a — the
+    model is told to comply, this is the enforcement."""
     segs = []
     last = ""
     for i, raw in enumerate(script.get("segments") or []):
@@ -66,9 +100,9 @@ def _write_script(notebook_id: str, script: dict) -> tuple[list[dict], str]:
         text = re.sub(r"\s+", " ", str(raw.get("text") or "")).strip()
         if len(text) < 3:
             continue
-        sp = _norm_speaker(raw.get("speaker"), i, last)
+        sp = "host_a" if single_narrator else _norm_speaker(raw.get("speaker"), i, last)
         # avoid 3+ consecutive turns by the same host: nudge label
-        if len(segs) >= 2 and segs[-1]["speaker"] == sp == segs[-2]["speaker"]:
+        if not single_narrator and len(segs) >= 2 and segs[-1]["speaker"] == sp == segs[-2]["speaker"]:
             sp = "host_b" if sp == "host_a" else "host_a"
         segs.append({"speaker": sp, "text": text})
         last = sp
@@ -77,24 +111,31 @@ def _write_script(notebook_id: str, script: dict) -> tuple[list[dict], str]:
     return segs, str(script.get("title") or "Audio Overview").strip()
 
 
-def _script_prompt(meta: dict, digest: str, length: str, focus: str) -> str:
+def _script_prompt(meta: dict, digest: str, length: str, focus: str,
+                   fmt: str = "deep_dive", language: str = "") -> str:
     lo, hi = LENGTHS[length]["words"]
     focus_line = f"\nThe user specifically wants the episode to focus on: {focus.strip()}\n" if focus.strip() else ""
+    framing = _FORMAT_FRAMING.get(fmt, _FORMAT_FRAMING["deep_dive"])
+    lang_line = (f"\nLANGUAGE: write the entire script in {language.strip()} — "
+                 "natural, idiomatic, not translated-sounding.\n") if language.strip() else ""
+    single = fmt == "brief"
+    speaker_rule = ("Every segment's speaker field must be host_a.\n" if single else
+                    "Alternate speakers naturally; occasional short reactions "
+                    "('Wow, that's wild', 'Wait — so...') are good.\n")
     return (
-        "Write a two-host podcast script ABOUT the notebook sources below — "
-        "this is the 'Audio Overview' feature. Two hosts (host_a and host_b) "
-        "have a natural, warm, curious conversation that explains the material "
-        "the way NotebookLM does: they introduce the topic, take turns "
-        "explaining concepts in plain language, react to interesting details, "
-        "connect ideas across sources, and land on practical takeaways.\n\n"
+        "Write an audio overview script ABOUT the notebook sources below. "
+        f"{framing}\n\n"
         f"TARGET LENGTH: {LENGTHS[length]['label']} — roughly {lo}-{hi} words "
         f"total across ~25-60 segments. Each segment is ONE speaker turn of "
-        "20-70 words. Alternate speakers naturally; occasional short reactions "
-        "('Wow, that's wild', 'Wait — so...') are good. NEVER break the fourth "
-        "wall about being an AI; just talk about the material.\n"
+        f"20-70 words. {speaker_rule}"
+        "NEVER break the fourth wall about being an AI; just talk about the "
+        f"material.{lang_line}\n"
         f"{focus_line}\n"
-        "Open with host_a welcoming listeners and naming the topic in one "
-        "sentence, host_b riffing on it. Close with a one-paragraph recap of "
+        "Open by naming the topic in one sentence"
+        + (" and get straight to the headline finding."
+           if single else
+           " — host_a welcomes listeners, host_b riffs on it.")
+        + " Close with a one-paragraph recap of "
         "the 3 biggest takeaways.\n\n"
         f"NOTEBOOK: {meta.get('title')}\nDESCRIPTION: {meta.get('description', '')}\n\n"
         f"SOURCES:\n{digest}"
@@ -172,8 +213,10 @@ def _probe_duration(path: Path) -> Optional[float]:
 
 
 async def make_audio_overview(notebook: str, *, length: Optional[str] = None,
-                              focus: str = "") -> dict:
-    """Generate the two-host audio overview. Async — runs under an event loop."""
+                              focus: str = "", fmt: str = "deep_dive",
+                              language: str = "") -> dict:
+    """Generate the audio overview. Async — runs under an event loop.
+    fmt: deep_dive | brief (one narrator, enforced) | critique | debate."""
     nb_id = store.resolve_notebook(notebook)
     meta = store.get_meta(nb_id)
     sources = store.list_sources(nb_id)
@@ -183,6 +226,9 @@ async def make_audio_overview(notebook: str, *, length: Optional[str] = None,
     length = (length or str(runtime.config("podcast_length", default="medium")) or "medium").lower()
     if length not in LENGTHS:
         length = "medium"
+    fmt = (fmt or "deep_dive").lower()
+    if fmt not in FORMATS:
+        fmt = "deep_dive"
 
     try:
         import edge_tts  # noqa: F401
@@ -194,8 +240,8 @@ async def make_audio_overview(notebook: str, *, length: Optional[str] = None,
 
     digest = retrieve.notebook_digest(nb_id, max_chars=int(runtime.config("podcast_context_chars", default=42000)))
     parsed = llmio.structured(
-        instructions="Write the full two-host podcast script as JSON.",
-        input=[{"type": "text", "text": _script_prompt(meta, digest, length, focus)}],
+        instructions="Write the full podcast script as JSON.",
+        input=[{"type": "text", "text": _script_prompt(meta, digest, length, focus, fmt, language)}],
         json_schema=_SCRIPT_SCHEMA,
         schema_name="notebook.podcast_script",
         system_prompt=(
@@ -209,7 +255,7 @@ async def make_audio_overview(notebook: str, *, length: Optional[str] = None,
     )
     if parsed is None:
         raise RuntimeError("model did not return a valid podcast script JSON")
-    segs, ep_title = _write_script(nb_id, parsed)
+    segs, ep_title = _write_script(nb_id, parsed, single_narrator=(fmt == "brief"))
 
     voice_a = str(runtime.config("audio_voice_host_a", default="en-US-AndrewNeural"))
     voice_b = str(runtime.config("audio_voice_host_b", default="en-US-EmmaNeural"))
