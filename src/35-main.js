@@ -333,7 +333,7 @@ function Chat({ notebook, askOpen, onSay, modelReady, onCite, onOpenSource, onFi
             }
           }),
           el('span', { className: 'nb-hint', style: { marginLeft: 'auto' },
-            children: modelReady ? '⏎ send · ⇧⏎ newline' : 'model offline — enable the plugin and restart the gateway' }),
+            children: modelReady ? '↵ Send · ⇧↵ New line' : 'model offline — enable the plugin and restart the gateway' }),
           el('button', {
             type: 'button', className: 'nb-sendbtn',
             onClick: () => send(), disabled: !text.trim() || !!pending,
@@ -612,10 +612,12 @@ function StudioPanel({ kinds, notebook, busy, generate, filter, setFilter, onOpe
           onOpen: () => { const a = ready[k.id]; if (a) onOpen(a); else generate(k.id) },
           onGenerate: (opts) => generate(k.id, opts)
         })))),
-    el('div', { className: 'nb-pad', style: { paddingTop: '10px', paddingBottom: '4px', borderTop: `1px solid ${T.lineSoft}` } },
-      el('div', { style: { display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' } },
-        el('span', { className: 'nb-meta', children: 'Artifacts' }),
+    el('div', { className: 'nb-pad', style: { paddingTop: '12px', paddingBottom: 0, borderTop: `1px solid ${T.lineSoft}` } },
+      el('div', { style: { display: 'flex', alignItems: 'baseline', gap: '8px' } },
+        el('span', { className: 'nb-meta', children: `Files · ${shownArts.length}` }),
         el('span', { style: { flex: 1 } }),
+        el('span', { className: 'nb-meta', style: { color: T.text4 }, children: 'every run on disk' })),
+      el('div', { className: 'nb-chiprow' },
         FILTERS.map((f) => jsx(Chip, {
           key: f.id, tone: filter === f.id ? 'accent' : undefined,
           pressed: filter === f.id,
@@ -623,7 +625,7 @@ function StudioPanel({ kinds, notebook, busy, generate, filter, setFilter, onOpe
           title: `${f.label} artifacts`, children: f.label
         })))),
     el('div', { className: 'nb-scroll', ref: scrollRef, 'data-scrollable': canScroll ? 'true' : 'false' },
-      el('div', { className: 'nb-artlist', style: { padding: '4px 8px 18px' } },
+      el('div', { className: 'nb-artlist', style: { padding: '4px 8px 56px' } },
         shownArts.length === 0
           ? el('div', { className: 'nb-hint', style: { padding: '14px 8px', lineHeight: 1.5 } },
               notebook && notebook.sources && notebook.sources.length

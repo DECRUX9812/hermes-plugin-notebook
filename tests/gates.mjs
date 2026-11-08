@@ -144,14 +144,25 @@ async function functional(port) {
   const cites = await page.locator('.nb-inline-cite').count()
   ok('answer carries inline citations', cites > 0, `${cites} markers`)
 
-  const citeBtn = page.locator('.nb-inline-cite').first()
+  // A citation only opens a source when its [S#] maps to a source row. The mock
+  // answer can name more sources than the notebook has, so pick the first marker
+  // that is actually bound to one — otherwise the check is a coin flip.
   if (cites) {
-    await citeBtn.click()
-    await settle(page, 500)
-    const peek = await page.locator('.nb-view-title').count()
-    ok('a citation opens the source it points at', peek > 0, 'source peek open')
-    await page.locator('.nb-tab', { hasText: 'Chat' }).click()
-    await settle(page, 200)
+    const srcCount = await page.locator('.nb-src').count()
+    const numbers = await page.locator('.nb-inline-cite').evaluateAll(
+      (nodes) => nodes.map((n) => Number(n.getAttribute('data-n')) || 0))
+    const idx = numbers.findIndex((n) => n >= 1 && n <= srcCount)
+    if (idx >= 0) {
+      await page.locator('.nb-inline-cite').nth(idx).click()
+      await settle(page, 500)
+      const peek = await page.locator('.nb-view-title').count()
+      ok('a citation opens the source it points at', peek > 0, `S${numbers[idx]} of ${srcCount}`)
+      await page.locator('.nb-tab', { hasText: 'Chat' }).click()
+      await settle(page, 200)
+    } else {
+      ok('a citation opens the source it points at', false,
+         `no marker maps to one of ${srcCount} sources (${numbers.join(',')})`)
+    }
   }
 
   // label filter narrows the rail

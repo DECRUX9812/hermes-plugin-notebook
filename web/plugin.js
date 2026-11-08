@@ -318,8 +318,14 @@ const CSS = `
 .nb-tab[disabled]{opacity:.45;cursor:default}
 
 /* ------------------------------------------------------------------- chat */
-.nb-chat{flex:1;min-height:0;display:flex;flex-direction:column}
+.nb-chat{flex:1;min-height:0;display:flex;flex-direction:column;position:relative}
+/* A scrolled thread clips its first visible message at the panel edge, which reads
+   as a broken one-line fragment. Fade that edge with an overlay — pointer-events
+   off, so citations under it stay clickable (a mask would eat the clicks). */
+.nb-chat::before{content:'';position:absolute;top:0;left:0;right:0;height:18px;z-index:2;
+  pointer-events:none;background:linear-gradient(to bottom,var(--nb-card),transparent)}
 .nb-thread{flex:1;min-height:0;overflow:auto;padding:28px 28px 12px;display:flex;flex-direction:column;gap:24px}
+.nb-chiprow{display:flex;align-items:center;gap:6px;flex-wrap:wrap;padding:8px 0 6px}
 .nb-msg{max-width:72ch}
 .nb-msg[data-role=assistant]{display:grid;grid-template-columns:30px minmax(0,1fr);gap:14px;align-self:flex-start}
 .nb-msg[data-role=user]{align-self:flex-end;max-width:62ch}
@@ -395,6 +401,8 @@ const CSS = `
 .nb-grid{display:flex;flex-direction:column;gap:10px;padding:12px 14px 26px}
 /* the generator bento: compact 2-col pills, each tinted by its kind colour */
 .nb-gen-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+/* an odd count leaves a lonely pill on the last row — let it take the full width */
+.nb-gen-grid > *:last-child:nth-child(odd){grid-column:1 / -1}
 
 /* each output pill carries its own colour (--kc) */
 .nb-card{--kc:${T.accent};
@@ -2171,7 +2179,7 @@ function Chat({ notebook, askOpen, onSay, modelReady, onCite, onOpenSource, onFi
             }
           }),
           el('span', { className: 'nb-hint', style: { marginLeft: 'auto' },
-            children: modelReady ? '⏎ send · ⇧⏎ newline' : 'model offline — enable the plugin and restart the gateway' }),
+            children: modelReady ? '↵ Send · ⇧↵ New line' : 'model offline — enable the plugin and restart the gateway' }),
           el('button', {
             type: 'button', className: 'nb-sendbtn',
             onClick: () => send(), disabled: !text.trim() || !!pending,
@@ -2450,10 +2458,12 @@ function StudioPanel({ kinds, notebook, busy, generate, filter, setFilter, onOpe
           onOpen: () => { const a = ready[k.id]; if (a) onOpen(a); else generate(k.id) },
           onGenerate: (opts) => generate(k.id, opts)
         })))),
-    el('div', { className: 'nb-pad', style: { paddingTop: '10px', paddingBottom: '4px', borderTop: `1px solid ${T.lineSoft}` } },
-      el('div', { style: { display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' } },
-        el('span', { className: 'nb-meta', children: 'Artifacts' }),
+    el('div', { className: 'nb-pad', style: { paddingTop: '12px', paddingBottom: 0, borderTop: `1px solid ${T.lineSoft}` } },
+      el('div', { style: { display: 'flex', alignItems: 'baseline', gap: '8px' } },
+        el('span', { className: 'nb-meta', children: `Files · ${shownArts.length}` }),
         el('span', { style: { flex: 1 } }),
+        el('span', { className: 'nb-meta', style: { color: T.text4 }, children: 'every run on disk' })),
+      el('div', { className: 'nb-chiprow' },
         FILTERS.map((f) => jsx(Chip, {
           key: f.id, tone: filter === f.id ? 'accent' : undefined,
           pressed: filter === f.id,
@@ -2461,7 +2471,7 @@ function StudioPanel({ kinds, notebook, busy, generate, filter, setFilter, onOpe
           title: `${f.label} artifacts`, children: f.label
         })))),
     el('div', { className: 'nb-scroll', ref: scrollRef, 'data-scrollable': canScroll ? 'true' : 'false' },
-      el('div', { className: 'nb-artlist', style: { padding: '4px 8px 18px' } },
+      el('div', { className: 'nb-artlist', style: { padding: '4px 8px 56px' } },
         shownArts.length === 0
           ? el('div', { className: 'nb-hint', style: { padding: '14px 8px', lineHeight: 1.5 } },
               notebook && notebook.sources && notebook.sources.length
