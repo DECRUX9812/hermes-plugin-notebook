@@ -372,10 +372,16 @@ def to_png(graphic: Any, path: Any, *, scale: float = 1.0, **kwargs: Any) -> Pat
             f"<style>html,body{{margin:0}}svg{{display:block}}</style>"
             + render(graphic, inline=True, responsive=False, **kwargs),
             encoding="utf-8")
+        # --window-size is in CSS pixels and --force-device-scale-factor multiplies
+        # it into device pixels. Multiplying BOTH (the old code did) asked Chrome
+        # for a 2400x1800 CSS viewport at 2x and photographed the 4800x3600
+        # result: the 1200x900 document painted only its top-left quarter, at
+        # exactly half size in each axis. scale=1 hid the bug because 1 is
+        # identity; every scale>1 request was broken.
         cmd = [browser, "--headless=new", "--no-sandbox", "--disable-gpu",
                "--hide-scrollbars", "--virtual-time-budget=4000",
                f"--force-device-scale-factor={scale}",
-               f"--window-size={int(w * scale)},{int(h * scale)}",
+               f"--window-size={int(w)},{int(h)}",
                f"--screenshot={out}", html.as_uri()]
         proc = subprocess.run(cmd, capture_output=True, timeout=120)
         if proc.returncode != 0 or not out.exists():

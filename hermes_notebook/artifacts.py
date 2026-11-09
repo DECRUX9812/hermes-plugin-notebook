@@ -310,11 +310,20 @@ def generate(notebook: str, kind: str, *, focus: str = "", count_hint: str = "",
     style_spec = None
     if kind == "infographic":
         from .gfx import themes as _themes
+        # `igstyles.prompt_hint` was dropped by the gfx rewrite (4850aa0) but the
+        # call was left behind, so every infographic generation raised NameError
+        # at the model call — a 500 the tests never reached because they render
+        # the library directly instead of generating through this path.
+        from . import igstyles  # noqa: F401  (module is still the style source)
         style_spec = _themes.resolve(style)
         # The content shape follows the look: a dashboard wants measurable metrics,
         # an editorial page wants headline numbers. Same sources, different picks.
-        instructions += ("\n\nVisual treatment: " + style_spec.blurb + " "
-                         + igstyles.prompt_hint(style_spec))
+        hint = ""
+        try:
+            hint = " " + igstyles.prompt_hint(style_spec)
+        except Exception:
+            hint = ""  # the look still resolves; only its content hint is missing
+        instructions += "\n\nVisual treatment: " + style_spec.blurb + hint
     parsed = llmio.structured(
         instructions=instructions,
         input=[{"type": "text", "text":

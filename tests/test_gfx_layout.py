@@ -115,3 +115,75 @@ def test_dense_payload_fills_the_canvas():
         templates.Frame(*CANVAS), gfx.resolve_preset("sections"), gfx.SAMPLE_GRAPHIC, "standard")
     g = measured(els)
     assert CANVAS[1] - g["bottom"] <= 200, f"{CANVAS[1] - g['bottom']:.0f}px unused"
+
+
+def test_generation_reaches_the_renderer(ctx, monkeypatch):
+    """The generation path must not die before the renderer.
+
+    A NameError left behind by the gfx rewrite (`igstyles.prompt_hint`) raised on
+    EVERY infographic run — a 500 in the dashboard that no library test caught,
+    because the tests render `gfx` directly. This drives `artifacts.generate`
+    with a stub model and asserts a real file comes out.
+    """
+    import json as _json
+    from hermes_notebook import artifacts, store
+
+    meta = store.create_notebook("Generation path")
+    nb = meta["id"]
+    store.add_source(nb, title="A source", kind="text", origin="",
+                     text="Tidal output is set by the site and the cable cost.")
+
+    parsed = {
+        "title": "Tidal power",
+        "stats": [{"value": "1.2 GW", "label": "planned capacity"},
+                  {"value": "38%", "label": "capacity factor"}],
+        "quotes": [{"text": "The resource is reliable.", "source": "IEA"}],
+        "takeaway": "Output is set by the site.",
+    }
+
+    monkeypatch.setattr(artifacts.llmio, "structured", lambda **k: dict(parsed))
+    out = artifacts.generate(nb, "infographic", style="swiss")
+    assert out["kind"] == "infographic"
+    from pathlib import Path
+    svg = Path(out["path"]).read_text(encoding="utf-8")
+    assert svg.startswith("<?xml") and 'data-preset="swiss"' in svg
+
+
+def test_raster_at_scale_still_frames_the_whole_document():
+    """A scaled raster must contain the WHOLE poster, not a corner of it.
+
+    `to_png` multiplied both --window-size and --force-device-scale-factor, so
+    scale=2 asked for a 2400x1800 CSS viewport at 2x: the document painted its
+    top-left quarter at half size and the rest of the PNG was blank. Every
+    shared image past scale 1 was a broken poster, and only a pixel measurement
+    catches it.
+    """
+    pytest.importorskip("PIL")
+    from PIL import Image
+
+    from hermes_notebook.gfx.document import chrome_path
+    if not chrome_path():
+        pytest.skip("no Chrome to rasterise with")
+
+    src = ROOT / "assets" / "examples" / "infographic-sections.png"
+    if not src.exists():
+        pytest.skip("no committed example to compare against")
+
+    try:
+        out = gfx.to_png(gfx.SAMPLE_GRAPHIC, "/tmp/nb-raster-scale-test.png",
+                         preset="sections", template="infographic", scale=2)
+    except RuntimeError as exc:
+        pytest.skip(f"raster failed: {exc}")
+
+    img = Image.open(out).convert("RGB")
+    w, h = img.size
+    assert w >= 1200 * 2 - 8 and h >= 900 * 2 - 8, f"scale=2 gave {img.size}"
+    px = img.load()
+    minx, miny, maxx, maxy = w, h, 0, 0
+    for x in range(0, w, 8):
+        for y in range(0, h, 8):
+            if sum(px[x, y]) < 720:                      # anything not white
+                minx, miny = min(minx, x), min(miny, y)
+                maxx, maxy = max(maxx, x), max(maxy, y)
+    assert (maxx - minx) / w > 0.85 and (maxy - miny) / h > 0.85, (
+        f"ink covers only {(maxx - minx) / w:.0%}x{(maxy - miny) / h:.0%} of the raster")
