@@ -535,7 +535,16 @@ const CSS = `
 .nb-studio-head{gap:var(--nb-sp-3)}
 .nb-studio-body{flex:1;min-height:0;display:flex;flex-direction:column;gap:var(--nb-sp-4);
   overflow:auto;overscroll-behavior:contain;
-  padding:var(--nb-sp-4) var(--nb-sp-4) 0;
+  /* The last card used to end flush against the status bar: a cut card at the
+     panel edge reads as a rendering fault, not as "scroll for more". A real
+     bottom gutter gives the bench a visible end. */
+  padding:var(--nb-sp-4) var(--nb-sp-4) var(--nb-sp-6);
+  /* A card sliced by the panel's bottom edge reads as a rendering fault. The
+     fade says "there is more below" while the panel is scrolled, and because
+     the bottom gutter is deeper than the fade, it disappears at the end of the
+     list instead of dimming the last card. */
+  -webkit-mask-image:linear-gradient(to bottom,#000 calc(100% - 18px),transparent);
+  mask-image:linear-gradient(to bottom,#000 calc(100% - 18px),transparent);
   scrollbar-width:thin;
   scrollbar-color:color-mix(in srgb,${T.text} 22%,transparent) transparent}
 .nb-studio-sec{display:flex;flex-direction:column;gap:var(--nb-sp-2)}
