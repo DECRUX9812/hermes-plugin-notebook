@@ -246,6 +246,13 @@ function ServicesTab({ host, onSay }) {
                 children: u.active }),
               jsx(Btn, {
                 size: 'sm', variant: 'ghost', disabled: busy === u.unit,
+                // 120 rows of a button all called "Restart" is one accessible
+                // name 120 times: a screen reader hears "Restart, Restart,
+                // Restart…" with no way to tell which unit it is about to
+                // bounce. The visible word stays short; the name says what and
+                // where.
+                'aria-label': `Restart ${u.unit}${u.description ? ` — ${u.description}` : ''}`,
+                title: `Restart ${u.unit}`,
                 onClick: () => op(u.unit, 'restart'),
                 children: busy === u.unit ? '…' : 'Restart'
               })))

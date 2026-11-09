@@ -270,3 +270,43 @@ function Dialog({ open, onClose, title, children, width = 520 }) {
   ),
   children))
 }
+
+/* Copying is an ACTION, so it reports.
+ *
+ * Every call site used to wrap `navigator.clipboard.writeText(...)` in
+ * try/catch. writeText returns a PROMISE, so a denied permission sailed past
+ * the catch as an unhandled rejection, and the button said nothing either
+ * way — the click looked broken in exactly the window where copying matters
+ * most (the app's renderer, where the async clipboard can be refused).
+ *
+ * One helper, three outcomes with a sentence for each, and a selection-copy
+ * fallback that works where the async API is refused. */
+async function copyText(text, say) {
+  const value = String(text == null ? '' : text)
+  if (!value.trim()) { if (say) say('there is nothing to copy here'); return false }
+  let told = false
+  try {
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      await navigator.clipboard.writeText(value)
+      if (say) say('copied to the clipboard')
+      return true
+    }
+  } catch { told = true /* refused — fall through to the legacy path */ }
+  try {
+    const ta = document.createElement('textarea')
+    ta.value = value
+    ta.setAttribute('readonly', 'true')
+    ta.style.cssText = 'position:fixed;top:-1000px;left:-1000px;opacity:0'
+    document.body.appendChild(ta)
+    ta.select()
+    const done = document.execCommand ? document.execCommand('copy') : false
+    ta.remove()
+    if (say) say(done ? 'copied to the clipboard'
+      : 'this window will not let the page copy — select the text and press Ctrl+C')
+    return !!done
+  } catch {
+    if (say) say(told ? 'this window will not let the page copy — select the text and press Ctrl+C'
+      : 'could not reach the clipboard')
+    return false
+  }
+}

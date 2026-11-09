@@ -401,3 +401,51 @@ def test_media_prompts_ban_the_ident_and_demand_the_tension():
     assert "IN MEDIA RES" in src
     assert "in this video" in src, "the filler opener is not banned"
     assert "contradict" in src.lower()
+
+
+# --------------------------------------------------------------- shell wiring
+#
+# These assert on source text on purpose: they catch a REGRESSION in the wiring
+# that a headless render of the preview harness cannot see, because the harness
+# stubs the host that the real app provides.
+
+def test_copy_reports_its_outcome():
+    """`navigator.clipboard.writeText` returns a PROMISE, so the old try/catch
+    let a refused permission become an unhandled rejection and the button said
+    nothing. Every copy site goes through one helper that reports, and a
+    selection fallback exists for the renderer where the async API is denied."""
+    ui = _src("10-ui.js")
+    assert "async function copyText" in ui
+    assert "select()" in ui, "no selection fallback"
+    for fname in ("35-main.js", "40-viewers.js"):
+        body = _src(fname)
+        # no bare writeText left in a call site
+        assert "clipboard.writeText(" not in body or "copyText(" in body, fname
+
+
+def test_surface_switcher_keeps_its_shape():
+    """Gating the tab list on the CURRENT mode (instead of on whether a notebook
+    is open) made the row change shape mid-session, and from Home it dropped
+    Studio/Study entirely — so the workbench became unreachable."""
+    shell = _src("30-shell.js")
+    assert "options: (notebook\n" in shell or "options: (notebook " in shell
+    assert "mode !== 'home'\n          ? [" not in shell, "the tab list is gated on the mode again"
+
+
+def test_side_panels_are_measured_on_the_root_not_the_viewport():
+    """The plugin renders inside the host window, so a viewport media query
+    measures the wrong width: at a 1280px window the plugin root is ~1020px and
+    the main column fell to 544px. The page publishes its own density instead."""
+    shell = _src("30-shell.js")
+    css = _src("00-head.js")
+    assert "ResizeObserver" in shell and "data-density" in shell
+    assert "[data-density=compact]" in css and "[data-density=tight]" in css
+
+
+def test_the_studio_settings_button_is_not_hover_only():
+    """It was `opacity:0` until the pointer was already over the card, so the
+    per-card options looked absent — on a touch screen they were unreachable."""
+    css = _src("00-head.js")
+    block = css.split(".nb-gen-cfg{", 1)[1].split("}", 1)[0]
+    assert "opacity:0;" not in block.replace(" ", "")
+    assert "opacity:.42" in block

@@ -33,7 +33,7 @@ function useFile(notebookId, name) {
   return st
 }
 
-function Viewer({ artifact, notebook, onCite, onRegenerate, regenerating, onChanged, onPrevRun, onNextRun, runPos, onClose }) {
+function Viewer({ artifact, notebook, onCite, onRegenerate, regenerating, onChanged, onPrevRun, onNextRun, runPos, onClose, onSay }) {
   const [renOpen, setRenOpen] = useState(false)
   const [renVal, setRenVal] = useState('')
   const [renBusy, setRenBusy] = useState(false)
@@ -47,8 +47,14 @@ function Viewer({ artifact, notebook, onCite, onRegenerate, regenerating, onChan
         timeoutMs: 30000
       })
       setRenOpen(false)
+      if (onSay) onSay('renamed')
       if (onChanged) onChanged()
-    } catch { /* rename is best-effort */ } finally { setRenBusy(false) }
+    } catch (e) {
+      // A rename that fails must NOT close the dialog: the old code swallowed
+      // the error, closed the panel and left the title unchanged, which reads
+      // as "the app ignored me" rather than "that did not save".
+      if (onSay) onSay(`could not rename: ${e.message || e}`)
+    } finally { setRenBusy(false) }
   }
   const jsonName = (files.find((f) => f.ext === 'json') || {}).name || ''
   const txtName = (files.find((f) => f.ext === 'txt') || {}).name || ''
@@ -85,7 +91,8 @@ function Viewer({ artifact, notebook, onCite, onRegenerate, regenerating, onChan
     // zoom, same style chip. A separate viewer would be the same code twice.
     body = jsx(InfographicView, { src: primary.url, data: asJson.json })
   } else if (artifact.kind === 'data_table') {
-    body = jsx(DataTableView, { text: primary.text, name: artifact.primary, data: asJson.json })
+    body = jsx(DataTableView, { text: primary.text, name: artifact.primary, data: asJson.json,
+                                notebookId: notebook && notebook.id, onSay })
   } else if (artifact.kind === 'summary' || artifact.kind === 'briefing_doc') {
     // A document, not a chat reply: BLUF banner, KPI strip, then sections.
     body = jsx(DocView, { text: primary.text, kind: artifact.kind, onCite })
@@ -118,7 +125,7 @@ function Viewer({ artifact, notebook, onCite, onRegenerate, regenerating, onChan
         primary.text
           ? jsx(IconBtn, {
               icon: 'copy', label: 'Copy artifact text',
-              onClick: () => { try { navigator.clipboard.writeText(primary.text) } catch { /* clipboard may be unavailable */ } }
+              onClick: () => copyText(primary.text, onSay || (host.say ? (m) => host.say(m) : null))
             })
           : null,
         jsx(IconBtn, {
@@ -1400,10 +1407,16 @@ function parseCsv(text) {
   return rows
 }
 
-/** One download control with three targets: CSV (the artifact itself), XLSX
- *  (a real workbook with a frozen header and an auto-filter) and the clipboard
- *  as tab-separated text, which is what "copy for Sheets" actually pastes well. */
-function DownloadMenu({ csvText, name, onCsv }) {
+/* One download control with three targets: CSV (the artifact itself), XLSX
+ * (a real workbook with a frozen header and an auto-filter) and the clipboard
+ * as tab-separated text, which is what "copy for Sheets" actually pastes well.
+ *
+ * ``notebookId`` is REQUIRED by the route (``/artifact/xlsx`` resolves the
+ * notebook before it can find the JSON), and this menu used to omit it: every
+ * Excel download came back 422 and the toast said "xlsx export failed". The
+ * path is built from the same three values the viewer was handed, so it cannot
+ * drift from the table on screen. */
+function DownloadMenu({ csvText, name, notebookId, onCsv, onSay }) {
   const [open, setOpen] = useState(false)
   const [busy, setBusy] = useState(false)
   const ref = useRef(null)
@@ -1424,12 +1437,10 @@ function DownloadMenu({ csvText, name, onCsv }) {
     // cell while a tab-separated block splits into columns
     const rows = parseCsv(csvText || '')
     const tsv = rows.map((r) => r.join('\t')).join('\n')
-    try {
-      await navigator.clipboard.writeText(tsv)
-      if (host.say) host.say('copied as tab-separated text — paste into a sheet')
-    } catch {
-      if (host.say) host.say('clipboard is unavailable in this window')
-    }
+    await copyText(tsv, (m) => {
+      const out = m === 'copied to the clipboard' ? 'copied as tab-separated text — paste into a sheet' : m
+      if (onSay) onSay(out); else if (host.say) host.say(out)
+    })
     setOpen(false)
   }
 
@@ -1438,7 +1449,7 @@ function DownloadMenu({ csvText, name, onCsv }) {
     setBusy(true)
     try {
       const stem = String(name || '').replace(/\.(csv|json|md)$/i, '')
-      const out = await api(`/artifact/xlsx?${qs({ name: `${stem}.json`, b64: 1 })}`, { timeoutMs: 60000 })
+      const out = await api(`/artifact/xlsx?${qs({ notebook: notebookId || '', name: `${stem}.json`, b64: 1 })}`, { timeoutMs: 60000 })
       const bytes = Uint8Array.from(atob(out.b64), (ch) => ch.charCodeAt(0))
       const url = URL.createObjectURL(new Blob([bytes], { type: out.mime }))
       const a = document.createElement('a')
@@ -1477,7 +1488,7 @@ function DownloadMenu({ csvText, name, onCsv }) {
   ])
 }
 
-function DataTableView({ text, name, data }) {
+function DataTableView({ text, name, data, notebookId, onSay }) {
   const rows = useMemo(() => parseCsv(text), [text])
   const [sort, setSort] = useState({ col: -1, dir: 1 })
   const [q, setQ] = useState('')
@@ -1515,7 +1526,7 @@ function DataTableView({ text, name, data }) {
       el('span', { className: 'nb-meta', children: q.trim() ? `${filtered.length} of ${body.length} rows × ${head.length} columns` : `${body.length} rows × ${head.length} columns` }),
       el('span', { style: { flex: 1 } }),
       body.length > 8 ? jsx(SearchField, { value: q, onChange: setQ, placeholder: 'Filter rows', label: 'Filter table rows' }) : null,
-      jsx(DownloadMenu, { csvText: text, name, onCsv: exportCsv })),
+      jsx(DownloadMenu, { csvText: text, name, notebookId, onCsv: exportCsv, onSay })),
     // the aggregates the prompt computed are not in the CSV (it is rectangular);
     // they belong beside the table, not only inside the workbook
     (data && (data.summary || []).length)

@@ -2036,6 +2036,46 @@ function Dialog({ open, onClose, title, children, width = 520 }) {
   children))
 }
 
+/* Copying is an ACTION, so it reports.
+ *
+ * Every call site used to wrap `navigator.clipboard.writeText(...)` in
+ * try/catch. writeText returns a PROMISE, so a denied permission sailed past
+ * the catch as an unhandled rejection, and the button said nothing either
+ * way — the click looked broken in exactly the window where copying matters
+ * most (the app's renderer, where the async clipboard can be refused).
+ *
+ * One helper, three outcomes with a sentence for each, and a selection-copy
+ * fallback that works where the async API is refused. */
+async function copyText(text, say) {
+  const value = String(text == null ? '' : text)
+  if (!value.trim()) { if (say) say('there is nothing to copy here'); return false }
+  let told = false
+  try {
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      await navigator.clipboard.writeText(value)
+      if (say) say('copied to the clipboard')
+      return true
+    }
+  } catch { told = true /* refused — fall through to the legacy path */ }
+  try {
+    const ta = document.createElement('textarea')
+    ta.value = value
+    ta.setAttribute('readonly', 'true')
+    ta.style.cssText = 'position:fixed;top:-1000px;left:-1000px;opacity:0'
+    document.body.appendChild(ta)
+    ta.select()
+    const done = document.execCommand ? document.execCommand('copy') : false
+    ta.remove()
+    if (say) say(done ? 'copied to the clipboard'
+      : 'this window will not let the page copy — select the text and press Ctrl+C')
+    return !!done
+  } catch {
+    if (say) say(told ? 'this window will not let the page copy — select the text and press Ctrl+C'
+      : 'could not reach the clipboard')
+    return false
+  }
+}
+
 /* ----------------------------------------------------------------- markdown
  * A small, honest renderer: headings, lists, tables, fenced code, quotes, and
  * bold/italic/code/inline-citation spans. Generated artifacts are markdown, and
@@ -3732,7 +3772,7 @@ function Main({ notebook, kinds, tab, setTab, picked, setPicked, busy, generate,
       ? (() => {
           const pi = sources.findIndex((s) => s.id === peek.id)
           return jsx(SourcePeek, {
-            source: peek, notebook,
+            source: peek, notebook, onSay,
             onClose: () => { setPeek(null); setTab('chat') },
             onAskAbout: (s) => { setAskScope({ ids: [s.id], title: s.title }); setTab('chat') },
             onRefresh: onRefreshSource ? () => onRefreshSource(peek) : null,
@@ -3756,7 +3796,7 @@ function Main({ notebook, kinds, tab, setTab, picked, setPicked, busy, generate,
               .slice().sort((a, b) => String(a.modified).localeCompare(String(b.modified)))
             const si = sibs.findIndex((a) => a.key === picked.key)
             return jsx(Viewer, {
-              artifact: picked, notebook,
+              artifact: picked, notebook, onSay,
               regenerating: !!(busy && busy[picked.kind]),
               onRegenerate: () => generate(picked.kind, picked.opts || {}),
               onChanged: refreshArtifact || (() => reload && reload(true)),
@@ -3924,14 +3964,7 @@ function Chat({ notebook, kinds, askOpen, onSay, modelReady, onCite, onOpenSourc
     } catch (e) { if (onSay) onSay(`could not save note: ${e.message || e}`) }
   }
 
-  const copyOv = () => {
-    try {
-      if (navigator.clipboard && navigator.clipboard.writeText) {
-        navigator.clipboard.writeText(ov)
-        if (onSay) onSay('overview copied')
-      }
-    } catch { /* clipboard is a nicety */ }
-  }
+  const copyOv = () => copyText(ov, onSay)
 
   useEffect(() => { if (askOpen) { const n = boxRef.current; if (n) n.focus() } }, [askOpen])
 
@@ -4559,9 +4592,7 @@ function Msg({ msg, onCite, notebook, canRetry, onRetry }) {
               msg.meta ? el('span', { style: { marginLeft: '8px', color: T.text4, fontWeight: 500, textTransform: 'none', letterSpacing: 0 }, children: `· ${msg.meta}` }) : null,
               jsx(IconBtn, {
                 icon: 'copy', size: 13, label: 'Copy answer',
-                onClick: () => {
-                  try { if (navigator.clipboard) navigator.clipboard.writeText(msg.content) } catch { /* clipboard unavailable */ }
-                }
+                onClick: () => copyText(msg.content, onSay)
               }),
               canRetry
                 ? jsx(IconBtn, { icon: 'refresh', size: 13, label: 'Regenerate this answer', onClick: onRetry })
@@ -4576,7 +4607,9 @@ function Msg({ msg, onCite, notebook, canRetry, onRetry }) {
                       body: { notebook: notebook.id, text: msg.content, title: first.slice(0, 90) },
                       timeoutMs: 30000
                     })
-                  } catch { /* note save is best-effort */ }
+                    if (onSay) onSay('saved as a note — it is a source now')
+                    if (reload) await reload(true)
+                  } catch (e) { if (onSay) onSay(`could not save the note: ${e.message || e}`) }
                 }
               }) : null),
             el('div', { className: 'nb-bubble' },
@@ -4615,7 +4648,7 @@ function Msg({ msg, onCite, notebook, canRetry, onRetry }) {
 
 /* ---------------------------------------------------------------- peek */
 
-function SourcePeek({ source, notebook, onClose, onAskAbout, onRefresh, onPrev, onNext }) {
+function SourcePeek({ source, notebook, onClose, onAskAbout, onRefresh, onPrev, onNext, onSay }) {
   const [text, setText] = useState('')
   const [err, setErr] = useState('')
   const [refreshing, setRefreshing] = useState(false)
@@ -4683,7 +4716,7 @@ function SourcePeek({ source, notebook, onClose, onAskAbout, onRefresh, onPrev, 
       text
         ? jsx(IconBtn, {
             icon: 'copy', label: 'Copy source text',
-            onClick: () => { try { if (navigator.clipboard) navigator.clipboard.writeText(text) } catch { /* clipboard unavailable */ } }
+            onClick: () => copyText(text, onSay)
           })
         : null,
       onRefresh && !['note', 'text'].includes(source.kind)
@@ -6315,7 +6348,7 @@ function useFile(notebookId, name) {
   return st
 }
 
-function Viewer({ artifact, notebook, onCite, onRegenerate, regenerating, onChanged, onPrevRun, onNextRun, runPos, onClose }) {
+function Viewer({ artifact, notebook, onCite, onRegenerate, regenerating, onChanged, onPrevRun, onNextRun, runPos, onClose, onSay }) {
   const [renOpen, setRenOpen] = useState(false)
   const [renVal, setRenVal] = useState('')
   const [renBusy, setRenBusy] = useState(false)
@@ -6329,8 +6362,14 @@ function Viewer({ artifact, notebook, onCite, onRegenerate, regenerating, onChan
         timeoutMs: 30000
       })
       setRenOpen(false)
+      if (onSay) onSay('renamed')
       if (onChanged) onChanged()
-    } catch { /* rename is best-effort */ } finally { setRenBusy(false) }
+    } catch (e) {
+      // A rename that fails must NOT close the dialog: the old code swallowed
+      // the error, closed the panel and left the title unchanged, which reads
+      // as "the app ignored me" rather than "that did not save".
+      if (onSay) onSay(`could not rename: ${e.message || e}`)
+    } finally { setRenBusy(false) }
   }
   const jsonName = (files.find((f) => f.ext === 'json') || {}).name || ''
   const txtName = (files.find((f) => f.ext === 'txt') || {}).name || ''
@@ -6367,7 +6406,8 @@ function Viewer({ artifact, notebook, onCite, onRegenerate, regenerating, onChan
     // zoom, same style chip. A separate viewer would be the same code twice.
     body = jsx(InfographicView, { src: primary.url, data: asJson.json })
   } else if (artifact.kind === 'data_table') {
-    body = jsx(DataTableView, { text: primary.text, name: artifact.primary, data: asJson.json })
+    body = jsx(DataTableView, { text: primary.text, name: artifact.primary, data: asJson.json,
+                                notebookId: notebook && notebook.id, onSay })
   } else if (artifact.kind === 'summary' || artifact.kind === 'briefing_doc') {
     // A document, not a chat reply: BLUF banner, KPI strip, then sections.
     body = jsx(DocView, { text: primary.text, kind: artifact.kind, onCite })
@@ -6400,7 +6440,7 @@ function Viewer({ artifact, notebook, onCite, onRegenerate, regenerating, onChan
         primary.text
           ? jsx(IconBtn, {
               icon: 'copy', label: 'Copy artifact text',
-              onClick: () => { try { navigator.clipboard.writeText(primary.text) } catch { /* clipboard may be unavailable */ } }
+              onClick: () => copyText(primary.text, onSay || (host.say ? (m) => host.say(m) : null))
             })
           : null,
         jsx(IconBtn, {
@@ -7682,10 +7722,16 @@ function parseCsv(text) {
   return rows
 }
 
-/** One download control with three targets: CSV (the artifact itself), XLSX
- *  (a real workbook with a frozen header and an auto-filter) and the clipboard
- *  as tab-separated text, which is what "copy for Sheets" actually pastes well. */
-function DownloadMenu({ csvText, name, onCsv }) {
+/* One download control with three targets: CSV (the artifact itself), XLSX
+ * (a real workbook with a frozen header and an auto-filter) and the clipboard
+ * as tab-separated text, which is what "copy for Sheets" actually pastes well.
+ *
+ * ``notebookId`` is REQUIRED by the route (``/artifact/xlsx`` resolves the
+ * notebook before it can find the JSON), and this menu used to omit it: every
+ * Excel download came back 422 and the toast said "xlsx export failed". The
+ * path is built from the same three values the viewer was handed, so it cannot
+ * drift from the table on screen. */
+function DownloadMenu({ csvText, name, notebookId, onCsv, onSay }) {
   const [open, setOpen] = useState(false)
   const [busy, setBusy] = useState(false)
   const ref = useRef(null)
@@ -7706,12 +7752,10 @@ function DownloadMenu({ csvText, name, onCsv }) {
     // cell while a tab-separated block splits into columns
     const rows = parseCsv(csvText || '')
     const tsv = rows.map((r) => r.join('\t')).join('\n')
-    try {
-      await navigator.clipboard.writeText(tsv)
-      if (host.say) host.say('copied as tab-separated text — paste into a sheet')
-    } catch {
-      if (host.say) host.say('clipboard is unavailable in this window')
-    }
+    await copyText(tsv, (m) => {
+      const out = m === 'copied to the clipboard' ? 'copied as tab-separated text — paste into a sheet' : m
+      if (onSay) onSay(out); else if (host.say) host.say(out)
+    })
     setOpen(false)
   }
 
@@ -7720,7 +7764,7 @@ function DownloadMenu({ csvText, name, onCsv }) {
     setBusy(true)
     try {
       const stem = String(name || '').replace(/\.(csv|json|md)$/i, '')
-      const out = await api(`/artifact/xlsx?${qs({ name: `${stem}.json`, b64: 1 })}`, { timeoutMs: 60000 })
+      const out = await api(`/artifact/xlsx?${qs({ notebook: notebookId || '', name: `${stem}.json`, b64: 1 })}`, { timeoutMs: 60000 })
       const bytes = Uint8Array.from(atob(out.b64), (ch) => ch.charCodeAt(0))
       const url = URL.createObjectURL(new Blob([bytes], { type: out.mime }))
       const a = document.createElement('a')
@@ -7759,7 +7803,7 @@ function DownloadMenu({ csvText, name, onCsv }) {
   ])
 }
 
-function DataTableView({ text, name, data }) {
+function DataTableView({ text, name, data, notebookId, onSay }) {
   const rows = useMemo(() => parseCsv(text), [text])
   const [sort, setSort] = useState({ col: -1, dir: 1 })
   const [q, setQ] = useState('')
@@ -7797,7 +7841,7 @@ function DataTableView({ text, name, data }) {
       el('span', { className: 'nb-meta', children: q.trim() ? `${filtered.length} of ${body.length} rows × ${head.length} columns` : `${body.length} rows × ${head.length} columns` }),
       el('span', { style: { flex: 1 } }),
       body.length > 8 ? jsx(SearchField, { value: q, onChange: setQ, placeholder: 'Filter rows', label: 'Filter table rows' }) : null,
-      jsx(DownloadMenu, { csvText: text, name, onCsv: exportCsv })),
+      jsx(DownloadMenu, { csvText: text, name, notebookId, onCsv: exportCsv, onSay })),
     // the aggregates the prompt computed are not in the CSV (it is rectangular);
     // they belong beside the table, not only inside the workbook
     (data && (data.summary || []).length)
@@ -8994,6 +9038,13 @@ function ServicesTab({ host, onSay }) {
                 children: u.active }),
               jsx(Btn, {
                 size: 'sm', variant: 'ghost', disabled: busy === u.unit,
+                // 120 rows of a button all called "Restart" is one accessible
+                // name 120 times: a screen reader hears "Restart, Restart,
+                // Restart…" with no way to tell which unit it is about to
+                // bounce. The visible word stays short; the name says what and
+                // where.
+                'aria-label': `Restart ${u.unit}${u.description ? ` — ${u.description}` : ''}`,
+                title: `Restart ${u.unit}`,
                 onClick: () => op(u.unit, 'restart'),
                 children: busy === u.unit ? '…' : 'Restart'
               })))

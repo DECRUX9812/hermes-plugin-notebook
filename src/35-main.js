@@ -203,7 +203,7 @@ function Main({ notebook, kinds, tab, setTab, picked, setPicked, busy, generate,
       ? (() => {
           const pi = sources.findIndex((s) => s.id === peek.id)
           return jsx(SourcePeek, {
-            source: peek, notebook,
+            source: peek, notebook, onSay,
             onClose: () => { setPeek(null); setTab('chat') },
             onAskAbout: (s) => { setAskScope({ ids: [s.id], title: s.title }); setTab('chat') },
             onRefresh: onRefreshSource ? () => onRefreshSource(peek) : null,
@@ -227,7 +227,7 @@ function Main({ notebook, kinds, tab, setTab, picked, setPicked, busy, generate,
               .slice().sort((a, b) => String(a.modified).localeCompare(String(b.modified)))
             const si = sibs.findIndex((a) => a.key === picked.key)
             return jsx(Viewer, {
-              artifact: picked, notebook,
+              artifact: picked, notebook, onSay,
               regenerating: !!(busy && busy[picked.kind]),
               onRegenerate: () => generate(picked.kind, picked.opts || {}),
               onChanged: refreshArtifact || (() => reload && reload(true)),
@@ -395,14 +395,7 @@ function Chat({ notebook, kinds, askOpen, onSay, modelReady, onCite, onOpenSourc
     } catch (e) { if (onSay) onSay(`could not save note: ${e.message || e}`) }
   }
 
-  const copyOv = () => {
-    try {
-      if (navigator.clipboard && navigator.clipboard.writeText) {
-        navigator.clipboard.writeText(ov)
-        if (onSay) onSay('overview copied')
-      }
-    } catch { /* clipboard is a nicety */ }
-  }
+  const copyOv = () => copyText(ov, onSay)
 
   useEffect(() => { if (askOpen) { const n = boxRef.current; if (n) n.focus() } }, [askOpen])
 
@@ -1030,9 +1023,7 @@ function Msg({ msg, onCite, notebook, canRetry, onRetry }) {
               msg.meta ? el('span', { style: { marginLeft: '8px', color: T.text4, fontWeight: 500, textTransform: 'none', letterSpacing: 0 }, children: `· ${msg.meta}` }) : null,
               jsx(IconBtn, {
                 icon: 'copy', size: 13, label: 'Copy answer',
-                onClick: () => {
-                  try { if (navigator.clipboard) navigator.clipboard.writeText(msg.content) } catch { /* clipboard unavailable */ }
-                }
+                onClick: () => copyText(msg.content, onSay)
               }),
               canRetry
                 ? jsx(IconBtn, { icon: 'refresh', size: 13, label: 'Regenerate this answer', onClick: onRetry })
@@ -1047,7 +1038,9 @@ function Msg({ msg, onCite, notebook, canRetry, onRetry }) {
                       body: { notebook: notebook.id, text: msg.content, title: first.slice(0, 90) },
                       timeoutMs: 30000
                     })
-                  } catch { /* note save is best-effort */ }
+                    if (onSay) onSay('saved as a note — it is a source now')
+                    if (reload) await reload(true)
+                  } catch (e) { if (onSay) onSay(`could not save the note: ${e.message || e}`) }
                 }
               }) : null),
             el('div', { className: 'nb-bubble' },
@@ -1086,7 +1079,7 @@ function Msg({ msg, onCite, notebook, canRetry, onRetry }) {
 
 /* ---------------------------------------------------------------- peek */
 
-function SourcePeek({ source, notebook, onClose, onAskAbout, onRefresh, onPrev, onNext }) {
+function SourcePeek({ source, notebook, onClose, onAskAbout, onRefresh, onPrev, onNext, onSay }) {
   const [text, setText] = useState('')
   const [err, setErr] = useState('')
   const [refreshing, setRefreshing] = useState(false)
@@ -1154,7 +1147,7 @@ function SourcePeek({ source, notebook, onClose, onAskAbout, onRefresh, onPrev, 
       text
         ? jsx(IconBtn, {
             icon: 'copy', label: 'Copy source text',
-            onClick: () => { try { if (navigator.clipboard) navigator.clipboard.writeText(text) } catch { /* clipboard unavailable */ } }
+            onClick: () => copyText(text, onSay)
           })
         : null,
       onRefresh && !['note', 'text'].includes(source.kind)
