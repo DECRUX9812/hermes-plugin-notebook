@@ -415,6 +415,44 @@ async function functional(port) {
   ok('source search narrows the list', searched > 0 && searched < before, `${searched} of ${before}`)
   await page.locator('.nb-rail .nb-field input').fill('')
 
+  // ---------------------------------------------------------- export + copy
+  // The Excel button shipped without the notebook the route resolves first, so
+  // every download came back 422 and the toast blamed "xlsx export failed" —
+  // a broken feature no other check could see, because the DOM was right.
+  {
+    await page.locator('.nb-seg button', { hasText: 'Studio' }).click()
+    await settle(page, 700)
+    const table = page.locator('.nb-card', { hasText: 'Data Table' }).first()
+    if (await table.count() && (await table.getAttribute('data-ready')) === 'true') {
+      await table.click()
+      await settle(page, 800)
+      await page.locator('.nb-menu-wrap button', { hasText: 'Export' }).first().click()
+      await settle(page, 300)
+      await page.locator('.nb-menu-item', { hasText: 'XLSX' }).first().click()
+      await settle(page, 900)
+      const reqs = await page.evaluate(() => window.__NB_REQ__ || [])
+      const xl = reqs.filter((p) => p.startsWith('artifact/xlsx'))
+      ok('the xlsx export asks for the notebook the route requires',
+        xl.length > 0 && /[?&]notebook=[^&]/.test(xl[xl.length - 1] || ''),
+        xl.length ? xl[xl.length - 1].slice(0, 90) : 'no request')
+      const note = (await page.locator('.nb-status').first().innerText().catch(() => '')) || ''
+      ok('the export says it downloaded instead of failing',
+        /downloaded/i.test(note) && !/failed/i.test(note), note.trim().slice(0, 70) || 'no note')
+      // copy is an action: it reports
+      await page.locator('[aria-label="Copy artifact text"]').first().click()
+      await settle(page, 500)
+      const note2 = (await page.locator('.nb-status').first().innerText().catch(() => '')) || ''
+      ok('copy reports its outcome', /copied|will not let the page copy|could not reach/i.test(note2),
+        note2.trim().slice(0, 70) || 'no note')
+      await page.locator('.nb-tab', { hasText: 'Chat' }).click().catch(() => {})
+      await settle(page, 300)
+    } else {
+      ok('the xlsx export asks for the notebook the route requires', false, 'no ready data table')
+      ok('the export says it downloaded instead of failing', false, 'no ready data table')
+      ok('copy reports its outcome', false, 'no ready data table')
+    }
+  }
+
   // ops deck
   await page.keyboard.press('Escape')
   await page.locator('.nb-seg button', { hasText: 'Lab Ops' }).click()

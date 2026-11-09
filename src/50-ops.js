@@ -79,21 +79,27 @@ function OpsDeck({ onSay, onStats }) {
             margin: 0
           }
         }),
+        // Name on its own line; the role leads the metadata line. Sharing one
+        // line meant a fixed role column ate the hostname ("Decrux-L…"), and
+        // inline roles left the column ragged. Role-first on line two fixes
+        // both: every role starts at the same x, and the name gets the width.
         el('span', { style: { minWidth: 0, display: 'flex', flexDirection: 'column', gap: '2px' } },
+          jsx('span', { className: 'nb-fname', children: h.name }),
           el('span', { style: { display: 'flex', alignItems: 'baseline', gap: '7px', minWidth: 0 } },
-            jsx('span', { className: 'nb-fname', children: h.name }),
-            jsx('span', { className: 'nb-frole', children: h.role })),
-          jsx('span', {
-            className: 'nb-mono',
-            style: { fontSize: '11.5px', color: T.text4, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' },
-            children: h.reachable
-              ? `${(h.kernel || '').replace(/-generic$/, '')} · ${Math.round((h.mem || {}).pct || 0)}% mem`
-              : (h.error || 'no route').replace(/^ssh: /, '')
-          })),
+            jsx('span', { className: 'nb-frole', children: h.role }),
+            jsx('span', {
+              className: 'nb-mono',
+              style: { fontSize: '11.5px', color: T.text4, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', minWidth: 0 },
+              children: h.reachable
+                ? `${(h.kernel || '').replace(/-generic$/, '')} · ${Math.round((h.mem || {}).pct || 0)}% mem`
+                : (h.error || 'no route').replace(/^ssh: /, '')
+            }))),
         jsx('span', {
           className: 'nb-chip',
           'data-tone': h.reachable ? (h.patch_state === 'patched' ? 'ok' : 'warn') : 'danger',
-          children: h.reachable ? (h.patch_state === 'patched' ? 'patched' : 'fix avail') : 'no route'
+          // the same words as the summary above: it said "2 fix available" there
+          // and "fix avail" here, and "unreachable" vs "no route" for one state
+          children: h.reachable ? (h.patch_state === 'patched' ? 'patched' : 'fix available') : 'unreachable'
         })
         )),
         !hosts.length && !state.loading

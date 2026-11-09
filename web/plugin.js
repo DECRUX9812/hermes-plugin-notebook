@@ -1155,8 +1155,10 @@ const CSS = `
 .nb-frow:hover{border-color:color-mix(in srgb,${T.text} 20%, transparent);box-shadow:var(--nb-shadow)}
 .nb-frow[aria-current=true]{border-color:color-mix(in srgb,${T.accent} 55%, transparent);
   background:color-mix(in srgb,${T.accent} 9%, var(--nb-card))}
-.nb-fname{font-size:14px;font-weight:600;line-height:1.25}
-.nb-frole{font-size:10.5px;color:${T.text3};text-transform:uppercase;letter-spacing:.06em;font-weight:600}
+.nb-fname{font-size:14px;font-weight:600;line-height:1.25;min-width:0;
+  overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.nb-frole{font-size:10.5px;color:${T.text3};text-transform:uppercase;letter-spacing:.06em;font-weight:600;
+  overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .nb-term{font-family:var(--ui-font-mono,ui-monospace,monospace);font-size:13px;line-height:1.55;flex:1 1 auto;
   background:#101320;color:#c9cede;border-radius:var(--nb-r-box);padding:16px;min-height:130px;max-height:none;overflow:auto;
   white-space:pre-wrap;word-break:break-word;border:1px solid rgba(255,255,255,.09);
@@ -6009,22 +6011,30 @@ function StudyPanel({ notebook, onSay, onOpenSource }) {
   }, [nbId, m.state])
 
   const counts = stats.counts || {}
+  const plural = (n, one, many) => `${n} ${n === 1 ? one : many}`
   const chip = (label, value, tone) => el('span', {
-    className: 'nb-chip', 'data-tone': tone || undefined,
+    key: label, className: 'nb-chip', 'data-tone': tone || undefined,
     children: `${value} ${label}`
   })
+
+  // The phases are the four buckets a card can sit in, and they must add up to
+  // the notebook's cards. `young` was missing from this row, so a deck of 3
+  // showed "3 due · 2 new · 0 learning · 0 mastered" — the numbers did not
+  // reconcile and the reader had no way to know one bucket was hidden. Zero
+  // buckets are noise, so only non-zero ones are shown.
+  const phases = [['new', counts.new], ['learning', counts.learning],
+                  ['scheduled', counts.young], ['mastered', counts.mastered]]
+    .filter(([, v]) => Number(v) > 0)
 
   const header = el('div', { className: 'nb-study-head' },
     el('div', null,
       el('div', { className: 'nb-study-title', children: 'Study' }),
       el('div', { className: 'nb-hint', children: stats.cards
-        ? `${stats.cards} cards in this notebook · ${stats.due || 0} due · ${stats.mastered_pct || 0}% mastered`
+        ? `${plural(stats.cards, 'card', 'cards')} in this notebook · ${stats.due || 0} due · ${stats.mastered_pct || 0}% mastered`
         : 'No flashcards or quiz in this notebook yet — generate one, then come back.' }),
       el('div', { className: 'nb-study-chips' },
         chip('due', stats.due || 0, stats.due ? 'accent' : undefined),
-        chip('new', counts.new || 0),
-        chip('learning', counts.learning || 0),
-        chip('mastered', counts.mastered || 0, 'ok'),
+        phases.map(([label, value]) => chip(label, value, label === 'mastered' ? 'ok' : undefined)),
         stats.streak ? chip('day streak', stats.streak) : null,
         stats.reviews_today ? chip('today', stats.reviews_today) : null)),
     el('div', { className: 'nb-spacer' }),
@@ -6399,7 +6409,7 @@ function Viewer({ artifact, notebook, onCite, onRegenerate, regenerating, onChan
   } else if (artifact.kind === 'quiz') {
     body = jsx(QuizView, { data: asJson.json, text: primary.text, deckId: artifact.key })
   } else if (artifact.kind === 'slides') {
-    body = jsx(SlidesView, { data: asJson.json, text: primary.text, notebook, jsonName, onCite,
+    body = jsx(SlidesView, { data: asJson.json, text: primary.text, notebook, jsonName, onCite, onSay,
                              htmlUrl: primary.url && artifact.ext === 'html' ? primary.url : '' })
   } else if (artifact.kind === 'infographic' || artifact.kind === 'blueprint_evolution') {
     // The blueprint is an SVG poster like an infographic: same stage, same
@@ -7527,7 +7537,7 @@ const normAnswer = (s) => String(s == null ? '' : s).trim().toLowerCase()
 
 /* ---------------------------------------------------------------- slides */
 
-function SlidesView({ data, htmlUrl, notebook, jsonName, onCite }) {
+function SlidesView({ data, htmlUrl, notebook, jsonName, onCite, onSay }) {
   const deck = data || {}
   const slides = deck.slides || []
   const [i, setI] = useState(0)
@@ -7576,8 +7586,12 @@ function SlidesView({ data, htmlUrl, notebook, jsonName, onCite }) {
       a.download = out.name || 'deck.pptx'
       document.body.appendChild(a); a.click(); a.remove()
       setTimeout(() => URL.revokeObjectURL(url), 2000)
+      // a download that says nothing looks like a button that did nothing
+      const said = `downloaded ${out.name || 'deck.pptx'}`
+      if (onSay) onSay(said); else if (host.say) host.say(said)
     } catch (e) {
-      if (host.say) host.say(`pptx export failed: ${e.message || e}`)
+      const said = `pptx export failed: ${e.message || e}`
+      if (onSay) onSay(said); else if (host.say) host.say(said)
     } finally {
       setPptxBusy(false)
     }
@@ -7772,9 +7786,13 @@ function DownloadMenu({ csvText, name, notebookId, onCsv, onSay }) {
       a.download = out.name || `${stem}.xlsx`
       document.body.appendChild(a); a.click(); a.remove()
       setTimeout(() => URL.revokeObjectURL(url), 2000)
+      const said = `downloaded ${out.name || `${stem}.xlsx`}`
+      if (onSay) onSay(said); else if (host.say) host.say(said)
     } catch (e) {
-      // the xlsx route needs table JSON; say what happened rather than nothing
-      if (host.say) host.say(`xlsx export failed: ${e.message || e}`)
+      // the xlsx route resolves the notebook BEFORE it can find the table JSON,
+      // so a missing notebook was a 422 that read as "broken export"
+      const said = `xlsx export failed: ${e.message || e}`
+      if (onSay) onSay(said); else if (host.say) host.say(said)
     } finally {
       setBusy(false); setOpen(false)
     }
@@ -8871,21 +8889,27 @@ function OpsDeck({ onSay, onStats }) {
             margin: 0
           }
         }),
+        // Name on its own line; the role leads the metadata line. Sharing one
+        // line meant a fixed role column ate the hostname ("Decrux-L…"), and
+        // inline roles left the column ragged. Role-first on line two fixes
+        // both: every role starts at the same x, and the name gets the width.
         el('span', { style: { minWidth: 0, display: 'flex', flexDirection: 'column', gap: '2px' } },
+          jsx('span', { className: 'nb-fname', children: h.name }),
           el('span', { style: { display: 'flex', alignItems: 'baseline', gap: '7px', minWidth: 0 } },
-            jsx('span', { className: 'nb-fname', children: h.name }),
-            jsx('span', { className: 'nb-frole', children: h.role })),
-          jsx('span', {
-            className: 'nb-mono',
-            style: { fontSize: '11.5px', color: T.text4, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' },
-            children: h.reachable
-              ? `${(h.kernel || '').replace(/-generic$/, '')} · ${Math.round((h.mem || {}).pct || 0)}% mem`
-              : (h.error || 'no route').replace(/^ssh: /, '')
-          })),
+            jsx('span', { className: 'nb-frole', children: h.role }),
+            jsx('span', {
+              className: 'nb-mono',
+              style: { fontSize: '11.5px', color: T.text4, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', minWidth: 0 },
+              children: h.reachable
+                ? `${(h.kernel || '').replace(/-generic$/, '')} · ${Math.round((h.mem || {}).pct || 0)}% mem`
+                : (h.error || 'no route').replace(/^ssh: /, '')
+            }))),
         jsx('span', {
           className: 'nb-chip',
           'data-tone': h.reachable ? (h.patch_state === 'patched' ? 'ok' : 'warn') : 'danger',
-          children: h.reachable ? (h.patch_state === 'patched' ? 'patched' : 'fix avail') : 'no route'
+          // the same words as the summary above: it said "2 fix available" there
+          // and "fix avail" here, and "unreachable" vs "no route" for one state
+          children: h.reachable ? (h.patch_state === 'patched' ? 'patched' : 'fix available') : 'unreachable'
         })
         )),
         !hosts.length && !state.loading

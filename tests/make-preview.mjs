@@ -137,6 +137,11 @@ const rest = async (path, opts) => {
   const clean = String(path).replace(/^\\/+/, '')
   const [route, query] = clean.split('?')
   const params = new URLSearchParams(query || '')
+  // Every call the page makes is recorded, so a gate can assert the SHAPE of a
+  // request the harness cannot answer with real bytes — /artifact/xlsx is built
+  // by python, and the bug it guards against (the page forgetting to send the
+  // notebook the route resolves first) is visible in the URL, not the payload.
+  ;(window.__NB_REQ__ = window.__NB_REQ__ || []).push(clean)
   // the harness renders the page as it appears with the agent half registered;
   // the dumped payload comes from a process where it is not.
   if (route === 'state') return { ...STATE, model_ready: true }
@@ -146,6 +151,17 @@ const rest = async (path, opts) => {
     const name = params.get('name')
     if (params.get('b64') === '1') return b64(name)
     return (await fetch('/artifacts/' + encodeURIComponent(name))).text()
+  }
+  // The two export routes resolve the notebook BEFORE they read the artifact, so
+  // a request without one is a 422 — exactly what the real router returns.
+  if (route === 'artifact/xlsx' || route === 'artifact/pptx') {
+    if (!params.get('notebook')) return { ok: false, error: 'notebook: Field required' }
+    const name = params.get('name') || 'file.json'
+    return { ok: true, name: name.replace(/\.json$/i, route.endsWith('xlsx') ? '.xlsx' : '.pptx'),
+             mime: route.endsWith('xlsx')
+               ? 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+               : 'application/vnd.openxmlformats-officedocument.presentationml.presentation',
+             b64: 'UEsDBAo=' }
   }
   if (route === 'source_text') {
     const src = (STATE.notebook?.sources || []).find((s) => s.id === params.get('id'))
