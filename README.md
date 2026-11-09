@@ -289,6 +289,7 @@ node build.mjs                      # src/*.js -> desktop/plugin.js + web/plugin
 python3 tests/dump_state.py         # real payloads for the preview harness
 node tests/make-preview.mjs         # esbuild harness (SDK stubbed, React real)
 node tests/gates.mjs                # bundle-load + functional + a11y + layout
+node tests/design.test.mjs          # fonts, type scale, AA contrast (both skins), radii
 node tests/shots-docs.mjs           # assets/shot-*.png + banner.png
 python3 tests/serve_api.py 8917     # throwaway FastAPI mount to curl the routes
 ```

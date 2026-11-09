@@ -213,9 +213,11 @@ const LIGHT_RAMP = `
   --ui-text-quaternary:color-mix(in srgb,var(--ui-base) 42%,transparent);
   --ui-stroke-secondary:rgba(26,22,16,.16);
   --ui-stroke-tertiary:rgba(26,22,16,.10);
+  /* the host's own light surfaces, from static/style.css: --bg / --sidebar /
+     --surface (#FEFCF7 / #FAF7F0 / #F3EEE3) */
   --ui-bg-primary:#FEFCF7;
-  --ui-bg-secondary:#F6F2E9;
-  --ui-bg-tertiary:#EFEADC;
+  --ui-bg-secondary:#FAF7F0;
+  --ui-bg-tertiary:#F3EEE3;
   --ui-bg-elevated:#FEFCF7;
   --ui-success:#3D8B40; --ui-warning:#E68A00; --ui-danger:#C62828;
 }
