@@ -13147,7 +13147,6 @@ var CSS = `
 .nb-sub{color:${T.text3};font-size:var(--nb-fs-meta);line-height:1.4;margin:0;
   white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0;max-width:100%}
 .nb-hero-side{display:flex;align-items:center;gap:var(--nb-sp-2);flex:0 0 auto}
-.nb-head-desc{display:none}
 /* ops host-measurement strip (Lab Ops only) */
 .nb-strip{display:flex;align-items:stretch;gap:8px;margin:14px 0 0;flex-wrap:wrap}
 .nb-cell{flex:1;min-width:90px;padding:10px 14px 11px;border-radius:var(--nb-r-el);
@@ -15583,7 +15582,7 @@ function HomeDashboard({ data, onOpen, onNew, onDelete, onRename, onDuplicate })
   const [ren, setRen] = (0, import_react.useState)(null);
   const notebooks = data && data.notebooks || [];
   const needle = query.trim().toLowerCase();
-  const shown = notebooks.filter((n) => !needle || `${n.title} ${n.description || ""}`.toLowerCase().includes(needle));
+  const shown = notebooks.filter((n) => !needle || `${n.title} ${n.description || ""}`.toLowerCase().includes(needle)).slice().sort((a, b) => String(b.updated_at || "").localeCompare(String(a.updated_at || "")));
   const totalSources = notebooks.reduce((s, n) => s + (n.sources || 0), 0);
   const totalArtifacts = notebooks.reduce((s, n) => s + (n.artifacts || 0), 0);
   const empty = notebooks.filter((n) => !n.sources).length;
@@ -15635,7 +15634,7 @@ function HomeDashboard({ data, onOpen, onNew, onDelete, onRename, onDuplicate })
           "div",
           { className: "nb-home-sec" },
           el("span", { className: "nb-meta", children: shown.length === notebooks.length ? "All notebooks" : `${shown.length} of ${notebooks.length} notebooks` }),
-          el("span", { className: "nb-hint", children: notebooks.length > 6 ? "ordered by what is in them" : "" }),
+          el("span", { className: "nb-hint", children: "newest activity first" }),
           el("span", { style: { flex: 1 } })
         ),
         shown.length === 0 ? el(
@@ -16506,6 +16505,10 @@ function Main({
         onPrevRun: si > 0 ? () => setPicked(sibs[si - 1]) : null,
         onNextRun: si >= 0 && si < sibs.length - 1 ? () => setPicked(sibs[si + 1]) : null,
         runPos: sibs.length > 1 ? `${si + 1} of ${sibs.length}` : "",
+        onClose: () => {
+          setPicked(null);
+          setTab("chat");
+        },
         onCite: (n, cite) => {
           const src = sources.find((s) => cite && cite.id && s.id === cite.id || s.n === n);
           if (src) {
@@ -19643,7 +19646,7 @@ function useFile(notebookId, name) {
   }, [notebookId, name]);
   return st;
 }
-function Viewer({ artifact, notebook, onCite, onRegenerate, regenerating, onChanged, onPrevRun, onNextRun, runPos }) {
+function Viewer({ artifact, notebook, onCite, onRegenerate, regenerating, onChanged, onPrevRun, onNextRun, runPos, onClose }) {
   const [renOpen, setRenOpen] = (0, import_react.useState)(false);
   const [renVal, setRenVal] = (0, import_react.useState)("");
   const [renBusy, setRenBusy] = (0, import_react.useState)(false);
@@ -19770,7 +19773,12 @@ function Viewer({ artifact, notebook, onCite, onRegenerate, regenerating, onChan
             setRenVal(artifact.title || "");
             setRenOpen(true);
           }
-        })
+        }),
+        onClose ? (0, import_jsx_runtime.jsx)(IconBtn, {
+          icon: "close",
+          label: "Close this tab \u2014 back to chat",
+          onClick: onClose
+        }) : null
       )
     ),
     body,
