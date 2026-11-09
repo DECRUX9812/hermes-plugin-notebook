@@ -13525,7 +13525,8 @@ var CSS = `
 }
 
 /* study \u2014 a session, not a deck viewer: one card at a time, keyboard first */
-.nb-study{display:flex;flex-direction:column;gap:16px;padding:26px 30px 40px;max-width:980px;margin:0 auto;min-height:0}
+.nb-study{display:flex;flex-direction:column;gap:16px;padding:26px 30px 40px;max-width:980px;margin:0 auto;
+  width:100%;flex:1 1 auto;min-height:0;overflow:auto}
 .nb-study-head{display:flex;align-items:flex-start;gap:14px;flex-wrap:wrap}
 .nb-study-title{font-size:21px;font-weight:650;letter-spacing:-.01em;color:${T.text}}
 .nb-study-chips{display:flex;gap:6px;flex-wrap:wrap;margin-top:8px}

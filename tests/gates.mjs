@@ -212,6 +212,32 @@ async function study(port) {
   await b.close()
 }
 
+/* --------------------------------------------------------------- surfaces
+ * Every surface ends at the same line: the status bar sits on the bottom edge, so
+ * a short page does not leave a dead band under it. Study shipped with a 398px gap.
+ */
+async function surfaces(port) {
+  const b = await browser()
+  const page = await b.newPage({ viewport: { width: 1440, height: 950 } })
+  await page.goto(`http://127.0.0.1:${port}/preview.html`, { waitUntil: 'load' })
+  await settle(page, 1000)
+  const anchored = async () => page.evaluate(() => {
+    const f = document.querySelector('.nb-status')
+    if (!f) return null
+    return Math.round(innerHeight - f.getBoundingClientRect().bottom)
+  })
+  const seen = {}
+  for (const [mode, label] of [['studio', 'Studio'], ['study', 'Study'], ['discover', 'Discover'], ['home', 'Home']]) {
+    await page.locator('.nb-seg button', { hasText: label }).first().click()
+    await settle(page, 600)
+    seen[mode] = await anchored()
+  }
+  const bad = Object.entries(seen).filter(([, gap]) => gap === null || Math.abs(gap) > 2)
+  ok('the status bar sits on the bottom edge of every surface', bad.length === 0,
+     bad.length ? JSON.stringify(bad) : 'studio, study, discover, home')
+  await page.close(); await b.close()
+}
+
 /* ---------------------------------------------------------- 1 bundle-load */
 async function bundleLoad() {
   // Build the COMMITTED bundle once more with the SDK swapped for a stub, so the
@@ -585,6 +611,7 @@ try {
   if (which === 'all' || which === 'functional') await functional(port)
   if (which === 'all' || which === 'machines') await machines(port)
   if (which === 'all' || which === 'study') await study(port)
+  if (which === 'all' || which === 'surfaces') await surfaces(port)
   if (which === 'all' || which === 'a11y') await a11y(port)
   if (which === 'all' || which === 'layout') { layout.port = port; await layout() }
 } finally {
