@@ -767,7 +767,7 @@ const CSS = `
 .nb-study-progress{display:flex;align-items:center;gap:12px}
 .nb-study-bar{flex:1;height:4px;border-radius:99px;background:var(--nb-hair-soft);overflow:hidden}
 .nb-study-bar i{display:block;height:100%;background:${T.accent};border-radius:99px;transition:width .25s ease}
-.nb-study-card{border:1px solid var(--nb-hair);border-radius:20px;background:var(--nb-card);
+.nb-study-card{margin-top:auto;border:1px solid var(--nb-hair);border-radius:20px;background:var(--nb-card);
   padding:28px 30px 24px;min-height:210px;display:flex;flex-direction:column;gap:16px;
   box-shadow:var(--nb-shadow)}
 .nb-study-card[data-phase="new"]{border-color:color-mix(in srgb,${T.accent} 40%, var(--nb-hair))}
@@ -780,7 +780,7 @@ const CSS = `
   padding-top:14px;border-top:1px solid var(--nb-hair-soft)}
 .nb-study-a-label{font-size:11px;letter-spacing:.14em;text-transform:uppercase;color:${T.text4}}
 .nb-study-reveal{display:flex;align-items:center;gap:12px;margin-top:auto}
-.nb-study-ratings{display:flex;gap:8px;flex-wrap:wrap;min-height:44px;align-items:center}
+.nb-study-ratings{display:flex;gap:8px;flex-wrap:wrap;min-height:44px;align-items:center;margin-bottom:auto}
 .nb-study-rate{flex:1 1 150px;display:flex;flex-direction:column;gap:2px;align-items:flex-start;
   padding:10px 14px;border-radius:12px;border:1px solid var(--nb-hair);background:var(--nb-card);
   color:${T.text};cursor:pointer;font-size:14px}
