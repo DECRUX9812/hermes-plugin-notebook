@@ -368,3 +368,36 @@ def test_the_page_waits_longer_than_the_slowest_kind():
     m = re.search(r"api\('/generate', \{[\s\S]*?timeoutMs: (\d+)", shell)
     assert m, "the generate call has no timeout"
     assert int(m.group(1)) >= 400000, f"{m.group(1)}ms is too short for a long document"
+
+
+def test_sheet_title_is_sanitised():
+    """openpyxl refuses `[]:*?/\\` in a sheet title and caps it at 31 chars. A
+    generated title like "Commercial Fusion 2026: state of play" raised
+    ValueError on the first click of Export → XLSX."""
+    from hermes_notebook import xlsx_export
+
+    assert xlsx_export._sheet_name("Commercial Fusion 2026: state of play") == \
+        "Commercial Fusion 2026 state of"
+    assert xlsx_export._sheet_name("") == "Data"
+    # forbidden characters are REMOVED, not replaced: "a/b" becomes "ab"
+    assert xlsx_export._sheet_name("a/b [c] *d* ?e: f\\g") == "ab c d e fg"
+    blob = xlsx_export.workbook({"title": "A/B: *x*", "columns": ["c"], "rows": [["1"]]})
+    assert blob[:2] == b"PK"
+
+
+def test_media_prompts_ban_the_ident_and_demand_the_tension():
+    """Audio and Video are the two kinds a judge hears rather than reads, so the
+    prompt has to forbid the phrasing that makes a generated podcast sound
+    generated, and require the real disagreement to be spoken."""
+    from hermes_notebook import audio, video
+
+    deep = audio._FORMAT_FRAMING["deep_dive"].lower()
+    assert "in media res" in deep
+    assert "welcome back" in deep, "the station ident is not banned"
+    assert "disagreement" in deep or "disagree" in deep
+
+    src = __import__("pathlib").Path(__file__).resolve().parent.parent.joinpath(
+        "hermes_notebook", "video.py").read_text(encoding="utf-8")
+    assert "IN MEDIA RES" in src
+    assert "in this video" in src, "the filler opener is not banned"
+    assert "contradict" in src.lower()

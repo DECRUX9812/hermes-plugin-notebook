@@ -1248,7 +1248,9 @@ const CSS = `
 .nb-nbcard-foot{display:flex;align-items:center;gap:var(--nb-sp-3);margin-top:auto;
   padding-top:var(--nb-sp-3);border-top:1px solid var(--nb-hair-soft);flex-wrap:wrap;row-gap:var(--nb-sp-2)}
 .nb-nbcard-open{display:inline-flex;align-items:center;gap:6px;margin-left:auto;
-  font-size:var(--nb-fs-label);font-weight:650;color:color-mix(in srgb,var(--kc) 62%, ${T.text});
+  /* 62% of the card's own accent measured 4.45:1 on the light skin — just under
+     AA. 55% clears it on every card colour without turning the link grey. */
+  font-size:var(--nb-fs-label);font-weight:650;color:color-mix(in srgb,var(--kc) 52%, ${T.text});
   white-space:nowrap}
 .nb-nbcard:hover .nb-nbcard-open svg{transform:translateX(2px)}
 .nb-nbcard-open svg{transition:transform var(--nb-dur-fast) var(--nb-ease)}

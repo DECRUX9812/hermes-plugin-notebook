@@ -1,15 +1,15 @@
 {
  "ok": true,
- "generated_at": "2026-11-09T20:19:31Z",
+ "generated_at": "2026-11-09T20:51:00Z",
  "model_ready": false,
  "notebooks": [
   {
    "id": "commercial-fusion-2026",
    "title": "Commercial Fusion Energy in 2026",
    "description": "Six sources on the state of commercial fusion: the CRS briefing for Congress, the DOE deployment roadmap, two ITER releases, the IAEA outlook and the reference article.",
-   "updated_at": "2026-11-09T20:16:26+00:00",
+   "updated_at": "2026-11-09T20:50:39+00:00",
    "sources": 6,
-   "artifacts": 32,
+   "artifacts": 37,
    "chars": 157369
   },
   {
@@ -37,7 +37,7 @@
   "description": "Six sources on the state of commercial fusion: the CRS briefing for Congress, the DOE deployment roadmap, two ITER releases, the IAEA outlook and the reference article.",
   "emoji": "",
   "created_at": "2026-11-07T16:36:51+00:00",
-  "updated_at": "2026-11-09T20:16:26+00:00",
+  "updated_at": "2026-11-09T20:50:39+00:00",
   "sources": [
    {
     "n": 1,
@@ -147,6 +147,136 @@
    }
   ],
   "artifacts": [
+   {
+    "key": "20261109-205039-slides",
+    "kind": "slides",
+    "title": "",
+    "opts": {},
+    "label": "Slides",
+    "group": "visual",
+    "primary": "20261109-205039-slides.html",
+    "ext": "html",
+    "media": true,
+    "bytes": 21995,
+    "files": [
+     {
+      "name": "20261109-205039-slides.html",
+      "ext": "html",
+      "size": 4766
+     },
+     {
+      "name": "20261109-205039-slides.json",
+      "ext": "json",
+      "size": 17229
+     }
+    ],
+    "modified": "2026-11-09T20:50:39+00:00"
+   },
+   {
+    "key": "20261109-204214-data_table",
+    "kind": "data_table",
+    "title": "",
+    "opts": {},
+    "label": "Data Table",
+    "group": "docs",
+    "primary": "20261109-204214-data_table.csv",
+    "ext": "csv",
+    "media": false,
+    "bytes": 13225,
+    "files": [
+     {
+      "name": "20261109-204214-data_table.md",
+      "ext": "md",
+      "size": 3747
+     },
+     {
+      "name": "20261109-204214-data_table.csv",
+      "ext": "csv",
+      "size": 3120
+     },
+     {
+      "name": "20261109-204214-data_table.json",
+      "ext": "json",
+      "size": 6358
+     }
+    ],
+    "modified": "2026-11-09T20:42:14+00:00"
+   },
+   {
+    "key": "20261109-203605-flashcards",
+    "kind": "flashcards",
+    "title": "",
+    "opts": {},
+    "label": "Flashcards",
+    "group": "study",
+    "primary": "20261109-203605-flashcards.md",
+    "ext": "md",
+    "media": false,
+    "bytes": 24314,
+    "files": [
+     {
+      "name": "20261109-203605-flashcards.md",
+      "ext": "md",
+      "size": 9230
+     },
+     {
+      "name": "20261109-203605-flashcards.json",
+      "ext": "json",
+      "size": 15084
+     }
+    ],
+    "modified": "2026-11-09T20:36:05+00:00"
+   },
+   {
+    "key": "20261109-203418-quiz",
+    "kind": "quiz",
+    "title": "",
+    "opts": {},
+    "label": "Quiz",
+    "group": "study",
+    "primary": "20261109-203418-quiz.md",
+    "ext": "md",
+    "media": false,
+    "bytes": 25961,
+    "files": [
+     {
+      "name": "20261109-203418-quiz.md",
+      "ext": "md",
+      "size": 7788
+     },
+     {
+      "name": "20261109-203418-quiz.json",
+      "ext": "json",
+      "size": 18173
+     }
+    ],
+    "modified": "2026-11-09T20:34:18+00:00"
+   },
+   {
+    "key": "20261109-203010-mind_map",
+    "kind": "mind_map",
+    "title": "",
+    "opts": {},
+    "label": "Mind Map",
+    "group": "visual",
+    "primary": "20261109-203010-mind_map.md",
+    "ext": "md",
+    "media": false,
+    "bytes": 9019,
+    "files": [
+     {
+      "name": "20261109-203010-mind_map.md",
+      "ext": "md",
+      "size": 241
+     },
+     {
+      "name": "20261109-203010-mind_map.json",
+      "ext": "json",
+      "size": 8778
+     }
+    ],
+    "modified": "2026-11-09T20:30:10+00:00"
+   },
    {
     "key": "20261109-201626-study_guide",
     "kind": "study_guide",
@@ -1060,11 +1190,12 @@
    "labels": 21,
    "unlabeled": 0,
    "active": 6,
-   "artifacts": 32,
+   "artifacts": 37,
    "kinds": [
     "audio_overview",
     "blueprint_evolution",
     "briefing_doc",
+    "data_table",
     "faq",
     "flashcards",
     "infographic",

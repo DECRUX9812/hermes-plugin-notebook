@@ -38,6 +38,17 @@ def _is_number(text: str) -> bool:
         return False
 
 
+_BAD_SHEET = set('[]:*?/\\')
+
+
+def _sheet_name(raw: Any, fallback: str = "Data") -> str:
+    """A title openpyxl will accept: no `[]:*?/\\`, and at most 31 characters."""
+    text = _clean(raw, 200)
+    text = "".join(ch for ch in text if ch not in _BAD_SHEET).strip(" -_")
+    text = text[:31].strip()
+    return text or fallback
+
+
 def _clean(text: Any, limit: int = 4000) -> str:
     return str(text if text is not None else "").strip()[:limit]
 
@@ -59,7 +70,11 @@ def workbook(data: Dict[str, Any]) -> bytes:
 
     wb = Workbook()
     ws = wb.active
-    ws.title = _clean(data.get("title"), 28) or "Data"
+    # openpyxl REFUSES a sheet title containing : \\ / * ? [ ] and caps it at 31
+    # chars. A generated title like "Commercial Fusion 2026: state" raised
+    # ValueError on the first click; the title is a label, so sanitise it rather
+    # than fail the export.
+    ws.title = _sheet_name(data.get("title"))
 
     head_fill = PatternFill("solid", fgColor="0F172A")
     head_font = Font(bold=True, color="FFFFFF", size=11)

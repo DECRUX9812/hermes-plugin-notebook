@@ -31,10 +31,20 @@ FORMATS = ("deep_dive", "brief", "critique", "debate")
 _FORMAT_FRAMING = {
     "deep_dive": (
         "Two hosts (host_a and host_b) have a natural, warm, curious "
-        "conversation that explains the material the way NotebookLM does: they "
-        "introduce the topic, take turns explaining concepts in plain language, "
-        "react to interesting details, connect ideas across sources, and land "
-        "on practical takeaways."
+        "conversation that explains the material the way NotebookLM does.\n"
+        "RULES:\n"
+        "- Open IN MEDIA RES, on the single most surprising finding or the "
+        "sharpest disagreement in the sources. Never open with a station "
+        "ident (\"Welcome back\", \"Today we're talking about\", \"Let's dive in\").\n"
+        "- host_a is the architect: sets up the mechanism, asks how it works "
+        "under load, and challenges a vague claim. host_b is the analyst: brings "
+        "the exact number, the trade-off, the edge case, and names the source "
+        "when two of them disagree (\"wait — S2 says 28, not 30\").\n"
+        "- React to each other: a short interruption, a correction, a \"hold on\". "
+        "Plain-language analogies for anything abstract.\n"
+        "- Before the close, name at least one real disagreement or blind spot "
+        "in the sources and what it would take to settle it.\n"
+        "- End on a 30-second actionable takeaway, not a summary of the episode."
     ),
     "brief": (
         "A SINGLE narrator (host_a only — never host_b) delivers a tight, "
