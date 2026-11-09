@@ -156,7 +156,7 @@ See [docs/STATE-MACHINES.md](docs/STATE-MACHINES.md).
 ## Graphics library
 
 Every visual artifact is drawn by a reusable library, not one-off code:
-**38 looks × 9 templates × 3 shapes × 3 detail levels**, composed from primitives and
+**38 looks × 9 templates × 7 canvases × 3 detail levels**, composed from primitives and
 emitted as SVG (5–15 KB, crisp at any zoom, real text, accessible).
 
 ![38 looks](assets/infographic-styles.png)

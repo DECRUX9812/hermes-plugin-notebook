@@ -1,6 +1,6 @@
 ---
 name: notebook-infographics
-description: "Pick and drive the 16 bundled infographic looks for hermes-notebook."
+description: "Pick and drive the 38 bundled infographic looks for hermes-notebook, and check the layout contract they render under."
 version: 1.0.0
 author: Ritesh Patel
 license: MIT
@@ -14,7 +14,7 @@ metadata:
 # Notebook Infographics
 
 The `hermes-notebook` plugin ships a graphics library: **38 looks × 9 templates ×
-3 shapes × 3 detail levels**, emitted as SVG by `hermes_notebook.gfx`. This skill is
+7 canvases × 3 detail levels**, emitted as SVG by `hermes_notebook.gfx`. This skill is
 how to choose a look and a layout, how to call it, and — when the user wants
 something painted rather than typeset — how to fall back to the image model.
 
@@ -115,6 +115,26 @@ the default instead of failing the run.
 | `cover` | a title-led cover for a doc, deck or share card |
 | `illustration` | the art treatment itself, with a caption |
 
+## Filling the frame (the knob that decides "finished" vs "blank")
+
+`detail` sets how much the graphic may show; `template` sets how it lays that out.
+A payload that only yields one or two figures on a six-tile grid is the most
+common real case, so pick a template that *wants* few figures:
+
+| you have | use |
+|---|---|
+| one number that is the story | `key_figure` (the hero centres in its own space) |
+| a snapshot of many | `stat_grid` (tiles stretch, bounded to stay tiles) |
+| dated events | `timeline` (spreads to the closing band) |
+| steps in order | `process` (the ladder fills the span) |
+| a claim worth a frame | `quote_card` |
+| a document/deck cover | `cover` |
+
+The measured gaps for the shipped sample, after the layout fixes: **8–67px** above
+the closing band on every template, down from up to 366px. If a generated poster
+still looks sparse, the answer is usually a different `template` for the content
+shape — not a bigger type size, and never a scaled group.
+
 ## How to call it
 
 ```python
@@ -194,6 +214,47 @@ python3 -m pytest tests/test_igstyles.py -q  # catalog + render + tone gates
 (`grid`, `ticks`, `hairline`, `halftone`, `tape`, `glow`, `scanlines`, `hard-border`,
 `offset-shadow`, `wobble`, `overprint`). Nothing else needs editing — the page picker, the
 tool enum and the API catalog all read the same list.
+
+## The layout contract (what will fail a build)
+
+`tests/test_gfx_layout.py` renders every template × preset × detail × sample and
+measures REAL geometry — text baselines and rectangle bottoms, not element counts.
+It fails on three things a screenshot review misses:
+
+| failure | what it means |
+|---|---|
+| `overflow` | content or the closing band paints past the canvas edge |
+| `deadband` | the composition stops >200px above the closing band (a blank poster) |
+| `tiny` | a text node under 12px — illegible once the poster is shared |
+
+Whitespace is exempt for `quote_card`, `cover` and `illustration`, where it is the
+design. Before this contract existed, a poster with three figures left **366px**
+empty, the timeline stopped **119px** short of its closing band, and `to_png(scale=2)`
+shipped a PNG containing the document at half size in its top-left quarter.
+
+Two rules follow from those measurements:
+
+1. **Never scale a body group vertically to fill space.** SVG `scale(1, k)`
+   stretches glyph boxes: type becomes taller than it is wide. Expand at the
+   family level, which knows what may grow (tile heights, row pitch) and what may
+   not (a numeral's aspect ratio).
+2. **The closing band is reserved before the grid is laid out**, and the grid is
+   measured against `band_y`, never against the canvas edge — the band owns the
+   bottom of the sheet, so measuring to the edge counts the band itself as
+   empty space.
+
+## Rasterising for a deck, a post or a video
+
+```python
+gfx.to_png(graphic, "poster.png", preset="editorial", template="infographic", scale=2)
+```
+
+`--window-size` is CSS pixels and `--force-device-scale-factor` multiplies it;
+passing a scaled window size as well makes Chrome lay the document out inside a
+larger viewport and photograph one quadrant. `scale=1` hides that, everything
+above it does not — and `test_raster_at_scale_still_frames_the_whole_document`
+now reads pixels and fails if ink covers less than 85% of the image in either
+axis. A 2x raster of a 1200×900 poster must be 2400×1800 and *full*.
 
 ## Pitfalls
 
