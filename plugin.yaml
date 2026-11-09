@@ -100,7 +100,7 @@ config_schema:
     label: TTS segment concurrency
     description: Parallel edge-tts segment synthesis workers (1-8). Lower if you hit throttling.
 python_dependencies:
-  - "pillow>=10,<13"
+  - "pillow>=10,<14"
   - "pypdf>=4.2,<7"
   - "edge-tts>=7.0,<8"
   - "youtube-transcript-api>=1.0,<2"

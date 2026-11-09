@@ -15,18 +15,63 @@ logger = logging.getLogger(__name__)
 PLUGIN_ID = "hermes-notebook"
 TOOLSET = "hermes_notebook"
 
+#: Where the bound context lives. Module globals are NOT enough: the loader
+#: imports the agent half as ``hermes_plugins.<key>``, while the dashboard half
+#: (``dashboard/plugin_api.py``) does ``from hermes_notebook import runtime`` off
+#: its own sys.path entry. Those are two distinct module objects for the same
+#: file, so ``bind()`` in one leaves the other's ``_ctx`` None and every
+#: ``/api/plugins/hermes-notebook/*`` route answers 503 "the agent half is not
+#: registered" on a plugin that IS registered. The process-wide slot below is
+#: shared by both copies; the per-module global stays as the fast path.
+_CONTEXT_SLOT = "__hermes_notebook_ctx__"
+_SHARED_MODULE = "_hermes_notebook_shared"
 _ctx: Any = None
 
 
 def bind(ctx: Any) -> None:
     global _ctx
     _ctx = ctx
+    _shared()[_CONTEXT_SLOT] = ctx
+
+
+def _shared() -> dict:
+    """A dict every copy of this module shares.
+
+    ``sys.modules[__name__]`` is NOT process-wide here: the two copies are filed
+    under different names (``hermes_plugins.<key>.hermes_notebook.runtime`` and
+    ``hermes_notebook.runtime``), so each gets its own ``__dict__``. A separate
+    module pinned by one fixed name is the shared one."""
+    import sys
+    import types
+    holder = sys.modules.get(_SHARED_MODULE)
+    if holder is None:
+        holder = types.ModuleType(_SHARED_MODULE)
+        holder.state = {}  # type: ignore[attr-defined]
+        sys.modules[_SHARED_MODULE] = holder
+    return holder.state  # type: ignore[attr-defined]
 
 
 def ctx() -> Any:
-    if _ctx is None:
-        raise RuntimeError("hermes-notebook is not registered with Hermes")
-    return _ctx
+    """The live plugin context, whichever copy of this module asked.
+
+    Prefer the module-global (this process bound it), then the shared slot (the
+    *other* copy bound it), then the gateway's plugin registry as a last resort
+    so a dashboard mounted before the reload still finds a bound plugin."""
+    bound = _ctx or _shared().get(_CONTEXT_SLOT)
+    if bound is not None:
+        return bound
+    try:
+        import sys
+        for name, module in list(sys.modules.items()):
+            if not name.endswith("hermes_notebook.runtime") or module is None:
+                continue
+            other = getattr(module, "_ctx", None)
+            if other is not None:
+                _shared()[_CONTEXT_SLOT] = other
+                return other
+    except Exception:
+        pass
+    raise RuntimeError("hermes-notebook is not registered with Hermes")
 
 
 def config(key: str, default: Any = None) -> Any:
