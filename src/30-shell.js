@@ -449,6 +449,27 @@ function App() {
     setNb(id); viewSend({ type: 'RESET_VIEW' }); setMode('studio')
   }, [])
 
+  // Measure the ROOT, not the viewport. The plugin lives inside the host's
+  // window, so `@media (max-width:…)` measures the wrong thing: at a 1600px
+  // window this root is 1340px, and at 1280px it is 1020px — where two fixed
+  // panels (268 + 420) left the main pane 332px wide.
+  const rootRef = useRef(null)
+  const [density, setDensity] = useState('wide')
+  useEffect(() => {
+    const node = rootRef.current
+    if (!node || typeof ResizeObserver === 'undefined') return undefined
+    // Thresholds are chosen from the MAIN column this leaves, not from a round
+    // number: wide 268+420 leaves >=572 at 1280; compact 200+320 leaves >=560
+    // from 1100; below that the rail folds so the workbench keeps its width.
+    const measure = (w) => setDensity(w >= 1320 ? 'wide' : w >= 1100 ? 'compact' : 'tight')
+    measure(node.getBoundingClientRect().width)
+    const ro = new ResizeObserver((entries) => {
+      for (const e of entries) measure(e.contentRect.width)
+    })
+    ro.observe(node)
+    return () => ro.disconnect()
+  }, [])
+
   const ops = mode === 'ops'
   const home = mode === 'home'
   const discoverMode = mode === 'discover'
@@ -458,7 +479,8 @@ function App() {
   const studyMode = mode === 'study'
 
   return el('div', {
-    className: 'nb-root', 'data-mode': mode, 'data-plugin': ID,
+    ref: rootRef,
+    className: 'nb-root', 'data-mode': mode, 'data-plugin': ID, 'data-density': density,
     // the room takes on the notebook's colour: its sigil hue becomes the ambient
     // field behind every panel, and home keeps a fixed violet
     style: { '--nb-hue': sigHue(notebook ? notebook.id : 'hermes-home') }
@@ -503,7 +525,12 @@ function App() {
           if (v === 'studio' && !notebook) { setMode('home'); return }
           setMode(v)
         },
-        options: (notebook && mode !== 'home'
+        // The gate is `notebook`, NOT the current mode. Gating on
+        // `mode !== 'home'` meant that from Home the switcher offered only
+        // Home / Discover / Lab Ops — so once you landed on Home with a
+        // notebook open you could not get back to Studio at all, and the tab
+        // row silently changed shape under the pointer.
+        options: (notebook
           ? [
               { id: 'home', label: 'Home', icon: 'grid' },
               { id: 'studio', label: 'Studio', icon: 'notebook' },

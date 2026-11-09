@@ -85,7 +85,7 @@ const CSS = `
    ========================================================================== */
 
 .nb-root{
-  --nb-rail: 280px; --nb-studio: 380px;
+  --nb-rail: 268px; --nb-studio: 420px;
   --nb-hair: color-mix(in srgb, ${T.text} 10%, transparent);
   --nb-hair-soft: color-mix(in srgb, ${T.text} 6%, transparent);
   --nb-wash: color-mix(in srgb, ${T.text} 4%, transparent);
@@ -1266,9 +1266,14 @@ const CSS = `
 
 /* generator options popover + citation hover card + data table */
 .nb-gen{position:relative}
-.nb-gen-cfg{position:absolute;top:4px;right:4px;width:32px;height:32px;opacity:0;
-  transition:opacity var(--nb-dur-fast) var(--nb-ease)}
-.nb-gen:hover .nb-gen-cfg,.nb-gen-cfg[data-active="true"]{opacity:1}
+/* The options button is a CONTROL, not a hover decoration: it was opacity:0
+   until the pointer was already over the card, so on a touch screen, on a
+   trackpad with the pointer elsewhere, or on first glance at the page the
+   settings looked like they did not exist. Quiet when idle, bright on hover. */
+.nb-gen-cfg{position:absolute;top:3px;right:3px;width:32px;height:32px;
+  opacity:.42;transition:opacity var(--nb-dur-fast) var(--nb-ease)}
+.nb-gen:hover .nb-gen-cfg,.nb-gen-cfg[data-active="true"],.nb-gen-cfg:focus-visible{opacity:1}
+@media (hover:none){.nb-gen-cfg{opacity:.8}}
 .nb-genpop{position:absolute;top:calc(100% + 6px);left:0;right:0;z-index:30;
   background:${T.card};border:1px solid ${T.line};border-radius:var(--nb-r-box);
   box-shadow:var(--nb-shadow-lift);padding:12px;display:grid;gap:12px}
@@ -1320,10 +1325,27 @@ const CSS = `
 .nb-dt tbody tr:last-child td{border-bottom:0}
 .nb-dt tbody tr:hover td{background:color-mix(in srgb,${T.accent} 4%,transparent)}
 
+/* Density is measured on the ROOT (see appendChild's ResizeObserver in
+   30-shell.js), because the viewport is not the space this page gets: the host
+   app's own rail takes 260px of it. These rules replace the viewport queries
+   that shipped before, which fired at the wrong widths and left the main pane
+   332px wide on a 1280px screen. */
+.nb-root[data-density=compact]{--nb-rail:200px; --nb-studio:320px}
+.nb-root[data-density=compact] .nb-body{padding:10px;gap:10px}
+.nb-root[data-density=compact] .nb-h1{font-size:22px}
+.nb-root[data-density=compact] .nb-gen-grid{grid-template-columns:1fr 1fr}
+/* Below 900 root pixels the three-column workbench is three slivers. The RAIL
+   folds away (its content is reachable from Home and the source dialog), and
+   the drawer keeps its width because the artifacts are the product. Hiding both
+   — which is what the old max-width:1100 query did — left a chat pane and
+   nothing to make anything with. */
+.nb-root[data-density=tight]{--nb-rail:0px; --nb-studio:300px}
+.nb-root[data-density=tight] .nb-rail{display:none}
+.nb-root[data-density=tight] .nb-gen-grid{grid-template-columns:1fr}
+/* ================= the old viewport queries, kept for a host that renders the
+   page full-bleed (the preview harness and a fullscreen window do) ========= */
 @media (max-width:1280px){
-  .nb-root{--nb-rail:250px; --nb-studio:320px}
-  .nb-body{padding:10px;gap:10px}
-  .nb-h1{font-size:22px}
+  .nb-root:not([data-density]){--nb-rail:240px; --nb-studio:340px}
 }
 @media (max-width:1100px){
   .nb-studio{display:none}
