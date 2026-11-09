@@ -642,8 +642,11 @@ function HomeDashboard({ data, onOpen, onNew, onDelete, onRename, onDuplicate })
   const [ren, setRen] = useState(null)
   const notebooks = (data && data.notebooks) || []
   const needle = query.trim().toLowerCase()
-  const shown = notebooks.filter((n) =>
-    !needle || `${n.title} ${n.description || ''}`.toLowerCase().includes(needle))
+  const shown = notebooks
+    .filter((n) => !needle || `${n.title} ${n.description || ''}`.toLowerCase().includes(needle))
+    // "newest activity first" is a claim the list has to keep: sort here, not in
+    // the payload, so a stale /state still reads in the order the label promises
+    .slice().sort((a, b) => String(b.updated_at || '').localeCompare(String(a.updated_at || '')))
   const totalSources = notebooks.reduce((s, n) => s + (n.sources || 0), 0)
   const totalArtifacts = notebooks.reduce((s, n) => s + (n.artifacts || 0), 0)
   const empty = notebooks.filter((n) => !n.sources).length
@@ -670,8 +673,7 @@ function HomeDashboard({ data, onOpen, onNew, onDelete, onRename, onDuplicate })
         el('div', { className: 'nb-home-sec' },
           el('span', { className: 'nb-meta', children: shown.length === notebooks.length
             ? 'All notebooks' : `${shown.length} of ${notebooks.length} notebooks` }),
-          el('span', { className: 'nb-hint', children: notebooks.length > 6
-            ? 'ordered by what is in them' : '' }),
+          el('span', { className: 'nb-hint', children: 'newest activity first' }),
           el('span', { style: { flex: 1 } })),
 
         shown.length === 0
