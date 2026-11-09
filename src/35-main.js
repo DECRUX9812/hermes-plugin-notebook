@@ -234,6 +234,7 @@ function Main({ notebook, kinds, tab, setTab, picked, setPicked, busy, generate,
               onPrevRun: si > 0 ? () => setPicked(sibs[si - 1]) : null,
               onNextRun: si >= 0 && si < sibs.length - 1 ? () => setPicked(sibs[si + 1]) : null,
               runPos: sibs.length > 1 ? `${si + 1} of ${sibs.length}` : '',
+              onClose: () => { setPicked(null); setTab('chat') },
               onCite: (n, cite) => {
                 const src = sources.find((s) => (cite && cite.id && s.id === cite.id) || s.n === n)
                 if (src) { setPeek({ ...src, citeSnippet: (cite && cite.snippet) || '' }); setTab('peek') }

@@ -391,7 +391,6 @@ const CSS = `
 .nb-sub{color:${T.text3};font-size:var(--nb-fs-meta);line-height:1.4;margin:0;
   white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0;max-width:100%}
 .nb-hero-side{display:flex;align-items:center;gap:var(--nb-sp-2);flex:0 0 auto}
-.nb-head-desc{display:none}
 /* ops host-measurement strip (Lab Ops only) */
 .nb-strip{display:flex;align-items:stretch;gap:8px;margin:14px 0 0;flex-wrap:wrap}
 .nb-cell{flex:1;min-width:90px;padding:10px 14px 11px;border-radius:var(--nb-r-el);

@@ -33,7 +33,7 @@ function useFile(notebookId, name) {
   return st
 }
 
-function Viewer({ artifact, notebook, onCite, onRegenerate, regenerating, onChanged, onPrevRun, onNextRun, runPos }) {
+function Viewer({ artifact, notebook, onCite, onRegenerate, regenerating, onChanged, onPrevRun, onNextRun, runPos, onClose }) {
   const [renOpen, setRenOpen] = useState(false)
   const [renVal, setRenVal] = useState('')
   const [renBusy, setRenBusy] = useState(false)
@@ -128,7 +128,10 @@ function Viewer({ artifact, notebook, onCite, onRegenerate, regenerating, onChan
         jsx(IconBtn, {
           icon: 'pencil', label: 'Rename this artifact',
           onClick: () => { setRenVal(artifact.title || ''); setRenOpen(true) }
-        }))
+        }),
+        onClose ? jsx(IconBtn, {
+          icon: 'close', label: 'Close this tab — back to chat', onClick: onClose
+        }) : null)
     ),
     body,
     renOpen
