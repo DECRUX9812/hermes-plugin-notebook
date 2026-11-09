@@ -121,9 +121,9 @@ const CSS = `
 .nb-mark{width:27px;height:27px;display:grid;place-items:center;flex:0 0 auto;border-radius:8px;
   background:color-mix(in srgb,${T.accent} 15%, transparent);color:${T.accent}}
 .nb-brandname{font-size:14.5px;font-weight:700;letter-spacing:-.01em;color:${T.text}}
-.nb-crumb{font-size:12.5px;color:${T.text3};white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:42ch}
+.nb-crumb{font-size:12.5px;color:${T.text3};white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:min(52ch,44vw);display:flex;align-items:center;gap:6px;min-width:0}
 .nb-crumb b{color:${T.text2};font-weight:600}
-.nb-crumbedit{background:transparent;border:0;padding:0 8px;margin:0 -8px;font:inherit;
+.nb-crumbedit{display:block;max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;background:transparent;border:0;padding:0 8px;margin:0 -8px;font:inherit;
   color:${T.text2};font-weight:600;cursor:pointer;border-radius:8px;
   display:inline-flex;align-items:center;min-height:32px;max-width:42ch;
   overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
@@ -147,7 +147,7 @@ const CSS = `
 .nb-btn[data-variant=ghost]{background:transparent;border-color:transparent;color:${T.text2}}
 .nb-btn[data-variant=ghost]:hover{background:var(--nb-wash-2);color:${T.text}}
 .nb-btn[data-size=sm]{min-height:32px;padding:0 12px;font-size:12.5px;border-radius:8px}
-.nb-icon{width:36px;height:36px;min-height:36px;padding:0;border-radius:99px;display:grid;place-items:center;
+.nb-icon{width:36px;height:36px;min-height:36px;flex:0 0 auto;padding:0;border-radius:99px;display:grid;place-items:center;
   cursor:pointer;border:1px solid transparent;background:transparent;color:${T.text3};
   transition:background var(--nb-dur-fast) var(--nb-ease),color var(--nb-dur-fast) var(--nb-ease),border-color var(--nb-dur-fast) var(--nb-ease)}
 .nb-icon:hover{background:var(--nb-wash-2);color:${T.text}}
@@ -185,7 +185,7 @@ const CSS = `
 .nb-rail[data-drop="true"]{outline:2px dashed ${T.accent};outline-offset:-6px;border-radius:24px}
 .nb-main-col{flex:1 1 auto}
 .nb-studio{flex:0 0 var(--nb-studio)}
-.nb-fade{position:absolute;left:0;right:0;bottom:0;height:44px;pointer-events:none;
+.nb-fade{position:absolute;left:0;right:0;bottom:0;height:30px;pointer-events:none;
   background:linear-gradient(to top, color-mix(in srgb, ${T.text} 6%, ${T.card}), transparent)}
 .nb-pane-head{display:flex;align-items:center;gap:8px;height:52px;flex:0 0 52px;padding:0 18px}
 .nb-pane-title{font-size:15px;font-weight:650;letter-spacing:-.01em;color:${T.text}}
@@ -209,8 +209,8 @@ const CSS = `
   background:var(--nb-wash-2);color:${T.text2};font-size:13px;font-weight:700}
 .nb-nbrow[aria-current=true] .nb-avatar{background:color-mix(in srgb,${T.accent} 20%, transparent);color:${T.accent}}
 
-.nb-src{display:flex;align-items:center;gap:4px;width:100%;border-radius:12px;
-  padding:5px 8px 5px 5px;position:relative;transition:background var(--nb-dur-fast) var(--nb-ease)}
+.nb-src{display:flex;align-items:center;gap:6px;width:100%;border-radius:12px;
+  padding:7px 8px 7px 5px;position:relative;transition:background var(--nb-dur-fast) var(--nb-ease)}
 .nb-src:hover{background:var(--nb-wash-2)}
 .nb-src[data-on=true]{background:color-mix(in srgb,${T.accent} 10%, transparent)}
 .nb-src[data-off=true]{opacity:.55}
@@ -225,12 +225,12 @@ const CSS = `
   border-radius:99px;display:grid;place-items:center;background:${T.accent};color:#0d0e15;
   font-size:10px;font-weight:700;
   box-shadow:0 1px 4px rgba(8,10,18,.4)}
-.nb-src-title{font-size:13px;font-weight:600;line-height:1.35;color:${T.text};
+.nb-src-title{font-size:13px;font-weight:600;line-height:1.4;color:${T.text};
   overflow:hidden;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical}
-.nb-src-meta{display:flex;align-items:center;gap:6px;margin-top:5px;flex-wrap:wrap}
+.nb-src-meta{display:flex;align-items:center;gap:5px;margin-top:4px;flex-wrap:wrap;row-gap:3px}
 /* NotebookLM's per-source checkbox: a rounded box at the row's right edge */
 .nb-srccheck{width:32px;height:32px;flex:0 0 auto;border-radius:8px;cursor:pointer;
-  border:1.5px solid var(--nb-hair);background:transparent;color:#0d0e15;
+  border:1.5px solid var(--nb-hair-soft);background:transparent;color:#0d0e15;
   display:grid;place-items:center;padding:0;transition:all var(--nb-dur-fast) var(--nb-ease)}
 .nb-srccheck:hover{border-color:color-mix(in srgb,${T.accent} 55%, transparent)}
 .nb-srccheck[aria-checked=true]{background:${T.accent};border-color:${T.accent}}
@@ -245,7 +245,7 @@ const CSS = `
 .nb-srcgroup:hover{background:var(--nb-wash-2);color:${T.text2}}
 .nb-srcgroup svg{transition:transform var(--nb-dur-fast) var(--nb-ease)}
 .nb-srcgroup[data-closed=true] svg{transform:rotate(-90deg)}
-.nb-srcgroup em{margin-left:auto;font-style:normal;font-weight:500;color:${T.text4};font-size:11px}
+.nb-srcgroup em{margin-left:auto;font-style:normal;font-weight:500;color:${T.text3};font-size:11.5px}
 .nb-srcgroup-list{display:flex;flex-direction:column;gap:2px;padding-left:14px}
 
 /* the web-research box inside the sources panel */
@@ -257,7 +257,9 @@ const CSS = `
 .nb-finder-row input::placeholder{color:${T.text4}}
 .nb-finder-go{width:32px;height:32px;flex:0 0 auto;border-radius:99px;border:0;cursor:pointer;
   background:${T.accent};color:#0d0e15;display:grid;place-items:center;padding:0}
-.nb-addsrc{width:100%;justify-content:flex-start}
+.nb-addsrc{width:100%;justify-content:flex-start;height:34px;background:transparent;
+  border:1px dashed var(--nb-hair);color:${T.text2};font-size:12.5px;box-shadow:none}
+.nb-addsrc:hover{background:var(--nb-wash-2);border-color:color-mix(in srgb,${T.accent} 40%, var(--nb-hair));color:${T.text}}
 .nb-paneltog{flex:0 0 44px;display:flex;flex-direction:column;align-items:center;
   gap:10px;padding-top:16px}
 .nb-finder-go[disabled]{opacity:.45;cursor:not-allowed}
@@ -270,7 +272,7 @@ const CSS = `
 .nb-fcand-main{flex:1;min-width:0}
 .nb-fcand-title{display:block;font-size:12.5px;font-weight:600;line-height:1.35;color:${T.text};
   overflow:hidden;white-space:nowrap;text-overflow:ellipsis}
-.nb-fcand-sub{display:block;font-size:11px;color:${T.text3};margin-top:2px;
+.nb-fcand-sub{display:block;font-size:11.5px;color:${T.text3};margin-top:2px;
   overflow:hidden;white-space:nowrap;text-overflow:ellipsis}
 .nb-fcand-add{width:28px;height:28px;flex:0 0 auto;border-radius:99px;cursor:pointer;
   border:1.5px solid var(--nb-hair);background:transparent;color:${T.text2};
@@ -336,7 +338,7 @@ const CSS = `
   border:1px solid var(--nb-hair-soft);background:var(--nb-wash)}
 .nb-cell b{display:block;font-size:17px;font-weight:650;letter-spacing:-.02em;
   line-height:1.1;font-variant-numeric:tabular-nums}
-.nb-cell span{display:block;font-size:11px;color:${T.text3};margin-top:6px;font-weight:600}
+.nb-cell span{display:block;font-size:11.5px;color:${T.text3};margin-top:6px;font-weight:600}
 .nb-tabs{display:flex;gap:4px;align-items:flex-end;margin:16px 0 0;position:relative;bottom:-1px}
 .nb-tab{min-height:38px;padding:0 14px 11px;border:0;border-bottom:2px solid transparent;
   border-radius:10px 10px 0 0;background:transparent;color:${T.text2};font-size:13.5px;
@@ -632,7 +634,7 @@ const CSS = `
 .nb-term-in input:focus{border-color:color-mix(in srgb,${T.accent} 55%, transparent)}
 
 /* -------------------------------------------------------------- status bar */
-.nb-status{flex:0 0 32px;height:32px;display:flex;align-items:center;gap:18px;padding:0 18px;
+.nb-status{flex:0 0 32px;height:32px;display:flex;align-items:center;gap:14px;padding:0 18px;font-size:12px;
   border-top:1px solid var(--nb-hair-soft);background:transparent;
   font-size:11.5px;color:${T.text3}}
 .nb-status b{color:${T.text2};font-weight:600}
@@ -650,7 +652,7 @@ const CSS = `
 .nb-home-search{width:260px;margin-left:auto}
 .nb-feature-row{display:flex;gap:14px;overflow-x:auto;padding:2px 2px 12px;margin-bottom:26px;
   scrollbar-width:thin}
-.nb-feature{flex:0 0 290px;height:170px;border-radius:16px;padding:18px;position:relative;
+.nb-feature{flex:0 0 300px;min-height:176px;height:auto;border-radius:16px;padding:18px;position:relative;
   overflow:hidden;display:flex;flex-direction:column;justify-content:space-between;
   text-align:left;cursor:pointer;color:${T.text};font-family:inherit;
   border:1px solid var(--nb-hair-soft);
@@ -660,8 +662,9 @@ const CSS = `
 .nb-feature::after{content:'';position:absolute;right:-46px;bottom:-58px;width:190px;height:190px;
   border-radius:99px;background:color-mix(in srgb,var(--kc) 22%, transparent);pointer-events:none}
 .nb-feature-emoji{font-size:30px;line-height:1}
-.nb-feature-title{font-size:15.5px;font-weight:650;line-height:1.3;max-width:24ch;position:relative}
-.nb-feature-meta{font-size:11.5px;color:${T.text3};position:relative}
+.nb-feature-title{font-size:15.5px;font-weight:650;line-height:1.3;position:relative;
+  display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+.nb-feature-meta{font-size:12px;line-height:1.5;color:${T.text3};position:relative;white-space:normal}
 .nb-home-sec{display:flex;align-items:center;gap:12px;margin:0 0 14px}
 .nb-home-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(215px,1fr));gap:13px;
   align-content:start}
@@ -788,6 +791,59 @@ const CSS = `
 .nb-study-empty{display:grid;justify-items:center;gap:10px;padding:64px 20px;text-align:center;
   color:${T.text3};border:1px dashed var(--nb-hair-soft);border-radius:18px}
 @media (max-width:820px){ .nb-study{padding:18px 16px 32px} .nb-study-q{font-size:19px} }
+.nb-linkbtn{background:none;border:0;padding:0;font:inherit;color:${T.accent};cursor:pointer;
+  text-decoration:underline;text-underline-offset:3px;text-decoration-thickness:1px}
+.nb-linkbtn:hover{color:${T.text}}
+/* --- surfaces that lost their stylesheet in a branch merge: discover, thread
+   list, link buttons, inputs and chip rows were rendering as browser defaults --- */
+.nb-newthread{display:flex;gap:8px;align-items:center}
+.nb-newthread .nb-genopt-text{flex:1;min-width:0}
+.nb-chiprow{display:flex;align-items:center;gap:6px;flex-wrap:wrap;padding:8px 0 6px}
+.nb-thrlist{display:flex;flex-direction:column;gap:6px;max-height:min(46vh,360px);
+  overflow:auto;overscroll-behavior:contain;padding:2px;margin:0 -2px}
+.nb-thredit{display:flex;gap:6px;align-items:center;width:100%;padding:2px 4px}
+.nb-thredit .nb-genopt-text{flex:1;min-width:0}
+.nb-newthread{display:flex;gap:8px;align-items:center}
+.nb-newthread .nb-genopt-text{flex:1;min-width:0}
+.nb-danger{color:${T.danger} !important;
+  border-color:color-mix(in srgb,${T.danger} 45%,transparent) !important}
+/* ---------------------------------------------------------------- discover */
+.nb-disc{flex:1;min-height:0;overflow:auto;padding:26px 30px 40px;display:flex;flex-direction:column;
+  gap:14px;max-width:1040px;width:100%}
+.nb-disc-head h1{margin:0 0 6px}
+.nb-disc-search{display:flex;gap:10px;align-items:center;margin-top:4px}
+.nb-disc-search .nb-input{flex:1;min-width:0}
+.nb-input{height:44px;padding:0 16px;border-radius:14px;border:1px solid var(--nb-hair);
+  background:var(--nb-card);color:${T.text};font:inherit;font-size:14.5px;outline:0;
+  transition:border-color .15s ease, box-shadow .15s ease}
+.nb-input:focus{border-color:color-mix(in srgb,${T.accent} 55%, transparent);
+  box-shadow:0 0 0 4px color-mix(in srgb,${T.accent} 14%, transparent)}
+.nb-input::placeholder{color:${T.text4}}
+.nb-disc-gaps{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.nb-disc-body{display:flex;flex-direction:column;gap:10px;margin-top:4px}
+.nb-disc-card{display:flex;gap:12px;align-items:flex-start;padding:14px 16px;cursor:pointer;
+  border:1px solid var(--nb-hair-soft);border-radius:16px;background:var(--nb-card);
+  transition:border-color .15s ease, background .15s ease}
+.nb-disc-card:hover{border-color:var(--nb-hair)}
+.nb-disc-card[data-on=true]{border-color:color-mix(in srgb,${T.accent} 50%, transparent);
+  background:color-mix(in srgb,${T.accent} 8%, var(--nb-card))}
+.nb-disc-card input{width:16px;height:16px;margin-top:3px;accent-color:${T.accent};
+  cursor:pointer;flex:0 0 16px}
+.nb-disc-main{display:flex;flex-direction:column;gap:5px;min-width:0;flex:1}
+.nb-disc-top{display:flex;align-items:center;gap:8px;font-size:11.5px}
+.nb-disc-dom{color:${T.accent};font-weight:600;letter-spacing:.01em}
+.nb-disc-title{font-size:14.5px;font-weight:600;line-height:1.35;color:${T.text}}
+.nb-disc-snip{font-size:13px;line-height:1.5;color:${T.text3};
+  display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+.nb-disc-why{display:flex;align-items:center;gap:6px;font-size:12px;color:${T.text2};padding-top:2px}
+.nb-disc-foot{display:flex;align-items:center;gap:12px;position:sticky;bottom:12px;
+  padding:12px 14px;border-radius:16px;border:1px solid var(--nb-hair);
+  background:var(--nb-card);box-shadow:var(--nb-shadow)}
+.nb-disc-meta{display:flex;gap:14px;flex-wrap:wrap;font-size:11.5px;color:${T.text4};padding-top:4px}
+.nb-disc-empty{display:grid;justify-items:center;gap:8px;padding:56px 20px;text-align:center;
+  color:${T.text3};border:1px dashed var(--nb-hair-soft);border-radius:18px}
+.nb-disc-err{color:${T.danger};font-size:13px;padding:10px 14px;border-radius:12px;
+  background:color-mix(in srgb,${T.danger} 12%, transparent)}
 `
 
 /* --------------------------------------------------------------- helpers */
@@ -2187,7 +2243,7 @@ function App() {
                 ? el('b', { children: 'Discover' })
                 : studyMode
                   ? el('b', { children: 'Study' })
-                : el('span', null, '/ ', notebook
+                : el('span', null, jsx(Glyph, { name: 'chevron', size: 12 }), ' ', notebook
                     ? el('button', {
                         type: 'button', className: 'nb-crumbedit',
                         onClick: () => setRenNb(notebook),
@@ -3508,7 +3564,7 @@ function Chat({ notebook, kinds, askOpen, onSay, modelReady, onCite, onOpenSourc
             type: 'button', className: 'nb-sendbtn',
             onClick: () => send(), disabled: !text.trim() || !!pending,
             'aria-label': pending ? 'Asking…' : 'Send question',
-            title: pending ? 'Asking…' : 'Send',
+            title: pending ? 'Asking…' : 'Send (↵ — ⇧↵ for a new line)',
             children: jsx(Glyph, { name: 'send', size: 15 })
           }))
       ),
@@ -4044,11 +4100,11 @@ function StudioPanel({ kinds, notebook, busy, generate, filter, setFilter, onOpe
 
   return el('aside', { className: 'nb-col nb-studio', 'aria-label': 'Studio' },
     el('div', { className: 'nb-pane-head' },
-      el('span', { className: 'nb-pane-title', children: 'Studio' }),
+      el('span', { className: 'nb-pane-title', children: 'Outputs' }),
       el('span', {
         className: 'nb-chip',
         'data-tone': Object.keys(ready).length ? 'ok' : undefined,
-        children: `${Object.keys(ready).length}/${kinds.length}`
+        children: `${Object.keys(ready).length} of ${kinds.length}`
       }),
       jsx(IconBtn, { icon: 'arrowRight', label: 'Hide studio panel', onClick: onCollapse })
     ),
@@ -4062,9 +4118,9 @@ function StudioPanel({ kinds, notebook, busy, generate, filter, setFilter, onOpe
         })))),
     el('div', { className: 'nb-pad', style: { paddingTop: '12px', paddingBottom: 0, borderTop: `1px solid ${T.lineSoft}` } },
       el('div', { style: { display: 'flex', alignItems: 'baseline', gap: '8px' } },
-        el('span', { className: 'nb-meta', children: `Files · ${shownArts.length}` }),
+        el('span', { className: 'nb-meta', children: `Runs · ${shownArts.length}` }),
         el('span', { style: { flex: 1 } }),
-        el('span', { className: 'nb-meta', style: { color: T.text4 }, children: 'every run on disk' })),
+        el('span', { className: 'nb-meta', style: { color: T.text4 }, title: 'every run on disk', children: 'newest first' })),
       el('div', { className: 'nb-chiprow' },
         FILTERS.map((f) => jsx(Chip, {
           key: f.id, tone: filter === f.id ? 'accent' : undefined,
@@ -4073,7 +4129,7 @@ function StudioPanel({ kinds, notebook, busy, generate, filter, setFilter, onOpe
           title: `${f.label} artifacts`, children: f.label
         })))),
     el('div', { className: 'nb-scroll', ref: scrollRef, 'data-scrollable': canScroll ? 'true' : 'false' },
-      el('div', { className: 'nb-artlist', style: { padding: '4px 8px 56px' } },
+      el('div', { className: 'nb-artlist', style: { padding: '4px 8px 72px' } },
         shownArts.length === 0
           ? el('div', { className: 'nb-hint', style: { padding: '14px 8px', lineHeight: 1.5 } },
               notebook && notebook.sources && notebook.sources.length
@@ -4306,7 +4362,7 @@ function StatusBar({ mode, notebook, data, note, opsStats }) {
             ready ? 'model ready' : 'model offline')
         : el('span', null,
             jsx('span', { className: 'nb-sdot', style: { background: ready ? T.ok : T.warn } }),
-            ready ? 'grounded · model ready' : 'model offline — enable the plugin'),
+            ready ? 'model ready · answering only from your sources' : 'model offline — enable the plugin'),
     !ops && !home && notebook
       ? el('span', null, jsx('b', { children: notebook.stats.sources }), ' sources · ',
           jsx('b', { children: nfmt(notebook.stats.chars) }), ' chars · ',
@@ -6311,7 +6367,7 @@ function SlidesView({ data, htmlUrl }) {
             key: `d${si}`, type: 'button', role: 'tab', 'aria-selected': si === i,
             'aria-label': `Slide ${si + 1}`, onClick: () => setI(si),
             style: {
-              width: '22px', height: '22px', border: 0, background: 'transparent', cursor: 'pointer',
+              width: '30px', height: '30px', border: 0, background: 'transparent', cursor: 'pointer', borderRadius: '99px',
               padding: 0, display: 'grid', placeItems: 'center'
             },
             children: el('span', {

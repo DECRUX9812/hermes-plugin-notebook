@@ -29,6 +29,27 @@ const ok = (name, pass, detail) => {
   console.log(`${pass ? 'PASS' : 'FAIL'}  ${name}${detail ? ` — ${detail}` : ''}`)
 }
 
+
+  // A class the markup uses but the stylesheet never defines renders as a browser
+  // default. An entire panel (Discover) once shipped unstyled after a merge dropped
+  // its CSS, and nothing failed: the DOM was right, the page was ugly.
+  {
+    const bundle = readFileSync(join(here, '..', 'desktop', 'plugin.js'), 'utf8')
+    const used = new Set()
+    for (const m of bundle.matchAll(/className:\s*['"]([^'"]+)['"]/g)) {
+      for (const c of m[1].split(/\s+/)) if (c.startsWith('nb-')) used.add(c)
+    }
+    for (const m of bundle.matchAll(/cx\(([^)]*)\)/g)) {
+      for (const q of m[1].matchAll(/['"]([^'"]+)['"]/g)) {
+        for (const c of q[1].split(/\s+/)) if (c.startsWith('nb-')) used.add(c)
+      }
+    }
+    const defined = new Set([...bundle.matchAll(/\.(nb-[a-zA-Z0-9-]+)/g)].map((m) => m[1]))
+    const unstyled = [...used].filter((c) => !defined.has(c)).sort()
+    ok('every class the markup uses has a rule', unstyled.length === 0,
+       unstyled.length ? unstyled.slice(0, 6).join(', ') : `${used.size} classes`)
+  }
+
 /* -------------------------------------------------------------- 5 machines
  * The state machines are a product surface, not an implementation detail: the
  * page publishes them for agents, refuses events that do not belong to the

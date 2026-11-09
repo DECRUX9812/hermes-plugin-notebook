@@ -673,7 +673,7 @@ function Chat({ notebook, kinds, askOpen, onSay, modelReady, onCite, onOpenSourc
             type: 'button', className: 'nb-sendbtn',
             onClick: () => send(), disabled: !text.trim() || !!pending,
             'aria-label': pending ? 'Asking…' : 'Send question',
-            title: pending ? 'Asking…' : 'Send',
+            title: pending ? 'Asking…' : 'Send (↵ — ⇧↵ for a new line)',
             children: jsx(Glyph, { name: 'send', size: 15 })
           }))
       ),
@@ -1209,11 +1209,11 @@ function StudioPanel({ kinds, notebook, busy, generate, filter, setFilter, onOpe
 
   return el('aside', { className: 'nb-col nb-studio', 'aria-label': 'Studio' },
     el('div', { className: 'nb-pane-head' },
-      el('span', { className: 'nb-pane-title', children: 'Studio' }),
+      el('span', { className: 'nb-pane-title', children: 'Outputs' }),
       el('span', {
         className: 'nb-chip',
         'data-tone': Object.keys(ready).length ? 'ok' : undefined,
-        children: `${Object.keys(ready).length}/${kinds.length}`
+        children: `${Object.keys(ready).length} of ${kinds.length}`
       }),
       jsx(IconBtn, { icon: 'arrowRight', label: 'Hide studio panel', onClick: onCollapse })
     ),
@@ -1227,9 +1227,9 @@ function StudioPanel({ kinds, notebook, busy, generate, filter, setFilter, onOpe
         })))),
     el('div', { className: 'nb-pad', style: { paddingTop: '12px', paddingBottom: 0, borderTop: `1px solid ${T.lineSoft}` } },
       el('div', { style: { display: 'flex', alignItems: 'baseline', gap: '8px' } },
-        el('span', { className: 'nb-meta', children: `Files · ${shownArts.length}` }),
+        el('span', { className: 'nb-meta', children: `Runs · ${shownArts.length}` }),
         el('span', { style: { flex: 1 } }),
-        el('span', { className: 'nb-meta', style: { color: T.text4 }, children: 'every run on disk' })),
+        el('span', { className: 'nb-meta', style: { color: T.text4 }, title: 'every run on disk', children: 'newest first' })),
       el('div', { className: 'nb-chiprow' },
         FILTERS.map((f) => jsx(Chip, {
           key: f.id, tone: filter === f.id ? 'accent' : undefined,
@@ -1238,7 +1238,7 @@ function StudioPanel({ kinds, notebook, busy, generate, filter, setFilter, onOpe
           title: `${f.label} artifacts`, children: f.label
         })))),
     el('div', { className: 'nb-scroll', ref: scrollRef, 'data-scrollable': canScroll ? 'true' : 'false' },
-      el('div', { className: 'nb-artlist', style: { padding: '4px 8px 56px' } },
+      el('div', { className: 'nb-artlist', style: { padding: '4px 8px 72px' } },
         shownArts.length === 0
           ? el('div', { className: 'nb-hint', style: { padding: '14px 8px', lineHeight: 1.5 } },
               notebook && notebook.sources && notebook.sources.length
@@ -1471,7 +1471,7 @@ function StatusBar({ mode, notebook, data, note, opsStats }) {
             ready ? 'model ready' : 'model offline')
         : el('span', null,
             jsx('span', { className: 'nb-sdot', style: { background: ready ? T.ok : T.warn } }),
-            ready ? 'grounded · model ready' : 'model offline — enable the plugin'),
+            ready ? 'model ready · answering only from your sources' : 'model offline — enable the plugin'),
     !ops && !home && notebook
       ? el('span', null, jsx('b', { children: notebook.stats.sources }), ' sources · ',
           jsx('b', { children: nfmt(notebook.stats.chars) }), ' chars · ',

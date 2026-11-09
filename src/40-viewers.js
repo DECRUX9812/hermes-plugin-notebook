@@ -1027,7 +1027,7 @@ function SlidesView({ data, htmlUrl }) {
             key: `d${si}`, type: 'button', role: 'tab', 'aria-selected': si === i,
             'aria-label': `Slide ${si + 1}`, onClick: () => setI(si),
             style: {
-              width: '22px', height: '22px', border: 0, background: 'transparent', cursor: 'pointer',
+              width: '30px', height: '30px', border: 0, background: 'transparent', cursor: 'pointer', borderRadius: '99px',
               padding: 0, display: 'grid', placeItems: 'center'
             },
             children: el('span', {

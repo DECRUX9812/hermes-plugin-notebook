@@ -463,7 +463,7 @@ function App() {
                 ? el('b', { children: 'Discover' })
                 : studyMode
                   ? el('b', { children: 'Study' })
-                : el('span', null, '/ ', notebook
+                : el('span', null, jsx(Glyph, { name: 'chevron', size: 12 }), ' ', notebook
                     ? el('button', {
                         type: 'button', className: 'nb-crumbedit',
                         onClick: () => setRenNb(notebook),
