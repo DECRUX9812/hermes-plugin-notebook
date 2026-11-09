@@ -5156,7 +5156,13 @@ function StatusBar({ mode, notebook, data, note, opsStats }) {
           children: `${notebook.stats.unlabeled} source${notebook.stats.unlabeled === 1 ? '' : 's'} unlabeled — press “label” on the rail`
         })
       : null,
-    note ? jsx('span', { style: { color: T.accent }, children: note }) : null,
+    // Every action's outcome ("copied", "downloaded", "could not rename") lands
+    // here. It was a visual-only sentence: a screen-reader user pressed Copy and
+    // heard nothing at all. role=status + aria-live makes the reply audible
+    // without stealing focus.
+    note
+      ? jsx('span', { role: 'status', 'aria-live': 'polite', style: { color: T.accent }, children: note })
+      : null,
     el('span', { style: { flex: 1 } }),
     jsx('span', { className: 'nb-mono', style: { fontSize: '11.5px' },
       children: ops ? 'ssh · audited transport' : (notebook ? notebook.id : 'no notebook') }),
