@@ -72,20 +72,27 @@ function Viewer({ artifact, notebook, onCite, onRegenerate, regenerating, onChan
   } else if (artifact.kind === 'audio_overview') {
     body = jsx(AudioView, { src: primary.url, json: asJson.json, text: asTxt.text, notebook, onChanged })
   } else if (artifact.kind === 'mind_map') {
-    body = jsx(MindMapView, { data: asJson.json, text: primary.text })
+    body = jsx(MindMapView, { data: asJson.json, text: primary.text, onCite })
   } else if (artifact.kind === 'flashcards') {
     body = jsx(FlashcardsView, { data: asJson.json, text: primary.text, key: artifact.key, deckId: artifact.key })
   } else if (artifact.kind === 'quiz') {
     body = jsx(QuizView, { data: asJson.json, text: primary.text, deckId: artifact.key })
   } else if (artifact.kind === 'slides') {
-    body = jsx(SlidesView, { data: asJson.json, text: primary.text, notebook, jsonName,
+    body = jsx(SlidesView, { data: asJson.json, text: primary.text, notebook, jsonName, onCite,
                              htmlUrl: primary.url && artifact.ext === 'html' ? primary.url : '' })
   } else if (artifact.kind === 'infographic' || artifact.kind === 'blueprint_evolution') {
     // The blueprint is an SVG poster like an infographic: same stage, same
     // zoom, same style chip. A separate viewer would be the same code twice.
     body = jsx(InfographicView, { src: primary.url, data: asJson.json })
   } else if (artifact.kind === 'data_table') {
-    body = jsx(DataTableView, { text: primary.text, name: artifact.primary })
+    body = jsx(DataTableView, { text: primary.text, name: artifact.primary, data: asJson.json })
+  } else if (artifact.kind === 'summary' || artifact.kind === 'briefing_doc') {
+    // A document, not a chat reply: BLUF banner, KPI strip, then sections.
+    body = jsx(DocView, { text: primary.text, kind: artifact.kind, onCite })
+  } else if (artifact.kind === 'faq') {
+    body = jsx(FaqView, { text: primary.text, onCite })
+  } else if (artifact.kind === 'study_guide') {
+    body = jsx(StudyGuideView, { text: primary.text, onCite })
   } else if (artifact.kind === 'timeline') {
     body = jsx(TimelineView, { text: primary.text, onCite })
   } else {
@@ -523,6 +530,7 @@ function AudioView({ src, json, text, notebook, onChanged }) {
             style: { background: 'rgba(255,255,255,.1)', width: '40px', height: '40px' },
             children: jsx(Glyph, { name: playing ? 'pause' : 'play', size: 16 })
           }),
+          el('div', { className: 'nb-scrub' },
           el('input', {
             type: 'range', min: 0, max: 100, value: Math.round(progress * 100),
             'aria-label': 'Scrub audio', style: { flex: 1, accentColor: T.accent },
@@ -531,6 +539,19 @@ function AudioView({ src, json, text, notebook, onChanged }) {
               if (a && dur) { a.currentTime = (Number(e.target.value) / 100) * dur }
             }
           }),
+          // one tick per speaker turn, positioned by its real timestamp — the
+          // transcript is already timed, so a chapter list would be the same
+          // information printed twice
+          segsTimed && dur
+            ? el('div', { className: 'nb-scrub-marks', 'aria-hidden': 'true' },
+                segsTimed.map((seg, si) => el('button', {
+                  key: `mk${si}`, type: 'button', className: 'nb-scrub-mark',
+                  title: `${fmtTime(seg.start)} — ${String(seg.speaker || '').toUpperCase()}`,
+                  'aria-label': `Jump to ${fmtTime(seg.start)}`,
+                  style: { left: `${Math.min(100, (seg.start / dur) * 100)}%` },
+                  onClick: () => seekSeg(si)
+                })))
+            : null),
           el('button', {
             type: 'button', className: 'nb-chip', 'data-click': 'true',
             'aria-label': 'Playback speed', title: 'Playback speed',
@@ -643,79 +664,97 @@ const fmtTime = (s) => {
 
 /* --------------------------------------------------------------- mind map */
 
-function MindMapView({ data, text }) {
-  const tree = useMemo(() => (data && data.children ? data : parseMindMapMd(text)), [data, text])
-  const [zoom, setZoom] = useState(1)
-  const [pan, setPan] = useState({ x: 0, y: 0 })
-  const drag = useRef(null)
-  const { nodes, width, height } = useMemo(() => layoutTree(tree), [tree])
+/** node_type → the colour and glyph the topology uses. A reader learns that
+ *  rose means a tension and amber means a number after one graph. */
+const MAP_TONE = {
+  core_thesis: { ink: 'accent', label: 'thesis' },
+  subsystem: { ink: 'accentSoft', label: 'subsystem' },
+  metric_proof: { ink: 'warn', label: 'metric' },
+  risk_bottleneck: { ink: 'danger', label: 'risk' },
+  tension_conflict: { ink: 'danger', label: 'tension' },
+  action_item: { ink: 'ok', label: 'action' }
+}
+const mapInk = (tone) => (tone === 'warn' ? T.warn
+  : tone === 'danger' ? T.danger
+    : tone === 'ok' ? T.ok
+      : tone === 'accentSoft' ? `color-mix(in srgb, ${T.accent} 70%, ${T.text})`
+        : T.accent)
 
-  if (!nodes.length) {
-    return el('div', { className: 'nb-view-body' },
-      jsx('div', { className: 'nb-hint', children: 'no mind map structure in this artifact' }))
+/** Lay out a node/edge graph: depth by distance from `root`, leaves on a grid.
+ *
+ *  A force layout would be prettier and would also be different on every open,
+ *  which is wrong for a map you learn: the same notebook must draw the same
+ *  topology every time. Nodes are put in columns by BFS depth, spread evenly in
+ *  their column, then nudged apart only if they actually overlap. */
+function layoutGraph(graph) {
+  const raw = (graph.nodes || []).filter((n) => n && n.id)
+  if (!raw.length) return { nodes: [], edges: [], width: 900, height: 560 }
+  const byId = new Map(raw.map((n) => [n.id, n]))
+  const adj = new Map(raw.map((n) => [n.id, []]))
+  for (const e of graph.edges || []) {
+    if (!byId.has(e.source) || !byId.has(e.target)) continue
+    adj.get(e.source).push(e.target)
+    adj.get(e.target).push(e.source)
   }
+  const rootId = (graph.root && byId.has(graph.root)) ? graph.root : raw[0].id
+  const depth = new Map([[rootId, 0]])
+  const queue = [rootId]
+  while (queue.length) {
+    const id = queue.shift()
+    for (const next of adj.get(id) || []) {
+      if (!depth.has(next)) { depth.set(next, depth.get(id) + 1); queue.push(next) }
+    }
+  }
+  // anything unreachable from the root still has to be drawn
+  for (const n of raw) if (!depth.has(n.id)) depth.set(n.id, 2)
 
-  const nodeEls = nodes.map((n, i) => jsx('g', { key: `n${i}`, children: [
-    n.parent >= 0
-      ? jsx('path', {
-          d: curve(nodes[n.parent], n),
-          fill: 'none',
-          stroke: `color-mix(in srgb, ${T.accent} ${n.depth === 1 ? 52 : 34}%, transparent)`,
-          strokeWidth: n.depth === 1 ? 1.8 : 1.3
-        })
-      : null,
-    jsx('rect', {
-      x: n.x - n.w / 2, y: n.y - n.h / 2, width: n.w, height: n.h, rx: 9,
-      fill: n.depth === 0
-        ? `color-mix(in srgb, ${T.accent} 24%, transparent)`
-        : n.depth === 1
-          ? `color-mix(in srgb, ${T.accent} 9%, var(--ui-bg-primary, #101116))`
-          : 'var(--ui-bg-primary, #101116)',
-      stroke: `color-mix(in srgb, ${T.accent} ${n.depth === 0 ? 62 : n.depth === 1 ? 34 : 20}%, transparent)`
-    }),
-    jsx('text', {
-      x: n.x, y: n.y + (n.depth === 0 ? 5 : 4), textAnchor: 'middle',
-      fill: n.depth === 0 ? T.text : n.depth === 1 ? T.text : T.text2,
-      fontSize: n.depth === 0 ? 18 : n.depth === 1 ? 16 : 14.5,
-      fontWeight: n.depth <= 1 ? 660 : 500,
-      children: n.label
-    }),
-    n.detail ? jsx('title', { children: `${n.label} — ${n.detail}` }) : null
-  ].filter(Boolean) }))
+  const columns = new Map()
+  for (const n of raw) {
+    const d = depth.get(n.id)
+    if (!columns.has(d)) columns.set(d, [])
+    columns.get(d).push(n)
+  }
+  const maxDepth = Math.max(...columns.keys())
+  const COL_W = 268
+  // A node is 46px tall and can carry a metric badge under its label, so rows
+  // need more than the bare height. 92 gives a visible gap at 2x and keeps two
+  // same-column nodes from touching (the old 82 did not).
+  const ROW_H = 92
+  const rows = Math.max(...[...columns.values()].map((c) => c.length), 1)
+  const width = Math.max(720, (maxDepth + 1) * COL_W + 120)
+  const height = Math.max(320, rows * ROW_H + 140)
 
-  const canvas = jsx('svg', {
-    className: 'nb-map', viewBox: `0 0 ${width} ${height}`, role: 'img',
-    'aria-label': `Mind map: ${(tree && tree.label) || 'root'} with ${nodes.length} nodes`,
-    preserveAspectRatio: 'xMidYMid meet',
-    onWheel: (e) => {
-      e.preventDefault()
-      setZoom((z) => Math.min(2.4, Math.max(0.55, z - e.deltaY * 0.0012)))
-    },
-    onPointerDown: (e) => {
-      drag.current = { x: e.clientX - pan.x, y: e.clientY - pan.y }
-      if (e.currentTarget.setPointerCapture) e.currentTarget.setPointerCapture(e.pointerId)
-    },
-    onPointerMove: (e) => {
-      if (drag.current) setPan({ x: e.clientX - drag.current.x, y: e.clientY - drag.current.y })
-    },
-    onPointerUp: () => { drag.current = null },
-    onPointerCancel: () => { drag.current = null },
-    children: el('g', {
-      transform: `translate(${pan.x} ${pan.y}) translate(${width / 2} ${height / 2}) scale(${zoom}) translate(${-width / 2} ${-height / 2})`
-    }, nodeEls)
-  })
-
-  const toolbar = el('div', { style: { display: 'flex', gap: '8px', alignItems: 'center', marginBottom: '8px' } },
-    jsx('span', { className: 'nb-hint', children: `${nodes.length} nodes · drag to pan · scroll to zoom · hover a node for its detail` }),
-    el('span', { style: { flex: 1 } }),
-    jsx(Btn, {
-      size: 'sm', icon: 'grid', children: 'Reset view',
-      onClick: () => { setZoom(1); setPan({ x: 0, y: 0 }) }
-    }))
-
-  return el('div', { className: 'nb-view-body', style: { padding: '12px', display: 'flex', flexDirection: 'column' } },
-    toolbar,
-    el('div', { style: { flex: 1, minHeight: '340px' } }, canvas))
+  const nodes = []
+  for (const [d, list] of [...columns.entries()].sort((a, b) => a[0] - b[0])) {
+    const span = (list.length - 1) * ROW_H
+    const top = (height - span) / 2
+    list.forEach((n, i) => {
+      const label = String(n.label || n.id)
+      const w = Math.min(196, 34 + label.length * 8.4)
+      nodes.push({
+        id: n.id, label, w, h: 46,
+        x: 60 + d * COL_W + w / 2,
+        y: top + i * ROW_H,
+        nodeType: String(n.node_type || '').toLowerCase(),
+        stat: String(n.key_stat || '').trim(),
+        summary: String(n.summary || '').trim(),
+        citations: (n.citations || []).map((c) => Number(c)).filter((c) => c > 0)
+      })
+    })
+  }
+  const at = new Map(nodes.map((n) => [n.id, n]))
+  const edges = []
+  for (const e of graph.edges || []) {
+    const a = at.get(e.source)
+    const b = at.get(e.target)
+    if (!a || !b) continue
+    edges.push({
+      a, b,
+      relation: String(e.relation || '').trim(),
+      style: String(e.style || 'solid').trim()
+    })
+  }
+  return { nodes, edges, width, height, columns: maxDepth + 1 }
 }
 
 function curve(a, b) {
@@ -797,6 +836,176 @@ function parseMindMapMd(text) {
   return root.children.length ? root : null
 }
 
+/* ------------------------------------------------------- the mind map view */
+
+/** The inspector for a hovered/selected node: its type, its metric, its
+ *  summary and its citations. Built as explicit variables rather than one deep
+ *  el() tree — the nesting is what made the previous version's brackets fail. */
+function MapInspector({ node, onCite }) {
+  if (!node) {
+    return el('div', { className: 'nb-map-ins' },
+      el('div', { className: 'nb-map-ins-hint', children: 'hover a node to inspect it' }))
+  }
+  const tone = MAP_TONE[node.nodeType]
+  const rows = []
+  rows.push(el('div', { className: 'nb-map-ins-head' },
+    el('span', { className: 'nb-map-type', 'data-tone': tone ? tone.ink : 'accent',
+      children: tone ? tone.label : 'node' }),
+    el('span', { className: 'nb-map-ins-label', children: node.label })))
+  if (node.stat) {
+    rows.push(el('div', { className: 'nb-map-ins-stat', children: node.stat }))
+  }
+  if (node.summary) {
+    rows.push(el('div', { className: 'nb-map-ins-sum', children: node.summary }))
+  }
+  if (node.citations.length) {
+    const chip = (n) => (onCite
+      ? el('button', { type: 'button', className: 'nb-srcchip', key: `i${n}`,
+          'aria-label': `Open source S${n}`, onClick: () => onCite(n), children: `S${n}` })
+      : el('span', { className: 'nb-srcchip', key: `i${n}`, children: `S${n}` }))
+    rows.push(el('div', { className: 'nb-map-ins-src' }, node.citations.map(chip)))
+  }
+  return el('div', { className: 'nb-map-ins' }, rows)
+}
+
+function MindMapView({ data, text, onCite }) {
+  // The schema describes a GRAPH (nodes + typed edges); the old viewer only
+  // understood a nested `children` tree, so a generated mind map lost its node
+  // types, its metric badges, its relation labels and every cross-link. The
+  // tree path stays as the fallback for an artifact made before that schema.
+  const graph = useMemo(
+    () => (data && Array.isArray(data.nodes) && data.nodes.length ? data : null),
+    [data])
+  const tree = useMemo(
+    () => (graph ? null : (data && data.children ? data : parseMindMapMd(text))),
+    [data, text, graph])
+
+  const laid = useMemo(() => (graph ? layoutGraph(graph) : layoutTree(tree)), [graph, tree])
+  const nodes = laid.nodes || []
+  const edges = laid.edges || []
+  const width = laid.width
+  const height = laid.height
+
+  const [zoom, setZoom] = useState(1)
+  const [pan, setPan] = useState({ x: 0, y: 0 })
+  const [hover, setHover] = useState(null)
+  const drag = useRef(null)
+
+  if (!nodes.length) {
+    return el('div', { className: 'nb-view-body' },
+      el('div', { className: 'nb-hint', children: 'no mind map structure in this artifact' }))
+  }
+
+  const edgeEl = (e, i) => {
+    const tension = e.style === 'dashed_tension' || /contradict/i.test(e.relation)
+    const thick = e.style === 'thick_flow' || /produces|depends/i.test(e.relation)
+    const stroke = tension ? T.danger : thick
+      ? `color-mix(in srgb, ${T.accent} 62%, transparent)`
+      : `color-mix(in srgb, ${T.accent} 34%, transparent)`
+    const mid = { x: (e.a.x + e.b.x) / 2, y: (e.a.y + e.b.y) / 2 }
+    const label = e.relation
+      ? jsx('text', {
+          x: mid.x, y: mid.y - 5, textAnchor: 'middle', fontSize: 10.5,
+          fill: tension ? `color-mix(in srgb, ${T.danger} 72%, ${T.text})` : T.text3,
+          children: e.relation
+        })
+      : null
+    return jsx('g', { key: `e${i}`, children: [
+      jsx('path', {
+        d: curve(e.a, e.b), fill: 'none', stroke,
+        strokeWidth: thick ? 2.4 : 1.5,
+        strokeDasharray: tension ? '5 4' : undefined,
+        opacity: 0.9
+      }),
+      label
+    ].filter(Boolean) })
+  }
+
+  const nodeEl = (n, i) => {
+    const tone = MAP_TONE[n.nodeType] || MAP_TONE.core_thesis
+    const ink = mapInk(tone.ink)
+    const isRoot = graph ? String((graph.root || '')) === n.id : n.depth === 0
+    const kids = [
+      jsx('rect', {
+        x: n.x - n.w / 2, y: n.y - n.h / 2, width: n.w, height: n.h, rx: isRoot ? 14 : 10,
+        fill: isRoot ? `color-mix(in srgb, ${ink} 26%, transparent)`
+          : `color-mix(in srgb, ${ink} 8%, var(--ui-bg-primary, #101116))`,
+        stroke: `color-mix(in srgb, ${ink} ${isRoot || hover === n.id ? 66 : 34}%, transparent)`,
+        strokeWidth: isRoot || hover === n.id ? 2 : 1.2
+      }),
+      jsx('text', {
+        x: n.x, y: n.y + (n.stat ? -1 : 5), textAnchor: 'middle',
+        fill: isRoot ? '#f2f3f8' : T.text,
+        fontSize: isRoot ? 16 : 14.5, fontWeight: isRoot ? 680 : 600,
+        children: n.label
+      })
+    ]
+    if (n.stat) {
+      kids.push(jsx('text', {
+        x: n.x, y: n.y + 14, textAnchor: 'middle', fontSize: 11.5,
+        fill: `color-mix(in srgb, ${ink} 78%, ${T.text})`, fontWeight: 700,
+        children: n.stat
+      }))
+    }
+    return jsx('g', {
+      key: `n${i}`,
+      onMouseEnter: () => setHover(n.id),
+      onMouseLeave: () => setHover((h) => (h === n.id ? null : h)),
+      style: { cursor: 'pointer' },
+      children: kids
+    })
+  }
+
+  const canvas = jsx('svg', {
+    className: 'nb-map', viewBox: `0 0 ${width} ${height}`, role: 'img',
+    'aria-label': `Mind map: ${(graph && graph.title) || (tree && tree.label) || 'root'} with ${nodes.length} nodes`,
+    preserveAspectRatio: 'xMidYMid meet',
+    onWheel: (e) => {
+      e.preventDefault()
+      setZoom((z) => Math.min(2.4, Math.max(0.55, z - e.deltaY * 0.0012)))
+    },
+    onPointerDown: (e) => {
+      drag.current = { x: e.clientX - pan.x, y: e.clientY - pan.y }
+      if (e.currentTarget.setPointerCapture) e.currentTarget.setPointerCapture(e.pointerId)
+    },
+    onPointerMove: (e) => {
+      if (drag.current) setPan({ x: e.clientX - drag.current.x, y: e.clientY - drag.current.y })
+    },
+    onPointerUp: () => { drag.current = null },
+    onPointerLeave: () => { drag.current = null },
+    children: jsx('g', {
+      transform: `translate(${pan.x} ${pan.y}) translate(${width / 2} ${height / 2}) scale(${zoom}) translate(${-width / 2} ${-height / 2})`,
+      children: edges.map(edgeEl).concat(nodes.map(nodeEl))
+    })
+  })
+
+  const types = {}
+  for (const n of nodes) {
+    const key = n.nodeType || ''
+    if (key) types[key] = (types[key] || 0) + 1
+  }
+  const legend = Object.keys(types).length > 1
+    ? el('div', { className: 'nb-map-legend' },
+        Object.keys(types).map((t) => el('span', { className: 'nb-map-leg', key: t },
+          el('span', { className: 'nb-map-dot', 'data-tone': (MAP_TONE[t] || {}).ink || 'accent' }),
+          el('span', { children: `${(MAP_TONE[t] || {}).label || t} ${types[t]}` }))))
+    : null
+
+  const toolbar = el('div', { className: 'nb-map-bar' },
+    el('span', { className: 'nb-hint',
+      children: `${nodes.length} nodes · ${edges.length} links · drag to pan · scroll to zoom` }),
+    el('span', { style: { flex: 1 } }),
+    legend,
+    jsx(Btn, { size: 'sm', icon: 'grid', children: 'Reset',
+      onClick: () => { setZoom(1); setPan({ x: 0, y: 0 }) } }))
+
+  const hovered = nodes.find((n) => n.id === hover) || null
+  return el('div', { className: 'nb-view-body nb-map-wrap' },
+    toolbar,
+    el('div', { className: 'nb-map-stage' }, canvas, jsx(MapInspector, { node: hovered, onCite }))
+  )
+}
+
 /* ------------------------------------------------------------ flashcards */
 
 function FlashcardsView({ data, text, deckId }) {
@@ -837,6 +1046,13 @@ function FlashcardsView({ data, text, deckId }) {
       el('div', { style: { display: 'flex', alignItems: 'center', gap: '10px' } },
         jsx('span', { className: 'nb-chip', 'data-tone': Object.keys(known).length ? 'ok' : undefined,
           children: `${knownCount} known` }),
+        card.card_type
+          ? jsx('span', { className: 'nb-chip', children: String(card.card_type).replace(/_/g, ' ') })
+          : null,
+        card.difficulty
+          ? jsx('span', { className: 'nb-chip', title: 'Difficulty 1 easy · 3 hard',
+              children: '◆'.repeat(Math.max(1, Math.min(3, Number(card.difficulty) || 1)) ) })
+          : null,
         jsx('span', { className: 'nb-hint', children: `card ${i + 1} of ${cards.length}` }),
         el('span', { style: { flex: 1 } }),
         jsx(Btn, {
@@ -859,6 +1075,18 @@ function FlashcardsView({ data, text, deckId }) {
           el('div', { className: 'nb-face', 'data-side': 'back' },
             jsx('span', { className: 'nb-meta', children: 'answer' }),
             jsx('span', { children: card.back }),
+            // the hook and the tier are what make a deck more than a list of
+            // Q&A: the schema asks for both, so the card shows both
+            card.mnemonic
+              ? el('div', { className: 'nb-card-hook' },
+                  jsx(Glyph, { name: 'sparkle', size: 12 }),
+                  el('span', { children: card.mnemonic }))
+              : null,
+            (card.citations || []).length
+              ? el('div', { className: 'nb-card-cites' },
+                  card.citations.map((n) => el('span', { className: 'nb-srcchip', key: `k${n}`,
+                    children: `S${n}` })))
+              : null,
             card.source ? jsx('span', { style: { fontSize: '13px', color: T.text3, marginTop: 'auto' }, children: card.source }) : null))
       }),
       el('div', { style: { display: 'flex', gap: '8px', justifyContent: 'center', alignItems: 'center' } },
@@ -942,9 +1170,31 @@ function QuizView({ data, text, deckId }) {
             }, `c${ci}`)
           })),
         done
-          ? el('div', { style: { marginTop: '10px', fontSize: '14px', color: right ? T.ok : T.warn } },
-              el('b', { children: right ? 'Correct. ' : `Not quite — ${q.answer}. ` }),
-              q.explanation ? el('span', { style: { color: T.text2 }, children: q.explanation }) : null)
+          ? el('div', { className: 'nb-quiz-done' },
+              el('div', { className: 'nb-quiz-verdict', 'data-tone': right ? 'ok' : 'warn' },
+                jsx(Glyph, { name: right ? 'check' : 'close', size: 13 }),
+                el('span', { children: right ? 'Correct' : `Not quite — the answer is “${q.answer}”` })),
+              q.explanation ? el('div', { className: 'nb-quiz-explain', children: q.explanation }) : null,
+              // per-option rationale: the schema asks the model for one per
+              // choice precisely so a miss explains WHY the distractor looked
+              // right. Ignoring it made every wrong answer read the same.
+              (q.rationales || []).length
+                ? el('div', { className: 'nb-quiz-why' },
+                    (q.choices || []).map((c, ci) => {
+                      const good = normAnswer(c) === normAnswer(q.answer)
+                      const why = String(q.rationales[ci] || '').trim()
+                      if (!why) return null
+                      return el('div', { className: 'nb-quiz-why-row', key: `w${ci}`,
+                        'data-tone': good ? 'ok' : (chosen === c ? 'warn' : 'dim') },
+                        el('span', { className: 'nb-quiz-why-mark', children: good ? '✓' : (chosen === c ? '✗' : '·') }),
+                        el('div', { className: 'nb-quiz-why-body' },
+                          el('span', { className: 'nb-quiz-why-choice', children: c }),
+                          el('span', { className: 'nb-quiz-why-text', children: why })))
+                    }))
+                : null,
+              jsx('div', { className: 'nb-quiz-src' },
+                (q.citations || []).map((n) => el('span', { className: 'nb-srcchip', key: `q${qi}s${n}`,
+                  children: `S${n}` })))) 
           : null)
       }))
   )
@@ -955,7 +1205,7 @@ const normAnswer = (s) => String(s == null ? '' : s).trim().toLowerCase()
 
 /* ---------------------------------------------------------------- slides */
 
-function SlidesView({ data, htmlUrl, notebook, jsonName }) {
+function SlidesView({ data, htmlUrl, notebook, jsonName, onCite }) {
   const deck = data || {}
   const slides = deck.slides || []
   const [i, setI] = useState(0)
@@ -1062,10 +1312,17 @@ function SlidesView({ data, htmlUrl, notebook, jsonName }) {
               children: pptxBusy ? 'exporting…' : 'pptx ↓'
             })
           : null),
-      el('div', { style: { fontSize: '30px', fontWeight: 680, letterSpacing: '-.02em', color: '#f2f3f8', margin: '18px 0 14px', lineHeight: 1.15 }, children: s.title }),
-      el('ul', { style: { margin: 0, paddingLeft: '20px', color: '#d6d8e6', fontSize: '17px', lineHeight: 1.6, display: 'grid', gap: '9px' } },
-        (s.bullets || []).map((b, bi) => el('li', { children: b }, `b${bi}`))),
-      s.note ? el('div', { style: { marginTop: 'auto', fontSize: '13px', color: '#8b90a3', fontStyle: 'italic' }, children: s.note }) : null),
+      // One layout per `archetype`: the prompt asks for nine named shapes and
+      // this is what makes them look different on screen. `slideBody` falls
+      // back to the old title+bullets for an unknown tag.
+      jsx(SlideBody, { slide: s, deck, ctx: { onCite, deckTitle: deck.title,
+                                               total: slides.length } }),
+      (s.notes || s.note)
+        ? el('div', { className: 'nb-slide-notes-chip' }, [
+            jsx(Glyph, { name: 'doc', size: 12 }),
+            el('span', { children: 'speaker notes — press N' })
+          ])
+        : null),
       el('div', { style: { display: 'flex', gap: '8px', alignItems: 'center' } },
         jsx(Btn, { icon: 'arrowLeft', onClick: () => go(-1), disabled: i === 0, children: 'Back' }),
         jsx(Btn, { icon: 'arrowRight', onClick: () => go(1), disabled: i === slides.length - 1, children: 'Next' }),
@@ -1143,7 +1400,84 @@ function parseCsv(text) {
   return rows
 }
 
-function DataTableView({ text, name }) {
+/** One download control with three targets: CSV (the artifact itself), XLSX
+ *  (a real workbook with a frozen header and an auto-filter) and the clipboard
+ *  as tab-separated text, which is what "copy for Sheets" actually pastes well. */
+function DownloadMenu({ csvText, name, onCsv }) {
+  const [open, setOpen] = useState(false)
+  const [busy, setBusy] = useState(false)
+  const ref = useRef(null)
+  useEffect(() => {
+    if (!open) return undefined
+    const onDoc = (e) => { if (ref.current && !ref.current.contains(e.target)) setOpen(false) }
+    const onKey = (e) => { if (e.key === 'Escape') setOpen(false) }
+    document.addEventListener('mousedown', onDoc)
+    document.addEventListener('keydown', onKey)
+    return () => {
+      document.removeEventListener('mousedown', onDoc)
+      document.removeEventListener('keydown', onKey)
+    }
+  }, [open])
+
+  const copyForSheets = async () => {
+    // tab-separated, because a CSV pasted into a spreadsheet cell stays in one
+    // cell while a tab-separated block splits into columns
+    const rows = parseCsv(csvText || '')
+    const tsv = rows.map((r) => r.join('\t')).join('\n')
+    try {
+      await navigator.clipboard.writeText(tsv)
+      if (host.say) host.say('copied as tab-separated text — paste into a sheet')
+    } catch {
+      if (host.say) host.say('clipboard is unavailable in this window')
+    }
+    setOpen(false)
+  }
+
+  const saveXlsx = async () => {
+    if (busy) return
+    setBusy(true)
+    try {
+      const stem = String(name || '').replace(/\.(csv|json|md)$/i, '')
+      const out = await api(`/artifact/xlsx?${qs({ name: `${stem}.json`, b64: 1 })}`, { timeoutMs: 60000 })
+      const bytes = Uint8Array.from(atob(out.b64), (ch) => ch.charCodeAt(0))
+      const url = URL.createObjectURL(new Blob([bytes], { type: out.mime }))
+      const a = document.createElement('a')
+      a.href = url
+      a.download = out.name || `${stem}.xlsx`
+      document.body.appendChild(a); a.click(); a.remove()
+      setTimeout(() => URL.revokeObjectURL(url), 2000)
+    } catch (e) {
+      // the xlsx route needs table JSON; say what happened rather than nothing
+      if (host.say) host.say(`xlsx export failed: ${e.message || e}`)
+    } finally {
+      setBusy(false); setOpen(false)
+    }
+  }
+
+  const item = (label, hint, onClick, icon) => el('button', {
+    type: 'button', className: 'nb-menu-item', onClick,
+    children: [
+      jsx(Glyph, { name: icon, size: 14 }),
+      el('div', { className: 'nb-menu-body' },
+        el('span', { className: 'nb-menu-label', children: label }),
+        el('span', { className: 'nb-menu-hint', children: hint }))
+    ]
+  })
+
+  return el('div', { className: 'nb-menu-wrap', ref }, [
+    jsx(Btn, { size: 'sm', icon: 'download', children: busy ? 'working…' : 'Export',
+      onClick: () => setOpen((o) => !o), disabled: busy }),
+    open
+      ? el('div', { className: 'nb-menu', role: 'menu' }, [
+          item('CSV', 'the artifact itself — opens anywhere', () => { onCsv(); setOpen(false) }, 'grid'),
+          item('XLSX', 'frozen header, auto-filter, typed cells', saveXlsx, 'chart'),
+          item('Copy for Sheets', 'tab-separated, pastes into columns', copyForSheets, 'copy')
+        ])
+      : null
+  ])
+}
+
+function DataTableView({ text, name, data }) {
   const rows = useMemo(() => parseCsv(text), [text])
   const [sort, setSort] = useState({ col: -1, dir: 1 })
   const [q, setQ] = useState('')
@@ -1181,7 +1515,17 @@ function DataTableView({ text, name }) {
       el('span', { className: 'nb-meta', children: q.trim() ? `${filtered.length} of ${body.length} rows × ${head.length} columns` : `${body.length} rows × ${head.length} columns` }),
       el('span', { style: { flex: 1 } }),
       body.length > 8 ? jsx(SearchField, { value: q, onChange: setQ, placeholder: 'Filter rows', label: 'Filter table rows' }) : null,
-      jsx(Btn, { size: 'sm', icon: 'download', onClick: exportCsv, children: 'Export CSV' })),
+      jsx(DownloadMenu, { csvText: text, name, onCsv: exportCsv })),
+    // the aggregates the prompt computed are not in the CSV (it is rectangular);
+    // they belong beside the table, not only inside the workbook
+    (data && (data.summary || []).length)
+      ? el('div', { className: 'nb-dt-sum' },
+          el('div', { className: 'nb-dt-sum-h', children: 'Computed over these rows' }),
+          (data.summary || []).map((it, i) => el('div', { className: 'nb-dt-sum-cell', key: `sm${i}` },
+            el('div', { className: 'nb-dt-sum-v', children: String(it.value || '') }),
+            el('div', { className: 'nb-dt-sum-l', children: String(it.label || '') }),
+            it.basis ? el('div', { className: 'nb-dt-sum-b', children: String(it.basis) }) : null)))
+      : null,
     el('div', { className: 'nb-dt-wrap' },
       el('table', { className: 'nb-dt' },
         el('thead', null, el('tr', null,

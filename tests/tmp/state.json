@@ -1,16 +1,25 @@
 {
  "ok": true,
- "generated_at": "2026-11-08T18:18:02Z",
+ "generated_at": "2026-11-09T20:19:31Z",
  "model_ready": false,
  "notebooks": [
   {
    "id": "commercial-fusion-2026",
    "title": "Commercial Fusion Energy in 2026",
    "description": "Six sources on the state of commercial fusion: the CRS briefing for Congress, the DOE deployment roadmap, two ITER releases, the IAEA outlook and the reference article.",
-   "updated_at": "2026-11-07T17:53:27+00:00",
+   "updated_at": "2026-11-09T20:16:26+00:00",
    "sources": 6,
-   "artifacts": 13,
+   "artifacts": 32,
    "chars": 157369
+  },
+  {
+   "id": "business-analyst-job-interview-you-know-thanks",
+   "title": "Business Analyst Job Interview you know. Thanks",
+   "description": "",
+   "updated_at": "2026-11-09T19:01:38+00:00",
+   "sources": 1,
+   "artifacts": 1,
+   "chars": 120057
   },
   {
    "id": "smoke-test-notebook",
@@ -28,7 +37,7 @@
   "description": "Six sources on the state of commercial fusion: the CRS briefing for Congress, the DOE deployment roadmap, two ITER releases, the IAEA outlook and the reference article.",
   "emoji": "",
   "created_at": "2026-11-07T16:36:51+00:00",
-  "updated_at": "2026-11-07T17:53:27+00:00",
+  "updated_at": "2026-11-09T20:16:26+00:00",
   "sources": [
    {
     "n": 1,
@@ -138,6 +147,472 @@
    }
   ],
   "artifacts": [
+   {
+    "key": "20261109-201626-study_guide",
+    "kind": "study_guide",
+    "title": "",
+    "opts": {},
+    "label": "Study Guide",
+    "group": "study",
+    "primary": "20261109-201626-study_guide.md",
+    "ext": "md",
+    "media": false,
+    "bytes": 13589,
+    "files": [
+     {
+      "name": "20261109-201626-study_guide.md",
+      "ext": "md",
+      "size": 13589
+     }
+    ],
+    "modified": "2026-11-09T20:16:26+00:00"
+   },
+   {
+    "key": "20261109-200809-timeline",
+    "kind": "timeline",
+    "title": "",
+    "opts": {},
+    "label": "Timeline",
+    "group": "docs",
+    "primary": "20261109-200809-timeline.md",
+    "ext": "md",
+    "media": false,
+    "bytes": 5370,
+    "files": [
+     {
+      "name": "20261109-200809-timeline.md",
+      "ext": "md",
+      "size": 5370
+     }
+    ],
+    "modified": "2026-11-09T20:08:09+00:00"
+   },
+   {
+    "key": "20261109-194331-briefing_doc",
+    "kind": "briefing_doc",
+    "title": "",
+    "opts": {},
+    "label": "Briefing Doc",
+    "group": "docs",
+    "primary": "20261109-194331-briefing_doc.md",
+    "ext": "md",
+    "media": false,
+    "bytes": 7810,
+    "files": [
+     {
+      "name": "20261109-194331-briefing_doc.md",
+      "ext": "md",
+      "size": 7810
+     }
+    ],
+    "modified": "2026-11-09T19:43:31+00:00"
+   },
+   {
+    "key": "20261109-193938-summary",
+    "kind": "summary",
+    "title": "",
+    "opts": {},
+    "label": "Summary",
+    "group": "docs",
+    "primary": "20261109-193938-summary.md",
+    "ext": "md",
+    "media": false,
+    "bytes": 4256,
+    "files": [
+     {
+      "name": "20261109-193938-summary.md",
+      "ext": "md",
+      "size": 4256
+     }
+    ],
+    "modified": "2026-11-09T19:39:38+00:00"
+   },
+   {
+    "key": "20261109-185514-blueprint_evolution",
+    "kind": "blueprint_evolution",
+    "title": "",
+    "opts": {
+     "style": "blueprint"
+    },
+    "label": "Architecture Blueprint",
+    "group": "visual",
+    "primary": "20261109-185514-blueprint_evolution.svg",
+    "ext": "svg",
+    "media": true,
+    "bytes": 58767,
+    "files": [
+     {
+      "name": "20261109-185514-blueprint_evolution.svg",
+      "ext": "svg",
+      "size": 52644
+     },
+     {
+      "name": "20261109-185514-blueprint_evolution.json",
+      "ext": "json",
+      "size": 6123
+     }
+    ],
+    "modified": "2026-11-09T18:55:14+00:00"
+   },
+   {
+    "key": "20261109-184905-blueprint_evolution",
+    "kind": "blueprint_evolution",
+    "title": "",
+    "opts": {
+     "style": "carbon",
+     "engine": "imagen_blueprint"
+    },
+    "label": "Architecture Blueprint",
+    "group": "visual",
+    "primary": "20261109-184905-blueprint_evolution.png",
+    "ext": "png",
+    "media": true,
+    "bytes": 624612,
+    "files": [
+     {
+      "name": "20261109-184905-blueprint_evolution.png",
+      "ext": "png",
+      "size": 624612
+     }
+    ],
+    "modified": "2026-11-09T18:49:06+00:00"
+   },
+   {
+    "key": "20261109-184900-blueprint_evolution",
+    "kind": "blueprint_evolution",
+    "title": "",
+    "opts": {},
+    "label": "Architecture Blueprint",
+    "group": "visual",
+    "primary": "20261109-184900-blueprint_evolution.json",
+    "ext": "json",
+    "media": false,
+    "bytes": 5924,
+    "files": [
+     {
+      "name": "20261109-184900-blueprint_evolution.json",
+      "ext": "json",
+      "size": 5924
+     }
+    ],
+    "modified": "2026-11-09T18:49:00+00:00"
+   },
+   {
+    "key": "20261109-184133-blueprint_evolution",
+    "kind": "blueprint_evolution",
+    "title": "",
+    "opts": {},
+    "label": "Architecture Blueprint",
+    "group": "visual",
+    "primary": "20261109-184133-blueprint_evolution.json",
+    "ext": "json",
+    "media": false,
+    "bytes": 6103,
+    "files": [
+     {
+      "name": "20261109-184133-blueprint_evolution.json",
+      "ext": "json",
+      "size": 6103
+     }
+    ],
+    "modified": "2026-11-09T18:41:33+00:00"
+   },
+   {
+    "key": "20261109-183008-blueprint_evolution",
+    "kind": "blueprint_evolution",
+    "title": "",
+    "opts": {
+     "style": "sections"
+    },
+    "label": "Architecture Blueprint",
+    "group": "visual",
+    "primary": "20261109-183008-blueprint_evolution.svg",
+    "ext": "svg",
+    "media": true,
+    "bytes": 56514,
+    "files": [
+     {
+      "name": "20261109-183008-blueprint_evolution.svg",
+      "ext": "svg",
+      "size": 51234
+     },
+     {
+      "name": "20261109-183008-blueprint_evolution.json",
+      "ext": "json",
+      "size": 5280
+     }
+    ],
+    "modified": "2026-11-09T18:30:08+00:00"
+   },
+   {
+    "key": "20261109-182818-blueprint_evolution",
+    "kind": "blueprint_evolution",
+    "title": "",
+    "opts": {
+     "style": "sections"
+    },
+    "label": "Architecture Blueprint",
+    "group": "visual",
+    "primary": "20261109-182818-blueprint_evolution.svg",
+    "ext": "svg",
+    "media": true,
+    "bytes": 56466,
+    "files": [
+     {
+      "name": "20261109-182818-blueprint_evolution.svg",
+      "ext": "svg",
+      "size": 51240
+     },
+     {
+      "name": "20261109-182818-blueprint_evolution.json",
+      "ext": "json",
+      "size": 5226
+     }
+    ],
+    "modified": "2026-11-09T18:28:18+00:00"
+   },
+   {
+    "key": "20261109-173412-infographic",
+    "kind": "infographic",
+    "title": "",
+    "opts": {
+     "style": "editorial",
+     "template": "process",
+     "detail": "detailed"
+    },
+    "label": "Infographic",
+    "group": "visual",
+    "primary": "20261109-173412-infographic.svg",
+    "ext": "svg",
+    "media": true,
+    "bytes": 4130,
+    "files": [
+     {
+      "name": "20261109-173412-infographic.svg",
+      "ext": "svg",
+      "size": 4130
+     }
+    ],
+    "modified": "2026-11-09T17:34:12+00:00"
+   },
+   {
+    "key": "20261109-173411-infographic",
+    "kind": "infographic",
+    "title": "",
+    "opts": {},
+    "label": "Infographic",
+    "group": "visual",
+    "primary": "20261109-173411-infographic.json",
+    "ext": "json",
+    "media": false,
+    "bytes": 2589,
+    "files": [
+     {
+      "name": "20261109-173411-infographic.json",
+      "ext": "json",
+      "size": 2589
+     }
+    ],
+    "modified": "2026-11-09T17:34:11+00:00"
+   },
+   {
+    "key": "20261109-173355-infographic",
+    "kind": "infographic",
+    "title": "",
+    "opts": {
+     "style": "editorial",
+     "template": "timeline",
+     "detail": "detailed"
+    },
+    "label": "Infographic",
+    "group": "visual",
+    "primary": "20261109-173355-infographic.svg",
+    "ext": "svg",
+    "media": true,
+    "bytes": 6795,
+    "files": [
+     {
+      "name": "20261109-173355-infographic.svg",
+      "ext": "svg",
+      "size": 4355
+     },
+     {
+      "name": "20261109-173355-infographic.json",
+      "ext": "json",
+      "size": 2440
+     }
+    ],
+    "modified": "2026-11-09T17:33:55+00:00"
+   },
+   {
+    "key": "20261109-173332-infographic",
+    "kind": "infographic",
+    "title": "",
+    "opts": {
+     "style": "editorial",
+     "template": "infographic",
+     "detail": "detailed"
+    },
+    "label": "Infographic",
+    "group": "visual",
+    "primary": "20261109-173332-infographic.svg",
+    "ext": "svg",
+    "media": true,
+    "bytes": 9007,
+    "files": [
+     {
+      "name": "20261109-173332-infographic.svg",
+      "ext": "svg",
+      "size": 6530
+     },
+     {
+      "name": "20261109-173332-infographic.json",
+      "ext": "json",
+      "size": 2477
+     }
+    ],
+    "modified": "2026-11-09T17:33:32+00:00"
+   },
+   {
+    "key": "20261109-172731-infographic",
+    "kind": "infographic",
+    "title": "",
+    "opts": {
+     "style": "swiss",
+     "template": "process"
+    },
+    "label": "Infographic",
+    "group": "visual",
+    "primary": "20261109-172731-infographic.svg",
+    "ext": "svg",
+    "media": true,
+    "bytes": 8012,
+    "files": [
+     {
+      "name": "20261109-172731-infographic.svg",
+      "ext": "svg",
+      "size": 5187
+     },
+     {
+      "name": "20261109-172731-infographic.json",
+      "ext": "json",
+      "size": 2825
+     }
+    ],
+    "modified": "2026-11-09T17:27:31+00:00"
+   },
+   {
+    "key": "20261109-172716-infographic",
+    "kind": "infographic",
+    "title": "",
+    "opts": {
+     "style": "swiss",
+     "template": "timeline"
+    },
+    "label": "Infographic",
+    "group": "visual",
+    "primary": "20261109-172716-infographic.svg",
+    "ext": "svg",
+    "media": true,
+    "bytes": 7524,
+    "files": [
+     {
+      "name": "20261109-172716-infographic.svg",
+      "ext": "svg",
+      "size": 5384
+     },
+     {
+      "name": "20261109-172716-infographic.json",
+      "ext": "json",
+      "size": 2140
+     }
+    ],
+    "modified": "2026-11-09T17:27:16+00:00"
+   },
+   {
+    "key": "20261109-172700-infographic",
+    "kind": "infographic",
+    "title": "",
+    "opts": {
+     "style": "swiss",
+     "template": "stat_grid"
+    },
+    "label": "Infographic",
+    "group": "visual",
+    "primary": "20261109-172700-infographic.svg",
+    "ext": "svg",
+    "media": true,
+    "bytes": 9623,
+    "files": [
+     {
+      "name": "20261109-172700-infographic.svg",
+      "ext": "svg",
+      "size": 7102
+     },
+     {
+      "name": "20261109-172700-infographic.json",
+      "ext": "json",
+      "size": 2521
+     }
+    ],
+    "modified": "2026-11-09T17:27:00+00:00"
+   },
+   {
+    "key": "20261109-172641-infographic",
+    "kind": "infographic",
+    "title": "",
+    "opts": {
+     "style": "swiss",
+     "template": "key_figure"
+    },
+    "label": "Infographic",
+    "group": "visual",
+    "primary": "20261109-172641-infographic.svg",
+    "ext": "svg",
+    "media": true,
+    "bytes": 9154,
+    "files": [
+     {
+      "name": "20261109-172641-infographic.svg",
+      "ext": "svg",
+      "size": 6399
+     },
+     {
+      "name": "20261109-172641-infographic.json",
+      "ext": "json",
+      "size": 2755
+     }
+    ],
+    "modified": "2026-11-09T17:26:41+00:00"
+   },
+   {
+    "key": "20261109-172627-infographic",
+    "kind": "infographic",
+    "title": "",
+    "opts": {
+     "style": "swiss",
+     "template": "infographic"
+    },
+    "label": "Infographic",
+    "group": "visual",
+    "primary": "20261109-172627-infographic.svg",
+    "ext": "svg",
+    "media": true,
+    "bytes": 9897,
+    "files": [
+     {
+      "name": "20261109-172627-infographic.svg",
+      "ext": "svg",
+      "size": 7617
+     },
+     {
+      "name": "20261109-172627-infographic.json",
+      "ext": "json",
+      "size": 2280
+     }
+    ],
+    "modified": "2026-11-09T17:26:27+00:00"
+   },
    {
     "key": "20261107-171108-audio_overview",
     "kind": "audio_overview",
@@ -545,6 +1020,26 @@
     "role": "assistant",
     "content": "Reuters (25 Aug 2026) reports the US government launched a strategy to catalyse early-stage fusion plants by the mid-2030s, and that success hinges on more federal funding. Developers point to unsolved engineering: neutron-resistant structural materials, tritium separation and reprocessing, and components that survive constant high-energy neutron flux. Robb Hughes of Realta Fusion framed it as \"The plan isn't the problem. We all agree on the plan. The X factor is the funding.\" The roadmap leans on existing DOE programmes such as Milestone-Based Fusion Development and INFUSE. Treat the timeline as policy intent, not a committed delivery date.",
     "ts": "2026-11-07T16:36:51+00:00"
+   },
+   {
+    "role": "user",
+    "content": "What does the Reuters source say about the roadmap?",
+    "ts": "2026-11-09T15:35:38+00:00"
+   },
+   {
+    "role": "assistant",
+    "content": "**Short answer:** Reuters [S1] frames the roadmap as an ambitious federal strategy to catalyse early-stage fusion power plants by the mid-2030s \u2014 but reports that its success depends on more federal funding, and that developers still face steep engineering hurdles.\n\n**What the roadmap is and who runs it**\n- The DOE Fusion Science and Technology Roadmap, released in June, is the \"central plank\" of a federal strategy to help developers overcome those challenges; the Office of Fusion, created in November 2025, will coordinate its implementation [S1].\n- The strategy has three main goals: building infrastructure to close fusion materials and technology gaps; facilitating access to AI, advanced computing and research facilities to accelerate innovation; and leveraging public-private partnerships to expand the supply chain and workforce [S1].\n\n**The engineering gap it is meant to close**\n- Developers must move from experimental physics to commercial net energy gain, which requires neutron-resistant structural materials that withstand extreme heat and \"breeding blankets\" to secure a steady tritium supply [S1].\n- The industry remains experimental; private developers have not yet achieved net energy gain [S1].\n\n**Partnerships and existing DOE programmes**\n- The roadmap promotes public-private partnerships between developers and research institutions by focusing on existing DOE programmes, including Milestone-Based Fusion Development and INFUSE [S1].\n- The Milestone programme, budgeted at $415 million for 2022\u20132027, reimburses eight companies after they meet pre-negotiated technical targets: Commonwealth Fusion Systems, Focused Energy, Realta Fusion, Thea Energy, Tokamak Energy, Type One Energy, Xcimer Energy and Zap Energy [S1].\n- DOE also awarded $107 million to six research consortia in January 2025 under the FIRE programme, and Fusion BRIDGE, launched earlier this year, will co-fund and build shared small-to-midscale experimental facilities [S1].\n\n**AI and computing**\n- The roadmap aims to foster AI, advanced computing and quantum technologies, letting developers build digital twins to stress-test components before manufacturing and adjust magnetic fields to stabilise plasma shapes [S1].\n- DOE plans an AI-Fusion Digital Convergence Platform linking experiment and test-facility data with simulations, digital twins and engineering tools, \"to shorten the path from experiment through design and into operation\" [S1].\n\n**The funding caveat**\n- Robb Hughes of Realta Fusion: \"The plan isn't the problem. We all agree on the plan. The X factor is the funding. If we underfund the U.S. fusion program and we cut vital scope, we can all watch the timeline to commercialisation slip\" [S1].\n- Legislation authorised up to $1.1 billion for the Fusion Energy Sciences programme in FY2027, but Congress appropriated $790 million \u2014 below the $805.7 million enacted for 2026; Hughes says the sector needs more than $1 billion a year over the next decade [S1].\n- Private funding context: the Fusion Industry Association reports a record $4.48 billion raised worldwide in the 12 months to July 2026, with cumulative funding since 2021 at $14.24 billion [S1].\n- Amy Roma of Orrick told Reuters Events \"the roadmap's goals are ambitious but achievable,\" and a General Fusion spokesperson said strategic public investments reduce commercialisation risk and accelerate the timeline [S1].\n\nNote: the Reuters piece does not itself assess credibility or commit to a delivery date; the timeline is presented as a strategy target contingent on appropriations.\n\nSources:\n- US roadmap targets fusion deployment by mid 2030s - Reuters",
+    "ts": "2026-11-09T15:35:38+00:00",
+    "citations": [
+     {
+      "n": 1,
+      "title": "US roadmap targets fusion deployment by mid 2030s - Reuters",
+      "kind": "url",
+      "origin": "https://www.reuters.com/business/energy/us-roadmap-targets-fusion-deployment-by-mid-2030s--reeii-2026-08-25/",
+      "id": "reuters-us-fusion-roadmap-mid-2030s",
+      "snippet": "[Skip to main content](https://www.reuters.com/business/energy/us-roadmap-targets-fusion-deployment-by-mid-2030s--reeii-2026-08-25/#main-content)\n\n[Exclusive news, data and analytics for financial market professionalsLearn more aboutRefinitiv](https://www.reuters.com/differentiator/)\n\n![Commonwealth Fusion Systems SPARC demonstration machine.](https://www.reuters.com/resizer/v2/OW52X5BEXJIXPKACSQ7"
+     }
+    ]
    }
   ],
   "thread_name": "default",
@@ -553,10 +1048,10 @@
    {
     "name": "default",
     "title": "Where does ITER's machine assembly actually stand?",
-    "created": "",
-    "updated": "2026-11-07T16:36:51+00:00",
-    "messages": 4,
-    "preview": "Reuters (25 Aug 2026) reports the US government launched a strategy to catalyse early-stage fusion plants by the mid-2030s, and that success hinges on more fede"
+    "created": "2026-11-09T15:35:38+00:00",
+    "updated": "2026-11-09T15:35:38+00:00",
+    "messages": 6,
+    "preview": "**Short answer:** Reuters [S1] frames the roadmap as an ambitious federal strategy to catalyse early-stage fusion power plants by the mid-2030s \u2014 but reports th"
    }
   ],
   "stats": {
@@ -565,9 +1060,10 @@
    "labels": 21,
    "unlabeled": 0,
    "active": 6,
-   "artifacts": 13,
+   "artifacts": 32,
    "kinds": [
     "audio_overview",
+    "blueprint_evolution",
     "briefing_doc",
     "faq",
     "flashcards",
@@ -948,7 +1444,7 @@
    "label": "Infographic",
    "group": "visual",
    "ext": "svg",
-   "blurb": "Vector poster \u2014 18 looks, 9 layouts",
+   "blurb": "Vector poster \u2014 38 looks, 9 layouts",
    "secs": 20,
    "options": [
     {
@@ -974,7 +1470,27 @@
       "dashboard",
       "mission",
       "cartoon",
-      "realistic"
+      "realistic",
+      "newspaper",
+      "annual",
+      "museum",
+      "film",
+      "data-desk",
+      "deco",
+      "glass",
+      "clay",
+      "sumi",
+      "hud",
+      "dither",
+      "verge",
+      "carbon",
+      "arc",
+      "aero",
+      "butter",
+      "matcha",
+      "gothic",
+      "y2k",
+      "stone"
      ],
      "items": [
       {
@@ -1211,11 +1727,286 @@
        "family": "feature",
        "swatch": [
         "#14171c",
-        "#1e232b",
+        "#242b35",
         "#6ee7ff",
         "#ffb45c",
         "#9cf5c0",
         "#f4f6f8"
+       ]
+      },
+      {
+       "id": "newspaper",
+       "label": "Newspaper",
+       "blurb": "Salmon stock, serif headline, black rules, one deep red.",
+       "family": "cards",
+       "swatch": [
+        "#fff1e5",
+        "#fff8f0",
+        "#9e2b25",
+        "#0f5460",
+        "#1a1a1a"
+       ]
+      },
+      {
+       "id": "annual",
+       "label": "Annual Report",
+       "blurb": "White grid, navy and gold, small caps, footnoted calm.",
+       "family": "kpi",
+       "swatch": [
+        "#ffffff",
+        "#f7f8fa",
+        "#1f4e79",
+        "#c8a15a",
+        "#2f6f5f",
+        "#0e1116"
+       ]
+      },
+      {
+       "id": "museum",
+       "label": "Museum",
+       "blurb": "Gallery label: hairline rules, tiny caps, enormous margins.",
+       "family": "rows",
+       "swatch": [
+        "#f4f1ea",
+        "#fbf9f4",
+        "#7a6a55",
+        "#8c3b2e",
+        "#171614"
+       ]
+      },
+      {
+       "id": "film",
+       "label": "Film Poster",
+       "blurb": "Condensed caps on black, one red accent, a single spotlight.",
+       "family": "poster",
+       "swatch": [
+        "#0b0b0c",
+        "#151517",
+        "#e8452b",
+        "#f5d06f",
+        "#f5f3ee"
+       ]
+      },
+      {
+       "id": "data-desk",
+       "label": "Data Desk",
+       "blurb": "White sheet, annotation red, tick marks, chart discipline.",
+       "family": "kpi",
+       "swatch": [
+        "#ffffff",
+        "#f3f4f6",
+        "#d7263d",
+        "#1b998b",
+        "#2b4c7e",
+        "#101010"
+       ]
+      },
+      {
+       "id": "deco",
+       "label": "Art Deco",
+       "blurb": "Black and gold: framed, rayed, symmetrical, theatrical.",
+       "family": "poster",
+       "swatch": [
+        "#0e0d0b",
+        "#16140f",
+        "#c9a227",
+        "#e8d8a6",
+        "#f3e9d2"
+       ]
+      },
+      {
+       "id": "glass",
+       "label": "Glass",
+       "blurb": "Mesh gradient behind frosted panels \u2014 modern product light.",
+       "family": "cards",
+       "swatch": [
+        "#0b1020",
+        "#1b2440",
+        "#7c9cff",
+        "#6ee7b7",
+        "#f0abfc",
+        "#f2f5ff"
+       ]
+      },
+      {
+       "id": "clay",
+       "label": "Clay",
+       "blurb": "Soft matte tiles with real shadows \u2014 tactile, not flat.",
+       "family": "cards",
+       "swatch": [
+        "#f6efe9",
+        "#fff9f4",
+        "#e8875e",
+        "#6fa89a",
+        "#9a7eb8",
+        "#2b211c"
+       ]
+      },
+      {
+       "id": "sumi",
+       "label": "Ink Wash",
+       "blurb": "Rice paper, two brush strokes, vermilion seal, serif.",
+       "family": "rows",
+       "swatch": [
+        "#f7f4ec",
+        "#fdfbf5",
+        "#2f3b45",
+        "#a33b2b",
+        "#1a1a18"
+       ]
+      },
+      {
+       "id": "hud",
+       "label": "HUD",
+       "blurb": "Phosphor green on black glass, reticle grid, corner brackets.",
+       "family": "kpi",
+       "swatch": [
+        "#090b12",
+        "#121722",
+        "#22c55e",
+        "#fbbf24",
+        "#60a5fa",
+        "#f8fafc"
+       ]
+      },
+      {
+       "id": "dither",
+       "label": "Dithered",
+       "blurb": "Sepia stock, dot screen, halftone band \u2014 a two-colour print.",
+       "family": "poster",
+       "swatch": [
+        "#fff4cf",
+        "#fffaf0",
+        "#d24b1f",
+        "#3d8f4f",
+        "#f2a93b",
+        "#2a1810"
+       ]
+      },
+      {
+       "id": "verge",
+       "label": "Tabloid",
+       "blurb": "Black, neon pink, yellow \u2014 a technology cover that shouts.",
+       "family": "poster",
+       "swatch": [
+        "#050505",
+        "#111111",
+        "#ff00a8",
+        "#facc15",
+        "#22c55e",
+        "#ffffff"
+       ]
+      },
+      {
+       "id": "carbon",
+       "label": "Carbon",
+       "blurb": "IBM structure: white sheet, 1px grid, one blue, mono labels.",
+       "family": "rows",
+       "swatch": [
+        "#ffffff",
+        "#f4f4f4",
+        "#0f62fe",
+        "#24a148",
+        "#f1c21b",
+        "#161616"
+       ]
+      },
+      {
+       "id": "arc",
+       "label": "Arc",
+       "blurb": "Warm pastel mesh behind soft white panels \u2014 friendly and modern.",
+       "family": "cards",
+       "swatch": [
+        "#fdf3ec",
+        "#ffffff",
+        "#ff5f5f",
+        "#ff7e5f",
+        "#feb47b",
+        "#1a1a1f"
+       ]
+      },
+      {
+       "id": "aero",
+       "label": "Aerospace",
+       "blurb": "Black, hairline, mono specs \u2014 a mission sheet that says nothing extra.",
+       "family": "kpi",
+       "swatch": [
+        "#000000",
+        "#0a0a0c",
+        "#16a34a",
+        "#eab308",
+        "#dc2626",
+        "#f0f0fa"
+       ]
+      },
+      {
+       "id": "butter",
+       "label": "Butter",
+       "blurb": "Warm cream stock, cobalt numerals, butter-yellow highlight.",
+       "family": "cards",
+       "swatch": [
+        "#fffdf4",
+        "#ffffff",
+        "#225bff",
+        "#ffa347",
+        "#fdee8c",
+        "#1d1c11"
+       ]
+      },
+      {
+       "id": "matcha",
+       "label": "Matcha",
+       "blurb": "Pale green paper, deep olive type, clay and teal accents.",
+       "family": "cards",
+       "swatch": [
+        "#f3f5e9",
+        "#fbfdf3",
+        "#4d9900",
+        "#c47620",
+        "#2e6b5a",
+        "#1e2616"
+       ]
+      },
+      {
+       "id": "gothic",
+       "label": "Gothic",
+       "blurb": "Charcoal stone, muted jewel accents, serif, hairline rules.",
+       "family": "rows",
+       "swatch": [
+        "#0e1113",
+        "#161b1e",
+        "#a363bd",
+        "#6a9eb1",
+        "#c87a4a",
+        "#e8eaec"
+       ]
+      },
+      {
+       "id": "y2k",
+       "label": "Y2K",
+       "blurb": "Cream page, hyper-saturated cyan, pink and lime, glossy radii.",
+       "family": "poster",
+       "swatch": [
+        "#fff6ed",
+        "#ffffff",
+        "#00a8ff",
+        "#ff72b6",
+        "#c5e17a",
+        "#171a24"
+       ]
+      },
+      {
+       "id": "stone",
+       "label": "Stone",
+       "blurb": "Warm grey sheet, muted clay and sage, mono labels, no radius.",
+       "family": "rows",
+       "swatch": [
+        "#f4f3f1",
+        "#ffffff",
+        "#8f7154",
+        "#528b49",
+        "#6c7888",
+        "#25252a"
        ]
       }
      ]
@@ -1224,8 +2015,9 @@
      "id": "template",
      "label": "Layout",
      "kind": "select",
-     "default": "infographic",
+     "default": "auto",
      "choices": [
+      "auto",
       "infographic",
       "key_figure",
       "stat_grid",
@@ -1237,6 +2029,10 @@
       "illustration"
      ],
      "items": [
+      {
+       "id": "auto",
+       "label": "Auto \u00b7 match the look"
+      },
       {
        "id": "infographic",
        "label": "Infographic"
@@ -1294,6 +2090,122 @@
       "standard",
       "detailed"
      ]
+    },
+    {
+     "id": "focus",
+     "label": "Focus",
+     "kind": "text",
+     "placeholder": "e.g. only the costs"
+    },
+    {
+     "id": "language",
+     "label": "Language",
+     "kind": "text",
+     "placeholder": "e.g. French, Espa\u00f1ol"
+    },
+    {
+     "id": "from_chat",
+     "label": "Brief from",
+     "kind": "seg",
+     "choices": [
+      "sources",
+      "chat"
+     ]
+    }
+   ]
+  },
+  {
+   "id": "blueprint_evolution",
+   "label": "Architecture Blueprint",
+   "group": "visual",
+   "ext": "svg",
+   "blurb": "Five-zone engineering poster: gaps \u2192 matrix \u2192 pillars",
+   "secs": 38,
+   "options": [
+    {
+     "id": "style",
+     "label": "Look",
+     "kind": "select",
+     "default": "sections",
+     "choices": [
+      "sections",
+      "blueprint",
+      "swiss",
+      "carbon",
+      "dashboard",
+      "terminal",
+      "mission",
+      "hud"
+     ],
+     "items": [
+      {
+       "id": "sections",
+       "label": "Sections"
+      },
+      {
+       "id": "blueprint",
+       "label": "Blueprint"
+      },
+      {
+       "id": "swiss",
+       "label": "Swiss"
+      },
+      {
+       "id": "carbon",
+       "label": "Carbon"
+      },
+      {
+       "id": "dashboard",
+       "label": "Dashboard"
+      },
+      {
+       "id": "terminal",
+       "label": "Terminal"
+      },
+      {
+       "id": "mission",
+       "label": "Mission"
+      },
+      {
+       "id": "hud",
+       "label": "Hud"
+      }
+     ]
+    },
+    {
+     "id": "orientation",
+     "label": "Shape",
+     "kind": "seg",
+     "choices": [
+      "landscape",
+      "portrait",
+      "square"
+     ],
+     "hint": "the zone geometry scales, it does not reflow"
+    },
+    {
+     "id": "detail",
+     "label": "Detail",
+     "kind": "seg",
+     "choices": [
+      "concise",
+      "standard",
+      "detailed"
+     ]
+    },
+    {
+     "id": "engine",
+     "label": "Engine",
+     "kind": "seg",
+     "default": "gfx",
+     "choices": [
+      "gfx",
+      "imagen_blueprint"
+     ],
+     "labels": {
+      "gfx": "Vector \u00b7 exact",
+      "imagen_blueprint": "Painted \u00b7 image model"
+     }
     },
     {
      "id": "focus",

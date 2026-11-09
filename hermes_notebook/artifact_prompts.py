@@ -116,9 +116,14 @@ def _source_state(notebook_id: str) -> tuple[str, int, int]:
         pairs = [(r, t) for r, t in pairs if r.get("id") not in off]
     h = hashlib.sha1()
     for rec, text in pairs:
+        # the store already hashes the full text; fall back to a prefix hash only
+        # for a record written before that field existed
+        digest = str(rec.get("content_hash") or "")
+        if not digest:
+            h.update(hashlib.sha1((text or "")[:2000].encode("utf-8")).hexdigest().encode("utf-8"))
+        else:
+            h.update(digest.encode("utf-8"))
         h.update(str(rec.get("id") or "").encode("utf-8"))
-        h.update(str(len(text or "")).encode("utf-8"))
-        h.update((text or "")[:400].encode("utf-8"))
     return h.hexdigest(), len(pairs), sum(len(t or "") for _r, t in pairs)
 
 
@@ -179,8 +184,10 @@ def tensions_brief(notebook_id: str, *, language: str = "",
     try:
         ledger = tensions_mod.analyze(notebook_id, max_items=5, language=language)
     except Exception as exc:  # noqa: BLE001 - a failed audit must not fail the artifact
+        # NOT cached: a degraded ledger is a statement about this attempt (usually
+        # "the model is not bound right now"), and caching it would pin that
+        # absence to the notebook until someone edited a source.
         ledger = {"items": [], "agreements": [], "independence": indep, "sources": state[1]}
-        _write_cache(notebook_id, state, ledger)
         return {"text": _ledger_text(ledger), "items": [],
                 "independence": indep, "degraded": f"{type(exc).__name__}: {exc}"}
     ledger = {k: v for k, v in (ledger or {}).items() if k != "ok"}

@@ -700,6 +700,339 @@ const CSS = `
 .nb-doc pre{background:var(--nb-wash);border:1px solid var(--nb-hair-soft);border-radius:var(--nb-r-el);
   padding:14px;overflow:auto;font-size:13px}
 
+/* ------------------------------------------------------- document surfaces
+   Summary and Briefing Doc are documents, not chat replies: a BLUF banner, a
+   KPI strip, then sections. FAQ is an accordion grouped by tier. Study Guide is
+   concept cards plus trap alerts. All of it is built from the generated
+   markdown, so an older artifact without the skeleton still renders as prose. */
+.nb-docdoc{max-width:88ch;display:flex;flex-direction:column;gap:var(--nb-sp-6)}
+.nb-doc-lede{max-width:74ch}
+.nb-doc-sec{display:flex;flex-direction:column;gap:var(--nb-sp-3)}
+.nb-doc-h2{font-size:19px;letter-spacing:-.02em;margin:0;color:${T.text};font-weight:680;line-height:1.25}
+.nb-bluf{display:flex;align-items:flex-start;gap:var(--nb-sp-3);padding:var(--nb-sp-5);
+  border-radius:var(--nb-r-box);
+  border:1px solid color-mix(in srgb,${T.accent} 30%, transparent);
+  background:linear-gradient(135deg, color-mix(in srgb,${T.accent} 14%, var(--nb-card)), var(--nb-card) 72%)}
+.nb-bluf svg{flex:0 0 auto;margin-top:2px;color:color-mix(in srgb,${T.accent} 78%, ${T.text})}
+.nb-bluf-body{display:flex;flex-direction:column;gap:var(--nb-sp-2);min-width:0}
+.nb-bluf-tag{font-size:var(--nb-fs-meta);font-weight:700;letter-spacing:.09em;text-transform:uppercase;
+  color:color-mix(in srgb,${T.accent} 72%, ${T.text})}
+.nb-bluf-text{font-size:var(--nb-fs-read);line-height:1.62;color:${T.text};max-width:74ch}
+.nb-kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:var(--nb-sp-3)}
+.nb-kpi{display:flex;flex-direction:column;gap:3px;padding:var(--nb-sp-4) var(--nb-sp-5);
+  border-radius:var(--nb-r-el);border:1px solid var(--nb-hair-soft);background:var(--nb-card);min-width:0}
+.nb-kpi-value{font-size:26px;font-weight:720;letter-spacing:-.028em;line-height:1.1;
+  color:${T.text};font-variant-numeric:tabular-nums;overflow-wrap:anywhere}
+.nb-kpi-label{font-size:var(--nb-fs-label);color:${T.text2};line-height:1.4;font-weight:600}
+.nb-kpi-ctx{font-size:var(--nb-fs-meta);color:${T.text3};line-height:1.45}
+.nb-kpi-src{font-size:var(--nb-fs-meta);margin-top:2px}
+/* a RAG badge sits in the text flow but reads as a status, not a word */
+.nb-rag{display:inline-flex;align-items:center;height:20px;padding:0 8px;border-radius:var(--nb-r-pill);
+  font-size:var(--nb-fs-meta);font-weight:700;letter-spacing:.07em;text-transform:uppercase;flex:0 0 auto}
+.nb-rag[data-tone=danger]{color:color-mix(in srgb,${T.danger} 58%, ${T.text});
+  background:color-mix(in srgb,${T.danger} 15%, transparent)}
+.nb-rag[data-tone=warn]{color:color-mix(in srgb,${T.warn} 52%, ${T.text});
+  background:color-mix(in srgb,${T.warn} 16%, transparent)}
+.nb-rag[data-tone=ok]{color:color-mix(in srgb,${T.ok} 58%, ${T.text});
+  background:color-mix(in srgb,${T.ok} 15%, transparent)}
+.nb-rag[data-tone=accent]{color:color-mix(in srgb,${T.accent} 72%, ${T.text});
+  background:color-mix(in srgb,${T.accent} 13%, transparent)}
+.nb-risks{display:flex;flex-direction:column;gap:var(--nb-sp-2)}
+.nb-risk{display:flex;align-items:flex-start;gap:var(--nb-sp-3);padding:var(--nb-sp-4);
+  border-radius:var(--nb-r-el);border:1px solid var(--nb-hair-soft);background:var(--nb-card)}
+.nb-risk-body{display:flex;flex-direction:column;gap:4px;min-width:0}
+.nb-risk-head{font-size:var(--nb-fs-read);line-height:1.5;color:${T.text}}
+.nb-risk-rest{font-size:var(--nb-fs-label);line-height:1.55;color:${T.text2}}
+
+/* faq accordion: one tier at a time, verdict first, caveat last */
+.nb-faq{display:flex;flex-direction:column;gap:var(--nb-sp-6);max-width:80ch}
+.nb-faq-bar{display:flex;align-items:center;gap:var(--nb-sp-2);flex-wrap:wrap}
+.nb-faq-tier{display:flex;flex-direction:column;gap:var(--nb-sp-2)}
+.nb-faq-tierhead{display:flex;align-items:center;gap:var(--nb-sp-2);padding-bottom:var(--nb-sp-2);
+  border-bottom:1px solid var(--nb-hair-soft);font-size:var(--nb-fs-label);font-weight:650;
+  color:${T.text2};text-transform:uppercase;letter-spacing:.06em}
+.nb-faq-tierhead svg{opacity:.8}
+.nb-faq-tierhead .nb-meta{margin-left:auto;text-transform:none;letter-spacing:0}
+.nb-faq-item{border:1px solid var(--nb-hair-soft);border-radius:var(--nb-r-el);background:var(--nb-card);
+  overflow:hidden;transition:border-color var(--nb-dur-fast) var(--nb-ease)}
+.nb-faq-item[data-open=true]{border-color:color-mix(in srgb,${T.accent} 34%, var(--nb-hair))}
+.nb-faq-q{display:flex;align-items:flex-start;gap:var(--nb-sp-3);width:100%;min-height:44px;
+  padding:var(--nb-sp-4) var(--nb-sp-5);border:0;background:transparent;color:${T.text};
+  font-family:inherit;font-size:var(--nb-fs-read);font-weight:600;line-height:1.45;
+  text-align:left;cursor:pointer}
+.nb-faq-q:focus-visible{outline:2px solid ${T.accent};outline-offset:-2px}
+.nb-faq-marker{flex:0 0 auto;width:18px;color:color-mix(in srgb,${T.accent} 72%, ${T.text});
+  font-weight:700;font-family:var(--ui-font-mono,ui-monospace,monospace)}
+.nb-faq-qt{min-width:0}
+.nb-faq-a{display:flex;flex-direction:column;gap:var(--nb-sp-3);padding:0 var(--nb-sp-5) var(--nb-sp-5)
+  var(--nb-sp-5)}
+.nb-verdict{align-self:flex-start;display:inline-flex;align-items:center;min-height:26px;
+  padding:3px 10px;border-radius:var(--nb-r-pill);font-size:var(--nb-fs-label);font-weight:650;
+  line-height:1.4;max-width:100%}
+.nb-verdict[data-tone=ok]{color:color-mix(in srgb,${T.ok} 55%, ${T.text});
+  background:color-mix(in srgb,${T.ok} 14%, transparent)}
+.nb-verdict[data-tone=danger]{color:color-mix(in srgb,${T.danger} 55%, ${T.text});
+  background:color-mix(in srgb,${T.danger} 14%, transparent)}
+.nb-verdict[data-tone=accent]{color:color-mix(in srgb,${T.accent} 72%, ${T.text});
+  background:color-mix(in srgb,${T.accent} 13%, transparent)}
+.nb-caveat{display:flex;align-items:flex-start;gap:6px;font-size:var(--nb-fs-label);line-height:1.5;
+  color:${T.text3};padding-top:var(--nb-sp-2);border-top:1px solid var(--nb-hair-soft)}
+.nb-caveat svg{flex:0 0 auto;margin-top:2px;opacity:.8}
+
+/* study guide: concept cards in a two-column bento, trap alerts as a split */
+.nb-studyguide{max-width:92ch;display:flex;flex-direction:column;gap:var(--nb-sp-6)}
+.nb-concepts{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:var(--nb-sp-3)}
+.nb-concept{display:flex;flex-direction:column;gap:var(--nb-sp-2);padding:var(--nb-sp-5);
+  border-radius:var(--nb-r-box);border:1px solid var(--nb-hair-soft);background:var(--nb-card);min-width:0}
+.nb-concept-term{font-size:var(--nb-fs-title);font-weight:680;letter-spacing:-.012em;color:${T.text};
+  line-height:1.3}
+.nb-concept-row{display:flex;flex-direction:column;gap:1px}
+.nb-concept-lab{font-size:var(--nb-fs-meta);font-weight:650;letter-spacing:.05em;text-transform:uppercase;
+  color:${T.text3}}
+.nb-concept-val{font-size:var(--nb-fs-label);line-height:1.55;color:${T.text2}}
+.nb-concept-src{font-size:var(--nb-fs-meta);padding-top:var(--nb-sp-2);margin-top:auto;
+  border-top:1px solid var(--nb-hair-soft)}
+.nb-trap{display:grid;grid-template-columns:1fr 1fr;gap:var(--nb-sp-2);border-radius:var(--nb-r-box);
+  overflow:hidden;border:1px solid var(--nb-hair-soft)}
+.nb-trap-half{display:flex;flex-direction:column;gap:5px;padding:var(--nb-sp-4) var(--nb-sp-5);
+  font-size:var(--nb-fs-label);line-height:1.55;color:${T.text2}}
+.nb-trap-half[data-side=novice]{background:color-mix(in srgb,${T.warn} 9%, var(--nb-card))}
+.nb-trap-half[data-side=actual]{background:color-mix(in srgb,${T.ok} 9%, var(--nb-card))}
+.nb-trap-tag{font-size:var(--nb-fs-meta);font-weight:700;letter-spacing:.05em;text-transform:uppercase}
+.nb-trap-half[data-side=novice] .nb-trap-tag{color:color-mix(in srgb,${T.warn} 52%, ${T.text})}
+.nb-trap-half[data-side=actual] .nb-trap-tag{color:color-mix(in srgb,${T.ok} 52%, ${T.text})}
+@media (max-width:860px){.nb-trap{grid-template-columns:1fr}}
+
+/* ------------------------------------------------------------ slide bodies
+   One layout per archetype, drawn on the dark slide canvas. These rules are
+   scoped to .nb-slide so the presentation surface never inherits a document
+   colour: every ink here is set for #0a0b10, not for the app's own paper. */
+.nb-slide{display:flex;flex-direction:column;gap:18px;flex:1;min-height:0;
+  color:#e9ebf4;overflow:hidden}
+/* the archetype name on the element is a label, not a layout: the shared
+   .nb-slide grid already stacks the head above the body for all nine */
+.nb-slide-gap,.nb-slide-bento,.nb-slide-pipe,.nb-slide-cmp,.nb-slide-tension,
+.nb-slide-roadmap{display:flex;flex-direction:column;gap:16px;flex:1;min-height:0}
+.nb-slide-gap-head{font-size:clamp(19px,2.1vw,30px);font-weight:680;letter-spacing:-.02em;
+  line-height:1.16;color:#f2f3f8;margin:0}
+.nb-slide-kicker{font-size:11.5px;font-weight:700;letter-spacing:.13em;text-transform:uppercase;
+  color:#9aa0b5}
+.nb-slide-kicker[data-tone=accent]{color:color-mix(in srgb,${T.accent} 62%, #ffffff)}
+.nb-slide-kicker[data-tone=ok]{color:#7fe3b0}
+.nb-slide-kicker[data-tone=warn]{color:#ffd28a}
+.nb-slide-list{margin:0;padding-left:18px;display:grid;gap:9px;font-size:16px;line-height:1.55;
+  color:#d6d8e6}
+.nb-slide-list li{list-style:disc}
+.nb-slide-md{font-size:inherit;line-height:inherit;color:inherit}
+.nb-slide-empty{font-size:13px;color:#7d8398;font-style:italic}
+
+/* title_hero */
+.nb-slide-hero{justify-content:center;gap:16px}
+.nb-slide-hero-t{font-size:clamp(28px,3.4vw,52px);font-weight:700;letter-spacing:-.026em;
+  line-height:1.08;color:#ffffff;max-width:24ch}
+.nb-slide-hero-sub{font-size:17px;line-height:1.5;color:#b7bccd;max-width:62ch}
+.nb-slide-hero-meta{display:flex;flex-wrap:wrap;gap:8px;margin-top:4px}
+.nb-slide-badge{display:inline-flex;align-items:center;height:24px;padding:0 10px;border-radius:99px;
+  font-size:12px;font-weight:600;color:#c7ccdb;background:rgba(255,255,255,.08);
+  border:1px solid rgba(255,255,255,.10)}
+.nb-slide-badge[data-tone=accent]{color:#fff;
+  background:color-mix(in srgb,${T.accent} 34%, rgba(255,255,255,.06));
+  border-color:color-mix(in srgb,${T.accent} 46%, transparent)}
+
+/* executive_bluf */
+.nb-slide-bluf{gap:16px}
+.nb-slide-bluf-t{font-size:clamp(24px,2.6vw,38px);font-weight:690;letter-spacing:-.024em;
+  line-height:1.12;color:#fff;max-width:26ch}
+.nb-slide-stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:12px}
+.nb-slide-stats[data-count="3"]{grid-template-columns:repeat(3,minmax(0,1fr))}
+.nb-slide-stats[data-count="4"]{grid-template-columns:repeat(2,minmax(0,1fr))}
+.nb-slide-stat{display:flex;flex-direction:column;gap:3px;padding:14px 16px;border-radius:14px;
+  background:rgba(255,255,255,.055);border:1px solid rgba(255,255,255,.10);min-width:0}
+.nb-slide-stat-v{font-size:clamp(24px,2.4vw,34px);font-weight:730;letter-spacing:-.03em;
+  line-height:1.06;color:#fff;font-variant-numeric:tabular-nums;overflow-wrap:anywhere}
+.nb-slide-stat-l{font-size:12.5px;line-height:1.4;color:#a8aec1}
+.nb-slide-banner{display:flex;align-items:flex-start;gap:10px;margin-top:auto;padding:14px 16px;
+  border-radius:14px;font-size:16px;line-height:1.5;color:#eef0f7;
+  background:color-mix(in srgb,${T.accent} 22%, rgba(255,255,255,.05));
+  border:1px solid color-mix(in srgb,${T.accent} 38%, transparent)}
+.nb-slide-banner svg{flex:0 0 auto;margin-top:2px;color:color-mix(in srgb,${T.accent} 60%, #ffffff)}
+
+/* problem_gap */
+.nb-slide-split{display:grid;grid-template-columns:1fr auto 1fr;gap:14px;align-items:stretch;flex:1;
+  min-height:0}
+.nb-slide-half{display:flex;flex-direction:column;gap:10px;padding:16px 18px;border-radius:16px;
+  min-width:0;overflow:auto}
+.nb-slide-half[data-side=left]{background:rgba(255,255,255,.035);
+  border:1px solid rgba(255,255,255,.08)}
+.nb-slide-half[data-side=right]{background:color-mix(in srgb,${T.accent} 16%, rgba(255,255,255,.03));
+  border:1px solid color-mix(in srgb,${T.accent} 34%, transparent)}
+.nb-slide-half[data-side=left] .nb-slide-list{color:#9aa0b5}
+.nb-slide-arrow{align-self:center;font-size:22px;color:color-mix(in srgb,${T.accent} 62%, #ffffff)}
+
+/* architecture_bento */
+.nb-slide-cards{display:grid;gap:12px;flex:1;min-height:0}
+.nb-slide-cards[data-count="1"]{grid-template-columns:1fr}
+.nb-slide-cards[data-count="2"]{grid-template-columns:repeat(2,minmax(0,1fr))}
+.nb-slide-cards[data-count="3"]{grid-template-columns:repeat(3,minmax(0,1fr))}
+.nb-slide-cards[data-count="4"]{grid-template-columns:repeat(2,minmax(0,1fr))}
+.nb-slide-cards[data-count="5"]{grid-template-columns:repeat(3,minmax(0,1fr))}
+.nb-slide-card{display:flex;flex-direction:column;gap:6px;padding:14px 15px;border-radius:14px;
+  background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.10);min-width:0;overflow:auto}
+.nb-slide-card-h{font-size:15.5px;font-weight:660;line-height:1.3;color:#f2f3f8}
+.nb-slide-card-s{font-size:13px;line-height:1.45;color:#a8aec1}
+
+/* process_pipeline */
+.nb-slide-stages{display:flex;align-items:stretch;gap:10px;flex:1;min-height:0;flex-wrap:nowrap}
+.nb-slide-stage{flex:1 1 0;min-width:0;display:flex;flex-direction:column;gap:6px;
+  padding:14px 13px;border-radius:14px;background:rgba(255,255,255,.05);
+  border:1px solid rgba(255,255,255,.10);position:relative;overflow:auto}
+.nb-slide-stage-n{display:inline-flex;align-items:center;justify-content:center;width:22px;height:22px;
+  border-radius:99px;font-size:12px;font-weight:700;color:#fff;
+  background:color-mix(in srgb,${T.accent} 46%, transparent)}
+.nb-slide-stage-h{font-size:14.5px;font-weight:650;line-height:1.3;color:#f2f3f8}
+.nb-slide-stage-s{font-size:12.5px;line-height:1.45;color:#a8aec1}
+.nb-slide-chev{align-self:center;flex:0 0 auto;width:0;height:0;margin:0 -4px;
+  border-left:7px solid color-mix(in srgb,${T.accent} 45%, transparent);
+  border-top:6px solid transparent;border-bottom:6px solid transparent}
+
+/* deep_dive_comparison */
+.nb-slide-table{width:100%;border-collapse:collapse;font-size:13.5px;line-height:1.45;
+  color:#d6d8e6}
+.nb-slide-table th{text-align:left;padding:0 12px 8px;border-bottom:1px solid rgba(255,255,255,.16)}
+.nb-slide-table td{padding:9px 12px;border-bottom:1px solid rgba(255,255,255,.07);vertical-align:top}
+.nb-slide-rows{display:flex;flex-direction:column;gap:8px;overflow:auto}
+.nb-slide-row{display:grid;grid-template-columns:minmax(120px,.9fr) 2fr;gap:12px;
+  padding:9px 12px;border-radius:10px;background:rgba(255,255,255,.04)}
+.nb-slide-row-h{font-size:13.5px;font-weight:640;color:#f2f3f8}
+.nb-slide-row-s{font-size:13px;color:#a8aec1}
+
+/* tension_audit */
+.nb-slide-tension-body{display:grid;grid-template-columns:1fr 1fr;gap:12px;flex:1;min-height:0}
+.nb-slide-tcol{display:flex;flex-direction:column;gap:10px;padding:14px 16px;border-radius:14px;
+  min-width:0;overflow:auto}
+.nb-slide-tcol[data-side=agree]{background:rgba(127,227,176,.09);border:1px solid rgba(127,227,176,.26)}
+.nb-slide-tcol[data-side=conflict]{background:rgba(255,210,138,.09);
+  border:1px solid rgba(255,210,138,.26)}
+
+/* roadmap */
+.nb-slide-lanes{display:flex;flex-direction:column;gap:10px;flex:1;min-height:0;overflow:auto}
+.nb-slide-lane{display:grid;grid-template-columns:minmax(96px,.34fr) 1fr;gap:14px;align-items:baseline;
+  padding:10px 0;border-bottom:1px solid rgba(255,255,255,.07)}
+.nb-slide-lane-head{display:flex;flex-direction:column;gap:5px;min-width:0}
+.nb-slide-lane-n{font-size:14px;font-weight:660;color:#fff;overflow-wrap:anywhere}
+.nb-slide-lane-rule{height:3px;border-radius:2px;background:color-mix(in srgb,${T.accent} 52%, transparent)}
+.nb-slide-lane-body{font-size:13.5px;line-height:1.5;color:#a8aec1}
+
+/* closing */
+.nb-slide-close{justify-content:center;align-items:flex-start;gap:16px}
+.nb-slide-close-t{font-size:clamp(26px,3vw,44px);font-weight:700;letter-spacing:-.026em;
+  line-height:1.1;color:#fff;max-width:22ch}
+.nb-slide-close-s{font-size:16px;line-height:1.5;color:#b7bccd;max-width:60ch}
+
+/* the notes affordance is a hint, not a control: it says a key exists */
+.nb-slide-notes-chip{display:inline-flex;align-items:center;gap:6px;align-self:flex-start;
+  font-size:11.5px;color:#7d8398}
+.nb-slide-notes-chip svg{opacity:.8}
+
+/* quiz: the verdict, the lesson, and why each distractor looked right */
+.nb-quiz-done{display:flex;flex-direction:column;gap:8px;margin-top:10px}
+.nb-quiz-verdict{display:inline-flex;align-items:center;gap:5px;align-self:flex-start;
+  min-height:24px;padding:2px 9px;border-radius:var(--nb-r-pill);font-size:var(--nb-fs-label);
+  font-weight:650}
+.nb-quiz-verdict[data-tone=ok]{color:color-mix(in srgb,${T.ok} 56%, ${T.text});
+  background:color-mix(in srgb,${T.ok} 14%, transparent)}
+.nb-quiz-verdict[data-tone=warn]{color:color-mix(in srgb,${T.warn} 52%, ${T.text});
+  background:color-mix(in srgb,${T.warn} 15%, transparent)}
+.nb-quiz-explain{font-size:var(--nb-fs-label);line-height:1.55;color:${T.text2}}
+.nb-quiz-why{display:flex;flex-direction:column;gap:2px;padding-top:6px;
+  border-top:1px solid var(--nb-hair-soft)}
+.nb-quiz-why-row{display:grid;grid-template-columns:16px 1fr;gap:8px;padding:6px 8px;
+  border-radius:var(--nb-r-el);align-items:start}
+.nb-quiz-why-row[data-tone=ok]{background:color-mix(in srgb,${T.ok} 9%, transparent)}
+.nb-quiz-why-row[data-tone=warn]{background:color-mix(in srgb,${T.warn} 9%, transparent)}
+.nb-quiz-why-mark{font-weight:700;text-align:center;color:${T.text3};font-size:12px;line-height:1.6}
+.nb-quiz-why-row[data-tone=ok] .nb-quiz-why-mark{color:color-mix(in srgb,${T.ok} 60%, ${T.text})}
+.nb-quiz-why-row[data-tone=warn] .nb-quiz-why-mark{color:color-mix(in srgb,${T.warn} 58%, ${T.text})}
+.nb-quiz-why-body{display:flex;flex-direction:column;gap:1px;min-width:0}
+.nb-quiz-why-choice{font-size:var(--nb-fs-meta);font-weight:640;color:${T.text2}}
+.nb-quiz-why-text{font-size:var(--nb-fs-meta);line-height:1.5;color:${T.text3}}
+.nb-quiz-src{display:flex;gap:4px;flex-wrap:wrap}
+
+/* flashcard extras: the hook and the citations, on the answer face */
+.nb-card-hook{display:flex;align-items:flex-start;gap:6px;margin-top:10px;padding:7px 9px;
+  border-radius:var(--nb-r-el);font-size:var(--nb-fs-meta);line-height:1.5;color:${T.text2};
+  background:color-mix(in srgb,${T.accent} 10%, transparent)}
+.nb-card-hook svg{flex:0 0 auto;margin-top:2px;color:color-mix(in srgb,${T.accent} 70%, ${T.text})}
+.nb-card-cites{display:flex;gap:4px;flex-wrap:wrap;margin-top:8px}
+
+/* the mind map: a stage with an inspector beside it, on a dark pane */
+.nb-map-wrap{display:flex;flex-direction:column;gap:10px}
+.nb-map-bar{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+.nb-map-legend{display:flex;gap:10px;flex-wrap:wrap}
+.nb-map-leg{display:inline-flex;align-items:center;gap:5px;font-size:var(--nb-fs-meta);
+  color:${T.text3}}
+.nb-map-dot{width:8px;height:8px;border-radius:99px}
+.nb-map-dot[data-tone=accent]{background:${T.accent}}
+.nb-map-dot[data-tone=accentSoft]{background:color-mix(in srgb,${T.accent} 70%, ${T.text})}
+.nb-map-dot[data-tone=warn]{background:${T.warn}}
+.nb-map-dot[data-tone=danger]{background:${T.danger}}
+.nb-map-dot[data-tone=ok]{background:${T.ok}}
+.nb-map-stage{display:grid;grid-template-columns:1fr minmax(0,240px);gap:12px;min-height:420px}
+.nb-map{background:var(--nb-wash);border:1px solid var(--nb-hair-soft);
+  border-radius:var(--nb-r-box);min-height:420px;touch-action:none}
+.nb-map-ins{display:flex;flex-direction:column;gap:8px;padding:14px;
+  border:1px solid var(--nb-hair-soft);border-radius:var(--nb-r-box);background:var(--nb-card);
+  align-self:start;min-width:0}
+.nb-map-ins-hint{font-size:var(--nb-fs-label);color:${T.text3};line-height:1.5}
+.nb-map-ins-head{display:flex;flex-direction:column;gap:4px}
+.nb-map-type{align-self:flex-start;font-size:var(--nb-fs-meta);font-weight:700;
+  letter-spacing:.06em;text-transform:uppercase}
+.nb-map-type[data-tone=accent]{color:color-mix(in srgb,${T.accent} 72%, ${T.text})}
+.nb-map-type[data-tone=accentSoft]{color:color-mix(in srgb,${T.accent} 58%, ${T.text})}
+.nb-map-type[data-tone=warn]{color:color-mix(in srgb,${T.warn} 58%, ${T.text})}
+.nb-map-type[data-tone=danger]{color:color-mix(in srgb,${T.danger} 58%, ${T.text})}
+.nb-map-type[data-tone=ok]{color:color-mix(in srgb,${T.ok} 58%, ${T.text})}
+.nb-map-ins-label{font-size:var(--nb-fs-read);font-weight:660;line-height:1.35;color:${T.text}}
+.nb-map-ins-stat{font-size:20px;font-weight:700;letter-spacing:-.02em;color:${T.text};
+  font-variant-numeric:tabular-nums}
+.nb-map-ins-sum{font-size:var(--nb-fs-label);line-height:1.55;color:${T.text2}}
+.nb-map-ins-src{display:flex;gap:4px;flex-wrap:wrap;padding-top:6px;
+  border-top:1px solid var(--nb-hair-soft)}
+@media (max-width:900px){.nb-map-stage{grid-template-columns:1fr}}
+
+/* an export menu, not a row of buttons: each target explains what it is for */
+.nb-menu-wrap{position:relative;display:inline-flex}
+.nb-menu{position:absolute;right:0;top:calc(100% + 6px);z-index:40;min-width:250px;
+  display:flex;flex-direction:column;gap:2px;padding:6px;border-radius:var(--nb-r-box);
+  background:var(--nb-card);border:1px solid var(--nb-hair);box-shadow:0 12px 32px rgba(0,0,0,.22)}
+.nb-menu-item{display:flex;align-items:flex-start;gap:9px;width:100%;min-height:44px;padding:7px 9px;
+  border:0;border-radius:var(--nb-r-el);background:transparent;cursor:pointer;
+  font-family:inherit;text-align:left;color:inherit}
+.nb-menu-item:hover,.nb-menu-item:focus-visible{background:var(--nb-wash);outline:none}
+.nb-menu-item svg{flex:0 0 auto;margin-top:3px;color:color-mix(in srgb,${T.accent} 70%, ${T.text})}
+.nb-menu-body{display:flex;flex-direction:column;gap:1px;min-width:0}
+.nb-menu-label{font-size:var(--nb-fs-label);font-weight:650;color:${T.text}}
+.nb-menu-hint{font-size:var(--nb-fs-meta);line-height:1.4;color:${T.text3}}
+
+/* the computed aggregates, beside the table they describe */
+.nb-dt-sum{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:var(--nb-sp-2);
+  margin-top:var(--nb-sp-4)}
+.nb-dt-sum-h{grid-column:1/-1;font-size:var(--nb-fs-meta);font-weight:650;letter-spacing:.05em;
+  text-transform:uppercase;color:${T.text3}}
+.nb-dt-sum-cell{display:flex;flex-direction:column;gap:1px;padding:var(--nb-sp-3) var(--nb-sp-4);
+  border-radius:var(--nb-r-el);border:1px solid var(--nb-hair-soft);background:var(--nb-card)}
+.nb-dt-sum-v{font-size:20px;font-weight:700;letter-spacing:-.02em;color:${T.text};
+  font-variant-numeric:tabular-nums}
+.nb-dt-sum-l{font-size:var(--nb-fs-label);color:${T.text2}}
+.nb-dt-sum-b{font-size:var(--nb-fs-meta);color:${T.text3}}
+
+/* the scrubber carries chapter ticks for a timed transcript */
+.nb-scrub{position:relative;flex:1;display:flex;align-items:center;min-width:0}
+.nb-scrub-marks{position:absolute;left:0;right:0;top:2px;height:6px;pointer-events:none}
+.nb-scrub-mark{position:absolute;top:0;width:2px;height:6px;padding:0;border:0;
+  border-radius:1px;background:#9aa0b5;opacity:.75;pointer-events:auto;cursor:pointer}
+.nb-scrub-mark:hover,.nb-scrub-mark:focus-visible{background:#fff;opacity:1;outline:none}
+
 /* -------------------------------------------------------------- stage/media */
 .nb-stage{display:flex;flex-direction:column;gap:16px}
 .nb-screen{position:relative;overflow:hidden;border-radius:var(--nb-r-box);border:1px solid var(--nb-hair);
@@ -2257,7 +2590,12 @@ function App() {
       await api('/generate', {
         method: 'POST',
         body: { notebook: notebook.id, kind, length: 'short', ...(opts || {}) },
-        timeoutMs: 240000
+        // Measured on a six-source notebook: a timeline returns in ~117s, a
+        // study guide in ~239s. At 240s the page gave up on the slowest kinds
+        // while the server kept generating, so the artifact appeared later with
+        // a "failed" toast next to it. The progress pill already shows elapsed
+        // time, so waiting is visible rather than silent.
+        timeoutMs: 420000
       })
       const fresh = await studio.reload(true)
       const target = fresh && fresh.notebook && fresh.notebook.artifacts
@@ -5965,20 +6303,27 @@ function Viewer({ artifact, notebook, onCite, onRegenerate, regenerating, onChan
   } else if (artifact.kind === 'audio_overview') {
     body = jsx(AudioView, { src: primary.url, json: asJson.json, text: asTxt.text, notebook, onChanged })
   } else if (artifact.kind === 'mind_map') {
-    body = jsx(MindMapView, { data: asJson.json, text: primary.text })
+    body = jsx(MindMapView, { data: asJson.json, text: primary.text, onCite })
   } else if (artifact.kind === 'flashcards') {
     body = jsx(FlashcardsView, { data: asJson.json, text: primary.text, key: artifact.key, deckId: artifact.key })
   } else if (artifact.kind === 'quiz') {
     body = jsx(QuizView, { data: asJson.json, text: primary.text, deckId: artifact.key })
   } else if (artifact.kind === 'slides') {
-    body = jsx(SlidesView, { data: asJson.json, text: primary.text, notebook, jsonName,
+    body = jsx(SlidesView, { data: asJson.json, text: primary.text, notebook, jsonName, onCite,
                              htmlUrl: primary.url && artifact.ext === 'html' ? primary.url : '' })
   } else if (artifact.kind === 'infographic' || artifact.kind === 'blueprint_evolution') {
     // The blueprint is an SVG poster like an infographic: same stage, same
     // zoom, same style chip. A separate viewer would be the same code twice.
     body = jsx(InfographicView, { src: primary.url, data: asJson.json })
   } else if (artifact.kind === 'data_table') {
-    body = jsx(DataTableView, { text: primary.text, name: artifact.primary })
+    body = jsx(DataTableView, { text: primary.text, name: artifact.primary, data: asJson.json })
+  } else if (artifact.kind === 'summary' || artifact.kind === 'briefing_doc') {
+    // A document, not a chat reply: BLUF banner, KPI strip, then sections.
+    body = jsx(DocView, { text: primary.text, kind: artifact.kind, onCite })
+  } else if (artifact.kind === 'faq') {
+    body = jsx(FaqView, { text: primary.text, onCite })
+  } else if (artifact.kind === 'study_guide') {
+    body = jsx(StudyGuideView, { text: primary.text, onCite })
   } else if (artifact.kind === 'timeline') {
     body = jsx(TimelineView, { text: primary.text, onCite })
   } else {
@@ -6416,6 +6761,7 @@ function AudioView({ src, json, text, notebook, onChanged }) {
             style: { background: 'rgba(255,255,255,.1)', width: '40px', height: '40px' },
             children: jsx(Glyph, { name: playing ? 'pause' : 'play', size: 16 })
           }),
+          el('div', { className: 'nb-scrub' },
           el('input', {
             type: 'range', min: 0, max: 100, value: Math.round(progress * 100),
             'aria-label': 'Scrub audio', style: { flex: 1, accentColor: T.accent },
@@ -6424,6 +6770,19 @@ function AudioView({ src, json, text, notebook, onChanged }) {
               if (a && dur) { a.currentTime = (Number(e.target.value) / 100) * dur }
             }
           }),
+          // one tick per speaker turn, positioned by its real timestamp — the
+          // transcript is already timed, so a chapter list would be the same
+          // information printed twice
+          segsTimed && dur
+            ? el('div', { className: 'nb-scrub-marks', 'aria-hidden': 'true' },
+                segsTimed.map((seg, si) => el('button', {
+                  key: `mk${si}`, type: 'button', className: 'nb-scrub-mark',
+                  title: `${fmtTime(seg.start)} — ${String(seg.speaker || '').toUpperCase()}`,
+                  'aria-label': `Jump to ${fmtTime(seg.start)}`,
+                  style: { left: `${Math.min(100, (seg.start / dur) * 100)}%` },
+                  onClick: () => seekSeg(si)
+                })))
+            : null),
           el('button', {
             type: 'button', className: 'nb-chip', 'data-click': 'true',
             'aria-label': 'Playback speed', title: 'Playback speed',
@@ -6536,79 +6895,97 @@ const fmtTime = (s) => {
 
 /* --------------------------------------------------------------- mind map */
 
-function MindMapView({ data, text }) {
-  const tree = useMemo(() => (data && data.children ? data : parseMindMapMd(text)), [data, text])
-  const [zoom, setZoom] = useState(1)
-  const [pan, setPan] = useState({ x: 0, y: 0 })
-  const drag = useRef(null)
-  const { nodes, width, height } = useMemo(() => layoutTree(tree), [tree])
+/** node_type → the colour and glyph the topology uses. A reader learns that
+ *  rose means a tension and amber means a number after one graph. */
+const MAP_TONE = {
+  core_thesis: { ink: 'accent', label: 'thesis' },
+  subsystem: { ink: 'accentSoft', label: 'subsystem' },
+  metric_proof: { ink: 'warn', label: 'metric' },
+  risk_bottleneck: { ink: 'danger', label: 'risk' },
+  tension_conflict: { ink: 'danger', label: 'tension' },
+  action_item: { ink: 'ok', label: 'action' }
+}
+const mapInk = (tone) => (tone === 'warn' ? T.warn
+  : tone === 'danger' ? T.danger
+    : tone === 'ok' ? T.ok
+      : tone === 'accentSoft' ? `color-mix(in srgb, ${T.accent} 70%, ${T.text})`
+        : T.accent)
 
-  if (!nodes.length) {
-    return el('div', { className: 'nb-view-body' },
-      jsx('div', { className: 'nb-hint', children: 'no mind map structure in this artifact' }))
+/** Lay out a node/edge graph: depth by distance from `root`, leaves on a grid.
+ *
+ *  A force layout would be prettier and would also be different on every open,
+ *  which is wrong for a map you learn: the same notebook must draw the same
+ *  topology every time. Nodes are put in columns by BFS depth, spread evenly in
+ *  their column, then nudged apart only if they actually overlap. */
+function layoutGraph(graph) {
+  const raw = (graph.nodes || []).filter((n) => n && n.id)
+  if (!raw.length) return { nodes: [], edges: [], width: 900, height: 560 }
+  const byId = new Map(raw.map((n) => [n.id, n]))
+  const adj = new Map(raw.map((n) => [n.id, []]))
+  for (const e of graph.edges || []) {
+    if (!byId.has(e.source) || !byId.has(e.target)) continue
+    adj.get(e.source).push(e.target)
+    adj.get(e.target).push(e.source)
   }
+  const rootId = (graph.root && byId.has(graph.root)) ? graph.root : raw[0].id
+  const depth = new Map([[rootId, 0]])
+  const queue = [rootId]
+  while (queue.length) {
+    const id = queue.shift()
+    for (const next of adj.get(id) || []) {
+      if (!depth.has(next)) { depth.set(next, depth.get(id) + 1); queue.push(next) }
+    }
+  }
+  // anything unreachable from the root still has to be drawn
+  for (const n of raw) if (!depth.has(n.id)) depth.set(n.id, 2)
 
-  const nodeEls = nodes.map((n, i) => jsx('g', { key: `n${i}`, children: [
-    n.parent >= 0
-      ? jsx('path', {
-          d: curve(nodes[n.parent], n),
-          fill: 'none',
-          stroke: `color-mix(in srgb, ${T.accent} ${n.depth === 1 ? 52 : 34}%, transparent)`,
-          strokeWidth: n.depth === 1 ? 1.8 : 1.3
-        })
-      : null,
-    jsx('rect', {
-      x: n.x - n.w / 2, y: n.y - n.h / 2, width: n.w, height: n.h, rx: 9,
-      fill: n.depth === 0
-        ? `color-mix(in srgb, ${T.accent} 24%, transparent)`
-        : n.depth === 1
-          ? `color-mix(in srgb, ${T.accent} 9%, var(--ui-bg-primary, #101116))`
-          : 'var(--ui-bg-primary, #101116)',
-      stroke: `color-mix(in srgb, ${T.accent} ${n.depth === 0 ? 62 : n.depth === 1 ? 34 : 20}%, transparent)`
-    }),
-    jsx('text', {
-      x: n.x, y: n.y + (n.depth === 0 ? 5 : 4), textAnchor: 'middle',
-      fill: n.depth === 0 ? T.text : n.depth === 1 ? T.text : T.text2,
-      fontSize: n.depth === 0 ? 18 : n.depth === 1 ? 16 : 14.5,
-      fontWeight: n.depth <= 1 ? 660 : 500,
-      children: n.label
-    }),
-    n.detail ? jsx('title', { children: `${n.label} — ${n.detail}` }) : null
-  ].filter(Boolean) }))
+  const columns = new Map()
+  for (const n of raw) {
+    const d = depth.get(n.id)
+    if (!columns.has(d)) columns.set(d, [])
+    columns.get(d).push(n)
+  }
+  const maxDepth = Math.max(...columns.keys())
+  const COL_W = 268
+  // A node is 46px tall and can carry a metric badge under its label, so rows
+  // need more than the bare height. 92 gives a visible gap at 2x and keeps two
+  // same-column nodes from touching (the old 82 did not).
+  const ROW_H = 92
+  const rows = Math.max(...[...columns.values()].map((c) => c.length), 1)
+  const width = Math.max(720, (maxDepth + 1) * COL_W + 120)
+  const height = Math.max(320, rows * ROW_H + 140)
 
-  const canvas = jsx('svg', {
-    className: 'nb-map', viewBox: `0 0 ${width} ${height}`, role: 'img',
-    'aria-label': `Mind map: ${(tree && tree.label) || 'root'} with ${nodes.length} nodes`,
-    preserveAspectRatio: 'xMidYMid meet',
-    onWheel: (e) => {
-      e.preventDefault()
-      setZoom((z) => Math.min(2.4, Math.max(0.55, z - e.deltaY * 0.0012)))
-    },
-    onPointerDown: (e) => {
-      drag.current = { x: e.clientX - pan.x, y: e.clientY - pan.y }
-      if (e.currentTarget.setPointerCapture) e.currentTarget.setPointerCapture(e.pointerId)
-    },
-    onPointerMove: (e) => {
-      if (drag.current) setPan({ x: e.clientX - drag.current.x, y: e.clientY - drag.current.y })
-    },
-    onPointerUp: () => { drag.current = null },
-    onPointerCancel: () => { drag.current = null },
-    children: el('g', {
-      transform: `translate(${pan.x} ${pan.y}) translate(${width / 2} ${height / 2}) scale(${zoom}) translate(${-width / 2} ${-height / 2})`
-    }, nodeEls)
-  })
-
-  const toolbar = el('div', { style: { display: 'flex', gap: '8px', alignItems: 'center', marginBottom: '8px' } },
-    jsx('span', { className: 'nb-hint', children: `${nodes.length} nodes · drag to pan · scroll to zoom · hover a node for its detail` }),
-    el('span', { style: { flex: 1 } }),
-    jsx(Btn, {
-      size: 'sm', icon: 'grid', children: 'Reset view',
-      onClick: () => { setZoom(1); setPan({ x: 0, y: 0 }) }
-    }))
-
-  return el('div', { className: 'nb-view-body', style: { padding: '12px', display: 'flex', flexDirection: 'column' } },
-    toolbar,
-    el('div', { style: { flex: 1, minHeight: '340px' } }, canvas))
+  const nodes = []
+  for (const [d, list] of [...columns.entries()].sort((a, b) => a[0] - b[0])) {
+    const span = (list.length - 1) * ROW_H
+    const top = (height - span) / 2
+    list.forEach((n, i) => {
+      const label = String(n.label || n.id)
+      const w = Math.min(196, 34 + label.length * 8.4)
+      nodes.push({
+        id: n.id, label, w, h: 46,
+        x: 60 + d * COL_W + w / 2,
+        y: top + i * ROW_H,
+        nodeType: String(n.node_type || '').toLowerCase(),
+        stat: String(n.key_stat || '').trim(),
+        summary: String(n.summary || '').trim(),
+        citations: (n.citations || []).map((c) => Number(c)).filter((c) => c > 0)
+      })
+    })
+  }
+  const at = new Map(nodes.map((n) => [n.id, n]))
+  const edges = []
+  for (const e of graph.edges || []) {
+    const a = at.get(e.source)
+    const b = at.get(e.target)
+    if (!a || !b) continue
+    edges.push({
+      a, b,
+      relation: String(e.relation || '').trim(),
+      style: String(e.style || 'solid').trim()
+    })
+  }
+  return { nodes, edges, width, height, columns: maxDepth + 1 }
 }
 
 function curve(a, b) {
@@ -6690,6 +7067,176 @@ function parseMindMapMd(text) {
   return root.children.length ? root : null
 }
 
+/* ------------------------------------------------------- the mind map view */
+
+/** The inspector for a hovered/selected node: its type, its metric, its
+ *  summary and its citations. Built as explicit variables rather than one deep
+ *  el() tree — the nesting is what made the previous version's brackets fail. */
+function MapInspector({ node, onCite }) {
+  if (!node) {
+    return el('div', { className: 'nb-map-ins' },
+      el('div', { className: 'nb-map-ins-hint', children: 'hover a node to inspect it' }))
+  }
+  const tone = MAP_TONE[node.nodeType]
+  const rows = []
+  rows.push(el('div', { className: 'nb-map-ins-head' },
+    el('span', { className: 'nb-map-type', 'data-tone': tone ? tone.ink : 'accent',
+      children: tone ? tone.label : 'node' }),
+    el('span', { className: 'nb-map-ins-label', children: node.label })))
+  if (node.stat) {
+    rows.push(el('div', { className: 'nb-map-ins-stat', children: node.stat }))
+  }
+  if (node.summary) {
+    rows.push(el('div', { className: 'nb-map-ins-sum', children: node.summary }))
+  }
+  if (node.citations.length) {
+    const chip = (n) => (onCite
+      ? el('button', { type: 'button', className: 'nb-srcchip', key: `i${n}`,
+          'aria-label': `Open source S${n}`, onClick: () => onCite(n), children: `S${n}` })
+      : el('span', { className: 'nb-srcchip', key: `i${n}`, children: `S${n}` }))
+    rows.push(el('div', { className: 'nb-map-ins-src' }, node.citations.map(chip)))
+  }
+  return el('div', { className: 'nb-map-ins' }, rows)
+}
+
+function MindMapView({ data, text, onCite }) {
+  // The schema describes a GRAPH (nodes + typed edges); the old viewer only
+  // understood a nested `children` tree, so a generated mind map lost its node
+  // types, its metric badges, its relation labels and every cross-link. The
+  // tree path stays as the fallback for an artifact made before that schema.
+  const graph = useMemo(
+    () => (data && Array.isArray(data.nodes) && data.nodes.length ? data : null),
+    [data])
+  const tree = useMemo(
+    () => (graph ? null : (data && data.children ? data : parseMindMapMd(text))),
+    [data, text, graph])
+
+  const laid = useMemo(() => (graph ? layoutGraph(graph) : layoutTree(tree)), [graph, tree])
+  const nodes = laid.nodes || []
+  const edges = laid.edges || []
+  const width = laid.width
+  const height = laid.height
+
+  const [zoom, setZoom] = useState(1)
+  const [pan, setPan] = useState({ x: 0, y: 0 })
+  const [hover, setHover] = useState(null)
+  const drag = useRef(null)
+
+  if (!nodes.length) {
+    return el('div', { className: 'nb-view-body' },
+      el('div', { className: 'nb-hint', children: 'no mind map structure in this artifact' }))
+  }
+
+  const edgeEl = (e, i) => {
+    const tension = e.style === 'dashed_tension' || /contradict/i.test(e.relation)
+    const thick = e.style === 'thick_flow' || /produces|depends/i.test(e.relation)
+    const stroke = tension ? T.danger : thick
+      ? `color-mix(in srgb, ${T.accent} 62%, transparent)`
+      : `color-mix(in srgb, ${T.accent} 34%, transparent)`
+    const mid = { x: (e.a.x + e.b.x) / 2, y: (e.a.y + e.b.y) / 2 }
+    const label = e.relation
+      ? jsx('text', {
+          x: mid.x, y: mid.y - 5, textAnchor: 'middle', fontSize: 10.5,
+          fill: tension ? `color-mix(in srgb, ${T.danger} 72%, ${T.text})` : T.text3,
+          children: e.relation
+        })
+      : null
+    return jsx('g', { key: `e${i}`, children: [
+      jsx('path', {
+        d: curve(e.a, e.b), fill: 'none', stroke,
+        strokeWidth: thick ? 2.4 : 1.5,
+        strokeDasharray: tension ? '5 4' : undefined,
+        opacity: 0.9
+      }),
+      label
+    ].filter(Boolean) })
+  }
+
+  const nodeEl = (n, i) => {
+    const tone = MAP_TONE[n.nodeType] || MAP_TONE.core_thesis
+    const ink = mapInk(tone.ink)
+    const isRoot = graph ? String((graph.root || '')) === n.id : n.depth === 0
+    const kids = [
+      jsx('rect', {
+        x: n.x - n.w / 2, y: n.y - n.h / 2, width: n.w, height: n.h, rx: isRoot ? 14 : 10,
+        fill: isRoot ? `color-mix(in srgb, ${ink} 26%, transparent)`
+          : `color-mix(in srgb, ${ink} 8%, var(--ui-bg-primary, #101116))`,
+        stroke: `color-mix(in srgb, ${ink} ${isRoot || hover === n.id ? 66 : 34}%, transparent)`,
+        strokeWidth: isRoot || hover === n.id ? 2 : 1.2
+      }),
+      jsx('text', {
+        x: n.x, y: n.y + (n.stat ? -1 : 5), textAnchor: 'middle',
+        fill: isRoot ? '#f2f3f8' : T.text,
+        fontSize: isRoot ? 16 : 14.5, fontWeight: isRoot ? 680 : 600,
+        children: n.label
+      })
+    ]
+    if (n.stat) {
+      kids.push(jsx('text', {
+        x: n.x, y: n.y + 14, textAnchor: 'middle', fontSize: 11.5,
+        fill: `color-mix(in srgb, ${ink} 78%, ${T.text})`, fontWeight: 700,
+        children: n.stat
+      }))
+    }
+    return jsx('g', {
+      key: `n${i}`,
+      onMouseEnter: () => setHover(n.id),
+      onMouseLeave: () => setHover((h) => (h === n.id ? null : h)),
+      style: { cursor: 'pointer' },
+      children: kids
+    })
+  }
+
+  const canvas = jsx('svg', {
+    className: 'nb-map', viewBox: `0 0 ${width} ${height}`, role: 'img',
+    'aria-label': `Mind map: ${(graph && graph.title) || (tree && tree.label) || 'root'} with ${nodes.length} nodes`,
+    preserveAspectRatio: 'xMidYMid meet',
+    onWheel: (e) => {
+      e.preventDefault()
+      setZoom((z) => Math.min(2.4, Math.max(0.55, z - e.deltaY * 0.0012)))
+    },
+    onPointerDown: (e) => {
+      drag.current = { x: e.clientX - pan.x, y: e.clientY - pan.y }
+      if (e.currentTarget.setPointerCapture) e.currentTarget.setPointerCapture(e.pointerId)
+    },
+    onPointerMove: (e) => {
+      if (drag.current) setPan({ x: e.clientX - drag.current.x, y: e.clientY - drag.current.y })
+    },
+    onPointerUp: () => { drag.current = null },
+    onPointerLeave: () => { drag.current = null },
+    children: jsx('g', {
+      transform: `translate(${pan.x} ${pan.y}) translate(${width / 2} ${height / 2}) scale(${zoom}) translate(${-width / 2} ${-height / 2})`,
+      children: edges.map(edgeEl).concat(nodes.map(nodeEl))
+    })
+  })
+
+  const types = {}
+  for (const n of nodes) {
+    const key = n.nodeType || ''
+    if (key) types[key] = (types[key] || 0) + 1
+  }
+  const legend = Object.keys(types).length > 1
+    ? el('div', { className: 'nb-map-legend' },
+        Object.keys(types).map((t) => el('span', { className: 'nb-map-leg', key: t },
+          el('span', { className: 'nb-map-dot', 'data-tone': (MAP_TONE[t] || {}).ink || 'accent' }),
+          el('span', { children: `${(MAP_TONE[t] || {}).label || t} ${types[t]}` }))))
+    : null
+
+  const toolbar = el('div', { className: 'nb-map-bar' },
+    el('span', { className: 'nb-hint',
+      children: `${nodes.length} nodes · ${edges.length} links · drag to pan · scroll to zoom` }),
+    el('span', { style: { flex: 1 } }),
+    legend,
+    jsx(Btn, { size: 'sm', icon: 'grid', children: 'Reset',
+      onClick: () => { setZoom(1); setPan({ x: 0, y: 0 }) } }))
+
+  const hovered = nodes.find((n) => n.id === hover) || null
+  return el('div', { className: 'nb-view-body nb-map-wrap' },
+    toolbar,
+    el('div', { className: 'nb-map-stage' }, canvas, jsx(MapInspector, { node: hovered, onCite }))
+  )
+}
+
 /* ------------------------------------------------------------ flashcards */
 
 function FlashcardsView({ data, text, deckId }) {
@@ -6730,6 +7277,13 @@ function FlashcardsView({ data, text, deckId }) {
       el('div', { style: { display: 'flex', alignItems: 'center', gap: '10px' } },
         jsx('span', { className: 'nb-chip', 'data-tone': Object.keys(known).length ? 'ok' : undefined,
           children: `${knownCount} known` }),
+        card.card_type
+          ? jsx('span', { className: 'nb-chip', children: String(card.card_type).replace(/_/g, ' ') })
+          : null,
+        card.difficulty
+          ? jsx('span', { className: 'nb-chip', title: 'Difficulty 1 easy · 3 hard',
+              children: '◆'.repeat(Math.max(1, Math.min(3, Number(card.difficulty) || 1)) ) })
+          : null,
         jsx('span', { className: 'nb-hint', children: `card ${i + 1} of ${cards.length}` }),
         el('span', { style: { flex: 1 } }),
         jsx(Btn, {
@@ -6752,6 +7306,18 @@ function FlashcardsView({ data, text, deckId }) {
           el('div', { className: 'nb-face', 'data-side': 'back' },
             jsx('span', { className: 'nb-meta', children: 'answer' }),
             jsx('span', { children: card.back }),
+            // the hook and the tier are what make a deck more than a list of
+            // Q&A: the schema asks for both, so the card shows both
+            card.mnemonic
+              ? el('div', { className: 'nb-card-hook' },
+                  jsx(Glyph, { name: 'sparkle', size: 12 }),
+                  el('span', { children: card.mnemonic }))
+              : null,
+            (card.citations || []).length
+              ? el('div', { className: 'nb-card-cites' },
+                  card.citations.map((n) => el('span', { className: 'nb-srcchip', key: `k${n}`,
+                    children: `S${n}` })))
+              : null,
             card.source ? jsx('span', { style: { fontSize: '13px', color: T.text3, marginTop: 'auto' }, children: card.source }) : null))
       }),
       el('div', { style: { display: 'flex', gap: '8px', justifyContent: 'center', alignItems: 'center' } },
@@ -6835,9 +7401,31 @@ function QuizView({ data, text, deckId }) {
             }, `c${ci}`)
           })),
         done
-          ? el('div', { style: { marginTop: '10px', fontSize: '14px', color: right ? T.ok : T.warn } },
-              el('b', { children: right ? 'Correct. ' : `Not quite — ${q.answer}. ` }),
-              q.explanation ? el('span', { style: { color: T.text2 }, children: q.explanation }) : null)
+          ? el('div', { className: 'nb-quiz-done' },
+              el('div', { className: 'nb-quiz-verdict', 'data-tone': right ? 'ok' : 'warn' },
+                jsx(Glyph, { name: right ? 'check' : 'close', size: 13 }),
+                el('span', { children: right ? 'Correct' : `Not quite — the answer is “${q.answer}”` })),
+              q.explanation ? el('div', { className: 'nb-quiz-explain', children: q.explanation }) : null,
+              // per-option rationale: the schema asks the model for one per
+              // choice precisely so a miss explains WHY the distractor looked
+              // right. Ignoring it made every wrong answer read the same.
+              (q.rationales || []).length
+                ? el('div', { className: 'nb-quiz-why' },
+                    (q.choices || []).map((c, ci) => {
+                      const good = normAnswer(c) === normAnswer(q.answer)
+                      const why = String(q.rationales[ci] || '').trim()
+                      if (!why) return null
+                      return el('div', { className: 'nb-quiz-why-row', key: `w${ci}`,
+                        'data-tone': good ? 'ok' : (chosen === c ? 'warn' : 'dim') },
+                        el('span', { className: 'nb-quiz-why-mark', children: good ? '✓' : (chosen === c ? '✗' : '·') }),
+                        el('div', { className: 'nb-quiz-why-body' },
+                          el('span', { className: 'nb-quiz-why-choice', children: c }),
+                          el('span', { className: 'nb-quiz-why-text', children: why })))
+                    }))
+                : null,
+              jsx('div', { className: 'nb-quiz-src' },
+                (q.citations || []).map((n) => el('span', { className: 'nb-srcchip', key: `q${qi}s${n}`,
+                  children: `S${n}` })))) 
           : null)
       }))
   )
@@ -6848,7 +7436,7 @@ const normAnswer = (s) => String(s == null ? '' : s).trim().toLowerCase()
 
 /* ---------------------------------------------------------------- slides */
 
-function SlidesView({ data, htmlUrl, notebook, jsonName }) {
+function SlidesView({ data, htmlUrl, notebook, jsonName, onCite }) {
   const deck = data || {}
   const slides = deck.slides || []
   const [i, setI] = useState(0)
@@ -6955,10 +7543,17 @@ function SlidesView({ data, htmlUrl, notebook, jsonName }) {
               children: pptxBusy ? 'exporting…' : 'pptx ↓'
             })
           : null),
-      el('div', { style: { fontSize: '30px', fontWeight: 680, letterSpacing: '-.02em', color: '#f2f3f8', margin: '18px 0 14px', lineHeight: 1.15 }, children: s.title }),
-      el('ul', { style: { margin: 0, paddingLeft: '20px', color: '#d6d8e6', fontSize: '17px', lineHeight: 1.6, display: 'grid', gap: '9px' } },
-        (s.bullets || []).map((b, bi) => el('li', { children: b }, `b${bi}`))),
-      s.note ? el('div', { style: { marginTop: 'auto', fontSize: '13px', color: '#8b90a3', fontStyle: 'italic' }, children: s.note }) : null),
+      // One layout per `archetype`: the prompt asks for nine named shapes and
+      // this is what makes them look different on screen. `slideBody` falls
+      // back to the old title+bullets for an unknown tag.
+      jsx(SlideBody, { slide: s, deck, ctx: { onCite, deckTitle: deck.title,
+                                               total: slides.length } }),
+      (s.notes || s.note)
+        ? el('div', { className: 'nb-slide-notes-chip' }, [
+            jsx(Glyph, { name: 'doc', size: 12 }),
+            el('span', { children: 'speaker notes — press N' })
+          ])
+        : null),
       el('div', { style: { display: 'flex', gap: '8px', alignItems: 'center' } },
         jsx(Btn, { icon: 'arrowLeft', onClick: () => go(-1), disabled: i === 0, children: 'Back' }),
         jsx(Btn, { icon: 'arrowRight', onClick: () => go(1), disabled: i === slides.length - 1, children: 'Next' }),
@@ -7036,7 +7631,84 @@ function parseCsv(text) {
   return rows
 }
 
-function DataTableView({ text, name }) {
+/** One download control with three targets: CSV (the artifact itself), XLSX
+ *  (a real workbook with a frozen header and an auto-filter) and the clipboard
+ *  as tab-separated text, which is what "copy for Sheets" actually pastes well. */
+function DownloadMenu({ csvText, name, onCsv }) {
+  const [open, setOpen] = useState(false)
+  const [busy, setBusy] = useState(false)
+  const ref = useRef(null)
+  useEffect(() => {
+    if (!open) return undefined
+    const onDoc = (e) => { if (ref.current && !ref.current.contains(e.target)) setOpen(false) }
+    const onKey = (e) => { if (e.key === 'Escape') setOpen(false) }
+    document.addEventListener('mousedown', onDoc)
+    document.addEventListener('keydown', onKey)
+    return () => {
+      document.removeEventListener('mousedown', onDoc)
+      document.removeEventListener('keydown', onKey)
+    }
+  }, [open])
+
+  const copyForSheets = async () => {
+    // tab-separated, because a CSV pasted into a spreadsheet cell stays in one
+    // cell while a tab-separated block splits into columns
+    const rows = parseCsv(csvText || '')
+    const tsv = rows.map((r) => r.join('\t')).join('\n')
+    try {
+      await navigator.clipboard.writeText(tsv)
+      if (host.say) host.say('copied as tab-separated text — paste into a sheet')
+    } catch {
+      if (host.say) host.say('clipboard is unavailable in this window')
+    }
+    setOpen(false)
+  }
+
+  const saveXlsx = async () => {
+    if (busy) return
+    setBusy(true)
+    try {
+      const stem = String(name || '').replace(/\.(csv|json|md)$/i, '')
+      const out = await api(`/artifact/xlsx?${qs({ name: `${stem}.json`, b64: 1 })}`, { timeoutMs: 60000 })
+      const bytes = Uint8Array.from(atob(out.b64), (ch) => ch.charCodeAt(0))
+      const url = URL.createObjectURL(new Blob([bytes], { type: out.mime }))
+      const a = document.createElement('a')
+      a.href = url
+      a.download = out.name || `${stem}.xlsx`
+      document.body.appendChild(a); a.click(); a.remove()
+      setTimeout(() => URL.revokeObjectURL(url), 2000)
+    } catch (e) {
+      // the xlsx route needs table JSON; say what happened rather than nothing
+      if (host.say) host.say(`xlsx export failed: ${e.message || e}`)
+    } finally {
+      setBusy(false); setOpen(false)
+    }
+  }
+
+  const item = (label, hint, onClick, icon) => el('button', {
+    type: 'button', className: 'nb-menu-item', onClick,
+    children: [
+      jsx(Glyph, { name: icon, size: 14 }),
+      el('div', { className: 'nb-menu-body' },
+        el('span', { className: 'nb-menu-label', children: label }),
+        el('span', { className: 'nb-menu-hint', children: hint }))
+    ]
+  })
+
+  return el('div', { className: 'nb-menu-wrap', ref }, [
+    jsx(Btn, { size: 'sm', icon: 'download', children: busy ? 'working…' : 'Export',
+      onClick: () => setOpen((o) => !o), disabled: busy }),
+    open
+      ? el('div', { className: 'nb-menu', role: 'menu' }, [
+          item('CSV', 'the artifact itself — opens anywhere', () => { onCsv(); setOpen(false) }, 'grid'),
+          item('XLSX', 'frozen header, auto-filter, typed cells', saveXlsx, 'chart'),
+          item('Copy for Sheets', 'tab-separated, pastes into columns', copyForSheets, 'copy')
+        ])
+      : null
+  ])
+}
+
+function DataTableView({ text, name, data }) {
   const rows = useMemo(() => parseCsv(text), [text])
   const [sort, setSort] = useState({ col: -1, dir: 1 })
   const [q, setQ] = useState('')
@@ -7074,7 +7746,17 @@ function DataTableView({ text, name }) {
       el('span', { className: 'nb-meta', children: q.trim() ? `${filtered.length} of ${body.length} rows × ${head.length} columns` : `${body.length} rows × ${head.length} columns` }),
       el('span', { style: { flex: 1 } }),
       body.length > 8 ? jsx(SearchField, { value: q, onChange: setQ, placeholder: 'Filter rows', label: 'Filter table rows' }) : null,
-      jsx(Btn, { size: 'sm', icon: 'download', onClick: exportCsv, children: 'Export CSV' })),
+      jsx(DownloadMenu, { csvText: text, name, onCsv: exportCsv })),
+    // the aggregates the prompt computed are not in the CSV (it is rectangular);
+    // they belong beside the table, not only inside the workbook
+    (data && (data.summary || []).length)
+      ? el('div', { className: 'nb-dt-sum' },
+          el('div', { className: 'nb-dt-sum-h', children: 'Computed over these rows' }),
+          (data.summary || []).map((it, i) => el('div', { className: 'nb-dt-sum-cell', key: `sm${i}` },
+            el('div', { className: 'nb-dt-sum-v', children: String(it.value || '') }),
+            el('div', { className: 'nb-dt-sum-l', children: String(it.label || '') }),
+            it.basis ? el('div', { className: 'nb-dt-sum-b', children: String(it.basis) }) : null)))
+      : null,
     el('div', { className: 'nb-dt-wrap' },
       el('table', { className: 'nb-dt' },
         el('thead', null, el('tr', null,
@@ -7341,6 +8023,676 @@ function TimelineView({ text, onCite }) {
           return el('li', { className: 'nb-node', key: `n${i}` }, kids)
         }))
   ))
+}
+
+/* ============================================================================
+   Document surfaces — summary, briefing, FAQ, study guide.
+
+   These four artifacts are generated as markdown, and until now they were
+   rendered as markdown: a wall of headings that a reader has to re-scan to find
+   the one sentence that matters. The generation prompts now emit a skeleton
+   (BLUF banner, KPI table, RAG badges, tiered Q&A, concept cards, trap alerts)
+   and this file renders that skeleton as a document, with a plain-markdown
+   fallback for artifacts generated before the skeleton existed.
+
+   Every [S#] in the parsed text is still a real citation: the parsers hand the
+   raw string to `Markdown`, which owns the citation chips, so nothing here
+   invents a second citation path.
+   ========================================================================== */
+
+const DOC_TOKEN = String.raw`(?:\*\*|[^|])*`
+
+/** Split generated markdown into `{title, lede, bluf, kpis, sections}`, where a
+ *  section is `{heading, blocks}` and blocks are the same shapes `parseBlocks`
+ *  produces. Pure: no rendering, no model. */
+function docOutline(text) {
+  const blocks = parseBlocks(String(text || '').replace(/\r\n/g, '\n'))
+  let title = ''
+  let bluf = ''
+  const lede = []
+  const sections = []
+  let cur = null
+  const push = (b) => (cur ? cur.blocks : lede).push(b)
+
+  for (const b of blocks) {
+    if (b.t === 'h1') { if (!title) title = b.text; continue }
+    if (b.t === 'h2') { cur = { heading: b.text, blocks: [] }; sections.push(cur); continue }
+    // the BLUF banner is a blockquote or a paragraph that opens with a label
+    if (!bluf && !cur && (b.t === 'quote' || b.t === 'p')) {
+      const plain = String(b.text || '').replace(/\*\*/g, '').trim()
+      const m = /^(?:bottom line(?: up front)?|bluf|verdict|the short answer)[:\s—-]+(.+)$/i.exec(plain)
+      if (m) { bluf = m[1].trim(); continue }
+      if (b.t === 'quote') { bluf = plain; continue }
+    }
+    push(b)
+  }
+  const kpis = docKpis(sections)
+  return { title, lede, bluf, kpis, sections }
+}
+
+/** The KPI strip is the first table whose header names a value/metric column. */
+function docKpis(sections) {
+  for (const s of sections) {
+    for (const b of s.blocks) {
+      if (b.t !== 'table') continue
+      const head = (b.rows[0] || []).map((h) => String(h).toLowerCase())
+      const vi = head.findIndex((h) => /value|metric|number|figure/.test(h))
+      const li = head.findIndex((h) => /metric|label|name|what/.test(h))
+      if (vi < 0 && li < 0) continue
+      const rows = b.rows[1] || []
+      if (!rows.length) continue
+      const valueCol = vi >= 0 ? vi : 1
+      const labelCol = li >= 0 && li !== valueCol ? li : (valueCol === 0 ? 1 : 0)
+      const ctxCol = head.findIndex((h) => /context|meaning|basis|vs|detail/.test(h))
+      const srcCol = head.findIndex((h) => /source|cite|citation|ref/.test(h))
+      return rows.slice(0, 4).map((r) => ({
+        value: String(r[valueCol] || '').trim(),
+        label: String(r[labelCol] || '').trim(),
+        context: ctxCol >= 0 ? String(r[ctxCol] || '').trim() : '',
+        source: srcCol >= 0 ? String(r[srcCol] || '').trim() : ''
+      })).filter((k) => k.value || k.label)
+    }
+  }
+  return []
+}
+
+/** A `[CRITICAL]` / `[MODERATE]` / `[LOW]` marker anywhere in a line. */
+const RAG = /\[\s*(critical|high|moderate|medium|low|ready|pass|fail|amber|red|green)\s*\]/i
+const RAG_TONE = {
+  critical: 'danger', high: 'danger', red: 'danger', fail: 'danger',
+  moderate: 'warn', medium: 'warn', amber: 'warn',
+  low: 'ok', ready: 'ok', pass: 'ok', green: 'ok'
+}
+
+/** One line of the risk register: badge, bold title, root cause, mitigation. */
+function riskRow(line, i, onCite) {
+  const m = RAG.exec(line)
+  const tone = m ? (RAG_TONE[m[1].toLowerCase()] || 'accent') : null
+  const clean = line.replace(RAG, '').trim()
+  const parts = clean.split(/\s+—\s+|\s+-\s+/)
+  const head = parts.shift() || clean
+  const rest = parts
+  return el('div', { className: 'nb-risk', key: `r${i}` },
+    m ? el('span', { className: 'nb-rag', 'data-tone': tone, children: m[1].toLowerCase() }) : null,
+    el('div', { className: 'nb-risk-body' },
+      el('div', { className: 'nb-risk-head', children: jsx(Markdown, { text: head, onCite }) }),
+      rest.length
+        ? el('div', { className: 'nb-risk-rest' },
+            jsx(Markdown, { text: rest.join(' — '), onCite }))
+        : null))
+}
+
+function KpiStrip({ kpis, onCite }) {
+  if (!kpis.length) return null
+  return el('div', { className: 'nb-kpis', role: 'list', 'aria-label': 'Key metrics' },
+    kpis.map((k, i) => el('div', { className: 'nb-kpi', role: 'listitem', key: `k${i}` },
+      el('div', { className: 'nb-kpi-value', children: jsx(Markdown, { text: k.value, onCite }) }),
+      el('div', { className: 'nb-kpi-label', children: k.label }),
+      k.context ? el('div', { className: 'nb-kpi-ctx', children: k.context }) : null,
+      k.source ? el('div', { className: 'nb-kpi-src', children: jsx(Markdown, { text: k.source, onCite }) }) : null)))
+}
+
+function Bluf({ text, onCite }) {
+  if (!text) return null
+  return el('div', { className: 'nb-bluf' },
+    jsx(Glyph, { name: 'bolt', size: 15 }),
+    el('div', { className: 'nb-bluf-body' },
+      el('span', { className: 'nb-bluf-tag', children: 'Bottom line' }),
+      el('div', { className: 'nb-bluf-text', children: jsx(Markdown, { text, onCite }) })))
+}
+
+/** The document surface shared by Summary and Briefing Doc. Both are read the
+ *  same way — banner, numbers, then sections — and differ only in whether a
+ *  section renders its bullets as a risk register. */
+function DocView({ text, kind, onCite }) {
+  const doc = useMemo(() => docOutline(text), [text])
+  // pre-skeleton artifacts have one long section and no KPI table: say so and
+  // render them whole rather than inventing structure that is not there
+  const structured = !!doc.bluf || doc.kpis.length > 0 || doc.sections.length > 1
+  if (!structured) {
+    return el('div', { className: 'nb-view-body' }, el('div', { className: 'nb-doc' }, jsx(Markdown, { text, onCite })))
+  }
+  const isRisk = (s) => /risk/i.test(s.heading)
+  return el('div', { className: 'nb-view-body' },
+    el('div', { className: 'nb-docdoc' },
+      jsx(Bluf, { text: doc.bluf, onCite }),
+      jsx(KpiStrip, { kpis: doc.kpis, onCite }),
+      doc.lede.length
+        ? el('div', { className: 'nb-doc-lede' }, el('div', { className: 'nb-doc' }, jsx(Markdown, { text: doc.lede.map((b) => b.text || '').join('\n\n'), onCite })))
+        : null,
+      doc.sections.map((s, si) => {
+        // the KPI table has already been lifted into the strip
+        const blocks = s.blocks.filter((b) => b.t !== 'table' || b.rows[0].join().toLowerCase().indexOf('value') < 0)
+        if (!blocks.length) return null
+        return el('section', { className: 'nb-doc-sec', key: `s${si}` },
+          el('h2', { className: 'nb-doc-h2', children: s.heading }),
+          isRisk(s) && kind === 'briefing_doc'
+            ? el('div', { className: 'nb-risks' },
+                blocks.filter((b) => b.t === 'ul' || b.t === 'ol')
+                  .flatMap((b) => b.items || [])
+                  .map((line, li) => riskRow(line, li, onCite)))
+            : el('div', { className: 'nb-doc' },
+                blocks.map((b, bi) => renderBlockNamed(b, `${si}-${bi}`, onCite))))
+      }))
+  )
+}
+
+/** `renderBlock` keys by index; inside a section the index is local, so pass a
+ *  namespaced key to keep React from recycling children across sections. */
+function renderBlockNamed(b, keyName, onCite) {
+  const out = renderBlock(b, keyName, onCite)
+  return out
+}
+
+/* --------------------------------------------------------------------- faq */
+
+const FAQ_TIER = [
+  { id: 'foundational', test: /foundational|mechanics|basics/i, label: 'Foundational mechanics', icon: 'study' },
+  { id: 'edge', test: /edge|bottleneck|limit|failure/i, label: 'Edge cases and bottlenecks', icon: 'shield' },
+  { id: 'tension', test: /contradict|unresolved|disagree|tension/i, label: 'Contradictions and unresolved questions', icon: 'link' }
+]
+
+/** Split an FAQ document into tiers of `{q, verdict, body, caveat}`.
+ *
+ *  Two shapes are accepted, because both exist in real notebooks:
+ *   - the tiered skeleton (`## Foundational mechanics` + `### question`)
+ *   - the older flat form (`**question?**` then its answer), which has no
+ *     headings at all and used to fall through to a wall of Markdown
+ */
+function faqParse(text) {
+  const lines = String(text || '').replace(/\r\n/g, '\n').split('\n')
+  const tiers = []
+  let cur = null
+  let q = null
+  const flushQ = () => {
+    if (q && cur && (q.q || q.body.some(Boolean))) cur.items.push(q)
+    q = null
+  }
+  const newQ = (label) => ({ q: label, body: [], verdict: '', caveat: '' })
+
+  for (const raw of lines) {
+    const t = raw.trim()
+    if (!t) { if (q) q.body.push(''); continue }
+    if (/^---$/.test(t)) continue
+    const h1 = /^#\s+(.*)$/.exec(t)
+    if (h1) { flushQ(); continue }
+    const h2 = /^##\s+(.*)$/.exec(t)
+    if (h2) {
+      flushQ()
+      const label = h2[1].replace(/\*\*/g, '').trim()
+      cur = { id: label.toLowerCase(), label, items: [] }
+      tiers.push(cur)
+      continue
+    }
+    const h3 = /^#{3,4}\s+(.*)$/.exec(t)
+    if (h3) { flushQ(); if (!cur) { cur = { id: 'faq', label: 'Questions', items: [] }; tiers.push(cur) } q = newQ(h3[1].replace(/\*\*/g, '').trim()); continue }
+    // a bold question in the older flat form starts a question of its own — but
+    // only when nothing is being answered yet, and only when it reads as a
+    // question. A bold VERDICT at the head of an answer is not a new question.
+    const boldQ = /^\*\*([^*]{6,})\*\*\s*(.*)$/.exec(t)
+    const looksLikeQuestion = boldQ && (/\?$/.test(boldQ[1].trim()) || !q)
+    if (boldQ && !cur) {
+      cur = { id: 'faq', label: 'Questions', items: [] }
+      tiers.push(cur)
+    }
+    if (looksLikeQuestion && cur) {
+      flushQ()
+      q = newQ(boldQ[1].trim())
+      if (boldQ[2]) q.body.push(boldQ[2].trim())
+      continue
+    }
+    if (q) {
+      // the verdict sentence is bolded at the front of the answer
+      const v = /^\*\*([^*]+)\*\*/.exec(t)
+      if (v && !q.verdict) {
+        q.verdict = v[1].trim()
+        if (t.slice(v[0].length).trim()) q.body.push(t.slice(v[0].length).trim())
+      } else if (/^caveat[:\s]/i.test(t.replace(/\*\*/g, ''))) {
+        q.caveat = t.replace(/\*\*caveat[:\s—-]*/i, '').replace(/^\*\*/, '').trim()
+      } else {
+        q.body.push(t)
+      }
+    }
+  }
+  flushQ()
+  const mapped = tiers
+    .map((tier) => ({
+      ...tier,
+      meta: FAQ_TIER.find((x) => x.test.test(tier.label)) || { id: 'other', label: tier.label, icon: 'faq' }
+    }))
+    .filter((tier) => tier.items.length)
+  return { tiers: mapped, total: mapped.reduce((n, t) => n + t.items.length, 0) }
+}
+
+function FaqView({ text, onCite }) {
+  const doc = useMemo(() => faqParse(text), [text])
+  const [open, setOpen] = useState(() => {
+    const first = doc.tiers.find((t) => t.items.length)
+    return first ? `${first.id}:0` : ''
+  })
+  if (!doc.total) {
+    return el('div', { className: 'nb-view-body' }, el('div', { className: 'nb-doc' }, jsx(Markdown, { text, onCite })))
+  }
+  const tone = (verdict) => {
+    const v = String(verdict || '').toLowerCase()
+    if (/^(yes|cannot|no)/.test(v) && /^no /.test(v)) return 'danger'
+    if (/^yes/.test(v)) return 'ok'
+    if (/^no/.test(v)) return 'danger'
+    return 'accent'
+  }
+  return el('div', { className: 'nb-view-body' },
+    el('div', { className: 'nb-faq' },
+      el('div', { className: 'nb-faq-bar' },
+        el('span', { className: 'nb-meta', children: `${doc.total} questions` }),
+        el('span', { style: { flex: 1 } }),
+        doc.tiers.map((t) => el('span', { className: 'nb-chip', key: `c-${t.id}`, children: `${t.label.split(' ')[0].toLowerCase()} ${t.items.length}` }))),
+      doc.tiers.filter((t) => t.items.length).map((tier) => el('div', { className: 'nb-faq-tier', key: tier.id },
+        el('div', { className: 'nb-faq-tierhead' },
+          jsx(Glyph, { name: tier.meta.icon || 'faq', size: 14 }),
+          el('span', { children: tier.label }),
+          el('span', { className: 'nb-meta', children: `${tier.items.length}` })),
+        tier.items.map((item, qi) => {
+          const id = `${tier.id}:${qi}`
+          const isOpen = open === id
+          return el('div', { className: 'nb-faq-item', 'data-open': isOpen ? 'true' : 'false', key: id },
+            el('button', {
+              type: 'button', className: 'nb-faq-q', 'aria-expanded': isOpen,
+              'aria-controls': `faq-${id}`, onClick: () => setOpen(isOpen ? '' : id),
+              children: [
+                el('span', { className: 'nb-faq-marker', children: isOpen ? '−' : '+' }),
+                el('span', { className: 'nb-faq-qt', children: item.q })
+              ]
+            }),
+            isOpen
+              ? el('div', { className: 'nb-faq-a', id: `faq-${id}` },
+                  item.verdict
+                    ? el('span', { className: 'nb-verdict', 'data-tone': tone(item.verdict), children: item.verdict })
+                    : null,
+                  el('div', { className: 'nb-doc', children: jsx(Markdown, { text: item.body.join('\n').trim(), onCite }) }),
+                  item.caveat
+                    ? el('div', { className: 'nb-caveat' },
+                        jsx(Glyph, { name: 'shield', size: 12 }),
+                        el('span', { children: jsx(Markdown, { text: item.caveat, onCite }) }))
+                    : null)
+              : null)
+        }))))
+  )
+}
+
+/* ------------------------------------------------------------- study guide */
+
+/** Concept cards: `### term` + four labelled lines. Trap alerts: the
+ *  `**Novice assumption:** … / **What the sources show:** …` pairs. */
+function studyParse(text) {
+  const blocks = parseBlocks(String(text || '').replace(/\r\n/g, '\n'))
+  const sections = []
+  let cur = null
+  for (const b of blocks) {
+    if (b.t === 'h2') { cur = { heading: b.text, blocks: [] }; sections.push(cur); continue }
+    if (!cur) continue
+    cur.blocks.push(b)
+  }
+  const concepts = []
+  const traps = []
+  let prompts = []
+  for (const s of sections) {
+    if (/concept/i.test(s.heading)) {
+      // h3 blocks introduce a card; the following paragraph holds the labels
+      let card = null
+      for (const b of s.blocks) {
+        if (b.t === 'h3') { card = { term: b.text, lines: [] }; concepts.push(card); continue }
+        if (card && b.text) card.lines.push(b.text)
+      }
+    }
+    if (/trap|misconception/i.test(s.heading)) {
+      for (const b of s.blocks) {
+        const items = b.items || (b.text ? [b.text] : [])
+        for (const it of items) {
+          const nov = /\*\*novice assumption:?\*\*\s*([^/]+)/i.exec(it)
+          const act = /(?:\*\*what the sources show:?\*\*|what the sources show:?)\s*(.+)/i.exec(it)
+          if (nov) traps.push({ novice: nov[1].trim(), actual: act ? act[1].trim() : '' })
+        }
+      }
+    }
+    if (/socratic|prompt|rubric/i.test(s.heading)) prompts = s.blocks
+  }
+  const card = (c) => {
+    const lab = (name) => {
+      const re = new RegExp(`\\*\\*${name}:?\\*\\*\\s*(.*)`, 'i')
+      for (const line of c.lines) { const m = re.exec(line); if (m) return m[1].trim() }
+      return ''
+    }
+    return {
+      term: c.term,
+      definition: lab('Definition') || lab('Formal definition'),
+      mechanism: lab('Mechanism') || lab('Under-the-hood mechanism'),
+      failure: lab('Failure mode') || lab('Real-world failure mode'),
+      source: lab('Source') || lab('Sources')
+    }
+  }
+  return { sections, concepts: concepts.map(card), traps, prompts }
+}
+
+function StudyGuideView({ text, onCite }) {
+  const doc = useMemo(() => studyParse(text), [text])
+  const hasCards = doc.concepts.some((c) => c.definition || c.mechanism || c.failure)
+  if (!hasCards && !doc.traps.length) {
+    // an artifact generated before the skeleton existed is still a study guide:
+    // render it as the markdown it is rather than invent structure it lacks
+    return el('div', { className: 'nb-view-body' },
+      el('div', { className: 'nb-doc' }, jsx(Markdown, { text, onCite })))
+  }
+  const other = doc.sections.filter((s) => !/concept|trap|misconception/i.test(s.heading))
+
+  const conceptRows = (c) => {
+    const row = (label, value) => (value
+      ? el('div', { className: 'nb-concept-row' },
+          el('span', { className: 'nb-concept-lab', children: label }),
+          el('div', { className: 'nb-concept-val' },
+            jsx(Markdown, { text: value, onCite })))
+      : null)
+    return el('div', { className: 'nb-concept', key: c.term },
+      el('div', { className: 'nb-concept-term', children: c.term }),
+      row('Definition', c.definition),
+      row('Mechanism', c.mechanism),
+      row('Failure mode', c.failure),
+      c.source
+        ? el('div', { className: 'nb-concept-src' },
+            jsx(Markdown, { text: c.source, onCite }))
+        : null)
+  }
+
+  const concepts = hasCards
+    ? el('section', { className: 'nb-doc-sec' },
+        el('h2', { className: 'nb-doc-h2', children: 'Concept cards' }),
+        el('div', { className: 'nb-concepts' }, doc.concepts.map(conceptRows)))
+    : null
+
+  const half = (side, label, value) => el('div', { className: 'nb-trap-half', 'data-side': side },
+    el('span', { className: 'nb-trap-tag', children: label }),
+    el('div', { children: jsx(Markdown, { text: value || '', onCite }) }))
+
+  const traps = doc.traps.length
+    ? el('section', { className: 'nb-doc-sec' },
+        el('h2', { className: 'nb-doc-h2', children: 'Trap alerts' }),
+        doc.traps.map((t, i) => el('div', { className: 'nb-trap', key: `t${i}` },
+          half('novice', 'Novice assumption', t.novice),
+          half('actual', 'What the sources show', t.actual))))
+    : null
+
+  const rest = other.map((s, si) => el('section', { className: 'nb-doc-sec', key: `o${si}` },
+    el('h2', { className: 'nb-doc-h2', children: s.heading }),
+    el('div', { className: 'nb-doc' },
+      s.blocks.map((b, bi) => renderBlock(b, `${si}-${bi}`, onCite)))))
+
+  return el('div', { className: 'nb-view-body' },
+    el('div', { className: 'nb-studyguide' },
+      concepts,
+      traps,
+      rest))
+}
+
+/* ============================================================================
+   Slide archetypes — one layout per `archetype`, not one layout for the deck.
+
+   The prompt asks the model for nine named layouts; until now the viewer drew
+   every slide the same way (a title and a bullet list), so "problem_gap" and
+   "tension_audit" arrived on screen as identical walls of text. Each function
+   below is the visual the name promises, drawn on the dark slide canvas.
+
+   Rules that hold for all of them:
+   - the canvas is 16:9 and the type is set for a projector, so no body text
+     below 15px and no more than ~35 words on the canvas;
+   - a `[S#]` in a slide's text becomes a real citation chip (same path as
+     everywhere else: `Markdown` owns citations);
+   - an archetype whose payload is missing falls back to the bullet list rather
+     than drawing an empty frame — an old deck still presents.
+   ========================================================================== */
+
+/** The accent line the deck's slides all share. */
+const SLIDE_ON = {
+  ink: '#f2f3f8',
+  body: '#d6d8e6',
+  dim: '#9aa0b5',
+  faint: '#7d8398',
+  card: 'rgba(255,255,255,.055)',
+  hair: 'rgba(255,255,255,.14)',
+  accent: T.accent
+}
+
+const slideText = (text, onCite, style) =>
+  jsx(Markdown, { text: String(text || ''), onCite, className: 'nb-slide-md' })
+
+/** A small uppercase label, used for kickers and column heads. */
+const slideKicker = (text, tone) =>
+  el('span', { className: 'nb-slide-kicker', 'data-tone': tone || 'dim', children: text })
+
+const slideStat = (s, i) => el('div', { className: 'nb-slide-stat', key: `st${i}` },
+  el('div', { className: 'nb-slide-stat-v', children: s.value }),
+  el('div', { className: 'nb-slide-stat-l', children: s.label }))
+
+/** title_hero — the thesis, a subtitle, and the deck's own metadata. */
+function slideTitleHero(s, ctx) {
+  return el('div', { className: 'nb-slide nb-slide-hero' },
+    s.kicker ? slideKicker(s.kicker, 'accent') : null,
+    el('div', { className: 'nb-slide-hero-t', children: s.title }),
+    (s.bullets || []).length
+      ? el('div', { className: 'nb-slide-hero-sub', children: slideText(s.bullets[0], ctx.onCite) })
+      : null,
+    el('div', { className: 'nb-slide-hero-meta' },
+      ctx.deckTitle ? el('span', { className: 'nb-slide-badge', children: ctx.deckTitle }) : null,
+      el('span', { className: 'nb-slide-badge', children: `${ctx.total} slides` }),
+      (s.citations || []).length
+        ? el('span', { className: 'nb-slide-badge', 'data-tone': 'accent',
+            children: `cites ${s.citations.map((n) => `S${n}`).join(' · ')}` })
+        : null))
+}
+
+/** executive_bluf — the numbers first, one sentence that decides. */
+function slideExecutiveBluf(s, ctx) {
+  const stats = (s.stats || []).slice(0, 4)
+  const takeaway = (s.bullets || [])[0]
+  return el('div', { className: 'nb-slide nb-slide-bluf' },
+    slideKicker(s.kicker || 'Bottom line', 'accent'),
+    el('div', { className: 'nb-slide-bluf-t', children: s.title }),
+    stats.length
+      ? el('div', { className: 'nb-slide-stats', 'data-count': String(stats.length) },
+          stats.map(slideStat))
+      : null,
+    takeaway
+      ? el('div', { className: 'nb-slide-banner' },
+          jsx(Glyph, { name: 'bolt', size: 15 }),
+          el('span', { children: slideText(takeaway, ctx.onCite) }))
+      : null)
+}
+
+/** problem_gap — legacy on the left, target on the right, saturation split. */
+function slideProblemGap(s, ctx) {
+  const cols = s.columns || {}
+  const left = cols.left || []
+  const right = cols.right || []
+  const half = (items, side, label) => el('div', { className: 'nb-slide-half', 'data-side': side },
+    slideKicker(label, side === 'left' ? 'dim' : 'accent'),
+    el('ul', { className: 'nb-slide-list' },
+      (items.length ? items : (side === 'left' ? (s.bullets || []).slice(0, 2) : []))
+        .map((b, i) => el('li', { key: `h${side}${i}`, children: slideText(b, ctx.onCite) }))))
+  return el('div', { className: 'nb-slide nb-slide-gap' },
+    el('div', { className: 'nb-slide-gap-head', children: s.title }),
+    el('div', { className: 'nb-slide-split' },
+      half(left, 'left', 'Current · legacy'),
+      el('div', { className: 'nb-slide-arrow', 'aria-hidden': 'true', children: '→' }),
+      half(right, 'right', 'Target · next-gen')))
+}
+
+/** architecture_bento — cards with a micro-spec each. */
+function slideBento(s, ctx) {
+  const items = (s.bullets || []).slice(0, 5)
+  const card = (b, i) => {
+    const [head, ...rest] = String(b).split(/\s+—\s+|\s+-\s+/)
+    const kids = [el('div', { className: 'nb-slide-card-h', children: slideText(head, ctx.onCite) })]
+    if (rest.length) {
+      kids.push(el('div', { className: 'nb-slide-card-s', children: slideText(rest.join(' — '), ctx.onCite) }))
+    }
+    return el('div', { className: 'nb-slide-card', key: `b${i}` }, kids)
+  }
+  return el('div', { className: 'nb-slide nb-slide-bento' },
+    el('div', { className: 'nb-slide-gap-head', children: s.title }),
+    el('div', { className: 'nb-slide-cards', 'data-count': String(Math.min(items.length, 5) || 1) },
+      items.map(card)))
+}
+
+/** process_pipeline — ordered stages with a transformation each. */
+function slidePipeline(s, ctx) {
+  const stages = (s.stages || []).slice(0, 5)
+  const items = stages.length
+    ? stages.map((st) => ({ label: st.label, detail: st.detail }))
+    : (s.bullets || []).slice(0, 5).map((b) => {
+        const [label, ...rest] = String(b).split(/\s+—\s+|\s+-\s+/)
+        return { label, detail: rest.join(' — ') }
+      })
+  const chev = el('span', { className: 'nb-slide-chev', 'aria-hidden': 'true' })
+  const row = (st, i) => {
+    const kids = [
+      el('span', { className: 'nb-slide-stage-n', children: String(i + 1) }),
+      el('div', { className: 'nb-slide-stage-h', children: st.label })
+    ]
+    if (st.detail) {
+      kids.push(el('div', { className: 'nb-slide-stage-s', children: slideText(st.detail, ctx.onCite) }))
+    }
+    if (i < items.length - 1) kids.push(chev)
+    return el('div', { className: 'nb-slide-stage', key: `p${i}` }, kids)
+  }
+  return el('div', { className: 'nb-slide nb-slide-pipe' },
+    el('div', { className: 'nb-slide-gap-head', children: s.title }),
+    el('div', { className: 'nb-slide-stages', 'data-count': String(items.length || 1) },
+      items.map(row)))
+}
+
+/** deep_dive_comparison — a dense table read off `columns` or `bullets`. */
+function slideComparison(s, ctx) {
+  const cols = s.columns || {}
+  const left = cols.left || []
+  const right = cols.right || []
+  const rows = Math.max(left.length, right.length)
+  if (rows >= 2) {
+    const headCells = [
+      el('th', { key: 'h0', children: slideKicker('left', 'dim') }),
+      el('th', { key: 'h1', children: slideKicker('right', 'accent') })
+    ]
+    const cell = (value, key) => el('td', { key, children: value ? slideText(value, ctx.onCite) : '' })
+    const bodyRows = Array.from({ length: rows }).map((_, i) => el('tr', { key: `r${i}` },
+      cell(left[i], 'l'), cell(right[i], 'r')))
+    const table = el('table', { className: 'nb-slide-table' },
+      el('thead', null, el('tr', null, headCells)),
+      el('tbody', null, bodyRows))
+    return el('div', { className: 'nb-slide nb-slide-cmp' },
+      el('div', { className: 'nb-slide-gap-head', children: s.title }),
+      table)
+  }
+  // no paired columns: the bullets become labelled rows rather than a wall
+  return el('div', { className: 'nb-slide nb-slide-cmp' },
+    el('div', { className: 'nb-slide-gap-head', children: s.title }),
+    el('div', { className: 'nb-slide-rows' },
+      (s.bullets || []).map((b, i) => {
+        const [head, ...rest] = String(b).split(/\s+—\s+|\s+-\s+/)
+        return el('div', { className: 'nb-slide-row', key: `br${i}` },
+          el('div', { className: 'nb-slide-row-h', children: slideText(head, ctx.onCite) }),
+          el('div', { className: 'nb-slide-row-s', children: slideText(rest.join(' — '), ctx.onCite) }))
+      })))
+}
+
+/** tension_audit — agreement on one side, contradiction on the other. */
+function slideTension(s, ctx) {
+  const left = (s.columns || {}).left || []
+  const right = (s.columns || {}).right || []
+  const bullets = s.bullets || []
+  const agree = left.length ? left : bullets.filter((b) => !/S\d/.test(String(b)))
+  const conflict = right.length ? right : bullets.filter((b) => /S\d/.test(String(b)))
+  const col = (side, tone, label, list, emptyText) => el('div',
+    { className: 'nb-slide-tcol', 'data-side': side },
+    slideKicker(label, tone),
+    el('ul', { className: 'nb-slide-list' },
+      list.map((b, i) => el('li', { key: `${side}${i}`, children: slideText(b, ctx.onCite) })))
+    , list.length ? null : el('div', { className: 'nb-slide-empty', children: emptyText }))
+  return el('div', { className: 'nb-slide nb-slide-tension' },
+    el('div', { className: 'nb-slide-gap-head', children: s.title }),
+    el('div', { className: 'nb-slide-tension-body' },
+      col('agree', 'ok', 'Stable ground', agree,
+          'no shared ground found in the sources'),
+      col('conflict', 'warn', 'Unresolved', conflict,
+          'the sources do not contradict each other')))
+}
+
+/** roadmap — swimlanes with an owner per line. */
+function slideRoadmap(s, ctx) {
+  const lanes = (s.stages || []).slice(0, 4)
+  const items = lanes.length
+    ? lanes.map((st) => ({ label: st.label, detail: st.detail }))
+    : (s.bullets || []).slice(0, 4).map((b) => {
+        const [label, ...rest] = String(b).split(/\s+—\s+|\s+-\s+/)
+        return { label, detail: rest.join(' — ') }
+      })
+  const lane = (it, i) => {
+    const kids = [el('div', { className: 'nb-slide-lane-head' },
+      el('span', { className: 'nb-slide-lane-n', children: it.label }),
+      el('span', { className: 'nb-slide-lane-rule' }))]
+    if (it.detail) kids.push(el('div', { className: 'nb-slide-lane-body', children: slideText(it.detail, ctx.onCite) }))
+    return el('div', { className: 'nb-slide-lane', key: `l${i}` }, kids)
+  }
+  return el('div', { className: 'nb-slide nb-slide-roadmap' },
+    el('div', { className: 'nb-slide-gap-head', children: s.title }),
+    el('div', { className: 'nb-slide-lanes' }, items.map(lane)))
+}
+
+/** closing — the one line the deck wants remembered. */
+function slideClosing(s, ctx) {
+  return el('div', { className: 'nb-slide nb-slide-close' },
+    el('div', { className: 'nb-slide-close-t', children: s.title }),
+    (s.bullets || []).length
+      ? el('div', { className: 'nb-slide-close-s', children: slideText(s.bullets[0], ctx.onCite) })
+      : null,
+    el('div', { className: 'nb-slide-hero-meta' },
+      (s.citations || []).length
+        ? el('span', { className: 'nb-slide-badge', 'data-tone': 'accent',
+            children: `grounded in ${s.citations.map((n) => `S${n}`).join(' · ')}` })
+        : null))
+}
+
+const SLIDE_LAYOUTS = {
+  title_hero: slideTitleHero,
+  executive_bluf: slideExecutiveBluf,
+  problem_gap: slideProblemGap,
+  architecture_bento: slideBento,
+  process_pipeline: slidePipeline,
+  deep_dive_comparison: slideComparison,
+  tension_audit: slideTension,
+  roadmap: slideRoadmap,
+  closing: slideClosing
+}
+
+/** Draw one slide. An unknown or missing archetype falls back to the bullet
+ *  list, which is what every deck rendered as before — so an older artifact
+ *  still presents, it just looks like an older artifact. */
+function SlideBody({ slide: s, ctx }) {
+  const fn = SLIDE_LAYOUTS[s && s.archetype]
+  if (fn) return fn(s, ctx)
+  return el('div', { className: 'nb-slide' },
+    el('div', { className: 'nb-slide-gap-head', children: s.title }),
+    el('ul', { className: 'nb-slide-list' },
+      (s.bullets || []).map((b, i) => el('li', { key: `fb${i}`, children: slideText(b, ctx.onCite) }))))
+}
+
+/** Human names for the archetype chip, so "problem_gap" never reaches a reader. */
+const SLIDE_LABEL = {
+  title_hero: 'Title',
+  executive_bluf: 'Bottom line',
+  problem_gap: 'Gap',
+  architecture_bento: 'Architecture',
+  process_pipeline: 'Pipeline',
+  deep_dive_comparison: 'Comparison',
+  tension_audit: 'Tensions',
+  roadmap: 'Roadmap',
+  closing: 'Close'
 }
 
 /* -------------------------------------------------------------------- ops
@@ -8037,4 +9389,8 @@ export default plugin
 // Named exports are for the preview harness and the gates; the app only reads
 // the default export.
 export { App, StudioPanel, Viewer, OpsDeck, Rail, Markdown, KIND_ICON, CSS,
-         Machine, MACHINES, machineFleet, MACHINE_DOCS }
+         Machine, MACHINES, machineFleet, MACHINE_DOCS,
+         // the document and slide PARSERS are exported so a pure node test can
+         // assert what the viewer will draw without launching a browser
+         docOutline, docKpis, faqParse, studyParse, riskRow, SLIDE_LAYOUTS,
+         SLIDE_LABEL, layoutGraph }

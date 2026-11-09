@@ -42,6 +42,7 @@ renders that sentence.
 from __future__ import annotations
 
 import json
+import re
 import mimetypes
 import sys
 import time
@@ -1273,6 +1274,44 @@ def artifact(notebook: str = Query(...), name: str = Query(...),
                                  media_type="text/plain; charset=utf-8")
     guessed = mimetypes.guess_type(path.name)[0] or "application/octet-stream"
     return FileResponse(str(path), media_type=guessed, filename=path.name)
+
+
+@router.get("/artifact/xlsx")
+def artifact_xlsx(notebook: str = Query(...), name: str = Query(...),
+                  b64: int = Query(0, description="1 = return base64 JSON (the page's blob path")) -> Any:
+    """A data table as a real .xlsx.
+
+    The CSV is the interchange format and stays the artifact; a spreadsheet with
+    typed columns, a frozen header row and an auto-filter is what someone
+    actually pivots. Built from the SAME stored JSON the viewer reads, so the
+    workbook cannot disagree with the table on screen.
+    """
+    from hermes_notebook import xlsx_export
+    try:
+        nb_id = store.resolve_notebook(notebook)
+        path = store.artifact_path(nb_id, name)
+    except Exception as exc:
+        return _fail(str(exc), 404)
+    if not path.exists():
+        return _fail(f"{name} is not in this notebook", 404)
+    try:
+        data = json.loads(path.read_text(encoding="utf-8", errors="replace"))
+    except ValueError:
+        return _fail(f"{name} is not table JSON — open the artifact's events file", 400)
+    try:
+        blob = xlsx_export.workbook(data)
+    except Exception as exc:  # openpyxl missing or a malformed table
+        return _fail(f"{type(exc).__name__}: {exc}", 500)
+    out_name = re.sub(r"\.json$", "", path.name) + ".xlsx"
+    if b64:
+        import base64 as _b64
+        return {"ok": True, "name": out_name, "ext": "xlsx",
+                "mime": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                "bytes": len(blob), "b64": _b64.b64encode(blob).decode("ascii")}
+    from fastapi import Response
+    return Response(content=blob, media_type=(
+        "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"),
+        headers={"Content-Disposition": f'attachment; filename="{out_name}"'})
 
 
 @router.get("/artifact/pptx")

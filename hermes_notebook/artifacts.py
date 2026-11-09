@@ -228,8 +228,17 @@ def _blueprint_image_prompt(parsed: Dict[str, Any], style_id: str) -> str:
     return "\n".join(lines)
 
 
-def _digest(notebook_id: str) -> str:
-    budget = int(runtime.config("podcast_context_chars", default=42000))
+def _digest(notebook_id: str, budget: int = 0) -> str:
+    """Source text for one generation, capped.
+
+    The podcast default (42k) was being used for EVERY artifact, which made a
+    short document pay for a long-context call: a summary over a six-source
+    notebook took minutes and the page's own 240s timeout expired before the
+    model finished. Documents get a smaller, configurable budget; audio and
+    video keep the large one because they genuinely need the whole corpus.
+    """
+    if budget <= 0:
+        budget = int(runtime.config("artifact_context_chars", default=24000))
     return retrieve.notebook_digest(notebook_id, max_chars=budget)
 
 
@@ -321,16 +330,27 @@ def generate(notebook: str, kind: str, *, focus: str = "", count_hint: str = "",
         "identifiers and quoted strings in their original form.\n"
     ) if language.strip() else ""
 
+    # One audit for every artifact in this notebook, cached per source-state —
+    # a ten-output run pays for one tension pass, not ten.
+    ledger = _ledger_for(nb_id, language)
+
     if kind in MD_KINDS:
+        # a document reads a focused slice, not the whole corpus: the prompt
+        # already names what to look for, and a smaller context returns in a
+        # fraction of the wall time on the same model
+        digest = _digest(nb_id, int(runtime.config("artifact_context_chars",
+                                                  default=24000)))
+        # The registry assembles brief + ledger + focus + language + citation
+        # contract in one block, so every markdown kind states its own skeleton.
+        task = prompts.build_instructions(
+            kind, ledger_text=ledger.get("text") or "", focus=focus,
+            count_hint=count_hint, language=language, conversation=conv_text)
         messages = [
-            {"role": "system", "content":
-             "You are an expert research analyst producing a polished document "
-             "strictly from the provided sources. Never invent facts; if "
-             "something is uncertain, say so. Markdown output only."},
+            {"role": "system", "content": prompts.build_system_prompt(kind, "md")},
             {"role": "user", "content":
              f"Notebook: {meta.get('title')}\nDescription: {meta.get('description', '')}\n"
-             f"Sources:\n{src_lines}\n{focus_line}{count_line}{conv_line}{lang_line}\n"
-             f"Task: {prompts.BRIEFS[kind]}\n\nSources content:\n{digest}"},
+             f"Sources (cite these numbers as [S<n>]):\n{src_lines}\n\n"
+             f"Task: {task}\n\nSources content:\n{digest}"},
         ]
         text = llmio.complete(
             messages, purpose=f"hermes-notebook.generate.{kind}",
@@ -345,9 +365,9 @@ def generate(notebook: str, kind: str, *, focus: str = "", count_hint: str = "",
         path = _write_artifact(nb_id, kind, "md", header + text)
         return {"path": str(path), "kind": kind, "preview": text[:1200]}
 
-    # structured kinds
-    instructions = _STRUCT_INSTRUCTIONS[kind]
+    # structured kinds — same registry, same ledger, JSON shape instead of prose
     style_spec = None
+    style_note = ""
     if kind in ("infographic", "blueprint_evolution"):
         from .gfx import themes as _themes
         # `igstyles.prompt_hint` was dropped by the gfx rewrite (4850aa0) but the
@@ -363,13 +383,15 @@ def generate(notebook: str, kind: str, *, focus: str = "", count_hint: str = "",
             hint = " " + igstyles.prompt_hint(style_spec)
         except Exception:
             hint = ""  # the look still resolves; only its content hint is missing
-        instructions += "\n\nVisual treatment: " + style_spec.blurb + hint
+        style_note = style_spec.blurb + hint
+    instructions = prompts.build_instructions(
+        kind, ledger_text=ledger.get("text") or "", focus=focus,
+        count_hint=count_hint, language=language, conversation=conv_text,
+        style_note=style_note, mode="struct")
     extra = ""
-    if kind == "blueprint_evolution":
-        # "Current gaps vs target standard" must come from evidence, so the
-        # measured tension audit goes in with the sources: a disagreement between
-        # them IS a gap, and an independence cluster stops one wire story from
-        # counting as corroboration across five pillars.
+    if kind == "blueprint_evolution" and not ledger.get("text"):
+        # the blueprint's zones are gaps; when the model half of the audit was
+        # unavailable, the measured independence still goes in
         extra = _tension_brief(nb_id)
     parsed = llmio.structured(
         instructions=instructions,
@@ -379,10 +401,7 @@ def generate(notebook: str, kind: str, *, focus: str = "", count_hint: str = "",
                 f"\nSources content:\n{digest}"}],
         json_schema=_STRUCT_SCHEMAS[kind],
         schema_name=f"notebook.{kind}",
-        system_prompt=(
-            "You produce structured study material strictly from the provided "
-            "sources. Every item must be grounded in them."
-        ),
+        system_prompt=prompts.build_system_prompt(kind, "struct"),
         purpose=f"hermes-notebook.generate.{kind}",
         max_tokens=8000, temperature=0.3,
     )

@@ -322,7 +322,11 @@ async function functional(port) {
   await settle(page, 900)
 
   const cards = await page.locator('.nb-card').count()
-  ok('studio renders all outputs', cards === 13, `${cards} cards`)
+  // One card per studio kind — 13 outputs plus the architecture blueprint.
+  // `>=` rather than `===` on purpose: adding a kind must not require editing
+  // an assertion for the gate to pass, and a kind that FAILS to render still
+  // leaves the count below the floor and breaks the check.
+  ok('studio renders all outputs', cards >= 14, `${cards} cards`)
 
   // Discover is its own surface, and it must start empty rather than pretending
   // it has results: the panel only fills after a real /discover pass.

@@ -8,5 +8,6 @@ build/
 # generated contact-sheet pages (the PNGs are the artefacts)
 assets/*.html
 tests/tmp/load-*/
+tests/tmp/pv-*/
 tests/shots/
 tests/tmp/*.png

@@ -16,7 +16,11 @@ const footer = `
 // Named exports are for the preview harness and the gates; the app only reads
 // the default export.
 export { App, StudioPanel, Viewer, OpsDeck, Rail, Markdown, KIND_ICON, CSS,
-         Machine, MACHINES, machineFleet, MACHINE_DOCS }
+         Machine, MACHINES, machineFleet, MACHINE_DOCS,
+         // the document and slide PARSERS are exported so a pure node test can
+         // assert what the viewer will draw without launching a browser
+         docOutline, docKpis, faqParse, studyParse, riskRow, SLIDE_LAYOUTS,
+         SLIDE_LABEL, layoutGraph }
 `
 
 const out = `${body}\n${footer}`

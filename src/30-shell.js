@@ -168,7 +168,12 @@ function App() {
       await api('/generate', {
         method: 'POST',
         body: { notebook: notebook.id, kind, length: 'short', ...(opts || {}) },
-        timeoutMs: 240000
+        // Measured on a six-source notebook: a timeline returns in ~117s, a
+        // study guide in ~239s. At 240s the page gave up on the slowest kinds
+        // while the server kept generating, so the artifact appeared later with
+        // a "failed" toast next to it. The progress pill already shows elapsed
+        // time, so waiting is visible rather than silent.
+        timeoutMs: 420000
       })
       const fresh = await studio.reload(true)
       const target = fresh && fresh.notebook && fresh.notebook.artifacts
