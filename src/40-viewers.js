@@ -84,7 +84,7 @@ function Viewer({ artifact, notebook, onCite, onRegenerate, regenerating, onChan
   } else if (artifact.kind === 'quiz') {
     body = jsx(QuizView, { data: asJson.json, text: primary.text, deckId: artifact.key })
   } else if (artifact.kind === 'slides') {
-    body = jsx(SlidesView, { data: asJson.json, text: primary.text, notebook, jsonName, onCite,
+    body = jsx(SlidesView, { data: asJson.json, text: primary.text, notebook, jsonName, onCite, onSay,
                              htmlUrl: primary.url && artifact.ext === 'html' ? primary.url : '' })
   } else if (artifact.kind === 'infographic' || artifact.kind === 'blueprint_evolution') {
     // The blueprint is an SVG poster like an infographic: same stage, same
@@ -1212,7 +1212,7 @@ const normAnswer = (s) => String(s == null ? '' : s).trim().toLowerCase()
 
 /* ---------------------------------------------------------------- slides */
 
-function SlidesView({ data, htmlUrl, notebook, jsonName, onCite }) {
+function SlidesView({ data, htmlUrl, notebook, jsonName, onCite, onSay }) {
   const deck = data || {}
   const slides = deck.slides || []
   const [i, setI] = useState(0)
@@ -1261,8 +1261,12 @@ function SlidesView({ data, htmlUrl, notebook, jsonName, onCite }) {
       a.download = out.name || 'deck.pptx'
       document.body.appendChild(a); a.click(); a.remove()
       setTimeout(() => URL.revokeObjectURL(url), 2000)
+      // a download that says nothing looks like a button that did nothing
+      const said = `downloaded ${out.name || 'deck.pptx'}`
+      if (onSay) onSay(said); else if (host.say) host.say(said)
     } catch (e) {
-      if (host.say) host.say(`pptx export failed: ${e.message || e}`)
+      const said = `pptx export failed: ${e.message || e}`
+      if (onSay) onSay(said); else if (host.say) host.say(said)
     } finally {
       setPptxBusy(false)
     }
@@ -1457,9 +1461,13 @@ function DownloadMenu({ csvText, name, notebookId, onCsv, onSay }) {
       a.download = out.name || `${stem}.xlsx`
       document.body.appendChild(a); a.click(); a.remove()
       setTimeout(() => URL.revokeObjectURL(url), 2000)
+      const said = `downloaded ${out.name || `${stem}.xlsx`}`
+      if (onSay) onSay(said); else if (host.say) host.say(said)
     } catch (e) {
-      // the xlsx route needs table JSON; say what happened rather than nothing
-      if (host.say) host.say(`xlsx export failed: ${e.message || e}`)
+      // the xlsx route resolves the notebook BEFORE it can find the table JSON,
+      // so a missing notebook was a 422 that read as "broken export"
+      const said = `xlsx export failed: ${e.message || e}`
+      if (onSay) onSay(said); else if (host.say) host.say(said)
     } finally {
       setBusy(false); setOpen(false)
     }
