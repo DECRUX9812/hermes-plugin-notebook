@@ -13066,8 +13066,10 @@ var CSS = `
   padding:10px var(--nb-sp-3) 4px;border:0;background:transparent;color:${T.text4};
   font-size:var(--nb-fs-meta);font-weight:650;letter-spacing:.02em;text-transform:uppercase;
   font-family:inherit}
-.nb-srcgroup svg{display:none}
-.nb-srcgroup em{margin-left:auto;font-style:normal;font-weight:600;color:var(--nb-text3, ${T.text3});
+/* a fold that folds: the chevron turns, the count rides the right edge */
+.nb-srcgroup svg{flex:0 0 auto;opacity:.6;transition:transform var(--nb-dur-fast) var(--nb-ease)}
+.nb-srcgroup[aria-expanded=false] svg{transform:rotate(-90deg)}
+.nb-srcgroup em{margin-left:auto;font-style:normal;font-weight:600;color:${T.text3};
   font-size:var(--nb-fs-meta);text-transform:none;letter-spacing:0}
 
 /* the "+ Add" control in the rail header is the only add affordance */
@@ -13142,8 +13144,8 @@ var CSS = `
 .nb-head-main{min-width:0;flex:1;display:flex;flex-direction:column;gap:1px}
 .nb-h1{font-size:var(--nb-fs-title);font-weight:650;letter-spacing:-.015em;line-height:1.25;margin:0;
   white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0}
-.nb-sub{color:${T.text3};font-size:var(--nb-fs-meta);line-height:1.45;margin:0;
-  white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0}
+.nb-sub{color:${T.text3};font-size:var(--nb-fs-meta);line-height:1.4;margin:0;
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0;max-width:100%}
 .nb-hero-side{display:flex;align-items:center;gap:var(--nb-sp-2);flex:0 0 auto}
 .nb-head-desc{display:none}
 /* ops host-measurement strip (Lab Ops only) */
@@ -13748,7 +13750,7 @@ var CSS = `
 @media (max-width:1100px){
   .nb-studio{display:none}
   .nb-thread{padding:22px 20px 12px}
-  .nb-main-head{padding:20px 20px 0}
+  .nb-main-head{padding:0 var(--nb-sp-4)}
   .nb-composer{padding:12px 20px 16px}
   .nb-home-scroll{padding:20px 18px 24px}
 }
