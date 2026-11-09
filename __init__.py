@@ -35,6 +35,8 @@ EMOJI = {
     "notebook_export": "📦",
     "notebook_discover": "🧭",
     "notebook_delete": "🗑️",
+    "notebook_study": "🎓",
+    "notebook_tensions": "⚖️",
 }
 ASYNC_TOOLS = {"notebook_audio", "notebook_video"}
 

@@ -13720,6 +13720,56 @@ var CSS = `
 .nb-newthread .nb-genopt-text{flex:1;min-width:0}
 .nb-danger{color:${T.danger} !important;
   border-color:color-mix(in srgb,${T.danger} 45%,transparent) !important}
+/* ---------------------------------------------------------------- tensions */
+/* The audit reads as a case file: a verdict a person can quote, then numbered
+   disagreements, each with its two (or more) cited sides. Tone follows the
+   measured independence, never a fixed colour. */
+.nb-tensions{flex:1;min-height:0;overflow:auto;padding:var(--nb-sp-7) var(--nb-sp-8) var(--nb-sp-8);
+  display:flex;flex-direction:column;gap:var(--nb-sp-4);max-width:1040px;width:100%;
+  overscroll-behavior:contain}
+.nb-tensions .nb-disc-head h1{margin:0 0 6px}
+.nb-disc-sub{font-size:var(--nb-fs-ui);color:${T.text2};line-height:1.55;margin:0;max-width:76ch}
+.nb-tension-bar{display:flex;align-items:center;gap:var(--nb-sp-4);flex-wrap:wrap;margin-top:2px}
+.nb-tension-counts{display:flex;align-items:center;gap:var(--nb-sp-4);flex-wrap:wrap}
+
+/* the measured verdict \u2014 one sentence, toned by what was measured */
+.nb-tension-verdict{padding:var(--nb-sp-4) var(--nb-sp-4);border-radius:var(--nb-r-el);
+  border:1px solid var(--nb-hair-soft);background:var(--nb-card);
+  font-size:var(--nb-fs-ui);line-height:1.55;color:${T.text2};
+  border-left:3px solid color-mix(in srgb,${T.ok} 70%, transparent)}
+.nb-tension-verdict[data-tone=warn]{border-left-color:color-mix(in srgb,${T.warn} 70%, transparent)}
+.nb-tension-verdict b{color:${T.text}}
+
+/* one disagreement = a case file entry */
+.nb-tension-list{display:flex;flex-direction:column;gap:var(--nb-sp-4)}
+.nb-tension{border:1px solid var(--nb-hair-soft);border-radius:var(--nb-r-box);
+  background:var(--nb-card);padding:var(--nb-sp-4) var(--nb-sp-5) var(--nb-sp-5);
+  display:flex;flex-direction:column;gap:var(--nb-sp-3)}
+.nb-tension-head{display:flex;align-items:baseline;gap:var(--nb-sp-3)}
+.nb-tension-n{font-family:var(--ui-font-mono,ui-monospace,monospace);font-size:var(--nb-fs-meta);
+  font-weight:700;color:${T.text3};flex:0 0 auto}
+.nb-tension-topic{margin:0;font-size:var(--nb-fs-title);font-weight:650;line-height:1.35;
+  letter-spacing:-.01em;color:${T.text}}
+.nb-tension-sides{display:grid;grid-template-columns:1fr 1fr;gap:var(--nb-sp-3)}
+.nb-tension-side{display:flex;flex-direction:column;gap:var(--nb-sp-2);min-width:0}
+.nb-tension-claim{font-size:var(--nb-fs-body);line-height:1.5;color:${T.text}}
+.nb-tension-quote{margin:0;padding:var(--nb-sp-2) var(--nb-sp-3);border-radius:var(--nb-r-in);
+  background:var(--nb-wash-2);border-left:2px solid color-mix(in srgb,${T.accent} 55%, transparent);
+  font-size:var(--nb-fs-label);line-height:1.5;color:${T.text3};font-style:italic}
+.nb-tension-src{display:flex;gap:6px;flex-wrap:wrap}
+.nb-tension-why{font-size:var(--nb-fs-label);line-height:1.5;color:${T.text3}}
+.nb-tension-res{font-size:var(--nb-fs-label);line-height:1.5;color:${T.text2};
+  padding-top:var(--nb-sp-2);border-top:1px solid var(--nb-hair-soft)}
+.nb-tension-res b{color:${T.text}}
+.nb-tension-agree{display:flex;flex-direction:column;gap:var(--nb-sp-2);margin-top:var(--nb-sp-2)}
+.nb-tension-agree-row{display:flex;align-items:flex-start;gap:var(--nb-sp-3);
+  padding:var(--nb-sp-2) var(--nb-sp-3);border-radius:var(--nb-r-el);background:var(--nb-wash)}
+.nb-tension-agree-row svg{flex:0 0 auto;margin-top:2px;color:color-mix(in srgb,${T.ok} 62%, ${T.text})}
+.nb-tension-agree-claim{flex:1;min-width:0;font-size:var(--nb-fs-label);line-height:1.5;color:${T.text}}
+.nb-tension-agree-src{flex:0 0 auto;font-family:var(--ui-font-mono,ui-monospace,monospace);
+  font-size:var(--nb-fs-meta);font-weight:650;color:${T.accent}}
+@media (max-width:900px){ .nb-tension-sides{grid-template-columns:1fr} }
+
 /* ---------------------------------------------------------------- discover */
 .nb-disc{flex:1;min-height:0;overflow:auto;padding:26px 30px 40px;display:flex;flex-direction:column;
   gap:14px;max-width:1040px;width:100%}
@@ -14699,6 +14749,7 @@ var VIEW_FSM = createMachine({
   initial: { tab: "chat", artifact: null, source: null },
   transitions: {
     TAB_CHAT: (s) => ({ ...s, tab: "chat" }),
+    TAB_TENSIONS: (s) => ({ ...s, tab: "tensions" }),
     TAB_VIEW: (s) => s.artifact ? { ...s, tab: "view" } : s,
     TAB_PEEK: (s) => s.source ? { ...s, tab: "peek" } : s,
     OPEN_ARTIFACT: (s, e) => ({ tab: "view", artifact: e.artifact, source: s.source }),
@@ -14789,7 +14840,7 @@ function App() {
   const [view, viewSend] = (0, import_react.useReducer)(VIEW_FSM.step, VIEW_FSM.initial);
   const { tab, artifact: picked, source: peek } = view;
   const setTab = (0, import_react.useCallback)((t) => viewSend({
-    type: t === "view" ? "TAB_VIEW" : t === "peek" ? "TAB_PEEK" : "TAB_CHAT"
+    type: t === "view" ? "TAB_VIEW" : t === "peek" ? "TAB_PEEK" : t === "tensions" ? "TAB_TENSIONS" : "TAB_CHAT"
   }), []);
   const setPicked = (0, import_react.useCallback)((a) => viewSend({ type: "STEP_ARTIFACT", artifact: a }), []);
   const setPeek = (0, import_react.useCallback)((src) => viewSend({ type: "STEP_SOURCE", source: src }), []);
@@ -16454,6 +16505,16 @@ function Main({
           type: "button",
           role: "tab",
           className: "nb-tab",
+          "aria-selected": tab === "tensions",
+          onClick: () => setTab("tensions"),
+          disabled: !sources.length,
+          title: "Where the sources disagree, and whether they corroborate each other",
+          children: [(0, import_jsx_runtime.jsx)(Glyph, { name: "shield", size: 15 }), "Tensions"]
+        }),
+        el("button", {
+          type: "button",
+          role: "tab",
+          className: "nb-tab",
           "aria-selected": tab === "view",
           onClick: () => setTab("view"),
           disabled: !picked,
@@ -16489,7 +16550,19 @@ function Main({
         onPrev: pi > 0 ? () => setPeek(sources[pi - 1]) : null,
         onNext: pi >= 0 && pi < sources.length - 1 ? () => setPeek(sources[pi + 1]) : null
       });
-    })() : tab === "view" && picked ? (() => {
+    })() : tab === "tensions" ? (0, import_jsx_runtime.jsx)(TensionsPanel, {
+      notebook,
+      onSay,
+      modelReady,
+      onOpenSource,
+      onCite: (n, cite) => {
+        const src = sources.find((s) => cite && cite.id && s.id === cite.id || s.n === n);
+        if (src) {
+          setPeek({ ...src, citeSnippet: cite && cite.snippet || "" });
+          setTab("peek");
+        }
+      }
+    }) : tab === "view" && picked ? (() => {
       const sibs = (notebook.artifacts || []).filter((a) => a.kind === picked.kind).slice().sort((a, b) => String(a.modified).localeCompare(String(b.modified)));
       const si = sibs.findIndex((a) => a.key === picked.key);
       return (0, import_jsx_runtime.jsx)(Viewer, {
@@ -19383,6 +19456,202 @@ function StudyPanel({ notebook, onSay, onOpenSource }) {
         children: [el("b", { children: label }), el("span", { children: `${key} \xB7 ${RATING_HINT[id]}` })]
       })) : el("span", { className: "nb-hint", children: "Rate the card after you see the answer \u2014 that is what schedules it." })
     )
+  );
+}
+var TENSION_AUDIT = Machine("tensions:audit", {
+  initial: "idle",
+  context: { report: null, error: "" },
+  states: {
+    idle: { on: { RUN: "running" } },
+    running: {
+      tags: ["busy"],
+      on: {
+        DONE: { target: "done", action: (c, p) => ({ report: p && p.report || null, error: "" }) },
+        FAIL: { target: "failed", action: (c, p) => ({ error: p && p.message || "audit failed" }) }
+      }
+    },
+    done: { on: { RUN: "running" } },
+    failed: { on: { RUN: "running" } }
+  }
+});
+function SidePill({ side }) {
+  return el(
+    "div",
+    { className: "nb-tension-side" },
+    el("div", { className: "nb-tension-claim", children: side.claim }),
+    side.quote ? el("blockquote", { className: "nb-tension-quote", children: side.quote }) : null,
+    el(
+      "div",
+      { className: "nb-tension-src" },
+      (side.sources || []).map((n, i) => (0, import_jsx_runtime.jsx)(Chip, {
+        key: `s${n}`,
+        tone: "accent",
+        title: (side.titles || [])[i] || `Source ${n}`,
+        children: `S${n}`
+      }))
+    )
+  );
+}
+function TensionsPanel({ notebook, onSay, onOpenSource, modelReady, onCite }) {
+  const audit = useMachine(TENSION_AUDIT);
+  const [reported, setReported] = (0, import_react.useState)(null);
+  const nbId = notebook && notebook.id;
+  const busy = audit.matches("running");
+  const report = audit.ctx.report || reported;
+  const err = audit.ctx.error;
+  const indep = report && report.independence;
+  const items = report && report.items || [];
+  const run = async () => {
+    if (!nbId || !TENSION_AUDIT.can("RUN")) return;
+    TENSION_AUDIT.send("RUN");
+    try {
+      const out = await api("/tensions", {
+        method: "POST",
+        body: { notebook: nbId, max_items: 6 },
+        timeoutMs: 24e4
+      });
+      setReported(out);
+      TENSION_AUDIT.send("DONE", { report: out });
+      if (out && out.degraded && onSay) onSay(`audit limited: ${out.degraded}`);
+    } catch (e) {
+      TENSION_AUDIT.send("FAIL", { message: String(e.message || e) });
+      if (onSay) onSay(`tension audit failed: ${e.message || e}`);
+    }
+  };
+  const verdict = (() => {
+    if (!indep) return null;
+    const total = indep.sources || 0;
+    const independent = indep.independent || 0;
+    if (!total) return null;
+    const dupes = indep.clusters || [];
+    if (independent === total) {
+      return { tone: "ok", text: `${total} sources, all independent \u2014 agreement between them is real corroboration.` };
+    }
+    const syn = dupes.map((c) => `${c.members.map((m) => `S${m}`).join(" + ")}`).join(", ");
+    return {
+      tone: "warn",
+      text: `${total} sources, ${independent} independent${syn ? ` \u2014 ${syn} repeat the same text` : ""}. Treat agreement among the copies as one voice.`
+    };
+  })();
+  const emptyState = () => {
+    if (busy) {
+      return el(
+        "div",
+        { className: "nb-disc-empty" },
+        el("span", { className: "nb-dot", style: { background: T.accent } }),
+        el("div", { children: "reading every source and comparing claims\u2026" })
+      );
+    }
+    if (!modelReady) {
+      return el(
+        "div",
+        { className: "nb-disc-empty" },
+        (0, import_jsx_runtime.jsx)(Glyph, { name: "shield", size: 26 }),
+        el("div", { children: "The model is offline, so disagreements cannot be read." }),
+        el("div", { className: "nb-hint", children: "The independence count is measured from text and still runs." })
+      );
+    }
+    return el(
+      "div",
+      { className: "nb-disc-empty" },
+      (0, import_jsx_runtime.jsx)(Glyph, { name: "shield", size: 26 }),
+      el("div", { children: "No audit yet." }),
+      el("div", {
+        className: "nb-hint",
+        children: "It compares every source against every other: where they conflict, what they agree on, and how many of them are actually independent."
+      })
+    );
+  };
+  const agreeList = report && report.agreements || [];
+  const agreeBlock = agreeList.length ? el(
+    "div",
+    { className: "nb-tension-agree" },
+    el(
+      "div",
+      { className: "nb-home-sec" },
+      el("span", { className: "nb-meta", children: "Stable ground" }),
+      el("span", { className: "nb-hint", children: "claims two or more sources state the same way" }),
+      el("span", { style: { flex: 1 } })
+    ),
+    agreeList.map((a, i) => el(
+      "div",
+      { key: `a${i}`, className: "nb-tension-agree-row" },
+      (0, import_jsx_runtime.jsx)(Glyph, { name: "check", size: 13 }),
+      el("span", { className: "nb-tension-agree-claim", children: a.claim }),
+      el("span", {
+        className: "nb-tension-agree-src",
+        children: (a.sources || []).map((n) => `S${n}`).join(" \xB7 ")
+      })
+    ))
+  ) : null;
+  return el(
+    "div",
+    { className: "nb-tensions" },
+    el(
+      "div",
+      { className: "nb-disc-head" },
+      el("h1", { className: "nb-h1", children: "Where the sources disagree" }),
+      el("p", {
+        className: "nb-disc-sub",
+        children: "A grounded answer is only as trustworthy as the agreement behind it. This reads all the sources and reports the conflicts, the consensus, and the duplicated ones."
+      })
+    ),
+    el(
+      "div",
+      { className: "nb-tension-bar" },
+      (0, import_jsx_runtime.jsx)(Btn, {
+        variant: "primary",
+        icon: "shield",
+        onClick: run,
+        disabled: busy || !nbId,
+        children: busy ? "Auditing\u2026" : report ? "Audit again" : "Audit the sources"
+      }),
+      indep ? el(
+        "span",
+        { className: "nb-tension-counts" },
+        el("span", { className: "nb-count" }, el("b", { children: String(indep.sources || 0) }), el("span", { children: "active sources" })),
+        el("span", { className: "nb-count" }, el("b", { children: String(indep.independent || 0) }), el("span", { children: "independent" })),
+        el("span", { className: "nb-count" }, el("b", { children: String(items.length) }), el("span", { children: "tensions" }))
+      ) : null
+    ),
+    verdict ? el("div", { className: "nb-tension-verdict", "data-tone": verdict.tone, children: verdict.text }) : null,
+    report && report.degraded ? el("div", { className: "nb-disc-err", children: `Audit limited: ${report.degraded}` }) : null,
+    err ? el("div", { className: "nb-disc-err", children: err }) : null,
+    emptyState(),
+    items.length ? el(
+      "div",
+      { className: "nb-tension-list" },
+      items.map((it, i) => el(
+        "article",
+        { key: `t${i}`, className: "nb-tension" },
+        el(
+          "header",
+          { className: "nb-tension-head" },
+          el("span", { className: "nb-tension-n", children: String(i + 1) }),
+          el("h3", { className: "nb-tension-topic", children: it.topic || "disagreement" })
+        ),
+        el(
+          "div",
+          { className: "nb-tension-sides" },
+          it.sides.map((side, j) => (0, import_jsx_runtime.jsx)(SidePill, { key: `t${i}s${j}`, side }, `t${i}s${j}`))
+        ),
+        it.why ? el("div", { className: "nb-tension-why", children: it.why }) : null,
+        it.resolution ? el("div", { className: "nb-tension-res", children: [
+          el("b", { children: /^unresolved/i.test(it.resolution) ? "Unresolved \xB7 " : "Weighs to \xB7 " }),
+          it.resolution.replace(/^unresolved[:\s—-]*/i, "")
+        ] }) : null
+      ))
+    ) : report ? el(
+      "div",
+      { className: "nb-disc-empty" },
+      (0, import_jsx_runtime.jsx)(Glyph, { name: "check", size: 26 }),
+      el("div", { children: "No cross-source conflicts found." }),
+      el("div", {
+        className: "nb-hint",
+        children: "That is a result, not a failure \u2014 the sources make different points rather than opposing ones."
+      })
+    ) : null,
+    agreeBlock
   );
 }
 function useFile(notebookId, name) {
@@ -24064,6 +24333,72 @@ var rest = async (path, opts) => {
       chunks_used: 12,
       total_chunks: 96,
       seconds: 4.2
+    };
+  }
+  if (route === "tensions") {
+    await new Promise((r) => setTimeout(r, 900));
+    return {
+      ok: true,
+      notebook: STATE.notebook && STATE.notebook.id,
+      title: "Commercial Fusion Energy in 2026",
+      items: [
+        {
+          topic: "When commercial fusion power reaches the grid",
+          sides: [
+            {
+              claim: "US roadmap puts commercial deployment in the mid-2030s.",
+              sources: [2, 4],
+              titles: ["US roadmap targets fusion deployment by mid 2030s - Reuters", "Two-thirds of ITER tokamak core now in place - ITER Organization"],
+              quote: "The roadmap targets deployment by the mid-2030s, contingent on federal support."
+            },
+            {
+              claim: "ITER assembly is a scientific milestone, not a grid date.",
+              sources: [3],
+              titles: ["ITER reports \u201Csubstantial progress\u201D in assembly and installation work"],
+              quote: "assembly and installation, not first plasma, is what the milestone marks."
+            }
+          ],
+          why: "A reader can mistake an assembly milestone for a deployment date.",
+          resolution: "weighs to the roadmap figure \u2014 it is the only sourced deployment date; ITER explicitly dates nothing."
+        },
+        {
+          topic: "How much private capital fusion has actually raised",
+          sides: [
+            {
+              claim: "$4.48B raised in the twelve months to July 2026.",
+              sources: [5],
+              titles: ["FIA funding"],
+              quote: "FIA counts $4.48B in the year to July 2026."
+            },
+            {
+              claim: "Cumulative investment is $14.24B since 2021.",
+              sources: [5],
+              titles: ["FIA funding"],
+              quote: "$14.24B cumulative since 2021."
+            }
+          ],
+          why: "Period vs cumulative figures are quoted interchangeably in press coverage.",
+          resolution: "unresolved \u2014 both figures are the same association\u2019s, measured over different windows."
+        }
+      ],
+      agreements: [
+        { claim: "No defensible levelised cost figure exists yet.", sources: [1, 2] },
+        { claim: "Tritium breeding at plant flux remains unsolved.", sources: [1, 3] }
+      ],
+      independence: {
+        sources: 6,
+        independent: 4,
+        measured: true,
+        threshold: 0.62,
+        clusters: [{
+          members: [3, 4],
+          title: "ITER releases",
+          titles: ["ITER assembly progress", "Two-thirds core in place"],
+          reason: "these sources repeat the same opening text \u2014 one story, not several"
+        }]
+      },
+      sources: 6,
+      dropped: 0
     };
   }
   if (route === "discover") {

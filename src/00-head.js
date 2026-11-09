@@ -964,6 +964,56 @@ const CSS = `
 .nb-newthread .nb-genopt-text{flex:1;min-width:0}
 .nb-danger{color:${T.danger} !important;
   border-color:color-mix(in srgb,${T.danger} 45%,transparent) !important}
+/* ---------------------------------------------------------------- tensions */
+/* The audit reads as a case file: a verdict a person can quote, then numbered
+   disagreements, each with its two (or more) cited sides. Tone follows the
+   measured independence, never a fixed colour. */
+.nb-tensions{flex:1;min-height:0;overflow:auto;padding:var(--nb-sp-7) var(--nb-sp-8) var(--nb-sp-8);
+  display:flex;flex-direction:column;gap:var(--nb-sp-4);max-width:1040px;width:100%;
+  overscroll-behavior:contain}
+.nb-tensions .nb-disc-head h1{margin:0 0 6px}
+.nb-disc-sub{font-size:var(--nb-fs-ui);color:${T.text2};line-height:1.55;margin:0;max-width:76ch}
+.nb-tension-bar{display:flex;align-items:center;gap:var(--nb-sp-4);flex-wrap:wrap;margin-top:2px}
+.nb-tension-counts{display:flex;align-items:center;gap:var(--nb-sp-4);flex-wrap:wrap}
+
+/* the measured verdict — one sentence, toned by what was measured */
+.nb-tension-verdict{padding:var(--nb-sp-4) var(--nb-sp-4);border-radius:var(--nb-r-el);
+  border:1px solid var(--nb-hair-soft);background:var(--nb-card);
+  font-size:var(--nb-fs-ui);line-height:1.55;color:${T.text2};
+  border-left:3px solid color-mix(in srgb,${T.ok} 70%, transparent)}
+.nb-tension-verdict[data-tone=warn]{border-left-color:color-mix(in srgb,${T.warn} 70%, transparent)}
+.nb-tension-verdict b{color:${T.text}}
+
+/* one disagreement = a case file entry */
+.nb-tension-list{display:flex;flex-direction:column;gap:var(--nb-sp-4)}
+.nb-tension{border:1px solid var(--nb-hair-soft);border-radius:var(--nb-r-box);
+  background:var(--nb-card);padding:var(--nb-sp-4) var(--nb-sp-5) var(--nb-sp-5);
+  display:flex;flex-direction:column;gap:var(--nb-sp-3)}
+.nb-tension-head{display:flex;align-items:baseline;gap:var(--nb-sp-3)}
+.nb-tension-n{font-family:var(--ui-font-mono,ui-monospace,monospace);font-size:var(--nb-fs-meta);
+  font-weight:700;color:${T.text3};flex:0 0 auto}
+.nb-tension-topic{margin:0;font-size:var(--nb-fs-title);font-weight:650;line-height:1.35;
+  letter-spacing:-.01em;color:${T.text}}
+.nb-tension-sides{display:grid;grid-template-columns:1fr 1fr;gap:var(--nb-sp-3)}
+.nb-tension-side{display:flex;flex-direction:column;gap:var(--nb-sp-2);min-width:0}
+.nb-tension-claim{font-size:var(--nb-fs-body);line-height:1.5;color:${T.text}}
+.nb-tension-quote{margin:0;padding:var(--nb-sp-2) var(--nb-sp-3);border-radius:var(--nb-r-in);
+  background:var(--nb-wash-2);border-left:2px solid color-mix(in srgb,${T.accent} 55%, transparent);
+  font-size:var(--nb-fs-label);line-height:1.5;color:${T.text3};font-style:italic}
+.nb-tension-src{display:flex;gap:6px;flex-wrap:wrap}
+.nb-tension-why{font-size:var(--nb-fs-label);line-height:1.5;color:${T.text3}}
+.nb-tension-res{font-size:var(--nb-fs-label);line-height:1.5;color:${T.text2};
+  padding-top:var(--nb-sp-2);border-top:1px solid var(--nb-hair-soft)}
+.nb-tension-res b{color:${T.text}}
+.nb-tension-agree{display:flex;flex-direction:column;gap:var(--nb-sp-2);margin-top:var(--nb-sp-2)}
+.nb-tension-agree-row{display:flex;align-items:flex-start;gap:var(--nb-sp-3);
+  padding:var(--nb-sp-2) var(--nb-sp-3);border-radius:var(--nb-r-el);background:var(--nb-wash)}
+.nb-tension-agree-row svg{flex:0 0 auto;margin-top:2px;color:color-mix(in srgb,${T.ok} 62%, ${T.text})}
+.nb-tension-agree-claim{flex:1;min-width:0;font-size:var(--nb-fs-label);line-height:1.5;color:${T.text}}
+.nb-tension-agree-src{flex:0 0 auto;font-family:var(--ui-font-mono,ui-monospace,monospace);
+  font-size:var(--nb-fs-meta);font-weight:650;color:${T.accent}}
+@media (max-width:900px){ .nb-tension-sides{grid-template-columns:1fr} }
+
 /* ---------------------------------------------------------------- discover */
 .nb-disc{flex:1;min-height:0;overflow:auto;padding:26px 30px 40px;display:flex;flex-direction:column;
   gap:14px;max-width:1040px;width:100%}

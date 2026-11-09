@@ -88,6 +88,25 @@ def _style_ids() -> list:
 
 _STYLE_IDS = _style_ids()
 
+NOTEBOOK_TENSIONS = {
+    "name": "notebook_tensions",
+    "description": (
+        "Audit a notebook's sources for disagreements and independence. Returns "
+        "where sources genuinely conflict (with each position's real [S<n>] "
+        "sources and a verbatim quote), what they agree on, and how many of the "
+        "sources are actually independent — syndicated copies of one story are "
+        "detected by shared text, so '6 sources' does not read as 6 confirmations. "
+        "Use before trusting a contested answer, or when the user asks whether "
+        "their sources agree."
+    ),
+    "parameters": {"type": "object", "properties": {
+        "notebook": _NB,
+        "max_items": {"type": "integer", "description": "Most tensions to return (1-10, default 6)"},
+        "language": {"type": "string",
+                     "description": "Optional: write the claims in this language, keeping S<n> markers"},
+    }, "required": ["notebook"]},
+}
+
 NOTEBOOK_GENERATE = {
     "name": "notebook_generate",
     "description": (
@@ -321,8 +340,10 @@ NOTEBOOK_DELETE = {
         "notebook": _NB,
         "confirm": {"type": "boolean", "description": "Must be true to actually delete"},
     }, "required": ["confirm"]},
-    "notebook_study": {
-        "name": "notebook_study",
+}
+
+NOTEBOOK_STUDY = {
+    "name": "notebook_study",
         "description": (
             "Spaced repetition over a notebook's own flashcards and quiz questions. "
             "action=queue returns the cards due today (with phase and interval), "
@@ -339,7 +360,6 @@ NOTEBOOK_DELETE = {
             "rating": {"type": "string", "enum": ["again", "hard", "good", "easy"],
                        "description": "How well the card was known (default good)"},
         }, "required": ["notebook"]},
-    },
 }
 
 ALL = [
@@ -348,4 +368,5 @@ ALL = [
     NOTEBOOK_THREADS,
     NOTEBOOK_SEARCH, NOTEBOOK_NOTE, NOTEBOOK_REFRESH, NOTEBOOK_DELETE_SOURCE,
     NOTEBOOK_UPDATE, NOTEBOOK_EXPORT, NOTEBOOK_DISCOVER, NOTEBOOK_DELETE,
+    NOTEBOOK_STUDY, NOTEBOOK_TENSIONS,
 ]

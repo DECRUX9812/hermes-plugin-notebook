@@ -178,6 +178,42 @@ const rest = async (path, opts) => {
       chunks_used: 12, total_chunks: 96, seconds: 4.2
     }
   }
+  if (route === 'tensions') {
+    await new Promise((r) => setTimeout(r, 900))
+    return {
+      ok: true, notebook: STATE.notebook && STATE.notebook.id, title: 'Commercial Fusion Energy in 2026',
+      items: [
+        { topic: 'When commercial fusion power reaches the grid',
+          sides: [
+            { claim: 'US roadmap puts commercial deployment in the mid-2030s.', sources: [2, 4],
+              titles: ['US roadmap targets fusion deployment by mid 2030s - Reuters', 'Two-thirds of ITER tokamak core now in place - ITER Organization'],
+              quote: 'The roadmap targets deployment by the mid-2030s, contingent on federal support.' },
+            { claim: 'ITER assembly is a scientific milestone, not a grid date.', sources: [3],
+              titles: ['ITER reports \u201csubstantial progress\u201d in assembly and installation work'],
+              quote: 'assembly and installation, not first plasma, is what the milestone marks.' }
+          ],
+          why: 'A reader can mistake an assembly milestone for a deployment date.',
+          resolution: 'weighs to the roadmap figure — it is the only sourced deployment date; ITER explicitly dates nothing.' },
+        { topic: 'How much private capital fusion has actually raised',
+          sides: [
+            { claim: '$4.48B raised in the twelve months to July 2026.', sources: [5],
+              titles: ['FIA funding'], quote: 'FIA counts $4.48B in the year to July 2026.' },
+            { claim: 'Cumulative investment is $14.24B since 2021.', sources: [5],
+              titles: ['FIA funding'], quote: '$14.24B cumulative since 2021.' }
+          ],
+          why: 'Period vs cumulative figures are quoted interchangeably in press coverage.',
+          resolution: 'unresolved — both figures are the same association\u2019s, measured over different windows.' }
+      ],
+      agreements: [
+        { claim: 'No defensible levelised cost figure exists yet.', sources: [1, 2] },
+        { claim: 'Tritium breeding at plant flux remains unsolved.', sources: [1, 3] }
+      ],
+      independence: { sources: 6, independent: 4, measured: true, threshold: 0.62,
+        clusters: [{ members: [3, 4], title: 'ITER releases', titles: ['ITER assembly progress', 'Two-thirds core in place'],
+          reason: 'these sources repeat the same opening text — one story, not several' }] },
+      sources: 6, dropped: 0
+    }
+  }
   if (route === 'discover') {
     await new Promise((r) => setTimeout(r, 700))
     return {

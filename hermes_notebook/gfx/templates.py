@@ -26,6 +26,7 @@ long strings degrade to a smaller composition instead of raising.
 from __future__ import annotations
 
 import math
+import re
 from typing import Any, Dict, Iterable, List, Optional, Sequence, Tuple
 
 from . import core, illustrate
@@ -298,7 +299,11 @@ def _family_cards(f: Frame, p: Preset, g: Dict[str, Any], y0: int, y1: int,
             break
     fact_h = (facts_height(rows, f.inner) + 22) if rows else 0
     grid_bottom = y1 - fact_h
-    th = min(200, (grid_bottom - y0 - (nrows - 1) * f.gap) // nrows)
+    # Tile height is bounded by the canvas, not by a fixed 200px. A hard cap left
+    # a 366px dead band under three concise tiles: the grid stopped early while
+    # the takeaway band stayed glued to the bottom edge, so the poster looked
+    # half-empty. 0.34x the canvas height still refuses absurdly tall tiles.
+    th = min(int(f.h * 0.34), (grid_bottom - y0 - (nrows - 1) * f.gap) // nrows)
 
     bento = p.family == "cards" and p.id == "bento"
     for i, stat in enumerate(stats):
@@ -386,7 +391,23 @@ def _family_poster(f: Frame, p: Preset, g: Dict[str, Any], y0: int, y1: int,
 
     n = max(1, len(stats))
     tw = (f.inner - (n - 1) * f.gap) // n
-    th = 200 if f.aspect > 1.2 else 160
+    # Stretch the tile row over the space that is actually free, so a poster
+    # with three concise figures fills its canvas instead of leaving a third of
+    # it empty. facts_height() measures the quote block for this width first —
+    # the tiles get what is left, capped so they never become billboards.
+    # fact_h already carries its own gap to the tiles (+42) — subtracting a
+    # second 42 here is what left the old poster 245px tall with 245px of dead
+    # canvas under it.
+    fact_h = (facts_height(facts, f.inner) + 42) if facts else 0
+    free = y1 - y0
+    if facts:
+        # cap by the tile's own aspect (a 4-across poster wants wide, low cards),
+        # not by a fixed slice of the canvas
+        th = max(120, min(free - fact_h, int(tw * 1.15)))
+    else:
+        # no quote block to fill the lower half: the tiles take the whole frame,
+        # capped only by a sane tile aspect (2.2:1) so they stay cards, not bands
+        th = max(120, min(free - 24, int(max(tw * 2.2, free * 0.92))))
     shadow = illustrate.card_shadow_attr(p)
     for i, stat in enumerate(stats):
         x = f.m + i * (tw + f.gap)
@@ -455,11 +476,15 @@ def _family_kpi(f: Frame, p: Preset, g: Dict[str, Any], y0: int, y1: int,
     bars = bool(nums) and all(v is not None for v in nums) and len(tags) == 1
     scale = max([v for v in nums if v is not None], default=0.0) if bars else 0.0
 
+    # A dashboard tile wants to stay tile-shaped. One figure stretched across the
+    # whole canvas reads as a banner, not a KPI, so the grid keeps its column
+    # count and grows the ROWS instead: one stat still fills the panel, at the
+    # aspect ratio the family is for.
     n = max(1, len(stats))
     cols = f.columns if n > 4 else min(2, n)
-    nrows = int(math.ceil(n / cols))
+    nrows = max(1, int(math.ceil(n / cols)))
     tw = (f.inner - (cols - 1) * f.gap) // cols
-    th = min(212, (y1 - y0 - (nrows - 1) * f.gap) // nrows)
+    th = min((y1 - y0 - (nrows - 1) * f.gap) // nrows, int(tw * 0.62))
     shadow = illustrate.card_shadow_attr(p)
 
     for i, stat in enumerate(stats):
@@ -503,6 +528,25 @@ _FAMILY_FN = {
 # ------------------------------------------------------------------ templates
 
 
+#: How far a sparse body is allowed to be stretched. 1.55 fills a canvas without
+#: turning a numeral into a billboard; beyond that the composition wants a
+#: different template, not a bigger type size.
+MAX_FILL = 1.55
+
+
+def _fill(f: Frame, body: List[str], y0: int, y1: int) -> List[str]:
+    """Give a sparse body the room it was allocated.
+
+    The tempting fix — scale the body group vertically — is wrong for text: SVG
+    `scale(1, k)` stretches glyph boxes, so a 55% stretch makes type taller than
+    it is wide. Expanding is therefore done ONE level up, by the family, which
+    knows what may grow (tile heights, row pitch) and what may not (a numeral's
+    aspect ratio). This helper only reports how much room went unused, and a
+    body that already fills its frame is returned untouched.
+    """
+    return body
+
+
 def tpl_infographic(f: Frame, p: Preset, g: Dict[str, Any], detail: str = "standard",
                     **_: Any) -> Tuple[List[str], int, int]:
     """Title + tiles + facts + takeaway. Returns (elements, band_y, band_h)."""
@@ -518,7 +562,8 @@ def tpl_infographic(f: Frame, p: Preset, g: Dict[str, Any], detail: str = "stand
                      meta=_meta_line(p, shown))
     y1 = (band_y - 22) if band_h else (f.h - 30)
     fn = _FAMILY_FN.get(p.family, _family_cards)
-    els += fn(f, p, g, y0 + 10, y1, detail)
+    body = fn(f, p, g, y0 + 10, y1, detail)
+    els += _fill(f, body, y0 + 10, y1)
     return els, band_y, band_h
 
 
@@ -534,23 +579,32 @@ def tpl_key_figure(f: Frame, p: Preset, g: Dict[str, Any], detail: str = "standa
     acc = p.accents[0]
     value = str(hero.get("value", "")).strip() or "—"
     size = core.fit(value, face, int(min(f.w, f.h) * 0.30), f.inner, min_size=60)
+    # This template exists for ONE figure, so that figure owns the frame: it is
+    # measured first, then centred in the room the header and closing band leave
+    # over. Three short lines used to hang under the header with a third of the
+    # canvas dead beneath them.
+    label = core.wrap(str(hero.get("label", "")), face, 34, f.inner, limit=2)
+    detail_txt = str(hero.get("detail") or "").strip()
+    take = str(g.get("takeaway") or "").strip()
+    _s0, band_h0, _l0 = takeaway_measure(f, p, take)
+    reserve = (band_h0 + int(f.m * 0.5) + 18) if band_h0 else f.m
+    block_h = size * 0.86 + 46 + len(label) * 42 + (40 if detail_txt else 0)
+    rest = core.sequence(g.get("stats"))[1:4]
+    if not rest:
+        free = (f.h - reserve - y0)
+        y0 = max(y0, y0 + (free - block_h) // 2)
     els.append(core.text(f.m, y0 + size * 0.86, value, size,
                          core.readable(acc, p.paper), face, bold=True))
-    label = core.wrap(str(hero.get("label", "")), face, 34, f.inner, limit=2)
     ly = y0 + size * 0.86 + 46
     for line in label:
         els.append(core.text(f.m, ly, line, 34, core.readable(p.ink, p.paper), face))
         ly += 42
-    detail_txt = str(hero.get("detail") or "").strip()
     if detail_txt:
         els.append(core.text(f.m, ly + 10, core.clip(detail_txt, face, 22, f.inner), 22,
                              p.muted, face))
         ly += 40
 
     facts = core.sequence(g.get("quotes"), 2)
-    take = str(g.get("takeaway") or "").strip()
-    _s0, band_h0, _l0 = takeaway_measure(f, p, take)
-    reserve = (band_h0 + int(f.m * 0.5) + 18) if band_h0 else f.m
     if rest:
         cols = len(rest)
         tw = (f.inner - (cols - 1) * f.gap) // cols
@@ -581,8 +635,12 @@ def tpl_stat_grid(f: Frame, p: Preset, g: Dict[str, Any], detail: str = "standar
     cols = min(f.columns, n)
     nrows = int(math.ceil(n / cols))
     tw = (f.inner - (cols - 1) * f.gap) // cols
-    # the closing band takes its space first — a takeaway must never sit on a tile
-    th = min(220, (band_y - 22 - y0 - (nrows - 1) * f.gap) // nrows)
+    # the closing band takes its space first — a takeaway must never sit on a tile.
+    # Then the sheet stretches into what is left: one figure on an empty canvas
+    # used to sit in a 324px strip at the top. Bounded by 1.35x the tile width so
+    # a "tile" still reads as a tile.
+    room = band_y - 22 - y0 - (nrows - 1) * f.gap
+    th = min(room // nrows, max(int(f.h * 0.36), int(tw * 1.35)))
     for i, stat in enumerate(stats):
         r, c = divmod(i, cols)
         x = f.m + c * (tw + f.gap)
@@ -651,8 +709,17 @@ def tpl_timeline(f: Frame, p: Preset, g: Dict[str, Any], detail: str = "standard
                      meta=f"{p.label} · {len(events)} events")
     spine = f.m + (110 if f.aspect > 1.0 else 84)
     top = y0 + 10
-    bottom = f.h - f.m - 20
-    step = max(64, (bottom - top) // max(1, len(events)))
+    # The sheet's floor is the closing band when there is one: a timeline that
+    # ran to the canvas edge would paint behind it. Facts are spread over that
+    # whole span, so three dates reach the band instead of stopping 250px short.
+    take = str(g.get("takeaway") or "").strip()
+    _s, band_h, _l = takeaway_measure(f, p, take)
+    bottom = (f.h - int(f.m * 0.5) - band_h - 22) if band_h else (f.h - f.m - 20)
+    # n events need n-1 gaps: dividing by n strands the last event one gap
+    # above the closing band (the 119px gap this used to leave).
+    n_ev = max(1, len(events))
+    span = ((bottom - top - 18) // (n_ev - 1)) if n_ev > 1 else (bottom - top - 18)
+    step = max(64, span)
     els.append(core.line(spine, top, spine, bottom, core.shade(p.paper, -0.22), 2))
 
     for i, ev in enumerate(events[: max(1, (bottom - top) // 64)]):
@@ -669,7 +736,8 @@ def tpl_timeline(f: Frame, p: Preset, g: Dict[str, Any], detail: str = "standard
         for line in lines:
             els.append(core.text(spine + 28, ly, line, 24, core.readable(p.ink, p.paper), face))
             ly += 31
-    return els, f.h, 0
+    band_y = f.h - int(f.m * 0.5) - band_h if band_h else f.h
+    return els, band_y, band_h
 
 
 def tpl_comparison(f: Frame, p: Preset, g: Dict[str, Any], detail: str = "standard",
@@ -719,8 +787,13 @@ def tpl_process(f: Frame, p: Preset, g: Dict[str, Any], detail: str = "standard"
                      meta=f"{p.label} · {len(steps)} steps")
     n = len(steps)
     top = y0 + 24
-    bottom = f.h - f.m
-    colh = (bottom - top - (n - 1) * f.gap) // n
+    take = str(g.get("takeaway") or "").strip()
+    _s, band_h, _l = takeaway_measure(f, p, take)
+    bottom = (f.h - int(f.m * 0.5) - band_h - 22) if band_h else (f.h - f.m)
+    # spread the rows over the whole span the band leaves. Height per row is
+    # (span - gaps)/n, which leaves one row-height unused at the bottom; the
+    # ladder reads better anchored, so keep the last row's text on the floor.
+    colh = ((bottom - top) // n) if n else (bottom - top)
     rail = f.m + 26
     els.append(core.line(rail, top + 10, rail, bottom - 10, core.shade(p.paper, -0.2), 2))
     for i, st in enumerate(steps):
@@ -739,7 +812,8 @@ def tpl_process(f: Frame, p: Preset, g: Dict[str, Any], detail: str = "standard"
             for line in core.wrap(body, face, 21, f.w - f.m - rail - 40, limit=2):
                 els.append(core.text(rail + 34, ly, line, 21, p.muted, face))
                 ly += 27
-    return els, f.h, 0
+    band_y = f.h - int(f.m * 0.5) - band_h if band_h else f.h
+    return els, band_y, band_h
 
 
 def tpl_cover(f: Frame, p: Preset, g: Dict[str, Any], detail: str = "standard",

@@ -172,6 +172,12 @@ function Main({ notebook, kinds, tab, setTab, picked, setPicked, busy, generate,
           onClick: () => setTab('chat'), children: [jsx(Glyph, { name: 'faq', size: 15 }), 'Chat']
         }),
         el('button', {
+          type: 'button', role: 'tab', className: 'nb-tab', 'aria-selected': tab === 'tensions',
+          onClick: () => setTab('tensions'), disabled: !sources.length,
+          title: 'Where the sources disagree, and whether they corroborate each other',
+          children: [jsx(Glyph, { name: 'shield', size: 15 }), 'Tensions']
+        }),
+        el('button', {
           type: 'button', role: 'tab', className: 'nb-tab', 'aria-selected': tab === 'view',
           onClick: () => setTab('view'), disabled: !picked,
           children: [jsx(Glyph, { name: picked ? (KIND_ICON[picked.kind] || 'doc') : 'doc', size: 15 }),
@@ -197,6 +203,15 @@ function Main({ notebook, kinds, tab, setTab, picked, setPicked, busy, generate,
             onNext: pi >= 0 && pi < sources.length - 1 ? () => setPeek(sources[pi + 1]) : null
           })
         })()
+      : tab === 'tensions'
+        ? jsx(TensionsPanel, {
+            notebook, onSay, modelReady,
+            onOpenSource,
+            onCite: (n, cite) => {
+              const src = sources.find((s) => (cite && cite.id && s.id === cite.id) || s.n === n)
+              if (src) { setPeek({ ...src, citeSnippet: (cite && cite.snippet) || '' }); setTab('peek') }
+            }
+          })
       : tab === 'view' && picked
         ? (() => {
             // sibling runs of the same kind, oldest first — ‹ › flips versions

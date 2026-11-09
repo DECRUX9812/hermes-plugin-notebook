@@ -43,6 +43,8 @@ provides_tools:
   - notebook_export
   - notebook_discover
   - notebook_delete
+  - notebook_study
+  - notebook_tensions
 provides_hooks: []
 config_schema:
   default_notebook:

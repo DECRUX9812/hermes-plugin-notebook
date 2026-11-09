@@ -75,7 +75,9 @@ function App() {
   const { tab, artifact: picked, source: peek } = view
   // setter-shaped adapters: every downstream prop keeps its old name and shape
   const setTab = useCallback((t) => viewSend({
-    type: t === 'view' ? 'TAB_VIEW' : t === 'peek' ? 'TAB_PEEK' : 'TAB_CHAT'
+    type: t === 'view' ? 'TAB_VIEW'
+      : t === 'peek' ? 'TAB_PEEK'
+        : t === 'tensions' ? 'TAB_TENSIONS' : 'TAB_CHAT'
   }), [])
   const setPicked = useCallback((a) => viewSend({ type: 'STEP_ARTIFACT', artifact: a }), [])
   const setPeek = useCallback((src) => viewSend({ type: 'STEP_SOURCE', source: src }), [])

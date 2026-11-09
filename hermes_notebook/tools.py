@@ -459,6 +459,16 @@ def notebook_delete(args: dict, **kw) -> str:
     return runtime.ok(**out)
 
 
+def notebook_tensions(args: dict, **kw) -> str:
+    """Where the sources disagree, and how independent they really are."""
+    from . import tensions as tensions_mod
+    out = tensions_mod.analyze(
+        args.get("notebook") or "",
+        max_items=max(1, min(10, int(args.get("max_items") or 6))),
+        language=str(args.get("language") or ""),
+    )
+    return runtime.ok(**{k: v for k, v in out.items() if k != "ok"})
+
 HANDLERS = {
     "notebook_list": notebook_list,
     "notebook_create": notebook_create,
@@ -478,4 +488,5 @@ HANDLERS = {
     "notebook_export": notebook_export,
     "notebook_discover": notebook_discover,
     "notebook_delete": notebook_delete,
+    "notebook_tensions": notebook_tensions,
 }

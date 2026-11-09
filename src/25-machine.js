@@ -62,6 +62,7 @@ export const VIEW_FSM = createMachine({
   initial: { tab: 'chat', artifact: null, source: null },
   transitions: {
     TAB_CHAT: (s) => ({ ...s, tab: 'chat' }),
+    TAB_TENSIONS: (s) => ({ ...s, tab: 'tensions' }),
     TAB_VIEW: (s) => (s.artifact ? { ...s, tab: 'view' } : s),
     TAB_PEEK: (s) => (s.source ? { ...s, tab: 'peek' } : s),
     OPEN_ARTIFACT: (s, e) => ({ tab: 'view', artifact: e.artifact, source: s.source }),

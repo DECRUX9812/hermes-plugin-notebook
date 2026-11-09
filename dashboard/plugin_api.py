@@ -745,6 +745,35 @@ def suggest(payload: Dict[str, Any] = Body(...)) -> Any:
             "suggestions": out.get("suggestions") or {}}
 
 
+
+@router.post("/tensions")
+def tensions(payload: Dict[str, Any] = Body(...)) -> Any:
+    """Where the sources disagree, plus how independent they really are.
+
+    The independence half is deterministic (text overlap), so it answers even
+    when the model is not bound; only the conflict audit needs the model."""
+    from hermes_notebook import tensions as tensions_mod
+    nb = str(payload.get("notebook") or "")
+    try:
+        nb_id = store.resolve_notebook(nb)
+    except Exception as exc:
+        return _fail(str(exc), 404)
+    indep = tensions_mod.independence(nb_id)
+    try:
+        _ensure_model()
+        out = tensions_mod.analyze(
+            nb_id,
+            max_items=max(1, min(10, int(payload.get("max_items") or 6))),
+            language=str(payload.get("language") or ""))
+    except Exception as exc:
+        # Honest degradation: the measured half is still worth showing.
+        return {"ok": True, "notebook": nb_id, "items": [], "agreements": [],
+                "independence": indep, "sources": indep.get("sources", 0),
+                "degraded": f"{type(exc).__name__}: {exc}"}
+    out.pop("ok", None)
+    return {"ok": True, **out}
+
+
 @router.post("/overview")
 async def overview(payload: Dict[str, Any] = Body(...)) -> Any:
     """The hero card's executive summary: one grounded paragraph over the
