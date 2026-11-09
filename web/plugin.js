@@ -5237,6 +5237,10 @@ function DiscoverPanel({ notebook, onSay, reload }) {
   const ingest = useMachine(INGEST)
   const [q, setQ] = useState('')
   const [picked, setPicked] = useState({})
+  /* Deep research: a second (and third) round that reads what round one found
+   * and asks different questions. It costs more and takes longer, so it is an
+   * explicit choice the person makes, not a default the panel decides. */
+  const [deep, setDeep] = useState(false)
   const res = scout.ctx.result
   const busy = scout.matches('searching')
   const adding = ingest.matches('adding')
@@ -5258,7 +5262,7 @@ function DiscoverPanel({ notebook, onSay, reload }) {
     try {
       const out = await api('/discover', {
         method: 'POST',
-        body: { notebook: nbId, query: (query != null ? query : q) || '', max_results: 12 },
+        body: { notebook: nbId, query: (query != null ? query : q) || '', max_results: 12, deep },
         timeoutMs: 180000
       })
       SCOUT.send('RESULTS', { result: out })
@@ -5331,6 +5335,14 @@ function DiscoverPanel({ notebook, onSay, reload }) {
       jsx(Btn, {
         variant: 'primary', icon: 'search', onClick: () => run(), disabled: busy || !nbId,
         children: busy ? 'Scouting…' : 'Search'
+      }),
+      jsx(Chip, {
+        tone: deep ? 'accent' : undefined, pressed: deep,
+        onClick: () => setDeep((d) => !d),
+        title: deep
+          ? 'Deep research is on: later rounds read what the last round found'
+          : 'Deep research: a second and third round that read what round one found',
+        children: deep ? 'Deep · on' : 'Deep research'
       })),
 
     ((res && res.gaps) || []).length
@@ -5363,6 +5375,7 @@ function DiscoverPanel({ notebook, onSay, reload }) {
     res
       ? el('div', { className: 'nb-disc-meta' },
           el('span', { children: `${res.searched || 0} results → ${candidates.length} kept` }),
+          (res.rounds || 0) > 1 ? el('span', { children: `${res.rounds} rounds` }) : null,
           el('span', { children: `providers: ${(res.providers || ['web']).join(' · ')}` }),
           ((res.queries) || []).length
             ? el('span', { children: `queries: ${res.queries.slice(0, 3).join(' | ')}` })
@@ -5694,7 +5707,8 @@ function Viewer({ artifact, notebook, onCite, onRegenerate, regenerating, onChan
   } else if (artifact.kind === 'quiz') {
     body = jsx(QuizView, { data: asJson.json, text: primary.text, deckId: artifact.key })
   } else if (artifact.kind === 'slides') {
-    body = jsx(SlidesView, { data: asJson.json, text: primary.text, htmlUrl: primary.url && artifact.ext === 'html' ? primary.url : '' })
+    body = jsx(SlidesView, { data: asJson.json, text: primary.text, notebook, jsonName,
+                             htmlUrl: primary.url && artifact.ext === 'html' ? primary.url : '' })
   } else if (artifact.kind === 'infographic') {
     body = jsx(InfographicView, { src: primary.url, data: asJson.json })
   } else if (artifact.kind === 'data_table') {
@@ -6558,11 +6572,12 @@ const normAnswer = (s) => String(s == null ? '' : s).trim().toLowerCase()
 
 /* ---------------------------------------------------------------- slides */
 
-function SlidesView({ data, htmlUrl }) {
+function SlidesView({ data, htmlUrl, notebook, jsonName }) {
   const deck = data || {}
   const slides = deck.slides || []
   const [i, setI] = useState(0)
   const [fs, setFs] = useState(false)
+  const [pptxBusy, setPptxBusy] = useState(false)
   const screenRef = useRef(null)
   const go = useCallback((d) => setI((n) => Math.min(slides.length - 1, Math.max(0, n + d))), [slides.length])
   useEffect(() => {
@@ -6589,6 +6604,29 @@ function SlidesView({ data, htmlUrl }) {
   const openDeck = htmlUrl
     ? () => (host.openLink ? host.openLink(htmlUrl) : window.open(htmlUrl, '_blank'))
     : null
+
+  // NotebookLM exports decks to PPTX; this writes the same file from the stored
+  // deck JSON, so the download can never disagree with what is on screen.
+  const savePptx = async () => {
+    if (!notebook || !jsonName || pptxBusy) return
+    setPptxBusy(true)
+    try {
+      const out = await api(`/artifact/pptx?${qs({ notebook: notebook.id, name: jsonName, b64: 1 })}`, {
+        timeoutMs: 120000
+      })
+      const bytes = Uint8Array.from(atob(out.b64), (ch) => ch.charCodeAt(0))
+      const url = URL.createObjectURL(new Blob([bytes], { type: out.mime }))
+      const a = document.createElement('a')
+      a.href = url
+      a.download = out.name || 'deck.pptx'
+      document.body.appendChild(a); a.click(); a.remove()
+      setTimeout(() => URL.revokeObjectURL(url), 2000)
+    } catch (e) {
+      if (host.say) host.say(`pptx export failed: ${e.message || e}`)
+    } finally {
+      setPptxBusy(false)
+    }
+  }
 
   if (!slides.length) {
     return el('div', { className: 'nb-view-body' },
@@ -6628,6 +6666,17 @@ function SlidesView({ data, htmlUrl }) {
               style: { background: 'rgba(255,255,255,.1)', color: '#cfd3e0', borderColor: 'transparent', cursor: 'pointer' },
               onClick: (e) => { e.stopPropagation(); openDeck() },
               children: 'open deck ↗'
+            })
+          : null,
+        jsonName
+          ? el('button', {
+              type: 'button', className: 'nb-chip', 'data-click': 'true',
+              disabled: pptxBusy,
+              'aria-label': 'Download this deck as PowerPoint (.pptx)',
+              title: 'Download this deck as PowerPoint (.pptx)',
+              style: { background: 'rgba(255,255,255,.1)', color: '#cfd3e0', borderColor: 'transparent', cursor: pptxBusy ? 'progress' : 'pointer' },
+              onClick: (e) => { e.stopPropagation(); savePptx() },
+              children: pptxBusy ? 'exporting…' : 'pptx ↓'
             })
           : null),
       el('div', { style: { fontSize: '30px', fontWeight: 680, letterSpacing: '-.02em', color: '#f2f3f8', margin: '18px 0 14px', lineHeight: 1.15 }, children: s.title }),

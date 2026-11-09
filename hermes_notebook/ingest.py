@@ -14,7 +14,7 @@ from pathlib import Path
 from typing import Any, Optional
 from urllib.parse import parse_qs, urlparse
 
-from . import extract, runtime, store
+from . import extract, media, runtime, store
 
 MAX_TEXT_SOURCE_CHARS = 400_000
 MAX_WEB_EXTRACT_CHARS = 120_000
@@ -201,10 +201,15 @@ def _extract_any(*, path: str = "", url: str = "", text: Optional[str] = None,
         if fkind == "image":
             body = _describe_image(p)
             return (title or p.stem), "image", origin, body
+        if fkind in {"audio", "video"}:
+            transcript = media.transcribe(p)
+            body = f"Media file: {p.name}\nDuration: n/a\n\n{transcript}"
+            return (title or p.stem), fkind, origin, body
         if fkind == "unknown":
             raise extract.ExtractionError(
                 f"unsupported file type {p.suffix!r} — supported: pdf, office docs "
-                "(docx/pptx/xlsx/epub), notebooks, text/code/markup, images"
+                "(docx/pptx/xlsx/epub), notebooks, text/code/markup, images, "
+                "audio and video (transcribed)"
             )
         fkind, body = extract.extract_file(p)
         return (title or p.stem), fkind, origin, body

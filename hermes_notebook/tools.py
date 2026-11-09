@@ -158,6 +158,25 @@ def notebook_export(args: dict, **kw) -> str:
 
 
 def notebook_discover(args: dict, **kw) -> str:
+    if args.get("deep"):
+        # Deep Research: plan → fan out → read the results → ask different
+        # questions → merge and re-rank. Same candidates shape as the one-shot
+        # pass, plus `gaps` and the queries it used.
+        from . import discover as discover_mod
+        nb_id = store.resolve_notebook(args.get("notebook") or "")
+        out = discover_mod.discover(
+            nb_id,
+            query=str(args.get("query") or ""),
+            max_results=max(4, min(20, int(args.get("max_results") or 10))),
+            deep=True,
+            rounds=int(args["rounds"]) if str(args.get("rounds") or "").isdigit() else None,
+        )
+        return runtime.ok(
+            notebook=nb_id, query=out["query"], candidates=out["candidates"],
+            gaps=out["gaps"], queries=out["queries"], rounds=out["rounds"],
+            searched=out["searched"],
+            hint="Add one with notebook_add_source url=<url> — nothing was added automatically.",
+        )
     nb_id = store.resolve_notebook(args.get("notebook") or "")
     meta = store.get_meta(nb_id)
     query = (args.get("query") or "").strip() or (
@@ -303,6 +322,14 @@ def notebook_ask(args: dict, **kw) -> str:
 
 
 def notebook_generate(args: dict, **kw) -> str:
+    """Generate one artifact. `thread=<name>` turns that conversation into the
+    brief (NotebookLM's "turn this chat into a deck"); `language` localises the
+    output. Both are optional and never override source grounding."""
+    thread = str(args.get("thread") or "").strip()
+    conversation = ""
+    if thread:
+        conversation = store.thread_as_brief(
+            store.resolve_notebook(args.get("notebook") or ""), thread)
     out = artifacts.generate(
         args.get("notebook") or "",
         args.get("kind") or "",
@@ -311,6 +338,8 @@ def notebook_generate(args: dict, **kw) -> str:
         # `format` is the flashcards csv switch; `template` is the graphic layout
         fmt=args.get("format") or (args.get("template") if args.get("kind") == "infographic" else "") or "md",
         style=args.get("style") or "",
+        conversation=conversation,
+        language=args.get("language") or "",
         options={"orientation": args.get("orientation") or "landscape",
                  "detail": args.get("detail") or "standard"},
     )

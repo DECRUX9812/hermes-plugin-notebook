@@ -74,6 +74,10 @@ function DiscoverPanel({ notebook, onSay, reload }) {
   const ingest = useMachine(INGEST)
   const [q, setQ] = useState('')
   const [picked, setPicked] = useState({})
+  /* Deep research: a second (and third) round that reads what round one found
+   * and asks different questions. It costs more and takes longer, so it is an
+   * explicit choice the person makes, not a default the panel decides. */
+  const [deep, setDeep] = useState(false)
   const res = scout.ctx.result
   const busy = scout.matches('searching')
   const adding = ingest.matches('adding')
@@ -95,7 +99,7 @@ function DiscoverPanel({ notebook, onSay, reload }) {
     try {
       const out = await api('/discover', {
         method: 'POST',
-        body: { notebook: nbId, query: (query != null ? query : q) || '', max_results: 12 },
+        body: { notebook: nbId, query: (query != null ? query : q) || '', max_results: 12, deep },
         timeoutMs: 180000
       })
       SCOUT.send('RESULTS', { result: out })
@@ -168,6 +172,14 @@ function DiscoverPanel({ notebook, onSay, reload }) {
       jsx(Btn, {
         variant: 'primary', icon: 'search', onClick: () => run(), disabled: busy || !nbId,
         children: busy ? 'Scouting…' : 'Search'
+      }),
+      jsx(Chip, {
+        tone: deep ? 'accent' : undefined, pressed: deep,
+        onClick: () => setDeep((d) => !d),
+        title: deep
+          ? 'Deep research is on: later rounds read what the last round found'
+          : 'Deep research: a second and third round that read what round one found',
+        children: deep ? 'Deep · on' : 'Deep research'
       })),
 
     ((res && res.gaps) || []).length
@@ -200,6 +212,7 @@ function DiscoverPanel({ notebook, onSay, reload }) {
     res
       ? el('div', { className: 'nb-disc-meta' },
           el('span', { children: `${res.searched || 0} results → ${candidates.length} kept` }),
+          (res.rounds || 0) > 1 ? el('span', { children: `${res.rounds} rounds` }) : null,
           el('span', { children: `providers: ${(res.providers || ['web']).join(' · ')}` }),
           ((res.queries) || []).length
             ? el('span', { children: `queries: ${res.queries.slice(0, 3).join(' | ')}` })

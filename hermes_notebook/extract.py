@@ -27,6 +27,11 @@ TEXT_EXTS = {
 
 IMAGE_EXTS = {".png", ".jpg", ".jpeg", ".webp", ".gif", ".bmp", ".tiff", ".tif"}
 
+# Media is transcribed, never text-extracted — see hermes_notebook.media.
+AUDIO_EXTS = {".mp3", ".m4a", ".wav", ".flac", ".ogg", ".oga", ".aac", ".opus"}
+VIDEO_EXTS = {".mp4", ".mov", ".m4v", ".webm", ".mkv"}
+MEDIA_EXTS = AUDIO_EXTS | VIDEO_EXTS
+
 MAX_EXTRACT_CHARS = 2_000_000  # hard cap per source; larger docs get head+tail
 
 
@@ -50,6 +55,10 @@ def kind_for_path(path: Path) -> str:
         return "ipynb"
     if ext in IMAGE_EXTS:
         return "image"
+    if ext in AUDIO_EXTS:
+        return "audio"
+    if ext in VIDEO_EXTS:
+        return "video"
     if ext in TEXT_EXTS or not ext:
         return "text"
     return "unknown"
@@ -64,6 +73,11 @@ def extract_file(path: Path) -> tuple[str, str]:
     kind = kind_for_path(path)
     if kind == "image":
         raise ExtractionError("image sources are described by the model, not text-extracted")
+    if kind in {"audio", "video"}:
+        raise ExtractionError(
+            f"{kind} sources are transcribed, not text-extracted — ingest them "
+            "through hermes_notebook.media.transcribe (the notebook ingest path does this)"
+        )
     if kind == "unknown":
         raise ExtractionError(f"unsupported file type {path.suffix!r}")
     fn = {
