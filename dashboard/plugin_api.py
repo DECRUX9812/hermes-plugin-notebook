@@ -12,26 +12,45 @@ notebook generated in chat shows up in the studio and vice versa.
 
     GET  /health                     liveness + data root + model readiness
     GET  /state?notebook=<id|slug>   notebooks, sources, artifacts, thread, stats
+    GET  /threads  /thread           the notebook's conversations, one transcript
+    GET  /study?notebook=&limit=     today's spaced-repetition queue + mastery
+    GET  /source_text?notebook=&id=  one source's stored text (chars= caps it)
+    GET  /export?notebook=&b64=1     the whole notebook as a .zip
+    GET  /graphics_library           the SVG template vocabulary
+    GET  /infographic_styles?previews=1  the look catalogue (38 looks)
     POST /notebook                   {title, description} -> create
+    POST /notebook/update            {notebook, title|description|emoji}
+    POST /notebook/duplicate         {notebook} -> copy with sources + artifacts
+    POST /notebook/delete            {notebook, confirm} -> delete a notebook
     POST /source                     {notebook, path|url|text, title?} -> ingest
-    POST /discover                   {notebook, query?, max_results?} -> web-search candidates
     POST /sources                    {notebook, urls[]} -> batch ingest the picked candidates
-    POST /source_state               {notebook, source_id, enabled} -> include/exclude a source
+    POST /source_state               {notebook, source_id|source_ids[], enabled} -> include/exclude
+    POST /source/refresh             {notebook, source_id} -> re-fetch from its origin
+    POST /source/delete              {notebook, source_id}
+    POST /discover                   {notebook, query?, max_results?, deep?, rounds?} -> candidates
     POST /note                       {notebook, text, title?} -> quick note as a source
     POST /suggest                    {notebook} -> questions/artifacts/gaps from the model
     POST /overview                   {notebook} -> one-paragraph executive summary
-    POST /notebook/delete            {notebook, confirm} -> delete a notebook
-    POST /ask                        {notebook, question, thread?} -> cited answer
-    POST /generate                   {notebook, kind, focus?, count_hint?}
+    POST /ask                        {notebook, question, thread?, source_ids?} -> cited answer
+    POST /generate                   {notebook, kind, focus?, count_hint?, style?, language?, …}
     POST /label                      {notebook, force?} -> auto-labels via the model
+    POST /search                     {notebook, query|q, limit?} -> ranked hits with snippets
+    POST /tensions                   {notebook, max_items?, language?} -> where the sources disagree
+    POST /options                    {notebook, options{}} -> per-notebook preferences
+    POST /study/review               {notebook, card, rating} -> schedule the next review
+    POST /audio_render               {notebook, script} -> re-render an edited podcast script
+    POST /video_notes                {notebook, focus?, length?, style?, language?}
+    POST /thread/new  /thread/rename  /thread/delete  /thread/clear
+    POST /artifact/rename  /artifact/delete  {notebook, key, title?}
     GET  /artifact?notebook=&name=   media bytes (mp4/mp3/png/html) or text
-    GET  /search?notebook=&q=        ranked hits with snippets
-    POST /thread/clear               {notebook, thread?}
+    GET  /artifact/xlsx?notebook=&name=  the table as a real workbook
+    GET  /artifact/pptx?notebook=&name=  the deck as a real PowerPoint file
 
 Ops deck (folded in from the homelab control deck, same audited transport):
 
     GET  /ops/fleet  /ops/services  /ops/docker  /ops/files  /ops/file
-    GET  /ops/snapshots  /ops/audit  /ops/actions
+    GET  /ops/snapshots  /ops/audit  /ops/actions  /ops/state  /ops/health
+    GET  /ops/logs  /ops/proxmox
     POST /ops/exec  /ops/action  /ops/service  /ops/snapshot
 
 Nothing here invents a number: a route that cannot reach its data returns
@@ -197,6 +216,25 @@ def _q(value: Any) -> str:
     """A query argument as text. FastAPI hands the default `Query(...)` object when a
     route is called directly (tests, dump scripts), which has no `.strip()`."""
     return value.strip() if isinstance(value, str) else ""
+
+
+def _why(exc: BaseException) -> str:
+    """The sentence an exception carries, without the type prefix or the repr quotes.
+
+    Two bugs came from hand-building this string 48 times:
+
+    * ``str(KeyError("notebook not found: 'x'"))`` is ``'"notebook not found: \'x\'"'``
+      — KeyError stringifies its argument as a repr, so the toast literally showed
+      doubled quotes around the message;
+    * ``f"{type(exc).__name__}: {exc}"`` prefixed a class name the reader cannot act
+      on ("ValueError: ...") to sentences that were already written for a person.
+
+    Every failing route now reports the same shape: one plain sentence.
+    """
+    if isinstance(exc, KeyError) and exc.args:
+        return str(exc.args[0])
+    text = str(exc).strip()
+    return text or type(exc).__name__
 
 
 def _fail(message: str, status: int = 400, **extra: Any) -> JSONResponse:
@@ -369,7 +407,7 @@ def study_queue(notebook: str = Query("", description="Notebook id or title"),
         return {"ok": True, "notebook": nb,
                 "queue": study_mod.queue(nb, limit), "stats": study_mod.stats(nb)}
     except Exception as exc:
-        return _fail(f"{type(exc).__name__}: {exc}", 400)
+        return _fail(_why(exc), 400)
 
 
 @router.post("/study/review")
@@ -382,7 +420,7 @@ def study_review(payload: Dict[str, Any] = Body(...)) -> Any:
                                str(payload.get("rating") or "good"))
         return {"ok": True, "notebook": nb, "result": out, "stats": study_mod.stats(nb)}
     except Exception as exc:
-        return _fail(f"{type(exc).__name__}: {exc}", 400)
+        return _fail(_why(exc), 400)
 
 
 @router.get("/health")
@@ -479,7 +517,7 @@ def state(notebook: str = Query("", description="notebook id, title or slug"),
         elif notebooks:
             active = _notebook_payload(notebooks[0]["id"], thread)
     except Exception as exc:
-        return _fail(str(exc), 404)
+        return _fail(_why(exc), 404)
     cards = []
     for nb in notebooks:
         nb_id = nb.get("id") or ""
@@ -517,7 +555,7 @@ def create_notebook(payload: Dict[str, Any] = Body(...)) -> Any:
     try:
         meta = store.create_notebook(title, str(payload.get("description") or ""))
     except Exception as exc:
-        return _fail(f"{type(exc).__name__}: {exc}", 500)
+        return _fail(_why(exc), 500)
     return {**_notebook_payload(meta["id"]), "ok": True}
 
 
@@ -537,7 +575,7 @@ def add_source(payload: Dict[str, Any] = Body(...)) -> Any:
     try:
         out = json.loads(tools_mod.notebook_add_source(args))
     except Exception as exc:
-        return _fail(f"{type(exc).__name__}: {exc}", 500)
+        return _fail(_why(exc), 500)
     if not out.get("ok"):
         return _fail(out.get("error") or "ingest failed", 422, detail=out)
     return {"ok": True, "source": out, "state": _notebook_payload(store.resolve_notebook(nb))}
@@ -555,7 +593,7 @@ def discover(payload: Dict[str, Any] = Body(...)) -> Any:
     try:
         nb_id = store.resolve_notebook(nb_arg)
     except Exception as exc:
-        return _fail(str(exc), 404)
+        return _fail(_why(exc), 404)
     _ensure_model()
     try:
         out = discover_mod.discover(
@@ -568,7 +606,7 @@ def discover(payload: Dict[str, Any] = Body(...)) -> Any:
             rounds=int(payload["rounds"]) if str(payload.get("rounds") or "").isdigit() else None,
         )
     except Exception as exc:
-        return _fail(f"{type(exc).__name__}: {exc}", 500)
+        return _fail(_why(exc), 500)
     return out
 
 
@@ -642,7 +680,7 @@ def source_state(payload: Dict[str, Any] = Body(...)) -> Any:
             return _fail(f"source {sid!r} is not in this notebook", 404)
         store.set_source_enabled(nb_id, sid, enabled)
     except Exception as exc:
-        return _fail(f"{type(exc).__name__}: {exc}", 500)
+        return _fail(_why(exc), 500)
     return {"ok": True, "source_id": sid, "active": enabled,
             "state": _notebook_payload(store.resolve_notebook(nb))}
 
@@ -656,9 +694,9 @@ def delete_source(payload: Dict[str, Any] = Body(...)) -> Any:
         nb_id = store.resolve_notebook(nb)
         store.remove_source(nb_id, sid)
     except KeyError as exc:
-        return _fail(str(exc), 404)
+        return _fail(_why(exc), 404)
     except Exception as exc:
-        return _fail(f"{type(exc).__name__}: {exc}", 500)
+        return _fail(_why(exc), 500)
     return {"ok": True, "source_id": sid,
             "state": _notebook_payload(store.resolve_notebook(nb))}
 
@@ -671,7 +709,7 @@ def delete_artifact(payload: Dict[str, Any] = Body(...)) -> Any:
     try:
         nb_id = store.resolve_notebook(nb)
     except Exception as exc:
-        return _fail(str(exc), 404)
+        return _fail(_why(exc), 404)
     run = next((a for a in _collect_artifacts(nb_id) if a["key"] == key), None)
     if not run:
         return _fail(f"artifact {key!r} is not in this notebook", 404)
@@ -700,7 +738,7 @@ def rename_artifact(payload: Dict[str, Any] = Body(...)) -> Any:
     try:
         nb_id = store.resolve_notebook(nb)
     except Exception as exc:
-        return _fail(str(exc), 404)
+        return _fail(_why(exc), 404)
     run = next((a for a in _collect_artifacts(nb_id) if a["key"] == key), None)
     if not run:
         return _fail(f"artifact {key!r} is not in this notebook", 404)
@@ -727,9 +765,9 @@ async def refresh_source(payload: Dict[str, Any] = Body(...)) -> Any:
         from hermes_notebook import ingest
         updated = await run_in_threadpool(ingest.refresh_source, nb_id, sid)
     except KeyError as exc:
-        return _fail(str(exc), 404)
+        return _fail(_why(exc), 404)
     except Exception as exc:
-        return _fail(f"{type(exc).__name__}: {exc}", 422)
+        return _fail(_why(exc), 422)
     return {"ok": True, "source": updated,
             "state": _notebook_payload(store.resolve_notebook(nb))}
 
@@ -748,7 +786,7 @@ def add_note(payload: Dict[str, Any] = Body(...)) -> Any:
     try:
         out = json.loads(tools_mod.notebook_note(args))
     except Exception as exc:
-        return _fail(f"{type(exc).__name__}: {exc}", 500)
+        return _fail(_why(exc), 500)
     if not out.get("ok"):
         return _fail(out.get("error") or "could not save the note", 422, detail=out)
     return {"ok": True, "source": out,
@@ -765,7 +803,7 @@ def suggest(payload: Dict[str, Any] = Body(...)) -> Any:
     try:
         out = json.loads(tools_mod.notebook_suggest({"notebook": nb}))
     except Exception as exc:
-        return _fail(f"{type(exc).__name__}: {exc}", 500)
+        return _fail(_why(exc), 500)
     if not out.get("ok"):
         return _fail(out.get("error") or "no suggestions", 422, detail=out)
     return {"ok": True, "title": out.get("title"),
@@ -784,7 +822,7 @@ def tensions(payload: Dict[str, Any] = Body(...)) -> Any:
     try:
         nb_id = store.resolve_notebook(nb)
     except Exception as exc:
-        return _fail(str(exc), 404)
+        return _fail(_why(exc), 404)
     indep = tensions_mod.independence(nb_id)
     try:
         _ensure_model()
@@ -796,7 +834,7 @@ def tensions(payload: Dict[str, Any] = Body(...)) -> Any:
         # Honest degradation: the measured half is still worth showing.
         return {"ok": True, "notebook": nb_id, "items": [], "agreements": [],
                 "independence": indep, "sources": indep.get("sources", 0),
-                "degraded": f"{type(exc).__name__}: {exc}"}
+                "degraded": _why(exc)}
     out.pop("ok", None)
     return {"ok": True, **out}
 
@@ -811,7 +849,7 @@ async def overview(payload: Dict[str, Any] = Body(...)) -> Any:
     try:
         nb_id = store.resolve_notebook(nb)
     except Exception as exc:
-        return _fail(str(exc), 404)
+        return _fail(_why(exc), 404)
     digest = retrieve.notebook_digest(nb_id, max_chars=16000, cited=True)
     if not digest.strip():
         return _fail("no active sources to summarize — check some sources first", 422)
@@ -837,7 +875,7 @@ async def overview(payload: Dict[str, Any] = Body(...)) -> Any:
     try:
         text = await run_in_threadpool(_run)
     except Exception as exc:
-        return _fail(f"{type(exc).__name__}: {exc}", 500)
+        return _fail(_why(exc), 500)
     return {"ok": True, "overview": (text or "").strip(),
             "seconds": round(time.time() - started, 1)}
 
@@ -861,7 +899,7 @@ def set_options(payload: Dict[str, Any] = Body(...)) -> Any:
                 merged[key] = value
         store.update_meta(nb_id, options=merged)
     except Exception as exc:
-        return _fail(f"{type(exc).__name__}: {exc}", 500)
+        return _fail(_why(exc), 500)
     return {"ok": True, "options": merged,
             "state": _notebook_payload(store.resolve_notebook(nb))}
 
@@ -882,7 +920,7 @@ def update_notebook(payload: Dict[str, Any] = Body(...)) -> Any:
             description=str(desc) if desc is not None else None,
             **({"emoji": str(emoji)[:16]} if emoji is not None else {}))
     except Exception as exc:
-        return _fail(f"{type(exc).__name__}: {exc}", 500)
+        return _fail(_why(exc), 500)
     return {"ok": True, "notebook": _notebook_payload(meta["id"])}
 
 
@@ -893,7 +931,7 @@ def duplicate_notebook(payload: Dict[str, Any] = Body(...)) -> Any:
     try:
         out = store.duplicate_notebook(nb)
     except Exception as exc:
-        return _fail(f"{type(exc).__name__}: {exc}", 500)
+        return _fail(_why(exc), 500)
     return {"ok": True, "notebook": out}
 
 
@@ -905,7 +943,7 @@ def delete_notebook(payload: Dict[str, Any] = Body(...)) -> Any:
     try:
         out = store.delete_notebook(nb)
     except Exception as exc:
-        return _fail(f"{type(exc).__name__}: {exc}", 500)
+        return _fail(_why(exc), 500)
     return {"ok": True, **out}
 
 
@@ -920,7 +958,7 @@ async def ask(payload: Dict[str, Any] = Body(...)) -> Any:
     try:
         nb_id = store.resolve_notebook(nb_arg)
     except Exception as exc:
-        return _fail(str(exc), 404)
+        return _fail(_why(exc), 404)
     started = time.time()
 
     def _run() -> Dict[str, Any]:
@@ -938,7 +976,7 @@ async def ask(payload: Dict[str, Any] = Body(...)) -> Any:
     try:
         out = await run_in_threadpool(_run)
     except Exception as exc:
-        return _fail(f"{type(exc).__name__}: {exc}", 500)
+        return _fail(_why(exc), 500)
     if not out.get("ok"):
         return _fail(out.get("error") or "the model did not answer", 422, detail=out)
     # the citation rows the page renders: number, title, real origin — only
@@ -981,7 +1019,7 @@ def source_text(notebook: str = Query(...), id: str = Query(...),
     try:
         nb_id = store.resolve_notebook(notebook)
     except Exception as exc:
-        return _fail(str(exc), 404)
+        return _fail(_why(exc), 404)
     src = store.get_source(nb_id, id)
     if not src:
         return _fail(f"source {id!r} is not in this notebook", 404)
@@ -997,11 +1035,26 @@ def source_text(notebook: str = Query(...), id: str = Query(...),
 
 @router.post("/search")
 def search(payload: Dict[str, Any] = Body(...)) -> Any:
+    """Ranked hits inside one notebook. An empty query is a 400 with a sentence,
+    not a 500: ``notebook_search`` raises ValueError for it, and the page used
+    to get FastAPI's bare "Internal Server Error" instead of anything it could
+    show the reader. ``q`` is accepted beside ``query`` because every other
+    search surface in the app spells it that way."""
     from hermes_notebook import tools as tools_mod
-    out = json.loads(tools_mod.notebook_search(
-        {"notebook": str(payload.get("notebook") or ""),
-         "query": str(payload.get("query") or ""),
-         "limit": int(payload.get("limit") or 12)}))
+    query = str(payload.get("query") or payload.get("q") or "").strip()
+    if not query:
+        return _fail("type something to search for")
+    try:
+        limit = max(1, min(50, int(payload.get("limit") or 12)))
+    except (TypeError, ValueError):
+        limit = 12
+    try:
+        out = json.loads(tools_mod.notebook_search(
+            {"notebook": str(payload.get("notebook") or ""),
+             "query": query,
+             "limit": limit}))
+    except Exception as exc:
+        return _fail(_why(exc))
     return {"ok": bool(out.get("ok")), "result": out}
 
 
@@ -1017,7 +1070,7 @@ async def generate(payload: Dict[str, Any] = Body(...)) -> Any:
     try:
         nb_id = store.resolve_notebook(nb_arg)
     except Exception as exc:
-        return _fail(str(exc), 404)
+        return _fail(_why(exc), 404)
     started = time.time()
 
     try:
@@ -1055,7 +1108,7 @@ async def generate(payload: Dict[str, Any] = Body(...)) -> Any:
                              "engine": (payload.get("options") or {}).get("engine")
                                        or payload.get("engine") or "gfx"}))
     except Exception as exc:
-        return _fail(f"{type(exc).__name__}: {exc}", 500)
+        return _fail(_why(exc), 500)
     # remember the knobs this run used — regenerate reuses them and the row
     # can show the artifact was tailored
     opts_used = {k: str(payload.get(k) or "").strip()
@@ -1090,14 +1143,14 @@ async def audio_render(payload: Dict[str, Any] = Body(...)) -> Any:
     try:
         nb_id = store.resolve_notebook(nb_arg)
     except Exception as exc:
-        return _fail(str(exc), 404)
+        return _fail(_why(exc), 404)
     from hermes_notebook import audio
     script = payload.get("script") if isinstance(payload.get("script"), dict) else payload
     started = time.time()
     try:
         out = await audio.render_audio_script(nb_id, script)
     except Exception as exc:
-        return _fail(f"{type(exc).__name__}: {exc}", 500)
+        return _fail(_why(exc), 500)
     return {"ok": True, "result": out,
             "seconds": round(time.time() - started, 1)}
 
@@ -1112,7 +1165,7 @@ async def video_notes(payload: Dict[str, Any] = Body(...)) -> Any:
     try:
         nb_id = store.resolve_notebook(nb_arg)
     except Exception as exc:
-        return _fail(str(exc), 404)
+        return _fail(_why(exc), 404)
     from hermes_notebook import video
     try:
         out = await video.video_notes(
@@ -1122,7 +1175,7 @@ async def video_notes(payload: Dict[str, Any] = Body(...)) -> Any:
             language=str(payload.get("language") or ""),
             focus=str(payload.get("focus") or ""))
     except Exception as exc:
-        return _fail(f"{type(exc).__name__}: {exc}", 500)
+        return _fail(_why(exc), 500)
     return {"ok": True, **out}
 
 
@@ -1135,7 +1188,7 @@ async def label(payload: Dict[str, Any] = Body(...)) -> Any:
     try:
         nb_id = store.resolve_notebook(nb_arg)
     except Exception as exc:
-        return _fail(str(exc), 404)
+        return _fail(_why(exc), 404)
 
     def _run() -> Dict[str, Any]:
         from hermes_notebook import ingest
@@ -1157,7 +1210,7 @@ async def label(payload: Dict[str, Any] = Body(...)) -> Any:
     try:
         out = await run_in_threadpool(_run)
     except Exception as exc:
-        return _fail(f"{type(exc).__name__}: {exc}", 500)
+        return _fail(_why(exc), 500)
     return {"ok": True, **out, "state": _notebook_payload(nb_id)}
 
 
@@ -1168,7 +1221,7 @@ def get_thread(notebook: str = Query(...), name: str = Query("default")) -> Any:
     try:
         nb_id = store.resolve_notebook(notebook)
     except Exception as exc:
-        return _fail(str(exc), 404)
+        return _fail(_why(exc), 404)
     safe = runtime.slugify(name or "default", 60) or "default"
     return {"ok": True, "thread": safe,
             "messages": store.get_thread(nb_id, safe)[-48:]}
@@ -1180,7 +1233,7 @@ def threads(notebook: str = Query("", description="notebook id, title or slug"))
     try:
         nb_id = store.resolve_notebook(notebook)
     except Exception as exc:
-        return _fail(str(exc), 404)
+        return _fail(_why(exc), 404)
     rows = store.list_threads(nb_id)
     return {"ok": True, "threads": rows, "count": len(rows),
             "default": rows[0]["name"] if rows else ""}
@@ -1192,12 +1245,12 @@ def new_thread(payload: Dict[str, Any] = Body(...)) -> Any:
     try:
         nb_id = store.resolve_notebook(str(payload.get("notebook") or ""))
     except Exception as exc:
-        return _fail(str(exc), 404)
+        return _fail(_why(exc), 404)
     try:
         created = store.create_thread(nb_id, title=str(payload.get("title") or ""),
                                       name=str(payload.get("name") or ""))
     except Exception as exc:
-        return _fail(str(exc), 400)
+        return _fail(_why(exc), 400)
     return {"ok": True, "thread": created, "threads": store.list_threads(nb_id)}
 
 
@@ -1206,12 +1259,12 @@ def rename_thread(payload: Dict[str, Any] = Body(...)) -> Any:
     try:
         nb_id = store.resolve_notebook(str(payload.get("notebook") or ""))
     except Exception as exc:
-        return _fail(str(exc), 404)
+        return _fail(_why(exc), 404)
     try:
         out = store.rename_thread(nb_id, str(payload.get("thread") or ""),
                                   str(payload.get("title") or ""))
     except Exception as exc:
-        return _fail(str(exc), 400)
+        return _fail(_why(exc), 400)
     return {"ok": True, "thread": out, "threads": store.list_threads(nb_id)}
 
 
@@ -1222,11 +1275,11 @@ def delete_thread(payload: Dict[str, Any] = Body(...)) -> Any:
     try:
         nb_id = store.resolve_notebook(str(payload.get("notebook") or ""))
     except Exception as exc:
-        return _fail(str(exc), 404)
+        return _fail(_why(exc), 404)
     try:
         out = store.delete_thread(nb_id, str(payload.get("thread") or ""))
     except Exception as exc:
-        return _fail(str(exc), 400)
+        return _fail(_why(exc), 400)
     return {"ok": True, **out, "threads": store.list_threads(nb_id)}
 
 
@@ -1235,7 +1288,7 @@ def clear_thread(payload: Dict[str, Any] = Body(default={})) -> Any:
     try:
         nb_id = store.resolve_notebook(str(payload.get("notebook") or ""))
     except Exception as exc:
-        return _fail(str(exc), 404)
+        return _fail(_why(exc), 404)
     return {"ok": True, "thread": store.clear_thread(nb_id, str(payload.get("thread") or "default"))}
 
 
@@ -1255,7 +1308,7 @@ def artifact(notebook: str = Query(...), name: str = Query(...),
         nb_id = store.resolve_notebook(notebook)
         path = store.artifact_path(nb_id, name)
     except Exception as exc:
-        return _fail(str(exc), 404)
+        return _fail(_why(exc), 404)
     if not path.exists():
         return _fail(f"{name} is not in this notebook", 404)
     ext = path.suffix.lstrip(".").lower()
@@ -1291,7 +1344,7 @@ def artifact_xlsx(notebook: str = Query(...), name: str = Query(...),
         nb_id = store.resolve_notebook(notebook)
         path = store.artifact_path(nb_id, name)
     except Exception as exc:
-        return _fail(str(exc), 404)
+        return _fail(_why(exc), 404)
     if not path.exists():
         return _fail(f"{name} is not in this notebook", 404)
     try:
@@ -1301,7 +1354,7 @@ def artifact_xlsx(notebook: str = Query(...), name: str = Query(...),
     try:
         blob = xlsx_export.workbook(data)
     except Exception as exc:  # openpyxl missing or a malformed table
-        return _fail(f"{type(exc).__name__}: {exc}", 500)
+        return _fail(_why(exc), 500)
     out_name = re.sub(r"\.json$", "", path.name) + ".xlsx"
     if b64:
         import base64 as _b64
@@ -1328,7 +1381,7 @@ def artifact_pptx(notebook: str = Query(...), name: str = Query(...),
         nb_id = store.resolve_notebook(notebook)
         path = store.artifact_path(nb_id, name)
     except Exception as exc:
-        return _fail(str(exc), 404)
+        return _fail(_why(exc), 404)
     if not path.exists():
         return _fail(f"{name} is not in this notebook", 404)
     try:
@@ -1362,7 +1415,7 @@ def export_nb(notebook: str = Query(...),
         meta = store.get_meta(nb_id)
         out = store.export_notebook(nb_id)
     except Exception as exc:
-        return _fail(str(exc), 404)
+        return _fail(_why(exc), 404)
     zp = Path(out["zip"])
     name = f"{nb_id}-notebook.zip"
     if b64:
