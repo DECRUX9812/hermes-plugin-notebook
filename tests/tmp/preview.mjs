@@ -45,11 +45,22 @@ const ROUTE = '/notebook'
 
 /* ---------------------------------------------------------------- tokens */
 
+/* Quiet ink.
+ *
+ * The theme's tertiary/quaternary are 58% and 42% of the base ink. Measured on
+ * the real page that is 5.98:1 / 3.63:1 in the dark skin and 4.31:1 / 3.57:1 in
+ * a light one — the quaternary fails WCAG AA everywhere, and the tertiary fails
+ * on a light canvas. These two tokens print at 11.5–12.5px, so they take the AA
+ * floor rather than the theme's staircase: 72% and 68% of the primary ink clear
+ * 4.5:1 on every surface this page paints in both skins (canvas, panel, card,
+ * wash) and stay visibly quieter than the secondary. The host's own
+ * --ui-text-tertiary remains available where a surface needs its exact value.
+ */
 const T = {
   text: 'var(--ui-text-primary, #e9e9ef)',
   text2: 'var(--ui-text-secondary, #b6b6c2)',
-  text3: 'var(--ui-text-tertiary, #8b8b99)',
-  text4: 'var(--ui-text-quaternary, #6d6d7a)',
+  text3: 'color-mix(in srgb, var(--ui-text-primary, #e9e9ef) 72%, transparent)',
+  text4: 'color-mix(in srgb, var(--ui-text-primary, #e9e9ef) 68%, transparent)',
   accent: 'var(--ui-accent, #8b93ff)',
   line: 'var(--ui-stroke-secondary, rgba(233,233,239,0.11))',
   lineSoft: 'var(--ui-stroke-tertiary, rgba(233,233,239,0.07))',
@@ -87,6 +98,23 @@ const CSS = `
   --nb-ease: cubic-bezier(.24,1,.4,1);
   --nb-ease-exit: cubic-bezier(.3,0,.6,.6);
   --nb-dur-fast: .175s; --nb-dur-med: .41s; --nb-dur-slow: .975s;
+  /* radius — one semantic scale instead of ad-hoc pixels: detail 8, element 12,
+     box 16, panel 24, pill. A control's radius says how big it is. */
+  --nb-r-in: 8px; --nb-r-el: 12px; --nb-r-box: 16px; --nb-r-panel: 24px; --nb-r-pill: 99px;
+  /* type — the chrome scale. Every rendered size must be one of these steps;
+     an 11px label beside an 11.5px one is a bug, and tests/design.test.mjs
+     fails the build on any size that is not on this list. Headings are set
+     in place because each surface owns exactly one of them. */
+  --nb-fs-meta: 11.5px;   /* counts, timestamps, chips */
+  --nb-fs-label: 12.5px;  /* card names, chips with actions, buttons */
+  --nb-fs-ui: 13px;       /* pane titles, inputs, tabs */
+  --nb-fs-body: 14px;     /* the base UI size */
+  --nb-fs-read: 15px;     /* prose and document body */
+  --nb-fs-title: 16px;    /* hero-side titles, card headings */
+  --nb-fs-display: 26px;  /* the one page title */
+  /* space — a 4px grid, named by intent so padding is a decision, not a number */
+  --nb-sp-1: 4px; --nb-sp-2: 6px; --nb-sp-3: 8px; --nb-sp-4: 12px;
+  --nb-sp-5: 16px; --nb-sp-6: 20px; --nb-sp-7: 24px; --nb-sp-8: 32px;
   --nb-media: linear-gradient(155deg,#20243a 0%,#12151f 100%);
   display:flex; flex-direction:column; height:100%; min-height:0;
   color:${T.text}; font-size:16px; line-height:1.5;
@@ -106,25 +134,31 @@ const CSS = `
 @keyframes nb-drift{from{transform:translate3d(-3%,-2%,0) scale(1)}to{transform:translate3d(4%,3%,0) scale(1.08)}}
 .nb-bar,.nb-body,.nb-home,.nb-ops{position:relative;z-index:1}
 .nb-root *{box-sizing:border-box}
+/* Form controls do NOT inherit the page font from the UA sheet: a <button> gets
+ * Arial 13.333px and a <span> inside it inherits that, which is how "Video
+ * Overview" ended up set in Arial while its neighbours were in Inter. One rule
+ * at the root stops the whole family of bugs rather than one class at a time. */
+.nb-root button,.nb-root input,.nb-root select,.nb-root textarea{
+  font-family:inherit;font-feature-settings:inherit;font-variant-numeric:inherit}
 .nb-root :focus-visible{outline:2px solid ${T.accent}; outline-offset:3px}
 .nb-mono{font-family:var(--ui-font-mono,ui-monospace,SFMono-Regular,Menlo,monospace);font-variant-ligatures:none}
 .nb-num{font-family:var(--ui-font-mono,ui-monospace,SFMono-Regular,Menlo,monospace);font-variant-numeric:tabular-nums}
 
 /* quiet section label — small and calm, never telemetry */
-.nb-meta{font-size:12px;letter-spacing:0;text-transform:none;color:${T.text3};font-weight:600}
+.nb-meta{font-size:12.5px;letter-spacing:0;text-transform:none;color:${T.text3};font-weight:600}
 .nb-hint{font-size:11.5px;color:${T.text3};letter-spacing:.01em;line-height:1.5}
 
 /* ------------------------------------------------------------------ app bar */
 .nb-bar{display:flex;align-items:center;gap:14px;height:56px;flex:0 0 56px;
   padding:0 18px;border-bottom:1px solid var(--nb-hair-soft)}
 .nb-brand{display:flex;align-items:center;gap:11px;min-width:0}
-.nb-mark{width:27px;height:27px;display:grid;place-items:center;flex:0 0 auto;border-radius:8px;
-  background:color-mix(in srgb,${T.accent} 15%, transparent);color:${T.accent}}
-.nb-brandname{font-size:14.5px;font-weight:700;letter-spacing:-.01em;color:${T.text}}
+.nb-mark{width:27px;height:27px;display:grid;place-items:center;flex:0 0 auto;border-radius:var(--nb-r-in);
+  background:color-mix(in srgb,${T.accent} 15%, transparent);color:color-mix(in srgb,${T.accent} 70%, ${T.text})}
+.nb-brandname{font-size:14px;font-weight:700;letter-spacing:-.01em;color:${T.text}}
 .nb-crumb{font-size:12.5px;color:${T.text3};white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:min(52ch,44vw);display:flex;align-items:center;gap:6px;min-width:0}
 .nb-crumb b{color:${T.text2};font-weight:600}
 .nb-crumbedit{display:block;max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;background:transparent;border:0;padding:0 8px;margin:0 -8px;font:inherit;
-  color:${T.text2};font-weight:600;cursor:pointer;border-radius:8px;
+  color:${T.text2};font-weight:600;cursor:pointer;border-radius:var(--nb-r-in);
   display:inline-flex;align-items:center;min-height:32px;max-width:42ch;
   overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .nb-crumbedit:hover{color:${T.text};background:var(--nb-wash-2)}
@@ -133,39 +167,40 @@ const CSS = `
 
 /* ---------------------------------------------------------------- controls */
 .nb-btn{display:inline-flex;align-items:center;justify-content:center;gap:8px;
-  min-height:36px;padding:0 18px;border-radius:99px;cursor:pointer;
+  min-height:36px;padding:0 18px;border-radius:var(--nb-r-pill);cursor:pointer;
   font-size:13px;font-weight:600;letter-spacing:0;text-transform:none;font-family:inherit;
   border:1px solid var(--nb-hair);background:var(--nb-wash);color:${T.text};
   transition:background var(--nb-dur-fast) var(--nb-ease),border-color var(--nb-dur-fast) var(--nb-ease),box-shadow var(--nb-dur-fast) var(--nb-ease),transform var(--nb-dur-fast) var(--nb-ease)}
 .nb-btn:hover{background:var(--nb-wash-2);border-color:color-mix(in srgb,${T.text} 22%, transparent)}
 .nb-btn:active{transform:translateY(1px)}
 .nb-btn[disabled]{opacity:.45;cursor:not-allowed}
-.nb-btn[data-variant=primary]{background:${T.accent};border-color:transparent;color:#0d0e15;font-weight:650;
+.nb-btn[data-variant=primary]{background:${T.accent};border-color:transparent;
+  color:#0d0e15;font-weight:650;
   box-shadow:0 6px 18px -8px color-mix(in srgb,${T.accent} 80%, transparent)}
 .nb-btn[data-variant=primary]:hover{background:color-mix(in srgb,${T.accent} 88%, ${T.text})}
 .nb-btn[data-variant=primary][disabled]{background:var(--nb-wash);border-color:var(--nb-hair);color:${T.text3};box-shadow:none}
 .nb-btn[data-variant=ghost]{background:transparent;border-color:transparent;color:${T.text2}}
 .nb-btn[data-variant=ghost]:hover{background:var(--nb-wash-2);color:${T.text}}
-.nb-btn[data-size=sm]{min-height:32px;padding:0 12px;font-size:12.5px;border-radius:8px}
-.nb-icon{width:36px;height:36px;min-height:36px;flex:0 0 auto;padding:0;border-radius:99px;display:grid;place-items:center;
+.nb-btn[data-size=sm]{min-height:32px;padding:0 12px;font-size:12.5px;border-radius:var(--nb-r-in)}
+.nb-icon{width:36px;height:36px;min-height:36px;flex:0 0 auto;padding:0;border-radius:var(--nb-r-pill);display:grid;place-items:center;
   cursor:pointer;border:1px solid transparent;background:transparent;color:${T.text3};
   transition:background var(--nb-dur-fast) var(--nb-ease),color var(--nb-dur-fast) var(--nb-ease),border-color var(--nb-dur-fast) var(--nb-ease)}
 .nb-icon:hover{background:var(--nb-wash-2);color:${T.text}}
-.nb-icon[data-active=true]{background:color-mix(in srgb,${T.accent} 14%, transparent);color:${T.accent}}
+.nb-icon[data-active=true]{background:color-mix(in srgb,${T.accent} 14%, transparent);color:color-mix(in srgb,${T.accent} 70%, ${T.text})}
 
 /* segmented control — a pill track with a lifted thumb */
-.nb-seg{display:inline-flex;gap:2px;padding:3px;border-radius:12px;
+.nb-seg{display:inline-flex;gap:2px;padding:3px;border-radius:var(--nb-r-el);
   border:1px solid var(--nb-hair);background:var(--nb-wash)}
 .nb-seg[data-fill="true"]{display:flex;width:100%}
 .nb-seg[data-fill="true"] > button{flex:1;justify-content:center}
-.nb-seg > button{min-height:32px;padding:0 14px;border:0;border-radius:8px;background:transparent;
+.nb-seg > button{min-height:32px;padding:0 14px;border:0;border-radius:var(--nb-r-in);background:transparent;
   color:${T.text3};cursor:pointer;font-family:inherit;font-size:12.5px;font-weight:600;letter-spacing:0;
   display:inline-flex;align-items:center;justify-content:center;gap:7px;
   transition:background var(--nb-dur-fast) var(--nb-ease),color var(--nb-dur-fast) var(--nb-ease),box-shadow var(--nb-dur-fast) var(--nb-ease)}
 .nb-seg > button:hover{color:${T.text};background:color-mix(in srgb,${T.text} 6%, transparent)}
 .nb-seg > button[aria-selected=true]{background:${T.card};color:${T.text};box-shadow:var(--nb-shadow)}
 
-.nb-field{display:flex;align-items:center;gap:9px;height:38px;padding:0 12px;border-radius:12px;
+.nb-field{display:flex;align-items:center;gap:9px;height:38px;padding:0 12px;border-radius:var(--nb-r-el);
   border:1px solid var(--nb-hair);background:var(--nb-wash);color:${T.text3}}
 .nb-field:focus-within{border-color:color-mix(in srgb,${T.accent} 55%, transparent);
   box-shadow:0 0 0 3px color-mix(in srgb,${T.accent} 16%, transparent)}
@@ -180,9 +215,9 @@ const CSS = `
   padding:12px}
 .nb-col{min-width:0;min-height:0;display:flex;flex-direction:column;position:relative}
 .nb-body > .nb-col{background:var(--nb-card);border:1px solid var(--nb-hair-soft);
-  border-radius:24px;overflow:hidden}
+  border-radius:var(--nb-r-panel);overflow:hidden}
 .nb-rail{flex:0 0 var(--nb-rail)}
-.nb-rail[data-drop="true"]{outline:2px dashed ${T.accent};outline-offset:-6px;border-radius:24px}
+.nb-rail[data-drop="true"]{outline:2px dashed ${T.accent};outline-offset:-6px;border-radius:var(--nb-r-panel)}
 .nb-main-col{flex:1 1 auto}
 .nb-studio{flex:0 0 var(--nb-studio)}
 .nb-fade{position:absolute;left:0;right:0;bottom:0;height:30px;pointer-events:none;
@@ -197,51 +232,57 @@ const CSS = `
 
 /* ------------------------------------------------------------------- rail */
 .nb-nbrow{display:flex;align-items:center;gap:12px;width:100%;
-  text-align:left;cursor:pointer;border:0;border-radius:12px;background:transparent;
+  text-align:left;cursor:pointer;border:0;border-radius:var(--nb-r-el);background:transparent;
   padding:9px 10px;color:${T.text};transition:background var(--nb-dur-fast) var(--nb-ease)}
 .nb-nbrow:hover{background:var(--nb-wash-2)}
 .nb-nbrow[aria-current=true]{background:color-mix(in srgb,${T.accent} 11%, transparent)}
-.nb-nbtitle{font-size:13.5px;font-weight:600;line-height:1.32;color:${T.text2};letter-spacing:-.005em;
+.nb-nbtitle{font-size:13px;font-weight:600;line-height:1.32;color:${T.text2};letter-spacing:-.005em;
   overflow:hidden;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical}
 .nb-nbrow[aria-current=true] .nb-nbtitle{color:${T.text}}
 .nb-nbsub{font-size:11.5px;color:${T.text3};margin-top:2px;display:block}
-.nb-avatar{width:36px;height:36px;flex:0 0 auto;display:grid;place-items:center;border-radius:12px;
+.nb-avatar{width:36px;height:36px;flex:0 0 auto;display:grid;place-items:center;border-radius:var(--nb-r-el);
   background:var(--nb-wash-2);color:${T.text2};font-size:13px;font-weight:700}
-.nb-nbrow[aria-current=true] .nb-avatar{background:color-mix(in srgb,${T.accent} 20%, transparent);color:${T.accent}}
+.nb-nbrow[aria-current=true] .nb-avatar{background:color-mix(in srgb,${T.accent} 20%, transparent);color:color-mix(in srgb,${T.accent} 70%, ${T.text})}
 
-.nb-src{display:flex;align-items:center;gap:6px;width:100%;border-radius:12px;
+.nb-src{display:flex;align-items:center;gap:6px;width:100%;border-radius:var(--nb-r-el);
   padding:7px 8px 7px 5px;position:relative;transition:background var(--nb-dur-fast) var(--nb-ease)}
 .nb-src:hover{background:var(--nb-wash-2)}
 .nb-src[data-on=true]{background:color-mix(in srgb,${T.accent} 10%, transparent)}
 .nb-src[data-off=true]{opacity:.55}
 .nb-src-open{flex:1;min-width:0;display:grid;grid-template-columns:36px minmax(0,1fr);gap:11px;
-  align-items:center;text-align:left;background:transparent;border:0;padding:4px;border-radius:12px;
+  align-items:center;text-align:left;background:transparent;border:0;padding:4px;border-radius:var(--nb-r-el);
   color:${T.text};cursor:pointer;font-family:inherit}
-.nb-src-ico{position:relative;width:36px;height:36px;border-radius:12px;display:grid;place-items:center;
+.nb-src-ico{position:relative;width:36px;height:36px;border-radius:var(--nb-r-el);display:grid;place-items:center;
   background:var(--nb-wash-2);color:${T.text2};flex:0 0 auto}
-.nb-src[data-on=true] .nb-src-ico{background:color-mix(in srgb,${T.accent} 18%, transparent);color:${T.accent}}
+.nb-src[data-on=true] .nb-src-ico{background:color-mix(in srgb,${T.accent} 18%, transparent);color:color-mix(in srgb,${T.accent} 70%, ${T.text})}
 /* the citation number rides the icon's corner, like a source badge */
 .nb-cite{position:absolute;right:-6px;bottom:-6px;min-width:18px;height:18px;padding:0 5px;
-  border-radius:99px;display:grid;place-items:center;background:${T.accent};color:#0d0e15;
-  font-size:10px;font-weight:700;
+  border-radius:var(--nb-r-pill);display:grid;place-items:center;background:${T.accent};
+  /* The host's accent family is always a mid-to-bright hue in both themes
+     (light default #B8860B measures 5.92:1 against near-black and 3.25:1
+     against white; dark default #FFBF00 measures 11.65:1 / 1.65:1). Near-black
+     ink is therefore the one that clears AA on the accent fill in EVERY skin —
+     flipping the ink with color-scheme is what broke the light skin. */
+  color:#0d0e15;
+  font-size:10.5px;font-weight:700;
   box-shadow:0 1px 4px rgba(8,10,18,.4)}
 .nb-src-title{font-size:13px;font-weight:600;line-height:1.4;color:${T.text};
   overflow:hidden;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical}
 .nb-src-meta{display:flex;align-items:center;gap:5px;margin-top:4px;flex-wrap:wrap;row-gap:3px}
 /* NotebookLM's per-source checkbox: a rounded box at the row's right edge */
-.nb-srccheck{width:32px;height:32px;flex:0 0 auto;border-radius:8px;cursor:pointer;
+.nb-srccheck{width:32px;height:32px;flex:0 0 auto;border-radius:var(--nb-r-in);cursor:pointer;
   border:1.5px solid var(--nb-hair-soft);background:transparent;color:#0d0e15;
   display:grid;place-items:center;padding:0;transition:all var(--nb-dur-fast) var(--nb-ease)}
 .nb-srccheck:hover{border-color:color-mix(in srgb,${T.accent} 55%, transparent)}
 .nb-srccheck[aria-checked=true]{background:${T.accent};border-color:${T.accent}}
 .nb-selall{display:flex;align-items:center;gap:9px;padding:2px 6px}
-.nb-selall .nb-srccheck{width:32px;height:32px;border-radius:8px}
+.nb-selall .nb-srccheck{width:32px;height:32px;border-radius:var(--nb-r-in)}
 .nb-src-del{position:absolute;right:44px;top:50%;transform:translateY(-50%);
   opacity:0;transition:opacity var(--nb-dur-fast) var(--nb-ease)}
 .nb-src:hover .nb-src-del,.nb-src-del:focus-visible{opacity:1}
 .nb-srcgroup{display:flex;align-items:center;gap:8px;width:100%;text-align:left;
-  padding:9px 10px;border:0;border-radius:12px;background:transparent;color:${T.text3};
-  font-size:12px;font-weight:650;letter-spacing:.01em;cursor:pointer;font-family:inherit}
+  padding:9px 10px;border:0;border-radius:var(--nb-r-el);background:transparent;color:${T.text3};
+  font-size:12.5px;font-weight:650;letter-spacing:.01em;cursor:pointer;font-family:inherit}
 .nb-srcgroup:hover{background:var(--nb-wash-2);color:${T.text2}}
 .nb-srcgroup svg{transition:transform var(--nb-dur-fast) var(--nb-ease)}
 .nb-srcgroup[data-closed=true] svg{transform:rotate(-90deg)}
@@ -249,13 +290,13 @@ const CSS = `
 .nb-srcgroup-list{display:flex;flex-direction:column;gap:2px;padding-left:14px}
 
 /* the web-research box inside the sources panel */
-.nb-finder{margin:0 14px 10px;border-radius:16px;border:1px solid var(--nb-hair-soft);
+.nb-finder{margin:0 14px 10px;border-radius:var(--nb-r-box);border:1px solid var(--nb-hair-soft);
   background:var(--nb-wash);padding:10px}
 .nb-finder-row{display:flex;align-items:center;gap:8px}
 .nb-finder-row input{flex:1;min-width:0;height:34px;border:0;outline:0;background:transparent;
   color:${T.text};font-size:13px;font-family:inherit}
 .nb-finder-row input::placeholder{color:${T.text4}}
-.nb-finder-go{width:32px;height:32px;flex:0 0 auto;border-radius:99px;border:0;cursor:pointer;
+.nb-finder-go{width:32px;height:32px;flex:0 0 auto;border-radius:var(--nb-r-pill);border:0;cursor:pointer;
   background:${T.accent};color:#0d0e15;display:grid;place-items:center;padding:0}
 .nb-addsrc{width:100%;justify-content:flex-start;height:34px;background:transparent;
   border:1px dashed var(--nb-hair);color:${T.text2};font-size:12.5px;box-shadow:none}
@@ -266,7 +307,7 @@ const CSS = `
 .nb-fcand[disabled]{cursor:default}
 .nb-fcand[disabled]:not([data-added=true]){opacity:.55}
 .nb-fcand{display:flex;align-items:center;gap:10px;width:100%;text-align:left;
-  padding:9px 10px;border-radius:12px;border:0;background:transparent;color:${T.text};
+  padding:9px 10px;border-radius:var(--nb-r-el);border:0;background:transparent;color:${T.text};
   cursor:pointer;font-family:inherit}
 .nb-fcand:hover{background:var(--nb-wash-2)}
 .nb-fcand-main{flex:1;min-width:0}
@@ -274,48 +315,56 @@ const CSS = `
   overflow:hidden;white-space:nowrap;text-overflow:ellipsis}
 .nb-fcand-sub{display:block;font-size:11.5px;color:${T.text3};margin-top:2px;
   overflow:hidden;white-space:nowrap;text-overflow:ellipsis}
-.nb-fcand-add{width:28px;height:28px;flex:0 0 auto;border-radius:99px;cursor:pointer;
+.nb-fcand-add{width:28px;height:28px;flex:0 0 auto;border-radius:var(--nb-r-pill);cursor:pointer;
   border:1.5px solid var(--nb-hair);background:transparent;color:${T.text2};
   display:grid;place-items:center;padding:0}
-.nb-fcand-add:hover{border-color:${T.accent};color:${T.accent}}
+.nb-fcand-add:hover{border-color:color-mix(in srgb,${T.accent} 70%, ${T.text});color:color-mix(in srgb,${T.accent} 70%, ${T.text})}
 .nb-fcand-add[data-added=true]{background:color-mix(in srgb,${T.ok} 15%, transparent);
   border-color:color-mix(in srgb,${T.ok} 50%, transparent);color:${T.ok};cursor:default}
 
 /* chips are soft pills; clickable ones are full 32px targets */
-.nb-chip{display:inline-flex;align-items:center;gap:5px;height:22px;padding:0 9px;border-radius:99px;
-  font-size:11px;font-weight:600;letter-spacing:.01em;color:${T.text3};
+.nb-chip{display:inline-flex;align-items:center;gap:5px;height:22px;padding:0 9px;border-radius:var(--nb-r-pill);
+  font-size:11.5px;font-weight:600;letter-spacing:.01em;color:${T.text3};
   background:var(--nb-wash-2);border:1px solid transparent;white-space:nowrap;font-family:inherit}
-.nb-chip[data-tone=accent]{color:${T.accent};background:color-mix(in srgb,${T.accent} 13%, transparent)}
-.nb-chip[data-tone=ok]{color:${T.ok};background:color-mix(in srgb,${T.ok} 13%, transparent)}
-.nb-chip[data-tone=warn]{color:${T.warn};background:color-mix(in srgb,${T.warn} 14%, transparent)}
-.nb-chip[data-tone=danger]{color:${T.danger};background:color-mix(in srgb,${T.danger} 13%, transparent)}
-.nb-citechip{height:32px;min-height:32px;padding:0 7px 0 9px;border-radius:99px;gap:7px;
-  background:var(--nb-card);border-color:var(--nb-hair);color:${T.text2};font-size:12px;font-weight:500}
+.nb-chip[data-tone=accent]{color:color-mix(in srgb,${T.accent} 70%, ${T.text});
+  background:color-mix(in srgb,${T.accent} 13%, transparent)}
+/* Semantic tones are the host's success/warning/danger colours, which are
+   tuned for the dark skin. MIXED toward the page's own ink they keep their hue
+   and pick up contrast on whichever canvas is actually painted — #3fb950 on a
+   near-white card measured 2.41:1 before this. */
+.nb-chip[data-tone=ok]{color:color-mix(in srgb,${T.ok} 62%, ${T.text});
+  background:color-mix(in srgb,${T.ok} 14%, transparent)}
+.nb-chip[data-tone=warn]{color:color-mix(in srgb,${T.warn} 54%, ${T.text});
+  background:color-mix(in srgb,${T.warn} 15%, transparent)}
+.nb-chip[data-tone=danger]{color:color-mix(in srgb,${T.danger} 62%, ${T.text});
+  background:color-mix(in srgb,${T.danger} 14%, transparent)}
+.nb-citechip{height:32px;min-height:32px;padding:0 7px 0 9px;border-radius:var(--nb-r-pill);gap:7px;
+  background:var(--nb-card);border-color:var(--nb-hair);color:${T.text2};font-size:12.5px;font-weight:500}
 .nb-citechip:hover{border-color:color-mix(in srgb,${T.accent} 50%, transparent)}
-.nb-citechip b{font-family:var(--ui-font-mono,ui-monospace,monospace);color:${T.accent};font-weight:700;
-  font-size:10.5px;background:color-mix(in srgb,${T.accent} 14%, transparent);border-radius:99px;
+.nb-citechip b{font-family:var(--ui-font-mono,ui-monospace,monospace);color:color-mix(in srgb,${T.accent} 70%, ${T.text});font-weight:700;
+  font-size:10.5px;background:color-mix(in srgb,${T.accent} 14%, transparent);border-radius:var(--nb-r-pill);
   padding:3px 7px;flex:0 0 auto}
 .nb-citechip span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0;max-width:300px}
-.nb-chip[data-click=true]{cursor:pointer;min-height:32px;height:32px;padding:0 13px;font-size:12px;
+.nb-chip[data-click=true]{cursor:pointer;min-height:32px;height:32px;padding:0 13px;font-size:12.5px;
   background:var(--nb-card);border-color:var(--nb-hair)}
 .nb-chip[data-click=true]:hover{background:var(--nb-wash-2);color:${T.text};
   border-color:color-mix(in srgb,${T.text} 20%, transparent)}
 .nb-chip[data-click=true][aria-pressed=true]{background:color-mix(in srgb,${T.accent} 14%, transparent);
-  color:${T.accent};border-color:color-mix(in srgb,${T.accent} 45%, transparent)}
+  color:color-mix(in srgb,${T.accent} 70%, ${T.text});border-color:color-mix(in srgb,${T.accent} 45%, transparent)}
 
 /* discover candidates — the "find for me" picker inside the add-source sheet */
 .nb-cand-list{display:flex;flex-direction:column;gap:8px;max-height:308px;overflow:auto;padding:2px}
 .nb-cand{display:flex;gap:11px;align-items:flex-start;width:100%;text-align:left;
-  padding:11px 12px;border-radius:12px;border:1px solid var(--nb-hair-soft);
+  padding:11px 12px;border-radius:var(--nb-r-el);border:1px solid var(--nb-hair-soft);
   background:var(--nb-card);cursor:pointer;font-family:inherit;color:inherit}
 .nb-cand:hover{border-color:color-mix(in srgb,${T.text} 20%, transparent);background:var(--nb-wash-2)}
 .nb-cand[data-on=true]{border-color:color-mix(in srgb,${T.accent} 45%, transparent);
   background:color-mix(in srgb,${T.accent} 8%, transparent)}
-.nb-cand-check{width:20px;height:20px;flex:0 0 auto;margin-top:2px;border-radius:7px;
-  border:1.5px solid var(--nb-hair);display:grid;place-items:center;color:#0d0e15}
+.nb-cand-check{width:20px;height:20px;flex:0 0 auto;margin-top:2px;border-radius:var(--nb-r-in);
+  border:1.5px solid var(--nb-hair);display:grid;place-items:center;color:var(--ui-bg-primary, #0b0c11)}
 .nb-cand[data-on=true] .nb-cand-check{background:${T.accent};border-color:${T.accent}}
-.nb-cand-title{display:block;font-size:13.5px;font-weight:600;line-height:1.35;color:${T.text}}
-.nb-cand-sub{display:flex;gap:7px;align-items:flex-start;margin-top:5px;font-size:12px;
+.nb-cand-title{display:block;font-size:13px;font-weight:600;line-height:1.35;color:${T.text}}
+.nb-cand-sub{display:flex;gap:7px;align-items:flex-start;margin-top:5px;font-size:12.5px;
   color:${T.text3};line-height:1.5}
 .nb-cand-sub .nb-chip{flex:0 0 auto;margin-top:1px}
 .nb-cand-sub > span:last-child{display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;
@@ -325,34 +374,34 @@ const CSS = `
 .nb-main-head{padding:24px 30px 0;border-bottom:1px solid var(--nb-hair-soft);flex:0 0 auto;position:relative}
 .nb-hero{display:flex;align-items:flex-start;gap:16px;margin-bottom:16px}
 .nb-hero-emoji{width:52px;height:52px;flex:0 0 auto;display:grid;place-items:center;font-size:30px;
-  border-radius:16px;background:var(--nb-wash-2);border:1px solid var(--nb-hair-soft)}
+  border-radius:var(--nb-r-box);background:var(--nb-wash-2);border:1px solid var(--nb-hair-soft)}
 .nb-hero-main{min-width:0;flex:1}
 .nb-hero-main .nb-h1{margin-bottom:6px}
-.nb-h1{font-size:27px;font-weight:700;letter-spacing:-.025em;line-height:1.15;margin:0;max-width:30ch;
+.nb-h1{font-size:26px;font-weight:700;letter-spacing:-.025em;line-height:1.15;margin:0;max-width:30ch;
   text-wrap:balance}
 .nb-sub{color:${T.text2};font-size:14px;line-height:1.55;margin:0;max-width:70ch}
 .nb-hero-side{display:flex;align-items:center;gap:8px;flex:0 0 auto;padding-top:6px}
 /* ops host-measurement strip (Lab Ops only) */
 .nb-strip{display:flex;align-items:stretch;gap:8px;margin:14px 0 0;flex-wrap:wrap}
-.nb-cell{flex:1;min-width:90px;padding:10px 14px 11px;border-radius:12px;
+.nb-cell{flex:1;min-width:90px;padding:10px 14px 11px;border-radius:var(--nb-r-el);
   border:1px solid var(--nb-hair-soft);background:var(--nb-wash)}
 .nb-cell b{display:block;font-size:17px;font-weight:650;letter-spacing:-.02em;
   line-height:1.1;font-variant-numeric:tabular-nums}
 .nb-cell span{display:block;font-size:11.5px;color:${T.text3};margin-top:6px;font-weight:600}
 .nb-tabs{display:flex;gap:4px;align-items:flex-end;margin:16px 0 0;position:relative;bottom:-1px}
 .nb-tab{min-height:38px;padding:0 14px 11px;border:0;border-bottom:2px solid transparent;
-  border-radius:10px 10px 0 0;background:transparent;color:${T.text2};font-size:13.5px;
+  border-radius:var(--nb-r-el) var(--nb-r-el) 0 0;background:transparent;color:${T.text2};font-size:var(--nb-fs-ui);
   font-weight:600;cursor:pointer;display:inline-flex;align-items:center;gap:7px;letter-spacing:0;
   font-family:inherit;transition:background var(--nb-dur-fast) var(--nb-ease),color var(--nb-dur-fast) var(--nb-ease)}
 .nb-tab:hover{color:${T.text};background:var(--nb-wash)}
-.nb-tab[aria-selected=true]{color:${T.text};border-bottom-color:${T.accent};background:var(--nb-wash)}
+.nb-tab[aria-selected=true]{color:${T.text};border-bottom-color:color-mix(in srgb,${T.accent} 70%, ${T.text});background:var(--nb-wash)}
 .nb-tab[disabled]{opacity:.45;cursor:default}
 
 /* ------------------------------------------------------------------- chat */
 .nb-chat{flex:1;min-height:0;display:flex;flex-direction:column}
 .nb-chatscroll{flex:1;min-height:0;display:flex;flex-direction:column;position:relative}
-.nb-hl{background:color-mix(in srgb, ${T.accent} 30%, transparent);color:inherit;border-radius:4px;padding:0 2px}
-.nb-latest{position:absolute;left:50%;bottom:14px;transform:translateX(-50%);z-index:20;display:inline-flex;align-items:center;gap:4px;padding:7px 14px;border-radius:999px;border:1px solid var(--nb-line,#2a2d3d);background:var(--nb-card,#14161f);color:var(--nb-text2,#c6c9d8);font-size:12.5px;font-weight:600;cursor:pointer;box-shadow:0 6px 20px rgba(0,0,0,.35);transition:transform var(--nb-dur-fast) var(--nb-ease),box-shadow var(--nb-dur-fast) var(--nb-ease)}
+.nb-hl{background:color-mix(in srgb, ${T.accent} 30%, transparent);color:inherit;border-radius:var(--nb-r-in);padding:0 2px}
+.nb-latest{position:absolute;left:50%;bottom:14px;transform:translateX(-50%);z-index:20;display:inline-flex;align-items:center;gap:4px;padding:7px 14px;border-radius:var(--nb-r-pill);border:1px solid var(--nb-line,#2a2d3d);background:var(--nb-card,#14161f);color:var(--nb-text2,#c6c9d8);font-size:12.5px;font-weight:600;cursor:pointer;box-shadow:0 6px 20px rgba(0,0,0,.35);transition:transform var(--nb-dur-fast) var(--nb-ease),box-shadow var(--nb-dur-fast) var(--nb-ease)}
 .nb-latest:hover{transform:translateX(-50%) translateY(-1px);box-shadow:0 8px 24px rgba(0,0,0,.45)}
 .nb-thread{flex:1;min-height:0;overflow:auto;padding:28px 28px 12px;display:flex;flex-direction:column;gap:24px}
 .nb-msg{max-width:72ch;animation:nb-msg-in var(--nb-dur-fast) var(--nb-ease) both}
@@ -383,14 +432,14 @@ const CSS = `
 .nb-msg[data-role=user]{align-self:flex-end;max-width:62ch}
 .nb-msg-body{min-width:0}
 .nb-msg[data-role=user] .nb-bubble{background:var(--nb-wash-2);border:1px solid var(--nb-hair-soft);
-  border-radius:16px;padding:11px 17px;font-size:15px;line-height:1.55;color:${T.text}}
+  border-radius:var(--nb-r-box);padding:11px 17px;font-size:15px;line-height:1.55;color:${T.text}}
 .nb-msg[data-role=assistant] .nb-bubble{font-size:16px;line-height:1.66;color:${T.text}}
 .nb-msg[data-role=assistant] .nb-avatar{width:30px;height:30px;margin-top:2px}
-.nb-avatar{width:36px;height:36px;flex:0 0 auto;display:grid;place-items:center;border-radius:12px;
+.nb-avatar{width:36px;height:36px;flex:0 0 auto;display:grid;place-items:center;border-radius:var(--nb-r-el);
   background:var(--nb-wash-2);color:${T.text2};font-size:13px;font-weight:700}
-.nb-nbrow[aria-current=true] .nb-avatar{background:color-mix(in srgb,${T.accent} 20%, transparent);color:${T.accent}}
-.nb-msg .nb-avatar{width:30px;height:30px;border-radius:99px;
-  background:color-mix(in srgb,${T.accent} 16%, transparent);color:${T.accent};font-size:11px;letter-spacing:.02em}
+.nb-nbrow[aria-current=true] .nb-avatar{background:color-mix(in srgb,${T.accent} 20%, transparent);color:color-mix(in srgb,${T.accent} 70%, ${T.text})}
+.nb-msg .nb-avatar{width:30px;height:30px;border-radius:var(--nb-r-pill);
+  background:color-mix(in srgb,${T.accent} 16%, transparent);color:color-mix(in srgb,${T.accent} 70%, ${T.text});font-size:11.5px;letter-spacing:.02em}
 .nb-who{font-size:11.5px;letter-spacing:.02em;color:${T.text3};font-weight:600;margin-bottom:8px}
 .nb-msg[data-role=user] .nb-who{color:${T.text4}}
 .nb-md p{margin:0 0 11px}
@@ -399,22 +448,22 @@ const CSS = `
 .nb-md h3{font-size:15px;margin:16px 0 6px;color:${T.text2};font-weight:700}
 .nb-md ul{margin:0 0 11px;padding-left:20px}
 .nb-md li{margin:5px 0}
-.nb-md li::marker{color:${T.accent}}
+.nb-md li::marker{color:color-mix(in srgb,${T.accent} 70%, ${T.text})}
 .nb-md code{font-family:var(--ui-font-mono,ui-monospace,monospace);font-size:12.5px;
-  background:var(--nb-wash-2);padding:1.5px 6px;border-radius:6px}
+  background:var(--nb-wash-2);padding:1.5px 6px;border-radius:var(--nb-r-in)}
 .nb-md strong{font-weight:650;color:${T.text}}
-.nb-md blockquote{margin:12px 0;padding:10px 16px;border-radius:12px;color:${T.text2};
+.nb-md blockquote{margin:12px 0;padding:10px 16px;border-radius:var(--nb-r-el);color:${T.text2};
   background:var(--nb-wash);border-left:3px solid color-mix(in srgb,${T.accent} 55%, transparent)}
 /* inline citations are quiet accent pills with the source number */
 .nb-inline-cite{display:inline-flex;align-items:center;min-height:20px;padding:0 8px;margin:0 2px;
-  border-radius:99px;border:1px solid color-mix(in srgb,${T.accent} 30%, transparent);
+  border-radius:var(--nb-r-pill);border:1px solid color-mix(in srgb,${T.accent} 30%, transparent);
   background:color-mix(in srgb,${T.accent} 10%, transparent);
-  font-size:11px;font-weight:700;letter-spacing:.01em;
-  color:${T.accent};cursor:pointer;vertical-align:1px;line-height:1}
+  font-size:11.5px;font-weight:700;letter-spacing:.01em;
+  color:color-mix(in srgb,${T.accent} 70%, ${T.text});cursor:pointer;vertical-align:1px;line-height:1}
 .nb-inline-cite:hover{background:color-mix(in srgb,${T.accent} 20%, transparent)}
 .nb-composer{flex:0 0 auto;padding:14px 30px 20px}
 .nb-askbox{display:flex;flex-direction:column;gap:10px;border:1px solid var(--nb-hair);
-  border-radius:26px;background:var(--nb-card);padding:14px 16px;box-shadow:var(--nb-shadow);
+  border-radius:var(--nb-r-panel);background:var(--nb-card);padding:14px 16px;box-shadow:var(--nb-shadow);
   transition:border-color var(--nb-dur-fast) var(--nb-ease),box-shadow var(--nb-dur-fast) var(--nb-ease)}
 .nb-askbox:focus-within{border-color:color-mix(in srgb,${T.accent} 55%, transparent);
   box-shadow:0 0 0 4px color-mix(in srgb,${T.accent} 15%, transparent), var(--nb-shadow)}
@@ -422,23 +471,23 @@ const CSS = `
   background:transparent;color:${T.text};font-size:15px;line-height:1.5;font-family:inherit}
 .nb-askbox textarea::placeholder{color:${T.text3}}
 .nb-askfoot{display:flex;align-items:center;gap:8px}
-.nb-sendbtn{width:38px;height:38px;flex:0 0 auto;border-radius:99px;border:0;cursor:pointer;
+.nb-sendbtn{width:38px;height:38px;flex:0 0 auto;border-radius:var(--nb-r-pill);border:0;cursor:pointer;
   background:${T.accent};color:#0d0e15;display:grid;place-items:center;padding:0;
   transition:opacity var(--nb-dur-fast) var(--nb-ease),transform var(--nb-dur-fast) var(--nb-ease)}
 .nb-sendbtn:hover{transform:scale(1.05)}
 .nb-sendbtn[disabled]{opacity:.4;cursor:not-allowed;transform:none}
-.nb-disclaimer{font-size:11px;color:${T.text3};text-align:center;margin-top:9px}
+.nb-disclaimer{font-size:11.5px;color:${T.text3};text-align:center;margin-top:9px}
 
 /* ------------------------------------------------- overview + suggestions */
-.nb-overview{border:1px solid var(--nb-hair-soft);border-radius:16px;background:var(--nb-card);
+.nb-overview{border:1px solid var(--nb-hair-soft);border-radius:var(--nb-r-box);background:var(--nb-card);
   padding:18px 20px;display:grid;gap:10px}
 .nb-overview-head{display:flex;align-items:center;gap:8px}
 .nb-overview-head .nb-meta{flex:1}
-.nb-overview-body{font-size:14.5px;line-height:1.66;color:${T.text2}}
+.nb-overview-body{font-size:14px;line-height:1.66;color:${T.text2}}
 .nb-overview-body .nb-md strong{color:${T.text}}
 .nb-suggest-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px}
 .nb-suggest{display:flex;flex-direction:column;justify-content:space-between;gap:10px;
-  min-height:104px;text-align:left;padding:14px;border-radius:16px;cursor:pointer;
+  min-height:104px;text-align:left;padding:14px;border-radius:var(--nb-r-box);cursor:pointer;
   border:1px solid var(--nb-hair-soft);background:var(--nb-card);color:${T.text};
   font-family:inherit;font-size:13px;line-height:1.45;transition:border-color var(--nb-dur-fast) var(--nb-ease),
   background var(--nb-dur-fast) var(--nb-ease),transform var(--nb-dur-fast) var(--nb-ease)}
@@ -449,7 +498,7 @@ const CSS = `
 .nb-gaprow{display:flex;gap:6px;flex-wrap:wrap;align-items:center}
 .nb-gaprow .nb-chip[data-click=true]{border-style:dashed}
 .nb-thrrow{display:flex;align-items:center;gap:10px;width:100%;text-align:left;
-  padding:10px 12px;border-radius:12px;cursor:pointer;font-family:inherit;
+  padding:10px 12px;border-radius:var(--nb-r-el);cursor:pointer;font-family:inherit;
   border:1px solid transparent;background:transparent;color:${T.text}}
 .nb-thrrow:hover{background:var(--nb-wash)}
 .nb-thrrow.is-current{border-color:color-mix(in srgb,${T.accent} 40%, transparent);
@@ -459,31 +508,65 @@ const CSS = `
 .nb-thrwrap .nb-icon{opacity:0;transition:opacity var(--nb-dur-fast) var(--nb-ease)}
 .nb-thrwrap:hover .nb-icon,.nb-thrwrap:focus-within .nb-icon{opacity:1}
 .nb-emgrid{display:grid;grid-template-columns:repeat(8,1fr);gap:6px}
-.nb-em{aspect-ratio:1;border-radius:8px;border:1px solid var(--nb-hair-soft);
+.nb-em{aspect-ratio:1;border-radius:var(--nb-r-in);border:1px solid var(--nb-hair-soft);
   background:var(--nb-card);font-size:17px;cursor:pointer;display:grid;place-items:center;
   transition:border-color var(--nb-dur-fast) var(--nb-ease),background var(--nb-dur-fast) var(--nb-ease)}
 .nb-em:hover{border-color:color-mix(in srgb,${T.accent} 45%, transparent)}
-.nb-em.is-on{border-color:${T.accent};background:color-mix(in srgb,${T.accent} 12%, transparent)}
+.nb-em.is-on{border-color:color-mix(in srgb,${T.accent} 70%, ${T.text});background:color-mix(in srgb,${T.accent} 12%, transparent)}
 
-/* --------------------------------------------------------- studio (index) */
-.nb-grid{display:flex;flex-direction:column;gap:10px;padding:12px 14px 26px}
-/* the generator bento: compact 2-col pills, each tinted by its kind colour */
-.nb-gen-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+/* -------------------------------------------------- studio (the workbench)
+   The right panel is where things get made, so it is organised by what it makes
+   — listen & watch, read, study, visualise — instead of one flat 2-col grid of
+   thirteen equals. Each family folds (a crowded bench is unworkable), each pill
+   says what it produces and what state its last run is in, and the run list
+   underneath is the record of what was actually produced. */
+.nb-studio-head{gap:var(--nb-sp-3)}
+.nb-studio-body{flex:1;min-height:0;display:flex;flex-direction:column;gap:var(--nb-sp-4);
+  overflow:auto;overscroll-behavior:contain;
+  padding:var(--nb-sp-4) var(--nb-sp-4) 0;
+  scrollbar-width:thin;
+  scrollbar-color:color-mix(in srgb,${T.text} 22%,transparent) transparent}
+.nb-studio-sec{display:flex;flex-direction:column;gap:var(--nb-sp-2)}
+.nb-studio-sec-head{display:flex;align-items:center;gap:var(--nb-sp-2);min-height:32px}
+.nb-studio-sec-head .nb-meta{color:${T.text2}}
 
-/* each output pill carries its own colour (--kc) */
+/* a family header: icon + name + "n of m ready" + fold chevron */
+.nb-group{display:flex;flex-direction:column;gap:var(--nb-sp-2)}
+.nb-group-head{display:flex;align-items:center;gap:var(--nb-sp-2);width:100%;
+  scroll-margin-top:var(--nb-sp-4);
+  min-height:32px;padding:0 var(--nb-sp-2);border:0;border-radius:var(--nb-r-in);
+  background:transparent;cursor:pointer;color:${T.text3};font-family:inherit;
+  font-size:var(--nb-fs-label);font-weight:650;letter-spacing:.01em;
+  transition:background var(--nb-dur-fast) var(--nb-ease),color var(--nb-dur-fast) var(--nb-ease)}
+.nb-group-head:hover{background:var(--nb-wash-2);color:${T.text}}
+.nb-group-head:focus-visible{outline:2px solid ${T.accent};outline-offset:2px}
+.nb-group-head svg{opacity:.7;flex:0 0 auto}
+.nb-group-name{flex:0 0 auto}
+.nb-group-count{margin-left:auto;font-size:var(--nb-fs-meta);font-weight:600;
+  color:${T.text3};font-variant-numeric:tabular-nums}
+.nb-group-head[aria-expanded=true] .nb-group-count{color:${T.text2}}
+.nb-group-chev{display:grid;place-items:center;opacity:.55;
+  transition:transform var(--nb-dur-fast) var(--nb-ease)}
+.nb-group-head[aria-expanded=false] .nb-group-chev{transform:rotate(-90deg)}
+
+/* the output pills: two per row inside a family, each tinted by its kind */
+.nb-gen-grid{display:grid;grid-template-columns:1fr 1fr;gap:var(--nb-sp-3);padding:0 0 var(--nb-sp-2)}
+
 .nb-card{--kc:${T.accent};
-  display:flex;align-items:center;gap:10px;width:100%;padding:11px 12px;
-  border:1px solid var(--nb-hair-soft);border-radius:16px;
+  display:flex;align-items:flex-start;gap:var(--nb-sp-3);width:100%;
+  min-height:78px;padding:var(--nb-sp-3) var(--nb-sp-3);
+  border:1px solid var(--nb-hair-soft);border-radius:var(--nb-r-el);
   background:var(--nb-card);cursor:pointer;text-align:left;color:${T.text};
-  transition:background var(--nb-dur-fast) var(--nb-ease),border-color var(--nb-dur-fast) var(--nb-ease),transform var(--nb-dur-fast) var(--nb-ease),
-    box-shadow var(--nb-dur-fast) var(--nb-ease)}
-.nb-card:hover{background:var(--nb-wash-2);border-color:color-mix(in srgb,var(--kc) 42%, var(--nb-hair));
+  transition:background var(--nb-dur-fast) var(--nb-ease),border-color var(--nb-dur-fast) var(--nb-ease),
+    transform var(--nb-dur-fast) var(--nb-ease),box-shadow var(--nb-dur-fast) var(--nb-ease)}
+.nb-card:hover{background:var(--nb-wash-2);border-color:color-mix(in srgb,var(--kc) 40%, var(--nb-hair));
   transform:translateY(-1px);
-  box-shadow:0 8px 26px -10px color-mix(in srgb,var(--kc) 45%, transparent)}
-.nb-card[data-ready=true]{border-color:color-mix(in srgb,var(--kc) 30%, var(--nb-hair-soft))}
-.nb-card[data-busy=true]{border-color:color-mix(in srgb,var(--kc) 50%, transparent);
+  box-shadow:0 8px 26px -12px color-mix(in srgb,var(--kc) 42%, transparent)}
+.nb-card:focus-visible{outline:2px solid ${T.accent};outline-offset:2px}
+.nb-card[data-ready=true]{border-color:color-mix(in srgb,var(--kc) 26%, var(--nb-hair-soft))}
+.nb-card[data-busy=true]{border-color:color-mix(in srgb,var(--kc) 48%, transparent);
   background:color-mix(in srgb,var(--kc) 6%, var(--nb-card))}
-.nb-card-ico{width:32px;height:32px;flex:0 0 auto;border-radius:8px;display:grid;place-items:center;
+.nb-card-ico{width:28px;height:28px;flex:0 0 auto;border-radius:var(--nb-r-in);display:grid;place-items:center;
   background:color-mix(in srgb,var(--kc) 14%, transparent);color:var(--kc)}
 .nb-card[data-kind=video_overview],.nb-art[data-kind=video_overview]{--kc:#81c995}
 .nb-card[data-kind=audio_overview],.nb-art[data-kind=audio_overview]{--kc:#a8c7fa}
@@ -497,60 +580,75 @@ const CSS = `
 .nb-card[data-kind=quiz],.nb-art[data-kind=quiz]{--kc:#c58af9}
 .nb-card[data-kind=slides],.nb-art[data-kind=slides]{--kc:#f28b82}
 .nb-card[data-kind=infographic],.nb-art[data-kind=infographic]{--kc:#fde293}
-.nb-card-main{min-width:0;flex:1;display:flex;flex-direction:column;gap:3px}
-.nb-card-name{display:flex;align-items:center;gap:6px;font-size:12.5px;font-weight:600;
-  letter-spacing:0;line-height:1.25;color:${T.text}}
+.nb-card[data-kind=data_table],.nb-art[data-kind=data_table]{--kc:#a8c7fa}
+.nb-card-main{min-width:0;flex:1;display:flex;flex-direction:column;gap:1px}
+.nb-card-name{display:flex;align-items:center;gap:5px;font-size:var(--nb-fs-label);font-weight:650;
+  letter-spacing:-.005em;line-height:1.3;color:${T.text};
+  overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .nb-card-name svg{color:var(--kc);flex:0 0 auto}
-.nb-card-blurb{display:block;font-size:11px;line-height:1.4;color:${T.text3};
-  overflow:hidden;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical}
-.nb-card-foot{display:flex;align-items:center;gap:8px;margin-top:auto;padding-top:5px}
-.nb-card-state{display:inline-flex;align-items:center;gap:6px;white-space:nowrap;
-  font-size:10.5px;font-weight:600;color:${T.text3}}
-.nb-card[data-ready=true] .nb-card-state{color:${T.ok};background:color-mix(in srgb,${T.ok} 13%, transparent)}
-.nb-card[data-busy=true] .nb-card-state{color:var(--kc);background:color-mix(in srgb,var(--kc) 13%, transparent)}
-.nb-dot{width:6px;height:6px;border-radius:99px;background:${T.text4};display:inline-block;flex:0 0 auto}
+/* the blurb is what the output actually is — the pill is not just a label */
+.nb-card-blurb{display:-webkit-box;font-size:var(--nb-fs-meta);line-height:1.4;color:${T.text3};
+  -webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+.nb-card-foot{display:flex;align-items:center;gap:var(--nb-sp-2);margin-top:auto;padding-top:4px}
+.nb-card-state{display:inline-flex;align-items:center;gap:5px;white-space:nowrap;
+  font-size:var(--nb-fs-meta);font-weight:600;color:${T.text3};
+  padding:2px 7px;border-radius:var(--nb-r-pill)}
+.nb-card[data-ready=true] .nb-card-state{color:color-mix(in srgb,${T.ok} 62%, ${T.text});
+  background:color-mix(in srgb,${T.ok} 14%, transparent)}
+.nb-card[data-busy=true] .nb-card-state{color:color-mix(in srgb,var(--kc) 58%, ${T.text});
+  background:color-mix(in srgb,var(--kc) 14%, transparent)}
+.nb-dot{width:6px;height:6px;border-radius:50%;background:${T.text4};display:inline-block;flex:0 0 auto}
 .nb-card[data-ready=true] .nb-dot{background:${T.ok}}
 .nb-card[data-busy=true] .nb-dot{background:var(--kc);animation:nb-pulse 1.2s ease-in-out infinite}
-.nb-bar-track{height:4px;margin-top:2px;background:var(--nb-wash-2);border-radius:99px;overflow:hidden;display:block;flex:1;max-width:120px}
-.nb-bar-fill{height:100%;background:var(--kc);border-radius:99px;transition:width var(--nb-dur-med) var(--nb-ease)}
+.nb-bar-track{height:3px;margin-top:3px;background:var(--nb-wash-2);border-radius:var(--nb-r-pill);
+  overflow:hidden;display:block;flex:1;max-width:100%}
+.nb-bar-fill{height:100%;background:var(--kc);border-radius:var(--nb-r-pill);
+  transition:width var(--nb-dur-med) var(--nb-ease)}
 @keyframes nb-pulse{0%,100%{opacity:1}50%{opacity:.35}}
 
-/* the generated-artifacts list: tinted icon tile + title + meta */
-.nb-artlist{display:flex;flex-direction:column;gap:4px}
-.nb-art{display:flex;align-items:center;gap:11px;width:100%;text-align:left;
-  padding:8px 10px;border-radius:12px;border:0;background:transparent;color:${T.text};
-  cursor:pointer;font-family:inherit;transition:background var(--nb-dur-fast) var(--nb-ease)}
-.nb-art:hover{background:var(--nb-wash-2)}
-.nb-art-ico{width:40px;height:40px;flex:0 0 auto;border-radius:12px;position:relative;overflow:hidden;
+/* the run list: a record of real files, newest first */
+.nb-studio-runs{padding-top:var(--nb-sp-3);border-top:1px solid var(--nb-hair-soft)}
+.nb-studio-filters{padding:0 0 var(--nb-sp-2)}
+.nb-artlist{display:flex;flex-direction:column;gap:2px;padding:0 var(--nb-sp-2) 72px}
+.nb-art{display:flex;align-items:center;gap:var(--nb-sp-3);width:100%;text-align:left;
+  min-height:52px;padding:var(--nb-sp-2) var(--nb-sp-3);border-radius:var(--nb-r-el);
+  border:1px solid transparent;background:transparent;color:${T.text};
+  cursor:pointer;font-family:inherit;
+  transition:background var(--nb-dur-fast) var(--nb-ease),border-color var(--nb-dur-fast) var(--nb-ease)}
+.nb-art:hover{background:var(--nb-wash-2);border-color:var(--nb-hair-soft)}
+.nb-art:focus-visible{outline:2px solid ${T.accent};outline-offset:2px}
+.nb-art-ico{width:38px;height:38px;flex:0 0 auto;border-radius:var(--nb-r-in);position:relative;overflow:hidden;
   display:grid;place-items:center;
   background:color-mix(in srgb,var(--kc) 13%, transparent);
   color:color-mix(in srgb,var(--kc) 70%, ${T.text});
   border:1px solid color-mix(in srgb,var(--kc) 22%, transparent)}
-.nb-art-ico svg{opacity:.9}
+.nb-art-ico svg{opacity:.92}
 .nb-art-main{flex:1;min-width:0}
-.nb-art-title{display:block;font-size:13px;font-weight:600;line-height:1.3;color:${T.text};
+.nb-art-title{display:block;font-size:var(--nb-fs-ui);font-weight:600;line-height:1.3;color:${T.text};
   overflow:hidden;white-space:nowrap;text-overflow:ellipsis}
-.nb-art-sub{display:block;font-size:11px;color:${T.text3};margin-top:2px;
+.nb-art-sub{display:block;font-size:var(--nb-fs-meta);color:${T.text3};margin-top:1px;
   overflow:hidden;white-space:nowrap;text-overflow:ellipsis}
 .nb-artrow{position:relative}
-.nb-art-del{position:absolute;right:8px;top:50%;transform:translateY(-50%);
+.nb-art-del{position:absolute;right:var(--nb-sp-1);top:50%;transform:translateY(-50%);
   opacity:0;transition:opacity var(--nb-dur-fast) var(--nb-ease)}
 .nb-artrow:hover .nb-art-del,.nb-art-del:focus-visible{opacity:1}
-.nb-artrow:hover .nb-art{padding-right:36px}
-
+.nb-artrow:hover .nb-art{padding-right:40px}
+.nb-empty-out{display:flex;align-items:flex-start;gap:var(--nb-sp-3);padding:var(--nb-sp-5) var(--nb-sp-3);
+  color:${T.text3};font-size:var(--nb-fs-label);line-height:1.5}
+.nb-empty-out svg{flex:0 0 auto;opacity:.6;margin-top:1px}
 /* thumb content inside the artifact icon tile */
 .nb-art-ico .nb-thumb-img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;display:block}
 .nb-art-ico .nb-thumb-wave{display:flex;align-items:center;gap:1.5px;height:70%;width:80%}
-.nb-art-ico .nb-thumb-wave i{flex:1 1 0;min-width:1.5px;border-radius:99px;background:var(--kc);opacity:.8}
+.nb-art-ico .nb-thumb-wave i{flex:1 1 0;min-width:1.5px;border-radius:var(--nb-r-pill);background:var(--kc);opacity:.8}
 
 /* ----------------------------------------------------------------- viewer */
 .nb-view{flex:1;min-height:0;display:flex;flex-direction:column}
 .nb-view-head{display:flex;align-items:center;gap:12px;padding:12px 24px;
   border-bottom:1px solid var(--nb-hair-soft)}
-.nb-view-title{font-size:15.5px;font-weight:650;letter-spacing:-.01em}
+.nb-view-title{font-size:15px;font-weight:650;letter-spacing:-.01em}
 .nb-view-body{flex:1;min-height:0;overflow:auto;padding:26px}
-.nb-doc{max-width:70ch;font-size:15.5px;line-height:1.68}
-.nb-doc h1{font-size:23px;line-height:1.2;letter-spacing:-.025em;margin:0 0 14px;text-wrap:balance}
+.nb-doc{max-width:70ch;font-size:15px;line-height:1.68}
+.nb-doc h1{font-size:22px;line-height:1.2;letter-spacing:-.025em;margin:0 0 14px;text-wrap:balance}
 .nb-doc em{color:${T.text2}}
 .nb-doc hr{border:0;border-top:1px solid var(--nb-hair-soft);margin:22px 0}
 .nb-doc h2{font-size:19px;margin:26px 0 10px;letter-spacing:-.02em}
@@ -559,24 +657,24 @@ const CSS = `
 .nb-doc ul,.nb-doc ol{padding-left:22px;margin:0 0 12px}
 .nb-doc li{margin:5px 0}
 .nb-doc table{border-collapse:separate;border-spacing:0;width:100%;font-size:14px;margin:14px 0;
-  border:1px solid var(--nb-hair-soft);border-radius:12px;overflow:hidden}
+  border:1px solid var(--nb-hair-soft);border-radius:var(--nb-r-el);overflow:hidden}
 .nb-doc th,.nb-doc td{border-bottom:1px solid var(--nb-hair-soft);padding:9px 12px;text-align:left}
 .nb-doc td+td,.nb-doc th+th{border-left:1px solid var(--nb-hair-soft)}
 .nb-doc tr:last-child td{border-bottom:0}
-.nb-doc th{background:var(--nb-wash-2);font-size:11px;letter-spacing:.05em;text-transform:uppercase;
+.nb-doc th{background:var(--nb-wash-2);font-size:11.5px;letter-spacing:.05em;text-transform:uppercase;
   font-weight:700;color:${T.text2}}
-.nb-doc pre{background:var(--nb-wash);border:1px solid var(--nb-hair-soft);border-radius:12px;
+.nb-doc pre{background:var(--nb-wash);border:1px solid var(--nb-hair-soft);border-radius:var(--nb-r-el);
   padding:14px;overflow:auto;font-size:13px}
 
 /* -------------------------------------------------------------- stage/media */
 .nb-stage{display:flex;flex-direction:column;gap:16px}
-.nb-screen{position:relative;overflow:hidden;border-radius:16px;border:1px solid var(--nb-hair);
+.nb-screen{position:relative;overflow:hidden;border-radius:var(--nb-r-box);border:1px solid var(--nb-hair);
   background:var(--nb-media);aspect-ratio:16/9;display:grid;place-items:center;box-shadow:var(--nb-shadow)}
 .nb-screen video,.nb-screen iframe{width:100%;height:100%;border:0;display:block;background:#000}
 .nb-screen-audio{aspect-ratio:auto;padding:22px;display:flex;flex-direction:column;gap:16px;
   place-items:stretch;width:100%}
 .nb-wave{display:flex;align-items:center;gap:2.5px;height:72px;width:100%}
-.nb-wave i{flex:1 1 0;min-width:2px;height:100%;border-radius:99px;background:rgba(235,238,245,.42)}
+.nb-wave i{flex:1 1 0;min-width:2px;height:100%;border-radius:var(--nb-r-pill);background:rgba(235,238,245,.42)}
 .nb-wave i[data-past=true]{background:${T.accent};opacity:1}
 .nb-ctrl{display:flex;align-items:center;gap:10px}
 .nb-timeline{display:flex;flex-direction:column;gap:0;margin:0;padding:0;list-style:none;position:relative}
@@ -585,14 +683,14 @@ const CSS = `
 .nb-tl{display:grid;grid-template-columns:110px 1fr;gap:16px;padding:13px 0 13px 24px;
   border-top:1px solid var(--nb-hair-soft);position:relative}
 .nb-tl:first-child{border-top:0}
-.nb-tl::before{content:'';position:absolute;left:2px;top:20px;width:11px;height:11px;border-radius:99px;
+.nb-tl::before{content:'';position:absolute;left:2px;top:20px;width:11px;height:11px;border-radius:var(--nb-r-pill);
   background:${T.accent};box-shadow:0 0 0 3px color-mix(in srgb,${T.accent} 18%, transparent)}
 .nb-tl-when{font-family:var(--ui-font-mono,ui-monospace,monospace);font-size:10.5px;font-weight:700;
-  color:${T.accent};letter-spacing:.06em;text-transform:uppercase;padding-top:3px}
+  color:color-mix(in srgb,${T.accent} 70%, ${T.text});letter-spacing:.06em;text-transform:uppercase;padding-top:3px}
 .nb-tl-what{font-size:15px;color:${T.text2}}
 
 /* ---------------------------------------------------------------- mind map */
-.nb-map{width:100%;height:100%;min-height:340px;display:block;cursor:grab;border-radius:16px;
+.nb-map{width:100%;height:100%;min-height:340px;display:block;cursor:grab;border-radius:var(--nb-r-box);
   border:1px solid var(--nb-hair-soft);
   background:radial-gradient(circle at 50% 45%, color-mix(in srgb,${T.accent} 9%, transparent), transparent 62%), var(--nb-card)}
 .nb-map:active{cursor:grabbing}
@@ -603,7 +701,7 @@ const CSS = `
 .nb-flip-inner{position:relative;width:100%;min-height:310px;transition:transform .5s cubic-bezier(.2,.7,.2,1);
   transform-style:preserve-3d}
 .nb-flip[data-flipped=true] .nb-flip-inner{transform:rotateY(180deg)}
-.nb-face{position:absolute;inset:0;backface-visibility:hidden;border-radius:16px;
+.nb-face{position:absolute;inset:0;backface-visibility:hidden;border-radius:var(--nb-r-box);
   border:1px solid var(--nb-hair);background:var(--nb-card);box-shadow:var(--nb-shadow);
   padding:30px;display:flex;flex-direction:column;justify-content:center;gap:12px;
   font-size:19px;line-height:1.5}
@@ -615,7 +713,7 @@ const CSS = `
 /* -------------------------------------------------------------------- ops */
 .nb-fleet{display:flex;flex-direction:column;gap:8px;padding:8px 0}
 .nb-frow{display:grid;grid-template-columns:10px minmax(0,1fr) auto;align-items:center;gap:12px;
-  padding:11px 14px;border:1px solid var(--nb-hair-soft);border-radius:12px;background:var(--nb-card);
+  padding:11px 14px;border:1px solid var(--nb-hair-soft);border-radius:var(--nb-r-el);background:var(--nb-card);
   cursor:pointer;text-align:left;color:${T.text};min-height:54px;
   transition:border-color var(--nb-dur-fast) var(--nb-ease),box-shadow var(--nb-dur-fast) var(--nb-ease),transform var(--nb-dur-fast) var(--nb-ease)}
 .nb-frow:hover{border-color:color-mix(in srgb,${T.text} 20%, transparent);box-shadow:var(--nb-shadow)}
@@ -624,63 +722,119 @@ const CSS = `
 .nb-fname{font-size:14px;font-weight:600;line-height:1.25}
 .nb-frole{font-size:10.5px;color:${T.text3};text-transform:uppercase;letter-spacing:.06em;font-weight:600}
 .nb-term{font-family:var(--ui-font-mono,ui-monospace,monospace);font-size:13px;line-height:1.55;flex:1 1 auto;
-  background:#101320;color:#c9cede;border-radius:16px;padding:16px;min-height:130px;max-height:none;overflow:auto;
+  background:#101320;color:#c9cede;border-radius:var(--nb-r-box);padding:16px;min-height:130px;max-height:none;overflow:auto;
   white-space:pre-wrap;word-break:break-word;border:1px solid rgba(255,255,255,.09);
   box-shadow:inset 0 1px 0 rgba(255,255,255,.05)}
 .nb-term-in{display:flex;gap:8px;align-items:center;margin-top:10px}
-.nb-term-in input{flex:1;height:38px;border-radius:12px;border:1px solid var(--nb-hair);
-  background:var(--nb-wash);color:${T.text};padding:0 13px;font-size:13.5px;
+.nb-term-in input{flex:1;height:38px;border-radius:var(--nb-r-el);border:1px solid var(--nb-hair);
+  background:var(--nb-wash);color:${T.text};padding:0 13px;font-size:13px;
   font-family:var(--ui-font-mono,ui-monospace,monospace);outline:0}
 .nb-term-in input:focus{border-color:color-mix(in srgb,${T.accent} 55%, transparent)}
 
 /* -------------------------------------------------------------- status bar */
-.nb-status{flex:0 0 32px;height:32px;display:flex;align-items:center;gap:14px;padding:0 18px;font-size:12px;
+.nb-status{flex:0 0 32px;height:32px;display:flex;align-items:center;gap:14px;padding:0 18px;font-size:12.5px;
   border-top:1px solid var(--nb-hair-soft);background:transparent;
   font-size:11.5px;color:${T.text3}}
 .nb-status b{color:${T.text2};font-weight:600}
-.nb-sdot{width:8px;height:8px;border-radius:99px;display:inline-block;margin-right:8px;vertical-align:middle}
+.nb-sdot{width:8px;height:8px;border-radius:var(--nb-r-pill);display:inline-block;margin-right:8px;vertical-align:middle}
 .nb-void{display:grid;place-items:center;height:100%;padding:40px;text-align:center;color:${T.text3}}
-.nb-void h3{color:${T.text};font-size:21px;margin:0 0 10px;letter-spacing:-.02em;font-weight:700}
+.nb-void h3{color:${T.text};font-size:22px;margin:0 0 10px;letter-spacing:-.02em;font-weight:700}
 .nb-void p{margin:0;max-width:48ch;font-size:14px;line-height:1.62}
 
-/* ------------------------------------------------------------ home (directory) */
+/* ------------------------------------------------------ home (the reading room)
+   The directory is a shelf of notebooks, not a grid of tiles. Each card shows
+   the notebook's own sigil, what it holds (sources / artifacts / chats) as
+   labelled counts rather than a run-on meta line, its description as the
+   thing that actually distinguishes it, and one primary action: open it.
+   A stretched-link card keeps rename/delete as real buttons in the corner. */
 .nb-home{flex:1;min-height:0;display:flex;flex-direction:column}
-.nb-home-scroll{flex:1;min-height:0;overflow:auto;padding:26px 30px 30px;overscroll-behavior:contain}
-.nb-home-head{display:flex;align-items:flex-end;gap:16px;margin-bottom:24px;flex-wrap:wrap}
-.nb-home-title{font-size:26px;font-weight:700;letter-spacing:-.02em;margin:0;line-height:1.2}
-.nb-home-sub{font-size:13.5px;color:${T.text2};margin:5px 0 0}
-.nb-home-search{width:260px;margin-left:auto}
-.nb-feature-row{display:flex;gap:14px;overflow-x:auto;padding:2px 2px 12px;margin-bottom:26px;
+.nb-home-scroll{flex:1;min-height:0;overflow:auto;padding:var(--nb-sp-7) var(--nb-sp-8) var(--nb-sp-8);
+  overscroll-behavior:contain}
+.nb-home-head{display:flex;align-items:flex-end;gap:var(--nb-sp-5);margin-bottom:var(--nb-sp-7);
+  flex-wrap:wrap}
+.nb-home-title{font-size:var(--nb-fs-display);font-weight:700;letter-spacing:-.022em;margin:0;line-height:1.15}
+.nb-home-sub{font-size:var(--nb-fs-ui);color:${T.text2};margin:var(--nb-sp-2) 0 0;line-height:1.5}
+.nb-home-sub b{color:${T.text};font-weight:650;font-variant-numeric:tabular-nums}
+.nb-home-search{width:280px;margin-left:auto}
+
+/* featured shelf — the three notebooks with the most in them, one row */
+.nb-feature-row{display:flex;gap:var(--nb-sp-4);overflow-x:auto;padding:2px 2px 0;
   scrollbar-width:thin}
-.nb-feature{flex:0 0 300px;min-height:176px;height:auto;border-radius:16px;padding:18px;position:relative;
-  overflow:hidden;display:flex;flex-direction:column;justify-content:space-between;
+.nb-feature{flex:0 0 306px;min-height:164px;height:auto;border-radius:var(--nb-r-box);
+  padding:var(--nb-sp-5);position:relative;overflow:hidden;
+  display:flex;flex-direction:column;gap:var(--nb-sp-4);
   text-align:left;cursor:pointer;color:${T.text};font-family:inherit;
   border:1px solid var(--nb-hair-soft);
-  background:linear-gradient(135deg, color-mix(in srgb,var(--kc) 30%, var(--nb-card)), var(--nb-card) 72%);
-  transition:transform var(--nb-dur-fast) var(--nb-ease),box-shadow var(--nb-dur-fast) var(--nb-ease)}
-.nb-feature:hover{transform:translateY(-2px);box-shadow:var(--nb-shadow-lift)}
-.nb-feature::after{content:'';position:absolute;right:-46px;bottom:-58px;width:190px;height:190px;
-  border-radius:99px;background:color-mix(in srgb,var(--kc) 22%, transparent);pointer-events:none}
-.nb-feature-emoji{font-size:30px;line-height:1}
-.nb-feature-title{font-size:15.5px;font-weight:650;line-height:1.3;position:relative;
-  display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
-.nb-feature-meta{font-size:12px;line-height:1.5;color:${T.text3};position:relative;white-space:normal}
-.nb-home-sec{display:flex;align-items:center;gap:12px;margin:0 0 14px}
-.nb-home-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(215px,1fr));gap:13px;
-  align-content:start}
-.nb-nbcard-wrap{position:relative;height:170px}
-.nb-nbcard{height:100%;position:relative;border-radius:16px;padding:16px;display:flex;
-  flex-direction:column;justify-content:space-between;text-align:left;cursor:pointer;
-  color:${T.text};font-family:inherit;
+  background:linear-gradient(145deg, color-mix(in srgb,var(--kc) 22%, var(--nb-card)), var(--nb-card) 68%);
+  transition:transform var(--nb-dur-fast) var(--nb-ease),box-shadow var(--nb-dur-fast) var(--nb-ease),
+    border-color var(--nb-dur-fast) var(--nb-ease)}
+.nb-feature:hover{transform:translateY(-2px);box-shadow:var(--nb-shadow-lift);
+  border-color:color-mix(in srgb,var(--kc) 34%, var(--nb-hair))}
+.nb-feature:focus-visible{outline:2px solid ${T.accent};outline-offset:3px}
+.nb-feature::after{content:'';position:absolute;right:-52px;bottom:-64px;width:196px;height:196px;
+  border-radius:var(--nb-r-pill);background:color-mix(in srgb,var(--kc) 18%, transparent);pointer-events:none}
+.nb-feature-sec{display:flex;flex-direction:column;gap:var(--nb-sp-3);margin-bottom:var(--nb-sp-7)}
+.nb-feature-top{display:flex;align-items:center;gap:var(--nb-sp-3);position:relative;min-width:0}
+.nb-feature-top .nb-feature-title{font-size:var(--nb-fs-title);font-weight:650;line-height:1.3;
+  letter-spacing:-.012em;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;
+  overflow:hidden;min-width:0}
+.nb-feature-emoji{flex:0 0 auto;display:grid;place-items:center;max-width:44px}
+.nb-feature-title{font-size:var(--nb-fs-title);font-weight:650;line-height:1.3;position:relative;
+  margin-top:auto;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;
+  letter-spacing:-.012em}
+.nb-feature-meta{font-size:var(--nb-fs-meta);line-height:1.5;color:${T.text3};position:relative;
+  white-space:normal;display:flex;align-items:center;gap:var(--nb-sp-2);flex-wrap:wrap}
+
+/* count chips read as measurements, not prose: glyph + number + quiet noun */
+.nb-counts{display:flex;align-items:center;gap:var(--nb-sp-3);flex-wrap:wrap}
+.nb-count{display:inline-flex;align-items:center;gap:5px;color:${T.text3};
+  font-size:var(--nb-fs-meta);line-height:1;white-space:nowrap}
+.nb-count b{color:${T.text2};font-weight:650;font-variant-numeric:tabular-nums}
+.nb-count svg{opacity:.75}
+
+.nb-home-sec{display:flex;align-items:center;gap:var(--nb-sp-4);margin:0 0 var(--nb-sp-4);
+  padding-bottom:var(--nb-sp-3);border-bottom:1px solid var(--nb-hair-soft)}
+.nb-home-sec .nb-meta{color:${T.text2}}
+.nb-home-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(268px,1fr));
+  gap:var(--nb-sp-4);align-content:start}
+.nb-nbcard-wrap{position:relative;min-height:196px}
+.nb-nbcard{width:100%;height:100%;position:relative;border-radius:var(--nb-r-box);
+  padding:var(--nb-sp-5) var(--nb-sp-5) var(--nb-sp-4);
+  display:flex;flex-direction:column;gap:var(--nb-sp-3);
+  text-align:left;cursor:pointer;color:${T.text};font-family:inherit;
   border:1px solid var(--nb-hair-soft);background:var(--nb-card);
-  transition:border-color var(--nb-dur-fast) var(--nb-ease),transform var(--nb-dur-fast) var(--nb-ease),box-shadow var(--nb-dur-fast) var(--nb-ease)}
-.nb-nbcard:hover{border-color:color-mix(in srgb,${T.accent} 42%, var(--nb-hair));
-  transform:translateY(-2px);box-shadow:var(--nb-shadow-lift)}
-.nb-nbcard-emoji{font-size:32px;line-height:1}
-.nb-nbcard-del{position:absolute;top:9px;right:7px}
-.nb-nbcard-ren{position:absolute;top:9px;right:32px}
-.nb-nbcard-title{font-size:14.5px;font-weight:650;line-height:1.35;padding-right:28px}
-.nb-nbcard-meta{font-size:11.5px;color:${T.text3};margin-top:8px}
+  transition:border-color var(--nb-dur-fast) var(--nb-ease),transform var(--nb-dur-fast) var(--nb-ease),
+    box-shadow var(--nb-dur-fast) var(--nb-ease),background var(--nb-dur-fast) var(--nb-ease)}
+.nb-nbcard:hover{border-color:color-mix(in srgb,${T.accent} 38%, var(--nb-hair));
+  transform:translateY(-2px);box-shadow:var(--nb-shadow-lift);background:var(--nb-wash-2)}
+.nb-nbcard:focus-visible{outline:2px solid ${T.accent};outline-offset:3px}
+.nb-nbcard-top{display:flex;align-items:flex-start;gap:var(--nb-sp-3);min-width:0}
+.nb-nbcard-emoji{flex:0 0 auto;line-height:1;display:grid;place-items:center}
+.nb-nbcard-head{min-width:0;flex:1;padding-right:var(--nb-sp-6)}
+.nb-nbcard-title{font-size:var(--nb-fs-read);font-weight:650;line-height:1.32;letter-spacing:-.01em;
+  display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;
+  overflow-wrap:anywhere}
+.nb-nbcard-when{display:block;margin-top:3px;font-size:var(--nb-fs-meta);color:${T.text3};font-weight:500}
+.nb-nbcard-desc{font-size:var(--nb-fs-label);line-height:1.5;color:${T.text3};
+  display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;
+  min-height:calc(2 * 1.5 * var(--nb-fs-label))}
+.nb-nbcard-desc[data-empty="true"]{color:${T.text4};font-style:italic}
+.nb-nbcard-foot{display:flex;align-items:center;gap:var(--nb-sp-3);margin-top:auto;
+  padding-top:var(--nb-sp-3);border-top:1px solid var(--nb-hair-soft)}
+.nb-nbcard-open{display:inline-flex;align-items:center;gap:6px;margin-left:auto;
+  font-size:var(--nb-fs-label);font-weight:650;color:color-mix(in srgb,${T.accent} 70%, ${T.text});
+  white-space:nowrap}
+.nb-nbcard:hover .nb-nbcard-open svg{transform:translateX(2px)}
+.nb-nbcard-open svg{transition:transform var(--nb-dur-fast) var(--nb-ease)}
+.nb-nbcard-del{position:absolute;top:var(--nb-sp-3);right:var(--nb-sp-2);z-index:2}
+.nb-nbcard-ren{position:absolute;top:var(--nb-sp-3);right:calc(var(--nb-sp-2) + 34px);z-index:2}
+/* the corner buttons only exist when the card is hovered or focused-within —
+   destructive chrome is not billboarded (DESIGN-LORE law 4) */
+.nb-nbcard-del,.nb-nbcard-ren{opacity:0}
+.nb-nbcard-wrap:hover .nb-nbcard-del,.nb-nbcard-wrap:hover .nb-nbcard-ren,
+.nb-nbcard-wrap:focus-within .nb-nbcard-del,.nb-nbcard-wrap:focus-within .nb-nbcard-ren,
+.nb-nbcard-del:focus-visible,.nb-nbcard-ren:focus-visible{opacity:1}
+@media (hover:none){ .nb-nbcard-del,.nb-nbcard-ren{opacity:1} }
 
 /* generator options popover + citation hover card + data table */
 .nb-gen{position:relative}
@@ -688,52 +842,52 @@ const CSS = `
   transition:opacity var(--nb-dur-fast) var(--nb-ease)}
 .nb-gen:hover .nb-gen-cfg,.nb-gen-cfg[data-active="true"]{opacity:1}
 .nb-genpop{position:absolute;top:calc(100% + 6px);left:0;right:0;z-index:30;
-  background:${T.card};border:1px solid ${T.line};border-radius:16px;
+  background:${T.card};border:1px solid ${T.line};border-radius:var(--nb-r-box);
   box-shadow:var(--nb-shadow-lift);padding:12px;display:grid;gap:12px}
-.nb-genopt-label{font-size:11px;font-weight:600;color:${T.text3};margin-bottom:6px;
+.nb-genopt-label{font-size:11.5px;font-weight:600;color:${T.text3};margin-bottom:6px;
   text-transform:uppercase;letter-spacing:.06em}
 .nb-genopt .nb-seg{width:100%}
 .nb-genopt .nb-seg button{flex:1;justify-content:center}
-.nb-genopt-text{width:100%;height:32px;padding:0 10px;border-radius:8px;font-size:13px;
+.nb-genopt-text{width:100%;height:32px;padding:0 10px;border-radius:var(--nb-r-in);font-size:13px;
   border:1px solid ${T.line};background:${T.inset};color:${T.text};outline:none}
 .nb-genopt-text:focus{border-color:color-mix(in srgb,${T.accent} 55%,transparent)}
 
 .nb-citepop{position:fixed;z-index:80;width:320px;max-width:calc(100vw - 32px);
-  background:${T.card};border:1px solid ${T.line};border-radius:16px;
+  background:${T.card};border:1px solid ${T.line};border-radius:var(--nb-r-box);
   box-shadow:var(--nb-shadow-lift);padding:12px 14px;pointer-events:none}
 .nb-citepop-head{display:flex;align-items:center;gap:8px;font-size:12.5px;
   color:${T.text3};margin-bottom:6px;flex-wrap:wrap}
-.nb-citepop-head b{color:${T.accent};font-weight:700}
+.nb-citepop-head b{color:color-mix(in srgb,${T.accent} 70%, ${T.text});font-weight:700}
 .nb-citepop-body{font-size:13px;line-height:1.55;color:${T.text2};
   display:-webkit-box;-webkit-line-clamp:5;-webkit-box-orient:vertical;overflow:hidden}
 
-.nb-scope-check{flex:none;width:18px;height:18px;border-radius:6px;
-  border:1.5px solid ${T.line};display:grid;place-items:center;font-size:11px;
+.nb-scope-check{flex:none;width:18px;height:18px;border-radius:var(--nb-r-in);
+  border:1.5px solid ${T.line};display:grid;place-items:center;font-size:11.5px;
   color:#fff;transition:all var(--nb-dur-fast) var(--nb-ease)}
 .nb-scope-check.on{background:${T.accent};border-color:${T.accent}}
 
 .nb-search-hit{display:block;width:100%;text-align:left;background:transparent;
-  border:1px solid ${T.line};border-radius:12px;padding:10px 12px;cursor:pointer;
+  border:1px solid ${T.line};border-radius:var(--nb-r-el);padding:10px 12px;cursor:pointer;
   color:${T.text};font:inherit;transition:border-color var(--nb-dur-fast) var(--nb-ease),background var(--nb-dur-fast) var(--nb-ease)}
 .nb-search-hit:hover{border-color:color-mix(in srgb,${T.accent} 45%,transparent);
   background:color-mix(in srgb,${T.accent} 6%,transparent)}
-.nb-search-hit-head{display:flex;align-items:center;gap:8px;font-size:13.5px;
+.nb-search-hit-head{display:flex;align-items:center;gap:8px;font-size:13px;
   margin-bottom:4px}
 .nb-search-hit-head b{font-weight:600;overflow:hidden;text-overflow:ellipsis;
   white-space:nowrap}
 .nb-search-hit-snip{font-size:13px;line-height:1.5;color:${T.text3};
   display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden}
 .nb-search-hit mark{background:color-mix(in srgb,${T.accent} 30%,transparent);
-  color:${T.text};border-radius:3px;padding:0 1px}
+  color:${T.text};border-radius:var(--nb-r-in);padding:0 1px}
 
-.nb-dt-wrap{overflow:auto;border:1px solid ${T.line};border-radius:16px;
+.nb-dt-wrap{overflow:auto;border:1px solid ${T.line};border-radius:var(--nb-r-box);
   background:${T.card}}
 .nb-dt{border-collapse:collapse;width:100%;font-size:13px;min-width:520px}
 .nb-dt th{position:sticky;top:0;background:${T.inset};text-align:left;
-  font-weight:650;font-size:12px;color:${T.text2};padding:10px 14px;
+  font-weight:650;font-size:12.5px;color:${T.text2};padding:10px 14px;
   border-bottom:1px solid ${T.line};cursor:pointer;user-select:none;white-space:nowrap}
 .nb-dt th:hover{color:${T.text}}
-.nb-dt-arrow{color:${T.accent};margin-left:5px;font-size:11px}
+.nb-dt-arrow{color:color-mix(in srgb,${T.accent} 70%, ${T.text});margin-left:5px;font-size:11.5px}
 .nb-dt td{padding:9px 14px;border-bottom:1px solid ${T.lineSoft};color:${T.text2}}
 .nb-dt tbody tr:last-child td{border-bottom:0}
 .nb-dt tbody tr:hover td{background:color-mix(in srgb,${T.accent} 4%,transparent)}
@@ -741,7 +895,7 @@ const CSS = `
 @media (max-width:1280px){
   .nb-root{--nb-rail:250px; --nb-studio:320px}
   .nb-body{padding:10px;gap:10px}
-  .nb-h1{font-size:24px}
+  .nb-h1{font-size:22px}
 }
 @media (max-width:1100px){
   .nb-studio{display:none}
@@ -752,7 +906,7 @@ const CSS = `
 }
 @media (max-width:820px){
   .nb-rail{display:none}
-  .nb-h1{font-size:21px}
+  .nb-h1{font-size:22px}
   .nb-body{padding:8px;gap:8px}
   .nb-suggest-grid{grid-template-columns:1fr}
 }
@@ -761,38 +915,40 @@ const CSS = `
 .nb-study{display:flex;flex-direction:column;gap:16px;padding:26px 30px 40px;max-width:980px;margin:0 auto;
   width:100%;flex:1 1 auto;min-height:0;overflow:auto}
 .nb-study-head{display:flex;align-items:flex-start;gap:14px;flex-wrap:wrap}
-.nb-study-title{font-size:21px;font-weight:650;letter-spacing:-.01em;color:${T.text}}
+.nb-study-title{font-size:22px;font-weight:650;letter-spacing:-.01em;color:${T.text}}
 .nb-study-chips{display:flex;gap:6px;flex-wrap:wrap;margin-top:8px}
 .nb-study-actions{display:flex;gap:8px;align-items:center}
 .nb-study-progress{display:flex;align-items:center;gap:12px}
-.nb-study-bar{flex:1;height:4px;border-radius:99px;background:var(--nb-hair-soft);overflow:hidden}
-.nb-study-bar i{display:block;height:100%;background:${T.accent};border-radius:99px;transition:width .25s ease}
-.nb-study-card{margin-top:auto;border:1px solid var(--nb-hair);border-radius:20px;background:var(--nb-card);
+.nb-study-bar{flex:1;height:4px;border-radius:var(--nb-r-pill);background:var(--nb-hair-soft);overflow:hidden}
+.nb-study-bar i{display:block;height:100%;background:${T.accent};border-radius:var(--nb-r-pill);transition:width .25s ease}
+.nb-study-card{margin-top:auto;border:1px solid var(--nb-hair);border-radius:var(--nb-r-box);background:var(--nb-card);
   padding:28px 30px 24px;min-height:210px;display:flex;flex-direction:column;gap:16px;
   box-shadow:var(--nb-shadow)}
 .nb-study-card[data-phase="new"]{border-color:color-mix(in srgb,${T.accent} 40%, var(--nb-hair))}
 .nb-study-q{font-size:22px;line-height:1.4;font-weight:600;color:${T.text};max-width:62ch}
 .nb-study-choices{display:grid;gap:8px;max-width:62ch}
-.nb-study-choice{padding:10px 14px;border-radius:11px;border:1px solid var(--nb-hair-soft);
-  background:var(--nb-card-deep, transparent);color:${T.text2};font-size:14.5px}
+.nb-study-choice{padding:10px 14px;border-radius:var(--nb-r-el);border:1px solid var(--nb-hair-soft);
+  background:var(--nb-card-deep, transparent);color:${T.text2};font-size:14px}
 .nb-study-choice[data-right="true"]{border-color:${T.ok};background:color-mix(in srgb,${T.ok} 14%, transparent);color:${T.text}}
 .nb-study-a{display:flex;flex-direction:column;gap:8px;font-size:16px;line-height:1.55;color:${T.text};
   padding-top:14px;border-top:1px solid var(--nb-hair-soft)}
-.nb-study-a-label{font-size:11px;letter-spacing:.14em;text-transform:uppercase;color:${T.text4}}
+.nb-study-a-label{font-size:11.5px;letter-spacing:.14em;text-transform:uppercase;color:${T.text4}}
 .nb-study-reveal{display:flex;align-items:center;gap:12px;margin-top:auto}
 .nb-study-ratings{display:flex;gap:8px;flex-wrap:wrap;min-height:44px;align-items:center;margin-bottom:auto}
 .nb-study-rate{flex:1 1 150px;display:flex;flex-direction:column;gap:2px;align-items:flex-start;
-  padding:10px 14px;border-radius:12px;border:1px solid var(--nb-hair);background:var(--nb-card);
+  padding:10px 14px;border-radius:var(--nb-r-el);border:1px solid var(--nb-hair);background:var(--nb-card);
   color:${T.text};cursor:pointer;font-size:14px}
 .nb-study-rate span{font-size:11.5px;color:${T.text3}}
 .nb-study-rate:hover{background:var(--nb-card-hover, color-mix(in srgb,#fff 4%, transparent))}
 .nb-study-src{align-self:flex-start;display:inline-flex;align-items:center;gap:6px;padding:0;
-  border:0;background:none;color:${T.accent};font-size:12.5px;text-decoration:underline;
+  border:0;background:none;color:color-mix(in srgb,${T.accent} 70%, ${T.text});
+  font-size:12.5px;text-decoration:underline;
   text-underline-offset:3px;cursor:pointer}
 .nb-study-empty{display:grid;justify-items:center;gap:10px;padding:64px 20px;text-align:center;
-  color:${T.text3};border:1px dashed var(--nb-hair-soft);border-radius:18px}
+  color:${T.text3};border:1px dashed var(--nb-hair-soft);border-radius:var(--nb-r-box)}
 @media (max-width:820px){ .nb-study{padding:18px 16px 32px} .nb-study-q{font-size:19px} }
-.nb-linkbtn{background:none;border:0;padding:0;font:inherit;color:${T.accent};cursor:pointer;
+.nb-linkbtn{background:none;border:0;padding:0;font:inherit;
+  color:color-mix(in srgb,${T.accent} 70%, ${T.text});cursor:pointer;
   text-decoration:underline;text-underline-offset:3px;text-decoration-thickness:1px}
 .nb-linkbtn:hover{color:${T.text}}
 /* --- surfaces that lost their stylesheet in a branch merge: discover, thread
@@ -814,8 +970,8 @@ const CSS = `
 .nb-disc-head h1{margin:0 0 6px}
 .nb-disc-search{display:flex;gap:10px;align-items:center;margin-top:4px}
 .nb-disc-search .nb-input{flex:1;min-width:0}
-.nb-input{height:44px;padding:0 16px;border-radius:14px;border:1px solid var(--nb-hair);
-  background:var(--nb-card);color:${T.text};font:inherit;font-size:14.5px;outline:0;
+.nb-input{height:44px;padding:0 16px;border-radius:var(--nb-r-el);border:1px solid var(--nb-hair);
+  background:var(--nb-card);color:${T.text};font:inherit;font-size:14px;outline:0;
   transition:border-color .15s ease, box-shadow .15s ease}
 .nb-input:focus{border-color:color-mix(in srgb,${T.accent} 55%, transparent);
   box-shadow:0 0 0 4px color-mix(in srgb,${T.accent} 14%, transparent)}
@@ -823,27 +979,27 @@ const CSS = `
 .nb-disc-gaps{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
 .nb-disc-body{display:flex;flex-direction:column;gap:10px;margin-top:4px}
 .nb-disc-card{display:flex;gap:12px;align-items:flex-start;padding:14px 16px;cursor:pointer;
-  border:1px solid var(--nb-hair-soft);border-radius:16px;background:var(--nb-card);
+  border:1px solid var(--nb-hair-soft);border-radius:var(--nb-r-box);background:var(--nb-card);
   transition:border-color .15s ease, background .15s ease}
 .nb-disc-card:hover{border-color:var(--nb-hair)}
 .nb-disc-card[data-on=true]{border-color:color-mix(in srgb,${T.accent} 50%, transparent);
   background:color-mix(in srgb,${T.accent} 8%, var(--nb-card))}
-.nb-disc-card input{width:16px;height:16px;margin-top:3px;accent-color:${T.accent};
+.nb-disc-card input{width:16px;height:16px;margin-top:3px;accent-color:color-mix(in srgb,${T.accent} 70%, ${T.text});
   cursor:pointer;flex:0 0 16px}
 .nb-disc-main{display:flex;flex-direction:column;gap:5px;min-width:0;flex:1}
 .nb-disc-top{display:flex;align-items:center;gap:8px;font-size:11.5px}
-.nb-disc-dom{color:${T.accent};font-weight:600;letter-spacing:.01em}
-.nb-disc-title{font-size:14.5px;font-weight:600;line-height:1.35;color:${T.text}}
+.nb-disc-dom{color:color-mix(in srgb,${T.accent} 70%, ${T.text});font-weight:600;letter-spacing:.01em}
+.nb-disc-title{font-size:14px;font-weight:600;line-height:1.35;color:${T.text}}
 .nb-disc-snip{font-size:13px;line-height:1.5;color:${T.text3};
   display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
-.nb-disc-why{display:flex;align-items:center;gap:6px;font-size:12px;color:${T.text2};padding-top:2px}
+.nb-disc-why{display:flex;align-items:center;gap:6px;font-size:12.5px;color:${T.text2};padding-top:2px}
 .nb-disc-foot{display:flex;align-items:center;gap:12px;position:sticky;bottom:12px;
-  padding:12px 14px;border-radius:16px;border:1px solid var(--nb-hair);
+  padding:12px 14px;border-radius:var(--nb-r-box);border:1px solid var(--nb-hair);
   background:var(--nb-card);box-shadow:var(--nb-shadow)}
 .nb-disc-meta{display:flex;gap:14px;flex-wrap:wrap;font-size:11.5px;color:${T.text4};padding-top:4px}
 .nb-disc-empty{display:grid;justify-items:center;gap:8px;padding:56px 20px;text-align:center;
-  color:${T.text3};border:1px dashed var(--nb-hair-soft);border-radius:18px}
-.nb-disc-err{color:${T.danger};font-size:13px;padding:10px 14px;border-radius:12px;
+  color:${T.text3};border:1px dashed var(--nb-hair-soft);border-radius:var(--nb-r-box)}
+.nb-disc-err{color:${T.danger};font-size:13px;padding:10px 14px;border-radius:var(--nb-r-el);
   background:color-mix(in srgb,${T.danger} 12%, transparent)}
 `
 
@@ -1642,6 +1798,10 @@ const KIND_ICON = {
   infographic: 'chart', data_table: 'grid'
 }
 
+/* Studio groups — the workbench sorts outputs by what they make, so its group
+ * headers need a glyph per family rather than one generic icon. */
+const GROUP_ICON = { media: 'play', docs: 'doc', study: 'cards', visual: 'image', other: 'grid' }
+
 const SRC_ICON = {
   url: 'globe', youtube: 'video', file: 'file', text: 'note', image: 'image',
   pdf: 'file', note: 'note', audio: 'audio',
@@ -2366,6 +2526,25 @@ function App() {
 
 /* --------------------------------------------------------- home dashboard */
 
+/* A notebook is a set of sources; the card has to say what is in it without
+ * writing a sentence. Counts carry the shape (sources, outputs, chats), the
+ * description carries the subject, and one action carries the intent. */
+function CountChip({ icon, n, noun }) {
+  return el('span', { className: 'nb-count', title: `${n} ${noun}${n === 1 ? '' : 's'}` },
+    jsx(Glyph, { name: icon, size: 12 }),
+    el('b', { children: String(n) }),
+    el('span', { children: noun + (n === 1 ? '' : 's') }))
+}
+
+function NotebookDescription(n) {
+  const desc = String(n.description || '').trim()
+  if (!desc) {
+    return el('span', { className: 'nb-nbcard-desc', 'data-empty': 'true',
+      children: n.sources ? 'No description — open it to see what is on the desk.' : 'Empty notebook — add sources to begin.' })
+  }
+  return el('span', { className: 'nb-nbcard-desc', children: desc })
+}
+
 function HomeDashboard({ data, onOpen, onNew, onDelete, onRename, onDuplicate }) {
   const [query, setQuery] = useState('')
   const [del, setDel] = useState(null)
@@ -2375,43 +2554,65 @@ function HomeDashboard({ data, onOpen, onNew, onDelete, onRename, onDuplicate })
   const shown = notebooks.filter((n) =>
     !needle || `${n.title} ${n.description || ''}`.toLowerCase().includes(needle))
   const featured = [...notebooks]
-    .sort((a, b) => (b.artifacts || 0) - (a.artifacts || 0))
+    .filter((n) => (n.sources || 0) > 0)
+    .sort((a, b) => (b.sources || 0) - (a.sources || 0) || (b.artifacts || 0) - (a.artifacts || 0))
     .slice(0, 3)
   const hues = ['#81c995', '#a8c7fa', '#f28b82', '#c58af9', '#fde293']
+  const totalSources = notebooks.reduce((s, n) => s + (n.sources || 0), 0)
+  const totalArtifacts = notebooks.reduce((s, n) => s + (n.artifacts || 0), 0)
+  const empty = notebooks.filter((n) => !n.sources).length
 
   return el('div', { className: 'nb-home' },
     el('div', { className: 'nb-home-scroll' },
       el('div', { className: 'nb-home-head' },
         el('div', null,
           el('h1', { className: 'nb-home-title', children: 'Notebooks' }),
-          el('p', { className: 'nb-home-sub',
-            children: `${notebooks.length} notebook${notebooks.length === 1 ? '' : 's'} · every answer and artifact is grounded in your sources` })),
+          el('p', { className: 'nb-home-sub', children: [
+            el('b', { children: String(notebooks.length) }), ' notebook' + (notebooks.length === 1 ? '' : 's'),
+            ' · ', el('b', { children: String(totalSources) }), ' sources',
+            ' · ', el('b', { children: String(totalArtifacts) }), ' outputs',
+            empty ? ` · ${empty} still empty` : ''
+          ] })),
         el('div', { className: 'nb-home-search' },
           jsx(SearchField, { value: query, onChange: setQuery,
             placeholder: 'Search notebooks', label: 'Search notebooks' }))
       ),
 
       featured.length
-        ? el('div', { className: 'nb-feature-row', role: 'list', 'aria-label': 'Featured notebooks' },
-            featured.map((n, i) => el('button', {
-              key: n.id, type: 'button', role: 'listitem', className: 'nb-feature',
-              style: { '--kc': hues[i % hues.length] },
-              onClick: () => onOpen(n.id),
-              'aria-label': `Open notebook ${n.title}`,
-              children: [
-                el('span', { className: 'nb-feature-emoji', 'aria-hidden': 'true',
-                  children: (n.emoji && String(n.emoji).trim())
-                    ? emojiFor(n.id, n.emoji)
-                    : jsx(Sigil, { seed: n.id, size: 40 }) }),
-                el('span', { className: 'nb-feature-title', children: n.title }),
-                el('span', { className: 'nb-feature-meta',
-                  children: `${dshort(n.updated_at)} · ${n.sources} source${n.sources === 1 ? '' : 's'} · ${n.artifacts} artifact${n.artifacts === 1 ? '' : 's'}${n.threads ? ` · ${n.threads} chat${n.threads === 1 ? '' : 's'}` : ''}` })
-              ]
-            }, n.id)))
+        ? el('div', { className: 'nb-feature-sec' },
+            // the row is ordered by how much is in the notebook, and it says so:
+            // a "featured" strip whose rule is hidden is just decoration
+            el('div', { className: 'nb-home-sec' },
+              el('span', { className: 'nb-meta', children: 'Most in the drawer' }),
+              el('span', { className: 'nb-hint', children: 'by sources' }),
+              el('span', { style: { flex: 1 } })),
+            el('div', { className: 'nb-feature-row', role: 'list', 'aria-label': 'Notebooks with the most sources' },
+              featured.map((n, i) => el('button', {
+                key: n.id, type: 'button', role: 'listitem', className: 'nb-feature',
+                style: { '--kc': hues[i % hues.length] },
+                onClick: () => onOpen(n.id),
+                'aria-label': `Open notebook ${n.title}`,
+                children: [
+                  el('span', { className: 'nb-feature-top' },
+                    el('span', { className: 'nb-feature-emoji', 'aria-hidden': 'true',
+                      children: (n.emoji && String(n.emoji).trim())
+                        ? emojiFor(n.id, n.emoji)
+                        : jsx(Sigil, { seed: n.id, size: 40 }) }),
+                    el('span', { className: 'nb-feature-title', children: n.title })),
+                  el('span', { className: 'nb-feature-meta', children: [
+                    jsx(CountChip, { icon: 'layers', n: n.sources || 0, noun: 'source' }),
+                    jsx(CountChip, { icon: 'sparkle', n: n.artifacts || 0, noun: 'output' }),
+                    n.updated_at
+                      ? el('span', { className: 'nb-count', children: dshort(n.updated_at) })
+                      : null
+                  ] })
+                ]
+              }, n.id))))
         : null,
 
       el('div', { className: 'nb-home-sec' },
-        el('span', { className: 'nb-meta', children: 'Recent notebooks' }),
+        el('span', { className: 'nb-meta', children: shown.length === notebooks.length
+          ? 'All notebooks' : `${shown.length} of ${notebooks.length} notebooks` }),
         el('span', { style: { flex: 1 } }),
         jsx(Btn, { icon: 'plus', variant: 'primary', onClick: onNew, children: 'New notebook' })
       ),
@@ -2434,13 +2635,22 @@ function HomeDashboard({ data, onOpen, onNew, onDelete, onRename, onDuplicate })
                 onClick: () => onOpen(n.id),
                 'aria-label': `Open notebook ${n.title}`,
                 children: [
-                  el('span', { className: 'nb-nbcard-emoji', 'aria-hidden': 'true',
-                    children: (n.emoji && String(n.emoji).trim())
-                      ? emojiFor(n.id, n.emoji)
-                      : jsx(Sigil, { seed: n.id, size: 46 }) }),
-                  el('span', { className: 'nb-nbcard-title', children: n.title }),
-                  el('span', { className: 'nb-nbcard-meta',
-                    children: `${dshort(n.updated_at)} · ${n.sources} source${n.sources === 1 ? '' : 's'}${n.threads ? ` · ${n.threads} chat${n.threads === 1 ? '' : 's'}` : ''}` })
+                  el('div', { className: 'nb-nbcard-top' },
+                    el('span', { className: 'nb-nbcard-emoji', 'aria-hidden': 'true',
+                      children: (n.emoji && String(n.emoji).trim())
+                        ? emojiFor(n.id, n.emoji)
+                        : jsx(Sigil, { seed: n.id, size: 34 }) }),
+                    el('div', { className: 'nb-nbcard-head' },
+                      el('span', { className: 'nb-nbcard-title', children: n.title }),
+                      el('span', { className: 'nb-nbcard-when',
+                        children: n.updated_at ? `Touched ${dshort(n.updated_at)}` : 'Never touched' }))),
+                  jsx(NotebookDescription, { description: n.description, sources: n.sources }),
+                  el('div', { className: 'nb-nbcard-foot' },
+                    jsx(CountChip, { icon: 'layers', n: n.sources || 0, noun: 'source' }),
+                    jsx(CountChip, { icon: 'sparkle', n: n.artifacts || 0, noun: 'output' }),
+                    n.threads ? jsx(CountChip, { icon: 'note', n: n.threads, noun: 'chat' }) : null,
+                    el('span', { className: 'nb-nbcard-open', 'aria-hidden': 'true' },
+                      'Open', jsx(Glyph, { name: 'arrowRight', size: 13 })))
                 ]
               }, n.id),
               jsx(IconBtn, {
@@ -2459,7 +2669,7 @@ function HomeDashboard({ data, onOpen, onNew, onDelete, onRename, onDuplicate })
     del ? jsx(Dialog, {
       open: true, onClose: () => setDel(null), title: 'Delete notebook', width: 420,
       children: el('div', null,
-        el('p', { style: { margin: '0 0 16px', color: T.text2, fontSize: '14.5px', lineHeight: 1.55 },
+        el('p', { style: { margin: '0 0 16px', color: T.text2, fontSize: '14px', lineHeight: 1.55 },
           children: `“${del.title}” and its sources, thread and artifacts will be removed. This cannot be undone.` }),
         el('div', { style: { display: 'flex', gap: '8px', justifyContent: 'flex-end' } },
           jsx(Btn, { onClick: () => setDel(null), children: 'Cancel' }),
@@ -2511,7 +2721,7 @@ function RenameDialog({ notebook, onClose, onDone, onDuplicate }) {
           value: desc, onChange: (e) => setDesc(e.target.value),
           placeholder: 'Description (optional)', 'aria-label': 'Notebook description'
         })),
-      err ? el('div', { style: { marginTop: '10px', color: T.danger, fontSize: '13.5px' }, children: err }) : null,
+      err ? el('div', { style: { marginTop: '10px', color: T.danger, fontSize: '13px' }, children: err }) : null,
       el('div', { style: { display: 'flex', gap: '8px', justifyContent: 'space-between', marginTop: '16px' } },
         onDuplicate
           ? jsx(Btn, { icon: 'copy', onClick: onDuplicate, children: 'Make a copy' })
@@ -2722,7 +2932,7 @@ function Rail({ data, notebook, onAddSource, onOpenSource, onToggleSource,
               ? el('div', { className: 'nb-void', style: { height: 'auto', padding: '24px 8px' } },
                   el('div', null,
                     el('h3', { style: { fontSize: '15px' }, children: sources.length ? 'Nothing matches' : 'No sources yet' }),
-                    el('p', { style: { fontSize: '13.5px' }, children: sources.length
+                    el('p', { style: { fontSize: '13px' }, children: sources.length
                       ? 'Clear the filter or the search to see every source.'
                       : 'Add a file, a URL or pasted text — or describe the topic and let Hermes find sources for you.' })))
               : el('div', { style: { display: 'flex', flexDirection: 'column', gap: '2px' } },
@@ -2746,7 +2956,7 @@ function Rail({ data, notebook, onAddSource, onOpenSource, onToggleSource,
                           children: gAllOn
                             ? jsx(Glyph, { name: 'check', size: 12 })
                             : (gSomeOn ? el('span', { 'aria-hidden': 'true',
-                                style: { fontSize: '11px', fontWeight: 700, lineHeight: 1 },
+                                style: { fontSize: '11.5px', fontWeight: 700, lineHeight: 1 },
                                 children: '–' }) : null)
                         }),
                         el('button', {
@@ -2779,7 +2989,7 @@ function Rail({ data, notebook, onAddSource, onOpenSource, onToggleSource,
             position: 'absolute', inset: '12px', zIndex: 5, borderRadius: '18px',
             border: `2px dashed ${T.accent}`, background: 'color-mix(in srgb, #0a0b10 78%, transparent)',
             display: 'flex', flexDirection: 'column', gap: '8px', alignItems: 'center', justifyContent: 'center',
-            color: T.text, fontSize: '14.5px', fontWeight: 600, pointerEvents: 'none'
+            color: T.text, fontSize: '14px', fontWeight: 600, pointerEvents: 'none'
           },
           children: [
             jsx(Glyph, { name: 'plus', size: 22 }),
@@ -3399,7 +3609,7 @@ function Chat({ notebook, kinds, askOpen, onSay, modelReady, onCite, onOpenSourc
                 jsx(Glyph, { name: 'sparkle', size: 19 })),
               el('div', { style: { fontSize: '20px', fontWeight: 650, letterSpacing: '-.015em' }, children: 'Ask the sources' }),
               el('div', {
-                style: { color: T.text3, fontSize: '14.5px', lineHeight: 1.6 },
+                style: { color: T.text3, fontSize: '14px', lineHeight: 1.6 },
                 children: 'Every answer is built from this notebook and cites the source it came from. If the sources do not cover it, the answer says so.'
               })))
         : null,
@@ -3461,7 +3671,7 @@ function Chat({ notebook, kinds, askOpen, onSay, modelReady, onCite, onOpenSourc
             el('span', { className: 'nb-avatar', children: 'HN' }),
             el('div', { className: 'nb-msg-body' },
               el('div', { className: 'nb-who', children: 'Reading sources' }),
-              el('div', { style: { display: 'flex', alignItems: 'center', gap: '10px', color: T.text3, fontSize: '14.5px' } },
+              el('div', { style: { display: 'flex', alignItems: 'center', gap: '10px', color: T.text3, fontSize: '14px' } },
                 el('span', { className: 'nb-dot', style: { background: T.accent, boxShadow: `0 0 8px ${T.accent}` } }),
                 `retrieving passages · ${elapsed}s`,
                 // a spinner that cannot be dismissed is a lie about control; the
@@ -3738,7 +3948,7 @@ function ScopeDialog({ notebook, current, onClose, onPick }) {
         }),
         el('span', { className: 'nb-chip', 'data-tone': 'accent', children: `S${s.n}` }),
         el('span', { style: { flex: 1, minWidth: 0, textAlign: 'left' } },
-          el('div', { style: { fontSize: '13.5px', fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' },
+          el('div', { style: { fontSize: '13px', fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' },
             children: s.title }),
           el('div', { className: 'nb-meta', children: kindLabel(s.kind) })))),
       el('div', { style: { display: 'flex', gap: '8px', justifyContent: 'space-between', marginTop: '10px' } },
@@ -4064,7 +4274,7 @@ function SourcePeek({ source, notebook, onClose, onAskAbout, onRefresh, onPrev, 
         : text
           ? el('pre', {
               className: 'nb-mono',
-              style: { whiteSpace: 'pre-wrap', fontSize: '14.5px', lineHeight: 1.7, color: T.text2, margin: 0 },
+              style: { whiteSpace: 'pre-wrap', fontSize: '14px', lineHeight: 1.7, color: T.text2, margin: 0 },
               children: hi
                 ? [text.slice(0, hi.start),
                    el('mark', { key: 'hl', className: 'nb-hl', children: text.slice(hi.start, hi.end) }),
@@ -4085,6 +4295,8 @@ function StudioPanel({ kinds, notebook, busy, generate, filter, setFilter, onOpe
   const shownArts = arts.filter((a) => filter === 'all' || kindGroup[a.kind] === filter)
   const scrollRef = useRef(null)
   const [canScroll, setCanScroll] = useState(false)
+  const readyCount = Object.keys(ready).length
+  const runningCount = Object.keys(busy || {}).length
 
   // A list taller than the panel is fine, but a row sliced at the panel edge
   // with no affordance reads as broken: measure, then show the fade.
@@ -4099,68 +4311,120 @@ function StudioPanel({ kinds, notebook, busy, generate, filter, setFilter, onOpe
     return () => { if (ro) ro.disconnect(); node.removeEventListener('scroll', check) }
   }, [shownArts.length, filter])
 
+  /* The workbench reads top to bottom in the order work actually happens:
+   * what can be made (grouped by what it makes), then what has been made.
+   * The old panel was one undifferentiated 2-col grid followed by a list, so
+   * "Video Overview" and "Data Table" sat at the same weight even though one
+   * is a 60-second render and the other is a spreadsheet. */
+  const groups = useMemo(() => {
+    const order = ['media', 'docs', 'study', 'visual', 'other']
+    const label = { media: 'Listen & watch', docs: 'Read', study: 'Study', visual: 'Visualise', other: 'More' }
+    const map = {}
+    for (const k of kinds) {
+      const g = k.group || 'other'
+      if (!map[g]) map[g] = []
+      map[g].push(k)
+    }
+    return order.filter((g) => map[g] && map[g].length)
+      .map((g) => ({ id: g, label: label[g] || 'More', kinds: map[g] }))
+  }, [kinds])
+
+  const [openGroups, setOpenGroups] = useState({})
+  const isOpen = (id) => openGroups[id] !== false
+
+  /* The workbench's first half: every output kind, grouped by what it makes.
+   * A group header is a real button (aria-expanded) so a crowded panel can be
+   * folded down to the one family being worked in. */
+  const groupBlocks = groups.map((g) => el('div', { key: g.id, className: 'nb-group' },
+    el('button', {
+      type: 'button', className: 'nb-group-head',
+      'aria-expanded': isOpen(g.id) ? 'true' : 'false',
+      onClick: () => setOpenGroups((o) => ({ ...o, [g.id]: o[g.id] === false })),
+      children: [
+        jsx(Glyph, { name: GROUP_ICON[g.id] || 'grid', size: 13 }),
+        el('span', { className: 'nb-group-name', children: g.label }),
+        el('span', { className: 'nb-group-count',
+          children: `${g.kinds.filter((k) => ready[k.id]).length} of ${g.kinds.length}` }),
+        el('span', { className: 'nb-group-chev', 'aria-hidden': 'true',
+          children: jsx(Glyph, { name: 'chevron', size: 13 }) })
+      ]
+    }),
+    isOpen(g.id)
+      ? el('div', { className: 'nb-gen-grid' },
+          g.kinds.map((k) => jsx(GenPill, {
+            key: k.id, kind: k, art: ready[k.id], started: busy[k.id],
+            nbId: notebook && notebook.id,
+            onOpen: () => { const art = ready[k.id]; if (art) onOpen(art); else generate(k.id) },
+            onGenerate: (opts) => generate(k.id, opts)
+          })))
+      : null
+  ))
+
   return el('aside', { className: 'nb-col nb-studio', 'aria-label': 'Studio' },
-    el('div', { className: 'nb-pane-head' },
-      el('span', { className: 'nb-pane-title', children: 'Outputs' }),
+    el('div', { className: 'nb-pane-head nb-studio-head' },
+      el('span', { className: 'nb-pane-title', children: 'Studio' }),
       el('span', {
         className: 'nb-chip',
-        'data-tone': Object.keys(ready).length ? 'ok' : undefined,
-        children: `${Object.keys(ready).length} of ${kinds.length}`
+        'data-tone': readyCount ? 'ok' : undefined,
+        title: `${readyCount} of ${kinds.length} outputs have a latest run`,
+        children: `${readyCount}/${kinds.length} ready`
       }),
+      runningCount ? el('span', { className: 'nb-chip', 'data-tone': 'accent',
+        children: `${runningCount} writing` }) : null,
       jsx(IconBtn, { icon: 'arrowRight', label: 'Hide studio panel', onClick: onCollapse })
     ),
-    el('div', { className: 'nb-pad', style: { paddingBottom: '8px' } },
-      el('div', { className: 'nb-gen-grid' },
-        kinds.map((k) => jsx(GenPill, {
-          key: k.id, kind: k, art: ready[k.id], started: busy[k.id],
-          nbId: notebook && notebook.id,
-          onOpen: () => { const a = ready[k.id]; if (a) onOpen(a); else generate(k.id) },
-          onGenerate: (opts) => generate(k.id, opts)
-        })))),
-    el('div', { className: 'nb-pad', style: { paddingTop: '12px', paddingBottom: 0, borderTop: `1px solid ${T.lineSoft}` } },
-      el('div', { style: { display: 'flex', alignItems: 'baseline', gap: '8px' } },
-        el('span', { className: 'nb-meta', children: `Runs · ${shownArts.length}` }),
+
+    el('div', { className: 'nb-studio-body nb-scroll', ref: scrollRef,
+      'data-scrollable': canScroll ? 'true' : 'false' },
+      el('div', { className: 'nb-studio-sec' },
+        el('div', { className: 'nb-studio-sec-head' },
+          el('span', { className: 'nb-meta', children: 'Make something' }),
+          el('span', { style: { flex: 1 } }),
+          el('span', { className: 'nb-hint', children: 'from these sources' }))),
+      groupBlocks,
+      el('div', { className: 'nb-studio-sec-head nb-studio-runs' },
+        el('span', { className: 'nb-meta', children: 'Every run' }),
+        el('span', { className: 'nb-hint', children: `· ${shownArts.length}` }),
         el('span', { style: { flex: 1 } }),
-        el('span', { className: 'nb-meta', style: { color: T.text4 }, title: 'every run on disk', children: 'newest first' })),
-      el('div', { className: 'nb-chiprow' },
+        jsx(IconBtn, { icon: 'note', size: 14, label: 'Add a note as a source', onClick: onAddNote, disabled: !notebook }),
+        el('span', { className: 'nb-hint', title: 'every run on disk', children: 'newest first' })),
+      el('div', { className: 'nb-chiprow nb-studio-filters' },
         FILTERS.map((f) => jsx(Chip, {
           key: f.id, tone: filter === f.id ? 'accent' : undefined,
           pressed: filter === f.id,
           onClick: () => setFilter(f.id),
           title: `${f.label} artifacts`, children: f.label
-        })))),
-    el('div', { className: 'nb-scroll', ref: scrollRef, 'data-scrollable': canScroll ? 'true' : 'false' },
-      el('div', { className: 'nb-artlist', style: { padding: '4px 8px 72px' } },
+        }))),
+      el('div', { className: 'nb-artlist' },
         shownArts.length === 0
-          ? el('div', { className: 'nb-hint', style: { padding: '14px 8px', lineHeight: 1.5 } },
-              notebook && notebook.sources && notebook.sources.length
-                ? 'Nothing generated yet — pick an output above.'
-                : 'Add sources first — every artifact is built from them.')
-          : shownArts.map((a, i) => el('div', { key: a.key || a.primary || i, className: 'nb-artrow' },
-              el('button', {
-                type: 'button', className: 'nb-art',
-                'data-kind': a.kind,
-                onClick: () => onOpen(a),
-                'aria-label': `Open ${a.title || a.label || a.kind}`,
-                title: `${a.title || a.primary || a.label}${optsSummary(a.opts) ? ` — ${optsSummary(a.opts)}` : ''}`,
-                children: [
-                  el('span', { className: 'nb-art-ico', 'aria-hidden': 'true' },
-                    i < 12 ? jsx(ArtThumb, { run: a, nbId: notebook && notebook.id })
-                      : jsx(Glyph, { name: KIND_ICON[a.kind] || 'doc', size: 17 })),
-                  el('span', { className: 'nb-art-main' },
-                    el('span', { className: 'nb-art-title', children: a.title || a.label || a.kind }),
-                    el('span', { className: 'nb-art-sub',
-                      children: `${nfmt(a.bytes)} · ${ago(a.modified)}${a.opts && Object.keys(a.opts).length ? ' · tailored' : ''}` }))
-                ]
-              }, a.key || a.primary || i),
-              onDelete ? jsx(IconBtn, {
-                icon: 'trash', size: 13, className: 'nb-art-del',
-                label: `Delete ${a.label || a.kind} artifact`,
-                onClick: () => onDelete(a)
-              }) : null)))),
-    canScroll ? jsx('div', { className: 'nb-fade', 'aria-hidden': 'true' }) : null,
-    el('div', { className: 'nb-pad', style: { borderTop: `1px solid ${T.lineSoft}`, display: 'flex', justifyContent: 'center', paddingTop: '10px', paddingBottom: '12px' } },
-      jsx(Btn, { icon: 'note', onClick: onAddNote, disabled: !notebook, children: 'Add note' }))
+            ? el('div', { className: 'nb-empty-out' },
+                jsx(Glyph, { name: notebook && notebook.sources && notebook.sources.length ? 'sparkle' : 'layers', size: 18 }),
+                el('span', { children: notebook && notebook.sources && notebook.sources.length
+                  ? 'Nothing generated yet — pick an output above.'
+                  : 'Add sources first — every output is built from them.' }))
+            : shownArts.map((a, i) => el('div', { key: a.key || a.primary || i, className: 'nb-artrow' },
+                el('button', {
+                  type: 'button', className: 'nb-art',
+                  'data-kind': a.kind,
+                  onClick: () => onOpen(a),
+                  'aria-label': `Open ${a.title || a.label || a.kind}`,
+                  title: `${a.title || a.primary || a.label}${optsSummary(a.opts) ? ` — ${optsSummary(a.opts)}` : ''}`,
+                  children: [
+                    el('span', { className: 'nb-art-ico', 'aria-hidden': 'true' },
+                      i < 12 ? jsx(ArtThumb, { run: a, nbId: notebook && notebook.id })
+                        : jsx(Glyph, { name: KIND_ICON[a.kind] || 'doc', size: 17 })),
+                    el('span', { className: 'nb-art-main' },
+                      el('span', { className: 'nb-art-title', children: a.title || a.label || a.kind }),
+                      el('span', { className: 'nb-art-sub',
+                        children: `${nfmt(a.bytes)} · ${ago(a.modified)}${a.opts && Object.keys(a.opts).length ? ' · tailored' : ''}` }))
+                  ]
+                }, a.key || a.primary || i),
+                onDelete ? jsx(IconBtn, {
+                  icon: 'trash', size: 13, className: 'nb-art-del',
+                  label: `Delete ${a.label || a.kind} artifact`,
+                  onClick: () => onDelete(a)
+                }) : null))),
+      canScroll ? jsx('div', { className: 'nb-fade', 'aria-hidden': 'true' }) : null)
   )
 }
 
@@ -4186,6 +4450,11 @@ function GenPill({ kind, art, started, nbId, onOpen, onGenerate }) {
   const secs = started ? Math.max(0, Math.round((Date.now() - started) / 1000)) : 0
   const state = started ? `writing · ${secs}s` : art ? `ready · ${ago(art.modified)}` : 'Generate'
   const pick = (id, v) => setOpts((o) => ({ ...o, [id]: v }))
+  /* The pill answers three questions in the order a person asks them: what is
+   * this, what does it make, and is there one already. The name is the label,
+   * the blurb is the promise (it comes from the backend, so it is true), and the
+   * footer is the state of the last run — with the run's own timestamp rather
+   * than the word "ready", because "ready" alone does not say how stale it is. */
   return el('div', { className: 'nb-gen', 'data-kind': kind.id },
     el('button', {
       type: 'button', className: 'nb-card',
@@ -4196,17 +4465,23 @@ function GenPill({ kind, art, started, nbId, onOpen, onGenerate }) {
       title: art ? `${kind.label} · ${art.primary}` : `Generate ${kind.label}`,
       children: [
         el('span', { className: 'nb-card-ico', 'aria-hidden': 'true' },
-          jsx(Glyph, { name: KIND_ICON[kind.id] || 'doc', size: 15 })),
+          jsx(Glyph, { name: KIND_ICON[kind.id] || 'doc', size: 16 })),
         el('span', { className: 'nb-card-main' },
           el('span', { className: 'nb-card-name', children: kind.label }),
-          el('span', { className: 'nb-card-state' },
-            el('span', {
-              className: 'nb-dot',
-              style: { background: started ? 'var(--kc)' : art ? T.ok : undefined }
-            }),
-            started ? `${secs}s` : art ? ago(art.modified) : 'generate'),
+          kind.blurb
+            ? el('span', { className: 'nb-card-blurb', children: kind.blurb })
+            : null,
+          el('span', { className: 'nb-card-foot' },
+            el('span', { className: 'nb-card-state', 'data-kind': started ? 'busy' : art ? 'ready' : 'idle' },
+              el('span', {
+                className: 'nb-dot',
+                style: { background: started ? 'var(--kc)' : art ? T.ok : undefined }
+              }),
+              started ? `writing · ${secs}s`
+                : art ? ago(art.modified)
+                  : `~${kind.secs || 15}s to make`)),
           started
-            ? el('span', { className: 'nb-bar-track', style: { marginTop: '2px' } },
+            ? el('span', { className: 'nb-bar-track' },
                 el('span', {
                   className: 'nb-bar-fill',
                   style: { width: `${Math.min(96, 12 + secs * 2.2)}%`, opacity: 0.9 }
@@ -4282,7 +4557,7 @@ function GenPill({ kind, art, started, nbId, onOpen, onGenerate }) {
                     border: `1px solid ${T.lineSoft}`, borderRadius: '12px', padding: '10px 12px'
                   }
                 },
-                  el('div', { style: { fontSize: '12px', fontWeight: 650, color: T.accent, marginBottom: '4px' },
+                  el('div', { style: { fontSize: '12.5px', fontWeight: 650, color: T.accent, marginBottom: '4px' },
                     children: `${String(i + 1).padStart(2, '0')} · ${b.headline || 'beat'}` }),
                   el('div', { style: { fontSize: '13px', color: T.text2, lineHeight: 1.5 }, children: b.text }))))
         })
@@ -4744,7 +5019,7 @@ function AddSourceDialog({ open, onClose, notebook, onDone, initialMode, seedQue
   }
 
   const noteBody = () => el('div', null,
-    el('p', { style: { margin: '0 0 14px', color: T.text3, fontSize: '14.5px', lineHeight: 1.55 },
+    el('p', { style: { margin: '0 0 14px', color: T.text3, fontSize: '14px', lineHeight: 1.55 },
       children: 'A note becomes a first-class source — searchable, citable, and included in every answer and artifact.' }),
     el('div', { style: { display: 'grid', gap: '10px' } },
       el('textarea', {
@@ -4753,7 +5028,7 @@ function AddSourceDialog({ open, onClose, notebook, onDone, initialMode, seedQue
         'aria-label': 'Note text',
         style: {
           minHeight: '150px', borderRadius: '12px', border: `1px solid ${T.line}`,
-          background: T.cardDeep, color: T.text, padding: '12px', fontSize: '14.5px',
+          background: T.cardDeep, color: T.text, padding: '12px', fontSize: '14px',
           lineHeight: 1.55, resize: 'vertical', outline: 'none'
         }
       }),
@@ -4780,7 +5055,7 @@ function AddSourceDialog({ open, onClose, notebook, onDone, initialMode, seedQue
     children: noteOnly
       ? noteBody()
       : el('div', null,
-      el('p', { style: { margin: '0 0 14px', color: T.text3, fontSize: '14.5px', lineHeight: 1.55 },
+      el('p', { style: { margin: '0 0 14px', color: T.text3, fontSize: '14px', lineHeight: 1.55 },
         children: mode === 'find'
           ? 'Describe what this notebook should know — Hermes searches the web and offers candidates. Nothing joins until you pick it.'
           : 'A source is anything the notebook can cite: a URL, a file on this machine, or text you paste. It is extracted, labelled and indexed on the way in.' }),
@@ -4873,7 +5148,7 @@ function NewNotebookDialog({ open, onClose, onDone }) {
           'aria-label': 'Notebook description',
           style: {
             minHeight: '80px', borderRadius: '10px', border: `1px solid ${T.line}`,
-            background: T.cardDeep, color: T.text, padding: '12px', fontSize: '14.5px',
+            background: T.cardDeep, color: T.text, padding: '12px', fontSize: '14px',
             lineHeight: 1.5, resize: 'vertical', outline: 'none'
           }
         })),
@@ -5450,7 +5725,7 @@ function Viewer({ artifact, notebook, onCite, onRegenerate, regenerating, onChan
       }),
       onPrevRun ? jsx(IconBtn, { icon: 'arrowLeft', label: 'Older version', onClick: onPrevRun }) : null,
       onNextRun ? jsx(IconBtn, { icon: 'arrowRight', label: 'Newer version', onClick: onNextRun }) : null,
-      runPos ? el('span', { className: 'nb-meta', style: { fontSize: '12px' }, children: runPos }) : null,
+      runPos ? el('span', { className: 'nb-meta', style: { fontSize: '12.5px' }, children: runPos }) : null,
       onRegenerate ? jsx(IconBtn, {
         icon: 'refresh', label: `Regenerate ${artifact.label}`,
         active: !!regenerating, disabled: !!regenerating,
@@ -5544,7 +5819,7 @@ function VideoView({ src, json, text }) {
                       : null] })
               ]
             })))
-        : (text ? el('pre', { className: 'nb-mono', style: { whiteSpace: 'pre-wrap', color: T.text3, fontSize: '13.5px' }, children: text }) : null))
+        : (text ? el('pre', { className: 'nb-mono', style: { whiteSpace: 'pre-wrap', color: T.text3, fontSize: '13px' }, children: text }) : null))
   )
 }
 
@@ -5774,7 +6049,7 @@ function AudioView({ src, json, text, notebook, onChanged }) {
             onClick: () => patchSeg(i, { speaker: s.speaker === 'host_a' ? 'host_b' : 'host_a' }),
             style: {
               width: '30px', height: '30px', borderRadius: '8px', cursor: 'pointer',
-              border: `1px solid ${T.lineSoft}`, fontSize: '12px', fontWeight: 700,
+              border: `1px solid ${T.lineSoft}`, fontSize: '12.5px', fontWeight: 700,
               background: s.speaker === 'host_a'
                 ? `color-mix(in srgb, ${T.accent} 18%, transparent)` : `color-mix(in srgb, ${T.purple} 18%, transparent)`,
               color: s.speaker === 'host_a' ? T.accent : T.purple
@@ -5789,7 +6064,7 @@ function AudioView({ src, json, text, notebook, onChanged }) {
               width: '100%', boxSizing: 'border-box', resize: 'vertical',
               background: 'rgba(255,255,255,.05)', border: `1px solid ${T.lineSoft}`,
               borderRadius: '10px', color: T.text, padding: '8px 10px',
-              fontSize: '13.5px', lineHeight: 1.5, fontFamily: 'inherit'
+              fontSize: '13px', lineHeight: 1.5, fontFamily: 'inherit'
             }
           }),
           el('button', {
@@ -5955,7 +6230,7 @@ function TranscriptLine({ line, first, active, seekable, segStart, onSeek }) {
   seekable
     ? jsx('span', {
         style: {
-          fontSize: '11px', color: T.text4, textAlign: 'right',
+          fontSize: '11.5px', color: T.text4, textAlign: 'right',
           fontFamily: 'var(--ui-font-mono, ui-monospace, monospace)',
           paddingTop: '3px', fontVariantNumeric: 'tabular-nums'
         },
@@ -6252,7 +6527,7 @@ function QuizView({ data, text, deckId }) {
         },
         el('div', { style: { display: 'flex', gap: '10px', alignItems: 'baseline' } },
           el('span', { className: 'nb-mono', style: { color: T.text4, fontSize: '12.5px' }, children: String(qi + 1).padStart(2, '0') }),
-          el('span', { style: { fontSize: '15.5px', fontWeight: 600, lineHeight: 1.45 }, children: q.question })),
+          el('span', { style: { fontSize: '15px', fontWeight: 600, lineHeight: 1.45 }, children: q.question })),
         el('div', { style: { display: 'grid', gap: '6px', marginTop: '10px' }, role: 'group', 'aria-label': `Choices for question ${qi + 1}` },
           (q.choices && q.choices.length ? q.choices : [q.answer]).map((c, ci) => {
             const isChosen = chosen === c
@@ -6264,7 +6539,7 @@ function QuizView({ data, text, deckId }) {
               style: {
                 minHeight: '38px', textAlign: 'left', padding: '8px 12px', borderRadius: '9px',
                 border: `1px solid ${isChosen || (done && isRight) ? T.line : T.lineSoft}`,
-                background: tone, color: T.text, fontSize: '14.5px', cursor: done ? 'default' : 'pointer'
+                background: tone, color: T.text, fontSize: '14px', cursor: done ? 'default' : 'pointer'
               },
               children: c
             }, `c${ci}`)
@@ -6338,7 +6613,7 @@ function SlidesView({ data, htmlUrl }) {
         el('span', { style: { fontSize: '11.5px', letterSpacing: '.14em', textTransform: 'uppercase', color: '#9aa0b5', fontWeight: 700 },
           children: deck.title || 'Deck' }),
         el('span', { style: { flex: 1 } }),
-        el('span', { className: 'nb-mono', style: { fontSize: '12px', color: '#9aa0b5' }, children: `${i + 1}/${slides.length}` }),
+        el('span', { className: 'nb-mono', style: { fontSize: '12.5px', color: '#9aa0b5' }, children: `${i + 1}/${slides.length}` }),
         el('button', {
           type: 'button', className: 'nb-chip', 'data-click': 'true',
           'aria-label': fs ? 'Exit fullscreen' : 'Present fullscreen', title: fs ? 'Exit fullscreen' : 'Present fullscreen',
@@ -6570,7 +6845,7 @@ function OpsDeck({ onSay, onStats }) {
       jsx(IconBtn, { icon: 'refresh', label: 'Re-measure the fleet', onClick: load })),
     el('div', { className: 'nb-pad', style: { paddingBottom: '8px' } },
       state.error
-        ? el('div', { style: { color: T.danger, fontSize: '13.5px', lineHeight: 1.5 }, children: state.error })
+        ? el('div', { style: { color: T.danger, fontSize: '13px', lineHeight: 1.5 }, children: state.error })
         : el('div', { style: { display: 'flex', gap: '6px', flexWrap: 'wrap' } },
             jsx(Chip, { tone: 'ok', children: `${patched} patched` }),
             vulnerable ? jsx(Chip, { tone: 'warn', children: `${vulnerable} fix available` }) : null,
@@ -6643,7 +6918,7 @@ function HostView({ host, tab, setTab, onSay }) {
               children: host.patch_state === 'patched' ? 'kernel patched' : `upgrade to ${host.kernel_fix || 'fix'}` })
           : el('span', { className: 'nb-chip', 'data-tone': 'danger', children: 'unreachable' }),
         el('span', { style: { flex: 1 } }),
-        el('span', { className: 'nb-mono', style: { fontSize: '12px', color: T.text4 }, children: host.dial || '' })),
+        el('span', { className: 'nb-mono', style: { fontSize: '12.5px', color: T.text4 }, children: host.dial || '' })),
       ok
         ? el('p', { className: 'nb-sub', children: `${host.os || ''} · kernel ${host.kernel || '?'} · up ${fmtUptime(host.uptime_s)} · ${host.cores || '?'} cores · load ${(host.load || []).map((n) => Number(n).toFixed(2)).join(' / ')}` })
         : el('p', { className: 'nb-sub', style: { color: T.danger }, children: host.error || 'this host did not answer' }),
@@ -6652,7 +6927,9 @@ function HostView({ host, tab, setTab, onSay }) {
             el('div', { className: 'nb-cell' }, el('b', { children: `${Math.round((host.mem || {}).pct || 0)}%` }), el('span', { children: 'memory' })),
             el('div', { className: 'nb-cell' }, el('b', { children: `${Math.round((host.disk || {}).pct || 0)}%` }), el('span', { children: 'disk' })),
             el('div', { className: 'nb-cell' }, el('b', { children: host.containers_up || 0 }), el('span', { children: 'containers' })),
-            el('div', { className: 'nb-cell' }, el('b', { style: { color: host.failed_units ? T.danger : T.ok }, children: host.failed_units || 0 }), el('span', { children: 'failed units' })),
+            el('div', { className: 'nb-cell' }, el('b', { style: { color: host.failed_units
+              ? `color-mix(in srgb,${T.danger} 58%, ${T.text})`
+              : `color-mix(in srgb,${T.ok} 58%, ${T.text})` }, children: host.failed_units || 0 }), el('span', { children: 'failed units' })),
             el('div', { className: 'nb-cell' }, el('b', { children: `${host.measured_ms || 0}ms` }), el('span', { children: 'probe' })))
         : null,
       el('div', { className: 'nb-tabs', role: 'tablist', 'aria-label': 'Host tools' },
@@ -6941,7 +7218,7 @@ function SnapshotsTab({ host, onSay }) {
         children: busy ? 'Snapshotting…' : 'Create' })),
     el('div', { className: 'nb-scroll' },
       state.error
-        ? el('div', { className: 'nb-pad', style: { color: T.danger, fontSize: '13.5px' }, children: state.error })
+        ? el('div', { className: 'nb-pad', style: { color: T.danger, fontSize: '13px' }, children: state.error })
         : el('div', { className: 'nb-pad' },
             state.loading
               ? el('span', { className: 'nb-hint', children: 'asking qm…' })
@@ -6952,11 +7229,11 @@ function SnapshotsTab({ host, onSay }) {
                       style: { display: 'flex', alignItems: 'center', gap: '10px', padding: '10px 12px', border: `1px solid ${T.lineSoft}`, borderRadius: '12px', background: T.card }
                     },
                     jsx(Glyph, { name: 'camera', size: 14 }),
-                    el('span', { style: { fontSize: '14.5px', fontWeight: 560 }, children: s }),
+                    el('span', { style: { fontSize: '14px', fontWeight: 560 }, children: s }),
                     el('span', { style: { flex: 1 } }),
                     el('span', { className: 'nb-chip', children: `vm ${vmid}` }))))
                 : el('div', { className: 'nb-hint', children: 'no snapshots for this VM — name one above and create it' })),
-            state.raw ? el('pre', { className: 'nb-mono', style: { marginTop: '12px', fontSize: '12px', color: T.text4, whiteSpace: 'pre-wrap' }, children: state.raw }) : null)
+            state.raw ? el('pre', { className: 'nb-mono', style: { marginTop: '12px', fontSize: '12.5px', color: T.text4, whiteSpace: 'pre-wrap' }, children: state.raw }) : null)
   )
 }
 

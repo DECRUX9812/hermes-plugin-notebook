@@ -27,7 +27,7 @@ const shots = [
       // ask in the real composer so the capture shows the citation machinery,
       // not a stored thread that predates it
       await page.locator('.nb-askbox textarea').fill('Where does ITER assembly stand, and what is still unsolved?')
-      await page.locator('.nb-askbox .nb-btn[data-variant=primary]').click()
+      await page.locator('.nb-askbox .nb-sendbtn').click()
       await page.waitForTimeout(2200)
       await page.locator('.nb-thread').evaluate((n) => { n.scrollTop = n.scrollHeight })
       await settle(page, 400)

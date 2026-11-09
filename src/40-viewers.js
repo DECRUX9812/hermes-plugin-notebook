@@ -109,7 +109,7 @@ function Viewer({ artifact, notebook, onCite, onRegenerate, regenerating, onChan
       }),
       onPrevRun ? jsx(IconBtn, { icon: 'arrowLeft', label: 'Older version', onClick: onPrevRun }) : null,
       onNextRun ? jsx(IconBtn, { icon: 'arrowRight', label: 'Newer version', onClick: onNextRun }) : null,
-      runPos ? el('span', { className: 'nb-meta', style: { fontSize: '12px' }, children: runPos }) : null,
+      runPos ? el('span', { className: 'nb-meta', style: { fontSize: '12.5px' }, children: runPos }) : null,
       onRegenerate ? jsx(IconBtn, {
         icon: 'refresh', label: `Regenerate ${artifact.label}`,
         active: !!regenerating, disabled: !!regenerating,
@@ -203,7 +203,7 @@ function VideoView({ src, json, text }) {
                       : null] })
               ]
             })))
-        : (text ? el('pre', { className: 'nb-mono', style: { whiteSpace: 'pre-wrap', color: T.text3, fontSize: '13.5px' }, children: text }) : null))
+        : (text ? el('pre', { className: 'nb-mono', style: { whiteSpace: 'pre-wrap', color: T.text3, fontSize: '13px' }, children: text }) : null))
   )
 }
 
@@ -433,7 +433,7 @@ function AudioView({ src, json, text, notebook, onChanged }) {
             onClick: () => patchSeg(i, { speaker: s.speaker === 'host_a' ? 'host_b' : 'host_a' }),
             style: {
               width: '30px', height: '30px', borderRadius: '8px', cursor: 'pointer',
-              border: `1px solid ${T.lineSoft}`, fontSize: '12px', fontWeight: 700,
+              border: `1px solid ${T.lineSoft}`, fontSize: '12.5px', fontWeight: 700,
               background: s.speaker === 'host_a'
                 ? `color-mix(in srgb, ${T.accent} 18%, transparent)` : `color-mix(in srgb, ${T.purple} 18%, transparent)`,
               color: s.speaker === 'host_a' ? T.accent : T.purple
@@ -448,7 +448,7 @@ function AudioView({ src, json, text, notebook, onChanged }) {
               width: '100%', boxSizing: 'border-box', resize: 'vertical',
               background: 'rgba(255,255,255,.05)', border: `1px solid ${T.lineSoft}`,
               borderRadius: '10px', color: T.text, padding: '8px 10px',
-              fontSize: '13.5px', lineHeight: 1.5, fontFamily: 'inherit'
+              fontSize: '13px', lineHeight: 1.5, fontFamily: 'inherit'
             }
           }),
           el('button', {
@@ -614,7 +614,7 @@ function TranscriptLine({ line, first, active, seekable, segStart, onSeek }) {
   seekable
     ? jsx('span', {
         style: {
-          fontSize: '11px', color: T.text4, textAlign: 'right',
+          fontSize: '11.5px', color: T.text4, textAlign: 'right',
           fontFamily: 'var(--ui-font-mono, ui-monospace, monospace)',
           paddingTop: '3px', fontVariantNumeric: 'tabular-nums'
         },
@@ -911,7 +911,7 @@ function QuizView({ data, text, deckId }) {
         },
         el('div', { style: { display: 'flex', gap: '10px', alignItems: 'baseline' } },
           el('span', { className: 'nb-mono', style: { color: T.text4, fontSize: '12.5px' }, children: String(qi + 1).padStart(2, '0') }),
-          el('span', { style: { fontSize: '15.5px', fontWeight: 600, lineHeight: 1.45 }, children: q.question })),
+          el('span', { style: { fontSize: '15px', fontWeight: 600, lineHeight: 1.45 }, children: q.question })),
         el('div', { style: { display: 'grid', gap: '6px', marginTop: '10px' }, role: 'group', 'aria-label': `Choices for question ${qi + 1}` },
           (q.choices && q.choices.length ? q.choices : [q.answer]).map((c, ci) => {
             const isChosen = chosen === c
@@ -923,7 +923,7 @@ function QuizView({ data, text, deckId }) {
               style: {
                 minHeight: '38px', textAlign: 'left', padding: '8px 12px', borderRadius: '9px',
                 border: `1px solid ${isChosen || (done && isRight) ? T.line : T.lineSoft}`,
-                background: tone, color: T.text, fontSize: '14.5px', cursor: done ? 'default' : 'pointer'
+                background: tone, color: T.text, fontSize: '14px', cursor: done ? 'default' : 'pointer'
               },
               children: c
             }, `c${ci}`)
@@ -997,7 +997,7 @@ function SlidesView({ data, htmlUrl }) {
         el('span', { style: { fontSize: '11.5px', letterSpacing: '.14em', textTransform: 'uppercase', color: '#9aa0b5', fontWeight: 700 },
           children: deck.title || 'Deck' }),
         el('span', { style: { flex: 1 } }),
-        el('span', { className: 'nb-mono', style: { fontSize: '12px', color: '#9aa0b5' }, children: `${i + 1}/${slides.length}` }),
+        el('span', { className: 'nb-mono', style: { fontSize: '12.5px', color: '#9aa0b5' }, children: `${i + 1}/${slides.length}` }),
         el('button', {
           type: 'button', className: 'nb-chip', 'data-click': 'true',
           'aria-label': fs ? 'Exit fullscreen' : 'Present fullscreen', title: fs ? 'Exit fullscreen' : 'Present fullscreen',

@@ -57,7 +57,7 @@ function OpsDeck({ onSay, onStats }) {
       jsx(IconBtn, { icon: 'refresh', label: 'Re-measure the fleet', onClick: load })),
     el('div', { className: 'nb-pad', style: { paddingBottom: '8px' } },
       state.error
-        ? el('div', { style: { color: T.danger, fontSize: '13.5px', lineHeight: 1.5 }, children: state.error })
+        ? el('div', { style: { color: T.danger, fontSize: '13px', lineHeight: 1.5 }, children: state.error })
         : el('div', { style: { display: 'flex', gap: '6px', flexWrap: 'wrap' } },
             jsx(Chip, { tone: 'ok', children: `${patched} patched` }),
             vulnerable ? jsx(Chip, { tone: 'warn', children: `${vulnerable} fix available` }) : null,
@@ -130,7 +130,7 @@ function HostView({ host, tab, setTab, onSay }) {
               children: host.patch_state === 'patched' ? 'kernel patched' : `upgrade to ${host.kernel_fix || 'fix'}` })
           : el('span', { className: 'nb-chip', 'data-tone': 'danger', children: 'unreachable' }),
         el('span', { style: { flex: 1 } }),
-        el('span', { className: 'nb-mono', style: { fontSize: '12px', color: T.text4 }, children: host.dial || '' })),
+        el('span', { className: 'nb-mono', style: { fontSize: '12.5px', color: T.text4 }, children: host.dial || '' })),
       ok
         ? el('p', { className: 'nb-sub', children: `${host.os || ''} · kernel ${host.kernel || '?'} · up ${fmtUptime(host.uptime_s)} · ${host.cores || '?'} cores · load ${(host.load || []).map((n) => Number(n).toFixed(2)).join(' / ')}` })
         : el('p', { className: 'nb-sub', style: { color: T.danger }, children: host.error || 'this host did not answer' }),
@@ -139,7 +139,9 @@ function HostView({ host, tab, setTab, onSay }) {
             el('div', { className: 'nb-cell' }, el('b', { children: `${Math.round((host.mem || {}).pct || 0)}%` }), el('span', { children: 'memory' })),
             el('div', { className: 'nb-cell' }, el('b', { children: `${Math.round((host.disk || {}).pct || 0)}%` }), el('span', { children: 'disk' })),
             el('div', { className: 'nb-cell' }, el('b', { children: host.containers_up || 0 }), el('span', { children: 'containers' })),
-            el('div', { className: 'nb-cell' }, el('b', { style: { color: host.failed_units ? T.danger : T.ok }, children: host.failed_units || 0 }), el('span', { children: 'failed units' })),
+            el('div', { className: 'nb-cell' }, el('b', { style: { color: host.failed_units
+              ? `color-mix(in srgb,${T.danger} 58%, ${T.text})`
+              : `color-mix(in srgb,${T.ok} 58%, ${T.text})` }, children: host.failed_units || 0 }), el('span', { children: 'failed units' })),
             el('div', { className: 'nb-cell' }, el('b', { children: `${host.measured_ms || 0}ms` }), el('span', { children: 'probe' })))
         : null,
       el('div', { className: 'nb-tabs', role: 'tablist', 'aria-label': 'Host tools' },
@@ -428,7 +430,7 @@ function SnapshotsTab({ host, onSay }) {
         children: busy ? 'Snapshotting…' : 'Create' })),
     el('div', { className: 'nb-scroll' },
       state.error
-        ? el('div', { className: 'nb-pad', style: { color: T.danger, fontSize: '13.5px' }, children: state.error })
+        ? el('div', { className: 'nb-pad', style: { color: T.danger, fontSize: '13px' }, children: state.error })
         : el('div', { className: 'nb-pad' },
             state.loading
               ? el('span', { className: 'nb-hint', children: 'asking qm…' })
@@ -439,11 +441,11 @@ function SnapshotsTab({ host, onSay }) {
                       style: { display: 'flex', alignItems: 'center', gap: '10px', padding: '10px 12px', border: `1px solid ${T.lineSoft}`, borderRadius: '12px', background: T.card }
                     },
                     jsx(Glyph, { name: 'camera', size: 14 }),
-                    el('span', { style: { fontSize: '14.5px', fontWeight: 560 }, children: s }),
+                    el('span', { style: { fontSize: '14px', fontWeight: 560 }, children: s }),
                     el('span', { style: { flex: 1 } }),
                     el('span', { className: 'nb-chip', children: `vm ${vmid}` }))))
                 : el('div', { className: 'nb-hint', children: 'no snapshots for this VM — name one above and create it' })),
-            state.raw ? el('pre', { className: 'nb-mono', style: { marginTop: '12px', fontSize: '12px', color: T.text4, whiteSpace: 'pre-wrap' }, children: state.raw }) : null)
+            state.raw ? el('pre', { className: 'nb-mono', style: { marginTop: '12px', fontSize: '12.5px', color: T.text4, whiteSpace: 'pre-wrap' }, children: state.raw }) : null)
   )
 }
 

@@ -123,6 +123,10 @@ const KIND_ICON = {
   infographic: 'chart', data_table: 'grid'
 }
 
+/* Studio groups — the workbench sorts outputs by what they make, so its group
+ * headers need a glyph per family rather than one generic icon. */
+const GROUP_ICON = { media: 'play', docs: 'doc', study: 'cards', visual: 'image', other: 'grid' }
+
 const SRC_ICON = {
   url: 'globe', youtube: 'video', file: 'file', text: 'note', image: 'image',
   pdf: 'file', note: 'note', audio: 'audio',

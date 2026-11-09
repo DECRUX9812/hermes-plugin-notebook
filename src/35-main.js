@@ -507,7 +507,7 @@ function Chat({ notebook, kinds, askOpen, onSay, modelReady, onCite, onOpenSourc
                 jsx(Glyph, { name: 'sparkle', size: 19 })),
               el('div', { style: { fontSize: '20px', fontWeight: 650, letterSpacing: '-.015em' }, children: 'Ask the sources' }),
               el('div', {
-                style: { color: T.text3, fontSize: '14.5px', lineHeight: 1.6 },
+                style: { color: T.text3, fontSize: '14px', lineHeight: 1.6 },
                 children: 'Every answer is built from this notebook and cites the source it came from. If the sources do not cover it, the answer says so.'
               })))
         : null,
@@ -569,7 +569,7 @@ function Chat({ notebook, kinds, askOpen, onSay, modelReady, onCite, onOpenSourc
             el('span', { className: 'nb-avatar', children: 'HN' }),
             el('div', { className: 'nb-msg-body' },
               el('div', { className: 'nb-who', children: 'Reading sources' }),
-              el('div', { style: { display: 'flex', alignItems: 'center', gap: '10px', color: T.text3, fontSize: '14.5px' } },
+              el('div', { style: { display: 'flex', alignItems: 'center', gap: '10px', color: T.text3, fontSize: '14px' } },
                 el('span', { className: 'nb-dot', style: { background: T.accent, boxShadow: `0 0 8px ${T.accent}` } }),
                 `retrieving passages · ${elapsed}s`,
                 // a spinner that cannot be dismissed is a lie about control; the
@@ -846,7 +846,7 @@ function ScopeDialog({ notebook, current, onClose, onPick }) {
         }),
         el('span', { className: 'nb-chip', 'data-tone': 'accent', children: `S${s.n}` }),
         el('span', { style: { flex: 1, minWidth: 0, textAlign: 'left' } },
-          el('div', { style: { fontSize: '13.5px', fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' },
+          el('div', { style: { fontSize: '13px', fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' },
             children: s.title }),
           el('div', { className: 'nb-meta', children: kindLabel(s.kind) })))),
       el('div', { style: { display: 'flex', gap: '8px', justifyContent: 'space-between', marginTop: '10px' } },
@@ -1172,7 +1172,7 @@ function SourcePeek({ source, notebook, onClose, onAskAbout, onRefresh, onPrev, 
         : text
           ? el('pre', {
               className: 'nb-mono',
-              style: { whiteSpace: 'pre-wrap', fontSize: '14.5px', lineHeight: 1.7, color: T.text2, margin: 0 },
+              style: { whiteSpace: 'pre-wrap', fontSize: '14px', lineHeight: 1.7, color: T.text2, margin: 0 },
               children: hi
                 ? [text.slice(0, hi.start),
                    el('mark', { key: 'hl', className: 'nb-hl', children: text.slice(hi.start, hi.end) }),
@@ -1193,6 +1193,8 @@ function StudioPanel({ kinds, notebook, busy, generate, filter, setFilter, onOpe
   const shownArts = arts.filter((a) => filter === 'all' || kindGroup[a.kind] === filter)
   const scrollRef = useRef(null)
   const [canScroll, setCanScroll] = useState(false)
+  const readyCount = Object.keys(ready).length
+  const runningCount = Object.keys(busy || {}).length
 
   // A list taller than the panel is fine, but a row sliced at the panel edge
   // with no affordance reads as broken: measure, then show the fade.
@@ -1207,68 +1209,120 @@ function StudioPanel({ kinds, notebook, busy, generate, filter, setFilter, onOpe
     return () => { if (ro) ro.disconnect(); node.removeEventListener('scroll', check) }
   }, [shownArts.length, filter])
 
+  /* The workbench reads top to bottom in the order work actually happens:
+   * what can be made (grouped by what it makes), then what has been made.
+   * The old panel was one undifferentiated 2-col grid followed by a list, so
+   * "Video Overview" and "Data Table" sat at the same weight even though one
+   * is a 60-second render and the other is a spreadsheet. */
+  const groups = useMemo(() => {
+    const order = ['media', 'docs', 'study', 'visual', 'other']
+    const label = { media: 'Listen & watch', docs: 'Read', study: 'Study', visual: 'Visualise', other: 'More' }
+    const map = {}
+    for (const k of kinds) {
+      const g = k.group || 'other'
+      if (!map[g]) map[g] = []
+      map[g].push(k)
+    }
+    return order.filter((g) => map[g] && map[g].length)
+      .map((g) => ({ id: g, label: label[g] || 'More', kinds: map[g] }))
+  }, [kinds])
+
+  const [openGroups, setOpenGroups] = useState({})
+  const isOpen = (id) => openGroups[id] !== false
+
+  /* The workbench's first half: every output kind, grouped by what it makes.
+   * A group header is a real button (aria-expanded) so a crowded panel can be
+   * folded down to the one family being worked in. */
+  const groupBlocks = groups.map((g) => el('div', { key: g.id, className: 'nb-group' },
+    el('button', {
+      type: 'button', className: 'nb-group-head',
+      'aria-expanded': isOpen(g.id) ? 'true' : 'false',
+      onClick: () => setOpenGroups((o) => ({ ...o, [g.id]: o[g.id] === false })),
+      children: [
+        jsx(Glyph, { name: GROUP_ICON[g.id] || 'grid', size: 13 }),
+        el('span', { className: 'nb-group-name', children: g.label }),
+        el('span', { className: 'nb-group-count',
+          children: `${g.kinds.filter((k) => ready[k.id]).length} of ${g.kinds.length}` }),
+        el('span', { className: 'nb-group-chev', 'aria-hidden': 'true',
+          children: jsx(Glyph, { name: 'chevron', size: 13 }) })
+      ]
+    }),
+    isOpen(g.id)
+      ? el('div', { className: 'nb-gen-grid' },
+          g.kinds.map((k) => jsx(GenPill, {
+            key: k.id, kind: k, art: ready[k.id], started: busy[k.id],
+            nbId: notebook && notebook.id,
+            onOpen: () => { const art = ready[k.id]; if (art) onOpen(art); else generate(k.id) },
+            onGenerate: (opts) => generate(k.id, opts)
+          })))
+      : null
+  ))
+
   return el('aside', { className: 'nb-col nb-studio', 'aria-label': 'Studio' },
-    el('div', { className: 'nb-pane-head' },
-      el('span', { className: 'nb-pane-title', children: 'Outputs' }),
+    el('div', { className: 'nb-pane-head nb-studio-head' },
+      el('span', { className: 'nb-pane-title', children: 'Studio' }),
       el('span', {
         className: 'nb-chip',
-        'data-tone': Object.keys(ready).length ? 'ok' : undefined,
-        children: `${Object.keys(ready).length} of ${kinds.length}`
+        'data-tone': readyCount ? 'ok' : undefined,
+        title: `${readyCount} of ${kinds.length} outputs have a latest run`,
+        children: `${readyCount}/${kinds.length} ready`
       }),
+      runningCount ? el('span', { className: 'nb-chip', 'data-tone': 'accent',
+        children: `${runningCount} writing` }) : null,
       jsx(IconBtn, { icon: 'arrowRight', label: 'Hide studio panel', onClick: onCollapse })
     ),
-    el('div', { className: 'nb-pad', style: { paddingBottom: '8px' } },
-      el('div', { className: 'nb-gen-grid' },
-        kinds.map((k) => jsx(GenPill, {
-          key: k.id, kind: k, art: ready[k.id], started: busy[k.id],
-          nbId: notebook && notebook.id,
-          onOpen: () => { const a = ready[k.id]; if (a) onOpen(a); else generate(k.id) },
-          onGenerate: (opts) => generate(k.id, opts)
-        })))),
-    el('div', { className: 'nb-pad', style: { paddingTop: '12px', paddingBottom: 0, borderTop: `1px solid ${T.lineSoft}` } },
-      el('div', { style: { display: 'flex', alignItems: 'baseline', gap: '8px' } },
-        el('span', { className: 'nb-meta', children: `Runs · ${shownArts.length}` }),
+
+    el('div', { className: 'nb-studio-body nb-scroll', ref: scrollRef,
+      'data-scrollable': canScroll ? 'true' : 'false' },
+      el('div', { className: 'nb-studio-sec' },
+        el('div', { className: 'nb-studio-sec-head' },
+          el('span', { className: 'nb-meta', children: 'Make something' }),
+          el('span', { style: { flex: 1 } }),
+          el('span', { className: 'nb-hint', children: 'from these sources' }))),
+      groupBlocks,
+      el('div', { className: 'nb-studio-sec-head nb-studio-runs' },
+        el('span', { className: 'nb-meta', children: 'Every run' }),
+        el('span', { className: 'nb-hint', children: `· ${shownArts.length}` }),
         el('span', { style: { flex: 1 } }),
-        el('span', { className: 'nb-meta', style: { color: T.text4 }, title: 'every run on disk', children: 'newest first' })),
-      el('div', { className: 'nb-chiprow' },
+        jsx(IconBtn, { icon: 'note', size: 14, label: 'Add a note as a source', onClick: onAddNote, disabled: !notebook }),
+        el('span', { className: 'nb-hint', title: 'every run on disk', children: 'newest first' })),
+      el('div', { className: 'nb-chiprow nb-studio-filters' },
         FILTERS.map((f) => jsx(Chip, {
           key: f.id, tone: filter === f.id ? 'accent' : undefined,
           pressed: filter === f.id,
           onClick: () => setFilter(f.id),
           title: `${f.label} artifacts`, children: f.label
-        })))),
-    el('div', { className: 'nb-scroll', ref: scrollRef, 'data-scrollable': canScroll ? 'true' : 'false' },
-      el('div', { className: 'nb-artlist', style: { padding: '4px 8px 72px' } },
+        }))),
+      el('div', { className: 'nb-artlist' },
         shownArts.length === 0
-          ? el('div', { className: 'nb-hint', style: { padding: '14px 8px', lineHeight: 1.5 } },
-              notebook && notebook.sources && notebook.sources.length
-                ? 'Nothing generated yet — pick an output above.'
-                : 'Add sources first — every artifact is built from them.')
-          : shownArts.map((a, i) => el('div', { key: a.key || a.primary || i, className: 'nb-artrow' },
-              el('button', {
-                type: 'button', className: 'nb-art',
-                'data-kind': a.kind,
-                onClick: () => onOpen(a),
-                'aria-label': `Open ${a.title || a.label || a.kind}`,
-                title: `${a.title || a.primary || a.label}${optsSummary(a.opts) ? ` — ${optsSummary(a.opts)}` : ''}`,
-                children: [
-                  el('span', { className: 'nb-art-ico', 'aria-hidden': 'true' },
-                    i < 12 ? jsx(ArtThumb, { run: a, nbId: notebook && notebook.id })
-                      : jsx(Glyph, { name: KIND_ICON[a.kind] || 'doc', size: 17 })),
-                  el('span', { className: 'nb-art-main' },
-                    el('span', { className: 'nb-art-title', children: a.title || a.label || a.kind }),
-                    el('span', { className: 'nb-art-sub',
-                      children: `${nfmt(a.bytes)} · ${ago(a.modified)}${a.opts && Object.keys(a.opts).length ? ' · tailored' : ''}` }))
-                ]
-              }, a.key || a.primary || i),
-              onDelete ? jsx(IconBtn, {
-                icon: 'trash', size: 13, className: 'nb-art-del',
-                label: `Delete ${a.label || a.kind} artifact`,
-                onClick: () => onDelete(a)
-              }) : null)))),
-    canScroll ? jsx('div', { className: 'nb-fade', 'aria-hidden': 'true' }) : null,
-    el('div', { className: 'nb-pad', style: { borderTop: `1px solid ${T.lineSoft}`, display: 'flex', justifyContent: 'center', paddingTop: '10px', paddingBottom: '12px' } },
-      jsx(Btn, { icon: 'note', onClick: onAddNote, disabled: !notebook, children: 'Add note' }))
+            ? el('div', { className: 'nb-empty-out' },
+                jsx(Glyph, { name: notebook && notebook.sources && notebook.sources.length ? 'sparkle' : 'layers', size: 18 }),
+                el('span', { children: notebook && notebook.sources && notebook.sources.length
+                  ? 'Nothing generated yet — pick an output above.'
+                  : 'Add sources first — every output is built from them.' }))
+            : shownArts.map((a, i) => el('div', { key: a.key || a.primary || i, className: 'nb-artrow' },
+                el('button', {
+                  type: 'button', className: 'nb-art',
+                  'data-kind': a.kind,
+                  onClick: () => onOpen(a),
+                  'aria-label': `Open ${a.title || a.label || a.kind}`,
+                  title: `${a.title || a.primary || a.label}${optsSummary(a.opts) ? ` — ${optsSummary(a.opts)}` : ''}`,
+                  children: [
+                    el('span', { className: 'nb-art-ico', 'aria-hidden': 'true' },
+                      i < 12 ? jsx(ArtThumb, { run: a, nbId: notebook && notebook.id })
+                        : jsx(Glyph, { name: KIND_ICON[a.kind] || 'doc', size: 17 })),
+                    el('span', { className: 'nb-art-main' },
+                      el('span', { className: 'nb-art-title', children: a.title || a.label || a.kind }),
+                      el('span', { className: 'nb-art-sub',
+                        children: `${nfmt(a.bytes)} · ${ago(a.modified)}${a.opts && Object.keys(a.opts).length ? ' · tailored' : ''}` }))
+                  ]
+                }, a.key || a.primary || i),
+                onDelete ? jsx(IconBtn, {
+                  icon: 'trash', size: 13, className: 'nb-art-del',
+                  label: `Delete ${a.label || a.kind} artifact`,
+                  onClick: () => onDelete(a)
+                }) : null))),
+      canScroll ? jsx('div', { className: 'nb-fade', 'aria-hidden': 'true' }) : null)
   )
 }
 
@@ -1294,6 +1348,11 @@ function GenPill({ kind, art, started, nbId, onOpen, onGenerate }) {
   const secs = started ? Math.max(0, Math.round((Date.now() - started) / 1000)) : 0
   const state = started ? `writing · ${secs}s` : art ? `ready · ${ago(art.modified)}` : 'Generate'
   const pick = (id, v) => setOpts((o) => ({ ...o, [id]: v }))
+  /* The pill answers three questions in the order a person asks them: what is
+   * this, what does it make, and is there one already. The name is the label,
+   * the blurb is the promise (it comes from the backend, so it is true), and the
+   * footer is the state of the last run — with the run's own timestamp rather
+   * than the word "ready", because "ready" alone does not say how stale it is. */
   return el('div', { className: 'nb-gen', 'data-kind': kind.id },
     el('button', {
       type: 'button', className: 'nb-card',
@@ -1304,17 +1363,23 @@ function GenPill({ kind, art, started, nbId, onOpen, onGenerate }) {
       title: art ? `${kind.label} · ${art.primary}` : `Generate ${kind.label}`,
       children: [
         el('span', { className: 'nb-card-ico', 'aria-hidden': 'true' },
-          jsx(Glyph, { name: KIND_ICON[kind.id] || 'doc', size: 15 })),
+          jsx(Glyph, { name: KIND_ICON[kind.id] || 'doc', size: 16 })),
         el('span', { className: 'nb-card-main' },
           el('span', { className: 'nb-card-name', children: kind.label }),
-          el('span', { className: 'nb-card-state' },
-            el('span', {
-              className: 'nb-dot',
-              style: { background: started ? 'var(--kc)' : art ? T.ok : undefined }
-            }),
-            started ? `${secs}s` : art ? ago(art.modified) : 'generate'),
+          kind.blurb
+            ? el('span', { className: 'nb-card-blurb', children: kind.blurb })
+            : null,
+          el('span', { className: 'nb-card-foot' },
+            el('span', { className: 'nb-card-state', 'data-kind': started ? 'busy' : art ? 'ready' : 'idle' },
+              el('span', {
+                className: 'nb-dot',
+                style: { background: started ? 'var(--kc)' : art ? T.ok : undefined }
+              }),
+              started ? `writing · ${secs}s`
+                : art ? ago(art.modified)
+                  : `~${kind.secs || 15}s to make`)),
           started
-            ? el('span', { className: 'nb-bar-track', style: { marginTop: '2px' } },
+            ? el('span', { className: 'nb-bar-track' },
                 el('span', {
                   className: 'nb-bar-fill',
                   style: { width: `${Math.min(96, 12 + secs * 2.2)}%`, opacity: 0.9 }
@@ -1390,7 +1455,7 @@ function GenPill({ kind, art, started, nbId, onOpen, onGenerate }) {
                     border: `1px solid ${T.lineSoft}`, borderRadius: '12px', padding: '10px 12px'
                   }
                 },
-                  el('div', { style: { fontSize: '12px', fontWeight: 650, color: T.accent, marginBottom: '4px' },
+                  el('div', { style: { fontSize: '12.5px', fontWeight: 650, color: T.accent, marginBottom: '4px' },
                     children: `${String(i + 1).padStart(2, '0')} · ${b.headline || 'beat'}` }),
                   el('div', { style: { fontSize: '13px', color: T.text2, lineHeight: 1.5 }, children: b.text }))))
         })
@@ -1852,7 +1917,7 @@ function AddSourceDialog({ open, onClose, notebook, onDone, initialMode, seedQue
   }
 
   const noteBody = () => el('div', null,
-    el('p', { style: { margin: '0 0 14px', color: T.text3, fontSize: '14.5px', lineHeight: 1.55 },
+    el('p', { style: { margin: '0 0 14px', color: T.text3, fontSize: '14px', lineHeight: 1.55 },
       children: 'A note becomes a first-class source — searchable, citable, and included in every answer and artifact.' }),
     el('div', { style: { display: 'grid', gap: '10px' } },
       el('textarea', {
@@ -1861,7 +1926,7 @@ function AddSourceDialog({ open, onClose, notebook, onDone, initialMode, seedQue
         'aria-label': 'Note text',
         style: {
           minHeight: '150px', borderRadius: '12px', border: `1px solid ${T.line}`,
-          background: T.cardDeep, color: T.text, padding: '12px', fontSize: '14.5px',
+          background: T.cardDeep, color: T.text, padding: '12px', fontSize: '14px',
           lineHeight: 1.55, resize: 'vertical', outline: 'none'
         }
       }),
@@ -1888,7 +1953,7 @@ function AddSourceDialog({ open, onClose, notebook, onDone, initialMode, seedQue
     children: noteOnly
       ? noteBody()
       : el('div', null,
-      el('p', { style: { margin: '0 0 14px', color: T.text3, fontSize: '14.5px', lineHeight: 1.55 },
+      el('p', { style: { margin: '0 0 14px', color: T.text3, fontSize: '14px', lineHeight: 1.55 },
         children: mode === 'find'
           ? 'Describe what this notebook should know — Hermes searches the web and offers candidates. Nothing joins until you pick it.'
           : 'A source is anything the notebook can cite: a URL, a file on this machine, or text you paste. It is extracted, labelled and indexed on the way in.' }),
@@ -1981,7 +2046,7 @@ function NewNotebookDialog({ open, onClose, onDone }) {
           'aria-label': 'Notebook description',
           style: {
             minHeight: '80px', borderRadius: '10px', border: `1px solid ${T.line}`,
-            background: T.cardDeep, color: T.text, padding: '12px', fontSize: '14.5px',
+            background: T.cardDeep, color: T.text, padding: '12px', fontSize: '14px',
             lineHeight: 1.5, resize: 'vertical', outline: 'none'
           }
         })),
