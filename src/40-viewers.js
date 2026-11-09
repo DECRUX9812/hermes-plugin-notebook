@@ -80,7 +80,9 @@ function Viewer({ artifact, notebook, onCite, onRegenerate, regenerating, onChan
   } else if (artifact.kind === 'slides') {
     body = jsx(SlidesView, { data: asJson.json, text: primary.text, notebook, jsonName,
                              htmlUrl: primary.url && artifact.ext === 'html' ? primary.url : '' })
-  } else if (artifact.kind === 'infographic') {
+  } else if (artifact.kind === 'infographic' || artifact.kind === 'blueprint_evolution') {
+    // The blueprint is an SVG poster like an infographic: same stage, same
+    // zoom, same style chip. A separate viewer would be the same code twice.
     body = jsx(InfographicView, { src: primary.url, data: asJson.json })
   } else if (artifact.kind === 'data_table') {
     body = jsx(DataTableView, { text: primary.text, name: artifact.primary })
@@ -92,34 +94,41 @@ function Viewer({ artifact, notebook, onCite, onRegenerate, regenerating, onChan
   }
 
   return el('div', { className: 'nb-view' },
+    // ONE 44px toolbar: category badge, the artifact's name, a human-readable
+    // provenance line, then the icon actions. There is no second sub-header and
+    // no "<notebook> — <kind>" H1 anywhere below it: the tab above already names
+    // the kind, and the file's size in bytes is not something a reader needs.
     el('div', { className: 'nb-view-head' },
       el('span', { className: 'nb-chip', 'data-tone': 'accent', children: artifact.label }),
-      el('div', { style: { flex: 1, minWidth: 0 } },
-        el('div', { className: 'nb-view-title', children: artifact.title || (asJson.json && (asJson.json.title || asJson.json.topic)) || prettyFile(artifact.primary) }),
-        el('div', { style: { fontSize: '12.5px', color: T.text4 },
-          children: `${artifact.files.length} file${artifact.files.length === 1 ? '' : 's'} · ${Math.max(1, Math.round(artifact.bytes / 1024))} KB · ${ago(artifact.modified)}${optsSummary(artifact.opts) ? ` · ${optsSummary(artifact.opts)}` : ''}` })),
-      primary.text
-        ? jsx(IconBtn, {
-            icon: 'copy', label: 'Copy artifact text',
-            onClick: () => { try { navigator.clipboard.writeText(primary.text) } catch { /* clipboard may be unavailable */ } }
-          })
-        : null,
-      jsx(IconBtn, {
-        icon: 'download', label: `Download ${artifact.label}`,
-        onClick: () => downloading(primary.url, artifact.primary)
-      }),
-      onPrevRun ? jsx(IconBtn, { icon: 'arrowLeft', label: 'Older version', onClick: onPrevRun }) : null,
-      onNextRun ? jsx(IconBtn, { icon: 'arrowRight', label: 'Newer version', onClick: onNextRun }) : null,
-      runPos ? el('span', { className: 'nb-meta', style: { fontSize: '12.5px' }, children: runPos }) : null,
-      onRegenerate ? jsx(IconBtn, {
-        icon: 'refresh', label: `Regenerate ${artifact.label}`,
-        active: !!regenerating, disabled: !!regenerating,
-        onClick: onRegenerate
-      }) : null,
-      jsx(IconBtn, {
-        icon: 'pencil', label: 'Rename this artifact',
-        onClick: () => { setRenVal(artifact.title || ''); setRenOpen(true) }
-      })
+      el('div', { style: { flex: '1 1 auto', minWidth: 0 } },
+        el('div', { className: 'nb-view-title',
+          title: artifact.title || (asJson.json && (asJson.json.title || asJson.json.topic)) || artifact.primary,
+          children: artifact.title || (asJson.json && (asJson.json.title || asJson.json.topic)) || prettyFile(artifact.primary) }),
+        el('div', { className: 'nb-view-sub',
+          title: optsSummary(artifact.opts) || undefined,
+          children: `Updated ${ago(artifact.modified) || 'just now'} · ${artifact.files.length} file${artifact.files.length === 1 ? '' : 's'}${runPos ? ` · version ${runPos}` : ''}${optsSummary(artifact.opts) ? ` · ${optsSummary(artifact.opts)}` : ''}` })),
+      el('div', { className: 'nb-view-acts' },
+        primary.text
+          ? jsx(IconBtn, {
+              icon: 'copy', label: 'Copy artifact text',
+              onClick: () => { try { navigator.clipboard.writeText(primary.text) } catch { /* clipboard may be unavailable */ } }
+            })
+          : null,
+        jsx(IconBtn, {
+          icon: 'download', label: `Download ${artifact.label}`,
+          onClick: () => downloading(primary.url, artifact.primary)
+        }),
+        onPrevRun ? jsx(IconBtn, { icon: 'arrowLeft', label: 'Older version', onClick: onPrevRun }) : null,
+        onNextRun ? jsx(IconBtn, { icon: 'arrowRight', label: 'Newer version', onClick: onNextRun }) : null,
+        onRegenerate ? jsx(IconBtn, {
+          icon: 'refresh', label: `Regenerate ${artifact.label}`,
+          active: !!regenerating, disabled: !!regenerating,
+          onClick: onRegenerate
+        }) : null,
+        jsx(IconBtn, {
+          icon: 'pencil', label: 'Rename this artifact',
+          onClick: () => { setRenVal(artifact.title || ''); setRenOpen(true) }
+        }))
     ),
     body,
     renOpen
@@ -1183,25 +1192,257 @@ function DataTableView({ text, name }) {
             head.map((_, ci) => el('td', { key: `c${ci}`, children: String(r[ci] || '') }, `c${ci}`))))))))
 }
 
-/* ------------------------------------------------------------- timeline */
+/* ------------------------------------------------------------- timeline
+ *
+ * A timeline artifact is markdown, and for a year it was drawn as plain
+ * paragraphs with literal "(Source 1)" strings — which is a dump, not a
+ * timeline. It is now parsed into nodes and drawn on a spine:
+ *
+ *   - `## <date|period|phase>` starts a node; the bullets under it are its body
+ *   - `- **1971** — …` is a node of its own
+ *   - "(Source 2)" and "(Sources 1 and 4)" become real [S2] citation chips
+ *   - the model's meta-commentary ("Note: the provided source is thematic…")
+ *     is stripped: if the material is a process rather than a chronology, the
+ *     surface says "sequenced phases" once and draws phase badges, instead of
+ *     printing the apology as body text.
+ */
+const TL_MONTHS = 'january|february|march|april|may|june|july|august|september|october|november|december|jan|feb|mar|apr|jun|jul|aug|sep|sept|oct|nov|dec'
+const TL_DATED = new RegExp(`\\b(1[0-9]{3}|20[0-9]{2}|2100)\\b|\\b(${TL_MONTHS})\\b`, 'i')
+const TL_META = /^(?:note[:—-]|nb[:]|disclaimer[:])?\s*(?:the (?:provided |given )?(?:source|sources|material|document|text)\s+(?:is|are|does|do|was|were)|i (?:cannot|can not|can’t|don’t|do not)|as an ai|keep in mind that|please note that|there (?:is|are) no (?:explicit|specific) (?:dates|timeline|dates or timeline)|this (?:timeline|document) (?:is|was) (?:compiled|based|created) (?:from|using))/i
+const TL_NOISE = /^(?:note[:—-]\s*)?(?:nb[:]|caution[:]|caveat[:])\s*/i
+/** "- <when> — body": the marker a one-line milestone starts with. Accepts
+ *  years, year ranges, "April 2025", "Apr 12, 2025", "12 April 2025". */
+const TL_NODE_PREFIX = new RegExp('^(?:\\*\\*)?(' + [
+  // procedural labels: "Phase 2", "T+90 days", "Pre-interview phase", "Step 3"
+  '(?:Phase|Stage|Step|Wave|Round)\\s*[0-9A-Za-z+.-]*',
+  '(?:Pre|Post|During|After|Before)[- ]?[A-Za-z]+\\s+phase',
+  '[A-Za-z]+(?:-[A-Za-z]+)?\\s+phase',
+  'T\\s*\\u00b1?\\+\\s*[0-9]+(?:\\s*[A-Za-z]+)?',
+  '[0-9]{3,4}(?:\\s*[\\u2013-]\\s*[0-9]{2,4})?',
+  '(?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Sept|Oct|Nov|Dec)[a-z]*\\s+[0-9]{1,2}(?:,\\s*[0-9]{4})?',
+  '[A-Z][a-z]+\\s+[0-9]{1,2}(?:,\\s*|[\\s]+)[0-9]{4}',
+  '[A-Z][a-z]+\\s+[0-9]{4}',
+  '[0-9]{1,2}\\s+[A-Z][a-z]+\\s+[0-9]{4}'
+].join('|') + ')(?:\\*\\*)?\\s*[\\u2014\\u2013:-]\\s*(.+)$')
+
+/** "(Source 2)" / "(Sources 1 and 4)" → "[S2]" / "[S1][S4]". */
+function tlCiteFix(line) {
+  return String(line)
+    .replace(/\(\s*(?:see\s+)?(?:sources?|ref(?:erence)?s?\.?)\s*(?:no\.?\s*)?([0-9]+(?:\s*(?:,|and|&(?:amp;)?)\s*[0-9]+)*)\s*\)/gi,
+      (m, list) => list.split(/[,\s]+|and|&amp;|&/).filter((n) => n && /^[0-9]+$/.test(n))
+        .map((n) => `[S${n}]`).join(''))
+    .replace(/\s*\(\s*si\s*\)/gi, '')
+}
+
+/** Strip the model talking about itself: a timeline that apologises for its
+ *  shape instead of being shaped is the failure this viewer exists to hide. */
+const tlIsMeta = (line) => {
+  const t = String(line).trim()
+  if (!t) return false
+  if (TL_META.test(t)) return true
+  return TL_NOISE.test(t) && /(thematic|not (?:strictly )?chronolog|no (?:explicit )?dates|rather than chronological)/i.test(t)
+}
+
+function tlParse(text) {
+  const lines = tlCiteFix(String(text || '').replace(/\r\n/g, '\n')).split('\n')
+  const nodes = []
+  const lede = []
+  let title = ''
+  let pending = null     // the heading a bullet list belongs to
+  let sawMeta = false
+  const openNode = (when) => {
+    const n = { when: String(when || '').trim(), body: [], tags: [] }
+    nodes.push(n)
+    return n
+  }
+  const pushBody = (n, line) => { if (n) n.body.push(line.trim()) }
+  for (const raw of lines) {
+    const line = raw.trimEnd()
+    const t = line.trim()
+    if (!t) { if (pending) pushBody(pending.obj, ''); continue }
+    if (tlIsMeta(t)) { sawMeta = true; continue }
+    const h1 = /^#\s+(.*)$/.exec(t)
+    if (h1) { title = h1[1].trim(); continue }
+    const h = /^#{2,4}\s+(.*)$/.exec(t)
+    if (h) {
+      const when = h[1].replace(/\*\*/g, '').replace(/^[\d.]+\s+/, '').trim()
+      pending = { when, obj: openNode(when) }
+      continue
+    }
+    const item = /^(?:[-*+]|\d+\.)\s+(.*)$/.exec(t)
+    if (item) {
+      const body = item[1].trim()
+      // The canonical row is pipe-delimited (the artifact prompt asks for
+      // `- **<when>** | <category> | <headline> | <what changed> [S#] | <unblocked>`).
+      // Parse it here so the renderer can draw the category as a badge and the
+      // consequence as its own line, instead of printing one run-on sentence.
+      if (TL_ROW.test(body)) {
+        const cells = body.split(/\s*\|\s*/).map((c) => c.trim())
+        const when = (cells[0] || '').replace(/\*\*/g, '').trim()
+        const n = openNode(when)
+        n.row = {
+          category: (cells[1] || '').replace(/\*\*/g, '').trim(),
+          headline: (cells[2] || '').replace(/\*\*/g, '').trim(),
+          what: (cells[3] || '').trim(),
+          consequence: (cells[4] || '').replace(/\*\*/g, '').trim()
+        }
+        pending = null
+        continue
+      }
+      // "- **1971** — text" / "- 1971: text" is a node by itself
+      const own = TL_NODE_PREFIX.exec(body)
+      if (own) {
+        const n = openNode(own[1].replace(/\*\*/g, '').trim())
+        pushBody(n, own[2])
+        pending = null
+      } else if (pending) {
+        pushBody(pending.obj, body)
+      } else {
+        // a bullet without a date and without a heading: keep it as its own
+        // numbered step so nothing is silently dropped
+        const n = openNode('')
+        pushBody(n, body)
+        pending = null
+      }
+      continue
+    }
+    if (/^(?:[-*_]){3,}$/.test(t)) continue
+    if (pending) pushBody(pending.obj, t)
+    else lede.push(t)
+  }
+  // dates only when the document is actually dated; a sequence of phases is a
+  // sequence even if half its labels are words
+  const datedCount = nodes.filter((n) => n.when && TL_DATED.test(n.when)).length
+  const kind = nodes.length && datedCount <= nodes.length / 2 ? 'phases' : 'dates'
+  // a fully dated timeline is a chronology: order it as one. If any node is a
+  // phase label (or undated), the document order is the sequence the model meant.
+  const keys = nodes.map((n) => tlWhenKey(n.when))
+  if (nodes.length && keys.every((k) => k !== null)) {
+    const ordered = nodes.slice().sort((a, b) => tlWhenKey(a.when) - tlWhenKey(b.when))
+    return { title, lede, nodes: ordered, sawMeta, kind, reordered: ordered.some((n, i) => n !== nodes[i]) }
+  }
+  return { title, lede, nodes, sawMeta, kind, reordered: false }
+}
+
+/** The canonical timeline row: at least four pipe-separated cells. */
+const TL_ROW = /\|/
+/** Categories the artifact prompt allows, and the tone each is drawn in. */
+const TL_CATS = {
+  'milestone': 'ok',
+  'architecture shift': 'accent',
+  'external event': 'accent',
+  'bottleneck': 'warn',
+  'target deadline': 'warn'
+}
+
+/** A sortable key for a node's date, or null when it is a phase label.
+ *  The artifact prompt asks the model for chronological order; models drift
+ *  (the December 2025 sample listed April before January), so a timeline that
+ *  is fully dated is sorted here — the reader is looking at a chronology, not
+ *  at the model's draft. */
+const TL_MONTH_INDEX = {
+  jan: 1, feb: 2, mar: 3, apr: 4, may: 5, jun: 6,
+  jul: 7, aug: 8, sep: 9, oct: 10, nov: 11, dec: 12
+}
+function tlWhenKey(when) {
+  const t = String(when || '').trim()
+  const year = /(1[0-9]{3}|20[0-9]{2})/.exec(t)
+  if (!year) return null
+  const y = Number(year[1])
+  const month = /\b(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)[a-z]*\b/i.exec(t)
+  const day = new RegExp(`\\b${month ? month[1] : '(?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)'}\\w*\\s+([0-9]{1,2})`, 'i').exec(t)
+    || /([0-9]{1,2})\s+[A-Z][a-z]+/.exec(t)
+  // a year-only entry summarizes that year, so it sorts after the year's dated
+  // events rather than ahead of January (which read as "2025, then January 2025")
+  const mo = month ? TL_MONTH_INDEX[month[1].slice(0, 3).toLowerCase()] || 12 : 12
+  const d = month ? (day ? Number(day[1]) : 1) : 31
+  return y * 10000 + mo * 100 + d
+}
+
+/** The S# markers a node cites, in order. */
+const tlSRefs = (body) => {
+  const out = []
+  for (const m of String(body || '').matchAll(/\[S([0-9]+)\]/g)) {
+    const n = Number(m[1])
+    if (!out.includes(n)) out.push(n)
+  }
+  return out
+}
 
 function TimelineView({ text, onCite }) {
-  const rows = useMemo(() => {
-    const out = []
-    for (const line of String(text || '').split('\n')) {
-      const m = /^\s*[-*]\s*(?:\*\*)?([0-9]{3,4}[^—\-:\*]*|[A-Z][a-z]{2,8}\.?\s+[0-9]{1,2},?\s+[0-9]{4})(?:\*\*)?\s*[—\-:]\s*(.+)$/.exec(line)
-      if (m) out.push({ when: m[1].trim().replace(/\*\*/g, ''), what: m[2].trim() })
-    }
-    return out
-  }, [text])
-  if (rows.length < 3) {
-    return el('div', { className: 'nb-view-body' }, el('div', { className: 'nb-doc' }, jsx(Markdown, { text, onCite })))
+  const doc = useMemo(() => tlParse(text), [text])
+  if (doc.nodes.length < 2) {
+    // not enough structure to draw: render the document honestly, minus the
+    // meta commentary the parser already identified
+    const fallback = doc.nodes.length
+      ? `${[doc.title && `# ${doc.title}`, ...doc.lede, ...doc.nodes.map((n) => `- ${n.when ? `${n.when} — ` : ''}${n.body.filter(Boolean).join(' ')}`)].filter(Boolean).join('\n\n')}`
+      : text
+    return el('div', { className: 'nb-view-body' }, el('div', { className: 'nb-doc' }, jsx(Markdown, { text: fallback, onCite })))
   }
+  const bodyOf = (n) => (n.row
+    ? `${n.row.headline} ${n.row.what} ${n.row.consequence}`
+    : n.body.filter(Boolean).join('\n\n'))
+  const cited = new Set()
+  for (const n of doc.nodes) for (const r of tlSRefs(bodyOf(n))) cited.add(r)
   return el('div', { className: 'nb-view-body' },
-    el('div', { style: { maxWidth: '72ch' } },
-      el('ol', { className: 'nb-timeline', 'aria-label': 'Timeline' },
-        rows.map((r, i) => el('li', { className: 'nb-tl', key: `t${i}` },
-          el('span', { className: 'nb-tl-when', children: r.when }),
-          el('span', { className: 'nb-tl-what', children: jsx(Markdown, { text: r.what, onCite }) })))))
-  )
+    el('div', { style: { display: 'flex', flexDirection: 'column' } },
+      el('div', { className: 'nb-spine-lede' },
+        jsx(Glyph, { name: 'timeline', size: 14 }),
+        el('span', { children: [
+          el('b', { children: String(doc.nodes.length) }),
+          doc.kind === 'dates' ? ' milestones' : ' phases',
+          cited.size ? ` · cites ${[...cited].sort((a, b) => a - b).map((n) => `S${n}`).join(', ')}` : '',
+          doc.reordered ? ' · reordered chronologically' : ''
+        ] }),
+        doc.kind === 'phases'
+          ? el('span', { className: 'nb-chip', title: 'The sources describe a sequence of steps rather than dated events.',
+              children: 'sequenced phases' })
+          : null),
+      el('ol', { className: 'nb-spine', 'aria-label': doc.title ? `Timeline — ${doc.title}` : 'Timeline' },
+        doc.nodes.map((n, i) => {
+          const refs = tlSRefs(bodyOf(n))
+          const phase = doc.kind === 'phases'
+          const when = n.when || (phase ? `Phase ${i + 1}` : `Entry ${i + 1}`)
+          const chips = el('div', { className: 'nb-node-src' },
+            refs.map((r) => (onCite
+              ? el('button', {
+                  type: 'button', className: 'nb-srcchip',
+                  title: `Open source S${r}`,
+                  'aria-label': `Citation S${r} — open the source`,
+                  onClick: (e) => { e.stopPropagation(); onCite(r) },
+                  children: `S${r}`
+                }, `s${i}-${r}`)
+              : el('span', { className: 'nb-srcchip', children: `S${r}` }, `s${i}-${r}`))))
+          // a canonical row carries its own structure: category, headline, what
+          // changed, and what it unblocked. Drawing it as one paragraph is what
+          // made the old viewer read like a text dump.
+          const card = n.row
+            ? el('div', { className: 'nb-node-card' },
+                n.row.category
+                  ? el('span', { className: 'nb-node-cat', 'data-tone': TL_CATS[n.row.category.toLowerCase()] || undefined,
+                      children: n.row.category })
+                  : null,
+                n.row.headline
+                  ? el('div', { className: 'nb-node-headline', children: n.row.headline })
+                  : null,
+                n.row.what
+                  ? el('div', { className: 'nb-node-what', children: jsx(Markdown, { text: n.row.what, onCite }) })
+                  : null,
+                n.row.consequence
+                  ? el('div', { className: 'nb-node-cons' }, [
+                      jsx(Glyph, { name: 'bolt', size: 12 }),
+                      el('span', { children: n.row.consequence })
+                    ])
+                  : null)
+            : el('div', { className: 'nb-node-card' },
+                jsx(Markdown, { text: n.body.filter(Boolean).join('\n\n'), onCite }))
+          const kids = [
+            el('span', { className: 'nb-node-dot', 'aria-hidden': 'true' }),
+            el('span', { className: 'nb-node-when', 'data-phase': phase ? 'true' : 'false', children: when }),
+            card,
+            refs.length ? chips : null
+          ].filter(Boolean)
+          return el('li', { className: 'nb-node', key: `n${i}` }, kids)
+        }))
+  ))
 }

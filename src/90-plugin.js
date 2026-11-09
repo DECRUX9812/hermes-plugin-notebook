@@ -117,7 +117,7 @@ function SettingsPage() {
 
 const KINDS_FALLBACK = ['video_overview', 'audio_overview', 'summary', 'briefing_doc',
   'study_guide', 'faq', 'timeline', 'mind_map', 'flashcards', 'quiz', 'slides',
-  'infographic', 'data_table']
+  'infographic', 'data_table', 'blueprint_evolution']
 
 /** The agent can write `::notebook{name="Fusion 2026"}` in a reply. */
 function NotebookDirective({ attrs }) {

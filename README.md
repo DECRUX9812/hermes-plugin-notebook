@@ -80,7 +80,7 @@ control, a file browser and Proxmox VM snapshots for the selected host.
 | User notes | `notebook_note` — your annotations become first-class searchable sources |
 | Source lifecycle | `notebook_refresh` re-fetches url/file sources, `notebook_delete_source` removes one |
 | Suggestions | `notebook_suggest` — questions worth asking, artifacts worth making, source gaps (optional `kinds` filter) |
-| Artifacts | `notebook_generate` — summary, briefing doc, study guide, FAQ, timeline, **mind map**, flashcards (md or Anki CSV), quiz, **slide deck** (self-contained HTML **+ real .pptx export**), **infographic** (SVG: 38 looks × 9 layouts), data table (CSV) |
+| Artifacts | `notebook_generate` — summary, briefing doc, study guide, FAQ, timeline, **mind map**, flashcards (md or Anki CSV), quiz, **slide deck** (self-contained HTML **+ real .pptx export**), **infographic** (SVG: 38 looks × 10 layouts), **architecture blueprint** (five-zone engineering poster), data table (CSV) |
 | Audio Overview | `notebook_audio` — Deep Dive / Brief / Critique / Debate, short/medium/long, any language; two-host conversation (edge-tts + ffmpeg) with transcript |
 | Video Overview | `notebook_video` — narrated mp4, `style=cinematic|explainer`, focus/goals script review, language, length |
 | Web discovery | `notebook_discover` — search the notebook's own gaps; **deep=true** adds a second (and third) research round that reads what round one found and asks different questions |
@@ -156,7 +156,7 @@ See [docs/STATE-MACHINES.md](docs/STATE-MACHINES.md).
 ## Graphics library
 
 Every visual artifact is drawn by a reusable library, not one-off code:
-**38 looks × 9 templates × 7 canvases × 3 detail levels**, composed from primitives and
+**38 looks × 10 templates × 7 canvases × 3 detail levels**, composed from primitives and
 emitted as SVG (5–15 KB, crisp at any zoom, real text, accessible).
 
 ![38 looks](assets/infographic-styles.png)

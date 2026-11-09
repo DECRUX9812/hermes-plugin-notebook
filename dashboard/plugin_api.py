@@ -124,6 +124,28 @@ KINDS: List[Dict[str, Any]] = [
           "choices": ["landscape", "square", "portrait"]},
          {"id": "detail", "label": "Detail", "kind": "seg",
           "choices": ["concise", "standard", "detailed"]}]},
+    {"id": "blueprint_evolution", "label": "Architecture Blueprint", "group": "visual",
+     "ext": "svg",
+     "blurb": "Five-zone engineering poster: gaps → matrix → pillars", "secs": 38,
+     "options": [
+         {"id": "style", "label": "Look", "kind": "select",
+          "default": "sections",
+          "choices": ["sections", "blueprint", "swiss", "carbon", "dashboard",
+                      "terminal", "mission", "hud"],
+          "items": [{"id": i, "label": i.replace("_", " ").title()}
+                    for i in ("sections", "blueprint", "swiss", "carbon", "dashboard",
+                              "terminal", "mission", "hud")]},
+         {"id": "orientation", "label": "Shape", "kind": "seg",
+          "choices": ["landscape", "portrait", "square"],
+          "hint": "the zone geometry scales, it does not reflow"},
+         {"id": "detail", "label": "Detail", "kind": "seg",
+          "choices": ["concise", "standard", "detailed"]},
+         # Deterministic SVG is the default: text stays text, files are a few KB,
+         # and a diffusion step cannot invent a number. The painted route is
+         # opt-in and falls back to SVG when the host has no image backend.
+         {"id": "engine", "label": "Engine", "kind": "seg", "default": "gfx",
+          "choices": ["gfx", "imagen_blueprint"],
+          "labels": {"gfx": "Vector · exact", "imagen_blueprint": "Painted · image model"}}]},
     {"id": "data_table", "label": "Data Table", "group": "docs", "ext": "csv",
      "blurb": "Structured rows, exports to Sheets", "secs": 14},
 ]
@@ -236,8 +258,12 @@ def _collect_artifacts(notebook_id: str) -> List[Dict[str, Any]]:
     for run in runs.values():
         exts = {f["ext"] for f in run["files"]}
         meta = KIND_INDEX.get(run["kind"], {})
-        # prefer the richest representation: media, then html, then md, then json
-        for want in ("mp4", "mp3", "png", "html", "csv", "md", "txt", "json"):
+        # Prefer the richest representation that actually renders: media, then a
+        # vector poster, then a raster one, then html, then text, then json.
+        # `svg` was missing from this list, so a vector poster fell through to
+        # "whatever file the run listed first" — and for the blueprint that was
+        # its .json, which the viewer then tried to open as an image.
+        for want in ("mp4", "mp3", "png", "svg", "html", "csv", "md", "txt", "json"):
             if want in exts:
                 primary = next(f for f in run["files"] if f["ext"] == want)
                 break
@@ -1021,14 +1047,19 @@ async def generate(payload: Dict[str, Any] = Body(...)) -> Any:
                     conversation=conversation,
                     language=str(payload.get("language") or ""),
                     options={"orientation": payload.get("orientation") or "landscape",
-                             "detail": payload.get("detail") or "standard"}))
+                             "detail": payload.get("detail") or "standard",
+                             # `engine` decides vector vs painted for the blueprint.
+                             # Dropping it here made the Studio toggle a no-op: it
+                             # saved the choice and generated the default anyway.
+                             "engine": (payload.get("options") or {}).get("engine")
+                                       or payload.get("engine") or "gfx"}))
     except Exception as exc:
         return _fail(f"{type(exc).__name__}: {exc}", 500)
     # remember the knobs this run used — regenerate reuses them and the row
     # can show the artifact was tailored
     opts_used = {k: str(payload.get(k) or "").strip()
                  for k in ("focus", "count_hint", "format", "length", "language", "style",
-                           "template", "orientation", "detail", "from_chat")}
+                           "template", "orientation", "detail", "engine", "from_chat")}
     opts_used = {k: v for k, v in opts_used.items() if v}
     if opts_used:
         try:

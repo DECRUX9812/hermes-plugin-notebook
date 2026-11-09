@@ -38,7 +38,7 @@ from .themes import (ART, ALIASES, BY_ID, DEFAULT_PRESET, FAMILIES, PRESETS, Pre
                      of_family, resolve as resolve_preset, with_art)
 from .templates import (Frame, TEMPLATE_PRESETS, TEMPLATES, facts_block, header,
                         takeaway, takeaway_measure, tile)
-from . import core, illustrate, samples, templates, themes
+from . import blueprint, core, illustrate, isometrics, samples, templates, themes
 
 __all__ = [
     "render", "render_html", "write_svg", "write_html", "data_url",
@@ -48,7 +48,7 @@ __all__ = [
     "TEMPLATES", "TEMPLATE_PRESETS", "Frame", "header", "takeaway", "takeaway_measure",
     "facts_block", "tile",
     "ORIENTATIONS", "DETAIL_LEVELS", "canvas_for", "library_manifest", "normalise_graphic",
-    "core", "illustrate", "samples", "templates", "themes",
+    "core", "illustrate", "isometrics", "blueprint", "samples", "templates", "themes",
     "SAMPLE_GRAPHIC", "SAMPLE_SMALL",
 ]
 

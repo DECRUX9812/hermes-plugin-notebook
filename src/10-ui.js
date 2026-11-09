@@ -16,6 +16,9 @@ const P = {
   cards: 'M8 7h11v11H8V7ZM5 17V4h11',
   slides: 'M3 4h18v11H3V4Zm9 11v5M8 20h8',
   chart: 'M4 20h16M7 16V9M12 16V5M17 16v-5',
+  // a blueprint reads as a plan view, not a bar chart: three stacked
+  // zones with a column split, which is what the poster actually is
+  blueprint: 'M3 4h18v16H3V4Zm0 5h18M9 9v11M14 9v11M3 15h18',
   summary: 'M5 6h14M5 10h14M5 14h9M5 18h6',
   quiz: 'M4 5h16v14H4V5Zm3.5 7.2 2 2 3.5-3.5',
   search: 'M10.5 17a6.5 6.5 0 1 0 0-13 6.5 6.5 0 0 0 0 13Zm4.8.2L20 21',

@@ -85,7 +85,7 @@ const CSS = `
    ========================================================================== */
 
 .nb-root{
-  --nb-rail: 300px; --nb-studio: 396px;
+  --nb-rail: 280px; --nb-studio: 380px;
   --nb-hair: color-mix(in srgb, ${T.text} 10%, transparent);
   --nb-hair-soft: color-mix(in srgb, ${T.text} 6%, transparent);
   --nb-wash: color-mix(in srgb, ${T.text} 4%, transparent);
@@ -231,32 +231,53 @@ const CSS = `
 .nb-pad{padding:12px 14px}
 
 /* ------------------------------------------------------------------- rail */
-.nb-nbrow{display:flex;align-items:center;gap:12px;width:100%;
-  text-align:left;cursor:pointer;border:0;border-radius:var(--nb-r-el);background:transparent;
-  padding:9px 10px;color:${T.text};transition:background var(--nb-dur-fast) var(--nb-ease)}
-.nb-nbrow:hover{background:var(--nb-wash-2)}
-.nb-nbrow[aria-current=true]{background:color-mix(in srgb,${T.accent} 11%, transparent)}
-.nb-nbtitle{font-size:13px;font-weight:600;line-height:1.32;color:${T.text2};letter-spacing:-.005em;
-  overflow:hidden;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical}
-.nb-nbrow[aria-current=true] .nb-nbtitle{color:${T.text}}
-.nb-nbsub{font-size:11.5px;color:${T.text3};margin-top:2px;display:block}
-.nb-avatar{width:36px;height:36px;flex:0 0 auto;display:grid;place-items:center;border-radius:var(--nb-r-el);
-  background:var(--nb-wash-2);color:${T.text2};font-size:13px;font-weight:700}
-.nb-nbrow[aria-current=true] .nb-avatar{background:color-mix(in srgb,${T.accent} 20%, transparent);color:color-mix(in srgb,${T.accent} 70%, ${T.text})}
+/* the assistant's mark in a message row; the rail's notebook switcher card is
+   gone, so this is the only avatar the surface still draws */
+.nb-avatar{width:36px;height:36px;flex:0 0 auto;display:grid;place-items:center;
+  border-radius:var(--nb-r-el);background:var(--nb-wash-2);color:${T.text2};
+  font-size:13px;font-weight:700}
 
-.nb-src{display:flex;align-items:center;gap:6px;width:100%;border-radius:var(--nb-r-el);
-  padding:7px 8px 7px 5px;position:relative;transition:background var(--nb-dur-fast) var(--nb-ease)}
+/* ---- the rail is three zones, not eight stacked boxes ---------------------
+   header (title + add + tools) · one filter bar · the source list. The old
+   panel stacked a notebook switcher card, a dashed Add button, a web-search
+   box, a second search field, wrapped tag pills, a triply-nested checkbox tree
+   and a decorative footer pill — about 380px of chrome above a 120px slit of
+   actual sources. Everything that is not the list now lives behind the header
+   (Add opens the one dialog that can take a URL, a file, pasted text or a web
+   search) or in the single filter bar. */
+.nb-rail-head{display:flex;align-items:center;gap:var(--nb-sp-2);min-height:52px;
+  flex:0 0 52px;padding:0 var(--nb-sp-2) 0 var(--nb-sp-5);border-bottom:1px solid var(--nb-hair-soft)}
+.nb-rail-title{font-size:var(--nb-fs-ui);font-weight:650;letter-spacing:-.01em;color:${T.text};
+  display:flex;align-items:baseline;gap:var(--nb-sp-2);min-width:0}
+.nb-rail-count{font-size:var(--nb-fs-meta);font-weight:600;color:${T.text3};
+  font-variant-numeric:tabular-nums;white-space:nowrap}
+.nb-rail-tools{display:flex;align-items:center;gap:1px;margin-left:auto}
+/* one filter bar: a search field and one horizontally scrolling tag row */
+.nb-rail-filter{padding:var(--nb-sp-3) var(--nb-sp-4) var(--nb-sp-3);display:flex;
+  flex-direction:column;gap:var(--nb-sp-2);flex:0 0 auto}
+.nb-tagrow{display:flex;align-items:center;gap:var(--nb-sp-2);flex-wrap:nowrap;
+  overflow-x:auto;overflow-y:hidden;scrollbar-width:none;padding-bottom:1px;
+  min-height:24px}
+.nb-tagrow::-webkit-scrollbar{display:none}
+.nb-tagrow .nb-chip{flex:0 0 auto}
+.nb-tagrow-empty{font-size:var(--nb-fs-meta);color:${T.text4};white-space:nowrap}
+.nb-rail-list{flex:1;min-height:0;display:flex;flex-direction:column}
+/* the source list itself: one flat card per source, checkbox on the left */
+.nb-src-list{display:flex;flex-direction:column;gap:2px;padding:0 var(--nb-sp-3) var(--nb-sp-4)}
+.nb-src{display:flex;align-items:center;gap:2px;width:100%;border-radius:var(--nb-r-el);
+  padding:3px 4px;position:relative;transition:background var(--nb-dur-fast) var(--nb-ease)}
 .nb-src:hover{background:var(--nb-wash-2)}
-.nb-src[data-on=true]{background:color-mix(in srgb,${T.accent} 10%, transparent)}
-.nb-src[data-off=true]{opacity:.55}
-.nb-src-open{flex:1;min-width:0;display:grid;grid-template-columns:36px minmax(0,1fr);gap:11px;
-  align-items:center;text-align:left;background:transparent;border:0;padding:4px;border-radius:var(--nb-r-el);
+.nb-src[data-off=true]{opacity:.5}
+.nb-src[data-on=true]{background:color-mix(in srgb,${T.accent} 9%, transparent)}
+.nb-src-open{flex:1;min-width:0;display:flex;align-items:center;gap:var(--nb-sp-3);
+  text-align:left;background:transparent;border:0;padding:5px 4px;border-radius:var(--nb-r-el);
   color:${T.text};cursor:pointer;font-family:inherit}
-.nb-src-ico{position:relative;width:36px;height:36px;border-radius:var(--nb-r-el);display:grid;place-items:center;
+.nb-src-ico{position:relative;width:30px;height:30px;border-radius:var(--nb-r-in);display:grid;place-items:center;
   background:var(--nb-wash-2);color:${T.text2};flex:0 0 auto}
-.nb-src[data-on=true] .nb-src-ico{background:color-mix(in srgb,${T.accent} 18%, transparent);color:color-mix(in srgb,${T.accent} 70%, ${T.text})}
+.nb-src[data-on=true] .nb-src-ico{background:color-mix(in srgb,${T.accent} 16%, transparent);
+  color:color-mix(in srgb,${T.accent} 70%, ${T.text})}
 /* the citation number rides the icon's corner, like a source badge */
-.nb-cite{position:absolute;right:-6px;bottom:-6px;min-width:18px;height:18px;padding:0 5px;
+.nb-cite{position:absolute;right:-5px;bottom:-5px;min-width:17px;height:17px;padding:0 4px;
   border-radius:var(--nb-r-pill);display:grid;place-items:center;background:${T.accent};
   /* The host's accent family is always a mid-to-bright hue in both themes
      (light default #B8860B measures 5.92:1 against near-black and 3.25:1
@@ -266,62 +287,41 @@ const CSS = `
   color:#0d0e15;
   font-size:10.5px;font-weight:700;
   box-shadow:0 1px 4px rgba(8,10,18,.4)}
-.nb-src-title{font-size:13px;font-weight:600;line-height:1.4;color:${T.text};
+.nb-src-body{min-width:0;flex:1;display:flex;flex-direction:column;gap:1px}
+.nb-src-title{font-size:var(--nb-fs-label);font-weight:600;line-height:1.35;color:${T.text};
   overflow:hidden;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical}
-.nb-src-meta{display:flex;align-items:center;gap:5px;margin-top:4px;flex-wrap:wrap;row-gap:3px}
-/* NotebookLM's per-source checkbox: a rounded box at the row's right edge */
+.nb-src-meta{display:flex;align-items:center;gap:5px;flex-wrap:wrap;row-gap:3px}
+/* NotebookLM's per-source checkbox: a rounded box on the row's left edge */
 .nb-srccheck{width:32px;height:32px;flex:0 0 auto;border-radius:var(--nb-r-in);cursor:pointer;
   border:1.5px solid var(--nb-hair-soft);background:transparent;color:#0d0e15;
   display:grid;place-items:center;padding:0;transition:all var(--nb-dur-fast) var(--nb-ease)}
 .nb-srccheck:hover{border-color:color-mix(in srgb,${T.accent} 55%, transparent)}
 .nb-srccheck[aria-checked=true]{background:${T.accent};border-color:${T.accent}}
-.nb-selall{display:flex;align-items:center;gap:9px;padding:2px 6px}
-.nb-selall .nb-srccheck{width:32px;height:32px;border-radius:var(--nb-r-in)}
-.nb-src-del{position:absolute;right:44px;top:50%;transform:translateY(-50%);
-  opacity:0;transition:opacity var(--nb-dur-fast) var(--nb-ease)}
+/* "all included" is a filter row over the list, not a checkbox above a tree */
+.nb-selall{display:flex;align-items:center;gap:var(--nb-sp-2);padding:0 2px var(--nb-sp-2);
+  border-bottom:1px solid var(--nb-hair-soft);margin-bottom:var(--nb-sp-1)}
+.nb-selall .nb-src-title{font-size:var(--nb-fs-label);font-weight:600}
+.nb-src-flat{display:flex;flex-direction:column;gap:1px}
+.nb-src-del{position:absolute;right:var(--nb-sp-1);top:50%;transform:translateY(-50%);
+  opacity:0;transition:opacity var(--nb-dur-fast) var(--nb-ease);background:var(--nb-card)}
 .nb-src:hover .nb-src-del,.nb-src-del:focus-visible{opacity:1}
-.nb-srcgroup{display:flex;align-items:center;gap:8px;width:100%;text-align:left;
-  padding:9px 10px;border:0;border-radius:var(--nb-r-el);background:transparent;color:${T.text3};
-  font-size:12.5px;font-weight:650;letter-spacing:.01em;cursor:pointer;font-family:inherit}
-.nb-srcgroup:hover{background:var(--nb-wash-2);color:${T.text2}}
-.nb-srcgroup svg{transition:transform var(--nb-dur-fast) var(--nb-ease)}
-.nb-srcgroup[data-closed=true] svg{transform:rotate(-90deg)}
-.nb-srcgroup em{margin-left:auto;font-style:normal;font-weight:500;color:${T.text3};font-size:11.5px}
-.nb-srcgroup-list{display:flex;flex-direction:column;gap:2px;padding-left:14px}
+/* a topic is a section label, not a control: no checkbox, no fold-in-fold */
+.nb-srcgroup{display:flex;align-items:center;gap:6px;width:100%;
+  padding:10px var(--nb-sp-3) 4px;border:0;background:transparent;color:${T.text4};
+  font-size:var(--nb-fs-meta);font-weight:650;letter-spacing:.02em;text-transform:uppercase;
+  font-family:inherit}
+.nb-srcgroup svg{display:none}
+.nb-srcgroup em{margin-left:auto;font-style:normal;font-weight:600;color:var(--nb-text3, ${T.text3});
+  font-size:var(--nb-fs-meta);text-transform:none;letter-spacing:0}
 
-/* the web-research box inside the sources panel */
-.nb-finder{margin:0 14px 10px;border-radius:var(--nb-r-box);border:1px solid var(--nb-hair-soft);
-  background:var(--nb-wash);padding:10px}
-.nb-finder-row{display:flex;align-items:center;gap:8px}
-.nb-finder-row input{flex:1;min-width:0;height:34px;border:0;outline:0;background:transparent;
-  color:${T.text};font-size:13px;font-family:inherit}
-.nb-finder-row input::placeholder{color:${T.text4}}
-.nb-finder-go{width:32px;height:32px;flex:0 0 auto;border-radius:var(--nb-r-pill);border:0;cursor:pointer;
-  background:${T.accent};color:#0d0e15;display:grid;place-items:center;padding:0}
-.nb-addsrc{width:100%;justify-content:flex-start;height:34px;background:transparent;
-  border:1px dashed var(--nb-hair);color:${T.text2};font-size:12.5px;box-shadow:none}
-.nb-addsrc:hover{background:var(--nb-wash-2);border-color:color-mix(in srgb,${T.accent} 40%, var(--nb-hair));color:${T.text}}
+/* the "+ Add" control in the rail header is the only add affordance */
+.nb-addsrc{height:32px;min-height:32px;padding:0 12px;border-radius:var(--nb-r-pill);
+  background:${T.accent};border:1px solid transparent;color:#0d0e15;
+  font-size:var(--nb-fs-label);font-weight:650;box-shadow:none;gap:5px}
+.nb-addsrc:hover{background:color-mix(in srgb,${T.accent} 88%, ${T.text});border-color:transparent;
+  color:#0d0e15}
 .nb-paneltog{flex:0 0 44px;display:flex;flex-direction:column;align-items:center;
   gap:10px;padding-top:16px}
-.nb-finder-go[disabled]{opacity:.45;cursor:not-allowed}
-.nb-fcand[disabled]{cursor:default}
-.nb-fcand[disabled]:not([data-added=true]){opacity:.55}
-.nb-fcand{display:flex;align-items:center;gap:10px;width:100%;text-align:left;
-  padding:9px 10px;border-radius:var(--nb-r-el);border:0;background:transparent;color:${T.text};
-  cursor:pointer;font-family:inherit}
-.nb-fcand:hover{background:var(--nb-wash-2)}
-.nb-fcand-main{flex:1;min-width:0}
-.nb-fcand-title{display:block;font-size:12.5px;font-weight:600;line-height:1.35;color:${T.text};
-  overflow:hidden;white-space:nowrap;text-overflow:ellipsis}
-.nb-fcand-sub{display:block;font-size:11.5px;color:${T.text3};margin-top:2px;
-  overflow:hidden;white-space:nowrap;text-overflow:ellipsis}
-.nb-fcand-add{width:28px;height:28px;flex:0 0 auto;border-radius:var(--nb-r-pill);cursor:pointer;
-  border:1.5px solid var(--nb-hair);background:transparent;color:${T.text2};
-  display:grid;place-items:center;padding:0}
-.nb-fcand-add:hover{border-color:color-mix(in srgb,${T.accent} 70%, ${T.text});color:color-mix(in srgb,${T.accent} 70%, ${T.text})}
-.nb-fcand-add[data-added=true]{background:color-mix(in srgb,${T.ok} 15%, transparent);
-  border-color:color-mix(in srgb,${T.ok} 50%, transparent);color:${T.ok};cursor:default}
-
 /* chips are soft pills; clickable ones are full 32px targets */
 .nb-chip{display:inline-flex;align-items:center;gap:5px;height:22px;padding:0 9px;border-radius:var(--nb-r-pill);
   font-size:11.5px;font-weight:600;letter-spacing:.01em;color:${T.text3};
@@ -370,17 +370,26 @@ const CSS = `
 .nb-cand-sub > span:last-child{display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;
   overflow:hidden;min-width:0}
 
-/* ------------------------------------------------------- title block (main) */
-.nb-main-head{padding:24px 30px 0;border-bottom:1px solid var(--nb-hair-soft);flex:0 0 auto;position:relative}
-.nb-hero{display:flex;align-items:flex-start;gap:16px;margin-bottom:16px}
-.nb-hero-emoji{width:52px;height:52px;flex:0 0 auto;display:grid;place-items:center;font-size:30px;
-  border-radius:var(--nb-r-box);background:var(--nb-wash-2);border:1px solid var(--nb-hair-soft)}
-.nb-hero-main{min-width:0;flex:1}
-.nb-hero-main .nb-h1{margin-bottom:6px}
-.nb-h1{font-size:26px;font-weight:700;letter-spacing:-.025em;line-height:1.15;margin:0;max-width:30ch;
-  text-wrap:balance}
-.nb-sub{color:${T.text2};font-size:14px;line-height:1.55;margin:0;max-width:70ch}
-.nb-hero-side{display:flex;align-items:center;gap:8px;flex:0 0 auto;padding-top:6px}
+/* ------------------------------------------------------- title block (main)
+   One compact header instead of a hero + a tab row + a second meta row. The
+   notebook's title lives in the breadcrumb (the app bar already shows it), so
+   the centre pane starts with a 44px strip: sigil, title, one meta line, the
+   grounded chip, and the view tabs on the same baseline. That is ~180px of
+   reading height that the old stacked block spent on nothing. */
+.nb-main-head{padding:0 var(--nb-sp-6);border-bottom:1px solid var(--nb-hair-soft);
+  flex:0 0 auto;position:relative;display:flex;flex-direction:column;min-width:0}
+.nb-head-top{display:flex;align-items:center;gap:var(--nb-sp-3);min-height:52px;padding:var(--nb-sp-2) 0 0;
+  min-width:0}
+.nb-head-sigil{width:34px;height:34px;flex:0 0 auto;display:grid;place-items:center;font-size:20px;
+  border-radius:var(--nb-r-in);background:var(--nb-wash-2);border:1px solid var(--nb-hair-soft);
+  overflow:hidden}
+.nb-head-main{min-width:0;flex:1;display:flex;flex-direction:column;gap:1px}
+.nb-h1{font-size:var(--nb-fs-title);font-weight:650;letter-spacing:-.015em;line-height:1.25;margin:0;
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0}
+.nb-sub{color:${T.text3};font-size:var(--nb-fs-meta);line-height:1.45;margin:0;
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0}
+.nb-hero-side{display:flex;align-items:center;gap:var(--nb-sp-2);flex:0 0 auto}
+.nb-head-desc{display:none}
 /* ops host-measurement strip (Lab Ops only) */
 .nb-strip{display:flex;align-items:stretch;gap:8px;margin:14px 0 0;flex-wrap:wrap}
 .nb-cell{flex:1;min-width:90px;padding:10px 14px 11px;border-radius:var(--nb-r-el);
@@ -388,13 +397,18 @@ const CSS = `
 .nb-cell b{display:block;font-size:17px;font-weight:650;letter-spacing:-.02em;
   line-height:1.1;font-variant-numeric:tabular-nums}
 .nb-cell span{display:block;font-size:11.5px;color:${T.text3};margin-top:6px;font-weight:600}
-.nb-tabs{display:flex;gap:4px;align-items:flex-end;margin:16px 0 0;position:relative;bottom:-1px}
-.nb-tab{min-height:38px;padding:0 14px 11px;border:0;border-bottom:2px solid transparent;
-  border-radius:var(--nb-r-el) var(--nb-r-el) 0 0;background:transparent;color:${T.text2};font-size:var(--nb-fs-ui);
-  font-weight:600;cursor:pointer;display:inline-flex;align-items:center;gap:7px;letter-spacing:0;
+/* the view switcher: one pill track on the header line, never a second row.
+   Long artifact titles truncate instead of pushing the track into overflow. */
+.nb-tabs{display:inline-flex;align-items:center;gap:2px;padding:3px;flex:0 1 auto;
+  min-width:0;max-width:100%;overflow:hidden;border-radius:var(--nb-r-el);
+  border:1px solid var(--nb-hair-soft);background:var(--nb-wash)}
+.nb-tab{min-height:32px;padding:0 11px;border:0;border-radius:var(--nb-r-in);background:transparent;
+  color:${T.text2};font-size:var(--nb-fs-label);font-weight:600;cursor:pointer;
+  display:inline-flex;align-items:center;gap:6px;letter-spacing:0;min-width:0;
   font-family:inherit;transition:background var(--nb-dur-fast) var(--nb-ease),color var(--nb-dur-fast) var(--nb-ease)}
-.nb-tab:hover{color:${T.text};background:var(--nb-wash)}
-.nb-tab[aria-selected=true]{color:${T.text};border-bottom-color:color-mix(in srgb,${T.accent} 70%, ${T.text});background:var(--nb-wash)}
+.nb-tab > span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:150px}
+.nb-tab:hover{color:${T.text};background:var(--nb-wash-2)}
+.nb-tab[aria-selected=true]{color:${T.text};background:var(--nb-card);box-shadow:var(--nb-shadow)}
 .nb-tab[disabled]{opacity:.45;cursor:default}
 
 /* ------------------------------------------------------------------- chat */
@@ -407,10 +421,10 @@ const CSS = `
 .nb-msg{max-width:72ch;animation:nb-msg-in var(--nb-dur-fast) var(--nb-ease) both}
 @keyframes nb-msg-in{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:none}}
 /* generative marks breathe — a slow 1.5% drift so sigils feel alive, not pasted */
-.nb-hero-emoji svg,.nb-nbcard-emoji svg,.nb-feature-emoji svg{animation:nb-sigil-float 9s ease-in-out infinite}
+.nb-nbcard-emoji svg,.nb-nbcard-emoji svg{animation:nb-sigil-float 9s ease-in-out infinite}
 @keyframes nb-sigil-float{0%,100%{transform:translateY(0) rotate(0deg)}50%{transform:translateY(-2px) rotate(1.2deg)}}
 /* home cards arrive in a stagger — the directory assembles itself */
-.nb-nbcard-wrap,.nb-feature{animation:nb-card-in var(--nb-dur-med) var(--nb-ease) both}
+.nb-nbcard-wrap{animation:nb-card-in var(--nb-dur-med) var(--nb-ease) both}
 @keyframes nb-card-in{from{opacity:0;transform:translateY(12px) scale(.985)}to{opacity:1;transform:none}}
 /* sigil inscription — ribbons draw themselves in sequence, nodes pop after */
 .nb-sigil-draw path{stroke-dasharray:1;stroke-dashoffset:1;animation:nb-draw .9s cubic-bezier(.45,.05,.3,1) forwards}
@@ -424,7 +438,7 @@ const CSS = `
 .nb-sigil-draw{transform-origin:center;animation:nb-sigil-settle 1.1s var(--nb-ease) both}
 @keyframes nb-sigil-settle{from{opacity:0;transform:scale(.92)}to{opacity:1;transform:scale(1)}}
 @media (prefers-reduced-motion:reduce){
-  .nb-msg,.nb-nbcard-wrap,.nb-feature,.nb-hero-emoji svg,.nb-nbcard-emoji svg,.nb-feature-emoji svg,.nb-blob,.nb-sigil-draw{animation:none!important}
+  .nb-msg,.nb-nbcard-wrap,.nb-nbcard-emoji svg,.nb-blob,.nb-sigil-draw{animation:none!important}
   .nb-sigil-draw path{stroke-dashoffset:0!important}
   .nb-sigil-draw circle{opacity:1!important;transform:none!important}
 }
@@ -435,9 +449,6 @@ const CSS = `
   border-radius:var(--nb-r-box);padding:11px 17px;font-size:15px;line-height:1.55;color:${T.text}}
 .nb-msg[data-role=assistant] .nb-bubble{font-size:16px;line-height:1.66;color:${T.text}}
 .nb-msg[data-role=assistant] .nb-avatar{width:30px;height:30px;margin-top:2px}
-.nb-avatar{width:36px;height:36px;flex:0 0 auto;display:grid;place-items:center;border-radius:var(--nb-r-el);
-  background:var(--nb-wash-2);color:${T.text2};font-size:13px;font-weight:700}
-.nb-nbrow[aria-current=true] .nb-avatar{background:color-mix(in srgb,${T.accent} 20%, transparent);color:color-mix(in srgb,${T.accent} 70%, ${T.text})}
 .nb-msg .nb-avatar{width:30px;height:30px;border-radius:var(--nb-r-pill);
   background:color-mix(in srgb,${T.accent} 16%, transparent);color:color-mix(in srgb,${T.accent} 70%, ${T.text});font-size:11.5px;letter-spacing:.02em}
 .nb-who{font-size:11.5px;letter-spacing:.02em;color:${T.text3};font-weight:600;margin-bottom:8px}
@@ -616,6 +627,15 @@ const CSS = `
   cursor:pointer;font-family:inherit;
   transition:background var(--nb-dur-fast) var(--nb-ease),border-color var(--nb-dur-fast) var(--nb-ease)}
 .nb-art:hover{background:var(--nb-wash-2);border-color:var(--nb-hair-soft)}
+/* a run that exists reads differently from one that has never been made:
+   the left edge carries the "ready" colour and a quiet open arrow appears on
+   hover, so the drawer answers "what can I read right now" at a glance */
+.nb-art[data-ready=true]{border-left:2px solid color-mix(in srgb,${T.ok} 55%, transparent)}
+.nb-art-go{margin-left:auto;display:grid;place-items:center;flex:0 0 auto;width:28px;height:28px;
+  border-radius:var(--nb-r-pill);color:color-mix(in srgb,${T.ok} 62%, ${T.text});
+  opacity:0;transform:translateX(-3px);
+  transition:opacity var(--nb-dur-fast) var(--nb-ease),transform var(--nb-dur-fast) var(--nb-ease)}
+.nb-art:hover .nb-art-go,.nb-art:focus-visible .nb-art-go{opacity:1;transform:none}
 .nb-art:focus-visible{outline:2px solid ${T.accent};outline-offset:2px}
 .nb-art-ico{width:38px;height:38px;flex:0 0 auto;border-radius:var(--nb-r-in);position:relative;overflow:hidden;
   display:grid;place-items:center;
@@ -641,14 +661,27 @@ const CSS = `
 .nb-art-ico .nb-thumb-wave{display:flex;align-items:center;gap:1.5px;height:70%;width:80%}
 .nb-art-ico .nb-thumb-wave i{flex:1 1 0;min-width:1.5px;border-radius:var(--nb-r-pill);background:var(--kc);opacity:.8}
 
-/* ----------------------------------------------------------------- viewer */
+/* ----------------------------------------------------------------- viewer
+   The viewer owns exactly ONE toolbar. The surface tab already names the kind,
+   so the strip under it is a 44px line of category badge + human metadata +
+   icon actions — there is no second title, no file-size telemetry dump, and no
+   generated-at timestamp as a heading. */
 .nb-view{flex:1;min-height:0;display:flex;flex-direction:column}
-.nb-view-head{display:flex;align-items:center;gap:12px;padding:12px 24px;
-  border-bottom:1px solid var(--nb-hair-soft)}
-.nb-view-title{font-size:15px;font-weight:650;letter-spacing:-.01em}
-.nb-view-body{flex:1;min-height:0;overflow:auto;padding:26px}
+.nb-view-head{display:flex;align-items:center;gap:var(--nb-sp-3);min-height:44px;
+  padding:var(--nb-sp-1) var(--nb-sp-5);border-bottom:1px solid var(--nb-hair-soft);
+  flex:0 0 auto;background:var(--nb-wash)}
+.nb-view-title{font-size:var(--nb-fs-ui);font-weight:600;letter-spacing:-.005em;color:${T.text};
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0}
+.nb-view-sub{font-size:var(--nb-fs-meta);color:${T.text3};line-height:1.45;
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0}
+.nb-view-acts{display:flex;align-items:center;gap:2px;flex:0 0 auto;margin-left:auto}
+.nb-view-acts .nb-icon{width:32px;height:32px;min-height:32px}
+.nb-view-body{flex:1;min-height:0;overflow:auto;padding:var(--nb-sp-6) var(--nb-sp-6) var(--nb-sp-7)}
 .nb-doc{max-width:70ch;font-size:15px;line-height:1.68}
-.nb-doc h1{font-size:22px;line-height:1.2;letter-spacing:-.025em;margin:0 0 14px;text-wrap:balance}
+/* the artifact's own markdown title is a duplicate of the toolbar title: demote it
+   rather than print the same sentence twice in one viewport */
+.nb-doc h1{font-size:19px;line-height:1.25;letter-spacing:-.02em;margin:0 0 12px;text-wrap:balance;
+  color:${T.text};font-weight:650}
 .nb-doc em{color:${T.text2}}
 .nb-doc hr{border:0;border-top:1px solid var(--nb-hair-soft);margin:22px 0}
 .nb-doc h2{font-size:19px;margin:26px 0 10px;letter-spacing:-.02em}
@@ -688,6 +721,75 @@ const CSS = `
 .nb-tl-when{font-family:var(--ui-font-mono,ui-monospace,monospace);font-size:10.5px;font-weight:700;
   color:color-mix(in srgb,${T.accent} 70%, ${T.text});letter-spacing:.06em;text-transform:uppercase;padding-top:3px}
 .nb-tl-what{font-size:15px;color:${T.text2}}
+
+/* ---------------------------------------------- timeline artifact (spine)
+   A "timeline" that renders as paragraphs is not a timeline. The generated
+   markdown is parsed into dated/phase nodes and drawn on a vertical spine: a
+   glowing dot per node, a pill for the date or phase, the milestone in a card,
+   and [S1] rendered as a real citation chip that opens the source. When the
+   material is procedural rather than dated the nodes are phases, not dates —
+   the doc says so instead of apologising in prose. */
+.nb-spine{display:flex;flex-direction:column;gap:0;margin:0;padding:0;list-style:none;
+  position:relative;max-width:760px}
+.nb-spine::before{content:'';position:absolute;left:9px;top:14px;bottom:14px;width:2px;
+  border-radius:var(--nb-r-pill);background:linear-gradient(to bottom,
+    color-mix(in srgb,${T.accent} 60%, transparent),
+    color-mix(in srgb,${T.accent} 18%, transparent) 70%,
+    transparent)}
+.nb-node{position:relative;padding:0 0 var(--nb-sp-5) var(--nb-sp-7);display:flex;
+  flex-direction:column;gap:var(--nb-sp-2)}
+.nb-node:last-child{padding-bottom:0}
+.nb-node-dot{position:absolute;left:3px;top:15px;width:14px;height:14px;border-radius:var(--nb-r-pill);
+  background:var(--nb-card-deep, #14161f);border:2px solid color-mix(in srgb,${T.accent} 80%, ${T.text});
+  box-shadow:0 0 0 4px color-mix(in srgb,${T.accent} 12%, transparent),
+              0 0 14px -2px color-mix(in srgb,${T.accent} 55%, transparent)}
+.nb-node-when{display:inline-flex;align-items:center;align-self:flex-start;height:22px;
+  padding:0 9px;border-radius:var(--nb-r-pill);font-size:var(--nb-fs-meta);font-weight:700;
+  letter-spacing:.01em;font-variant-numeric:tabular-nums;
+  color:color-mix(in srgb,${T.accent} 74%, ${T.text});
+  background:color-mix(in srgb,${T.accent} 13%, transparent);
+  border:1px solid color-mix(in srgb,${T.accent} 26%, transparent)}
+.nb-node-when[data-phase=true]{color:color-mix(in srgb,${T.purple} 66%, ${T.text});
+  background:color-mix(in srgb,${T.purple} 15%, transparent);
+  border-color:color-mix(in srgb,${T.purple} 30%, transparent)}
+.nb-node-card{padding:var(--nb-sp-4) var(--nb-sp-5);border-radius:var(--nb-r-el);
+  border:1px solid var(--nb-hair-soft);background:var(--nb-card);
+  font-size:var(--nb-fs-read);line-height:1.6;color:${T.text2};
+  transition:border-color var(--nb-dur-fast) var(--nb-ease),background var(--nb-dur-fast) var(--nb-ease)}
+.nb-node-card:hover{border-color:var(--nb-hair);background:var(--nb-wash)}
+.nb-node-card .nb-md p:last-child{margin-bottom:0}
+.nb-node-src{display:flex;align-items:center;gap:5px;flex-wrap:wrap;padding-top:2px}
+/* the canonical row: category badge, headline, what changed, what it unblocked */
+.nb-node-cat{display:inline-flex;align-items:center;height:20px;padding:0 8px;margin-bottom:6px;
+  border-radius:var(--nb-r-pill);font-size:var(--nb-fs-meta);font-weight:650;letter-spacing:.01em;
+  color:${T.text2};background:var(--nb-wash)}
+.nb-node-cat[data-tone=ok]{color:color-mix(in srgb,${T.ok} 62%, ${T.text});
+  background:color-mix(in srgb,${T.ok} 13%, transparent)}
+.nb-node-cat[data-tone=accent]{color:color-mix(in srgb,${T.accent} 72%, ${T.text});
+  background:color-mix(in srgb,${T.accent} 13%, transparent)}
+.nb-node-cat[data-tone=warn]{color:color-mix(in srgb,${T.warn} 54%, ${T.text});
+  background:color-mix(in srgb,${T.warn} 14%, transparent)}
+.nb-node-headline{font-size:var(--nb-fs-read);font-weight:650;line-height:1.35;color:${T.text};
+  margin-bottom:4px;letter-spacing:-.01em}
+.nb-node-what{color:${T.text2};line-height:1.6}
+.nb-node-cons{display:flex;align-items:flex-start;gap:6px;margin-top:8px;padding-top:8px;
+  border-top:1px solid var(--nb-hair-soft);font-size:var(--nb-fs-label);line-height:1.5;color:${T.text3}}
+.nb-node-cons svg{flex:0 0 auto;margin-top:2px;opacity:.8}
+.nb-node-note{font-size:var(--nb-fs-meta);color:${T.text3};line-height:1.5;
+  padding:var(--nb-sp-2) 0 0 0}
+/* the phase preamble: says what kind of timeline this is, once */
+.nb-spine-lede{display:flex;align-items:center;gap:var(--nb-sp-2);flex-wrap:wrap;
+  margin-bottom:var(--nb-sp-5);font-size:var(--nb-fs-label);color:${T.text3};line-height:1.5}
+.nb-spine-lede b{color:${T.text2};font-weight:600}
+/* a source chip that opens S# — the same affordance the chat answer has */
+.nb-srcchip{display:inline-flex;align-items:center;gap:5px;min-height:32px;padding:0 10px;
+  border-radius:var(--nb-r-pill);border:1px solid color-mix(in srgb,${T.accent} 28%, transparent);
+  background:color-mix(in srgb,${T.accent} 9%, transparent);cursor:pointer;
+  font-size:var(--nb-fs-meta);font-weight:700;color:color-mix(in srgb,${T.accent} 72%, ${T.text});
+  max-width:100%;overflow:hidden;white-space:nowrap;text-overflow:ellipsis;font-family:inherit}
+.nb-srcchip:hover{background:color-mix(in srgb,${T.accent} 18%, transparent);
+  border-color:color-mix(in srgb,${T.accent} 50%, transparent)}
+.nb-srcchip[disabled]{cursor:default;opacity:.7}
 
 /* ---------------------------------------------------------------- mind map */
 .nb-map{width:100%;height:100%;min-height:340px;display:block;cursor:grab;border-radius:var(--nb-r-box);
@@ -742,49 +844,31 @@ const CSS = `
 .nb-void p{margin:0;max-width:48ch;font-size:14px;line-height:1.62}
 
 /* ------------------------------------------------------ home (the reading room)
-   The directory is a shelf of notebooks, not a grid of tiles. Each card shows
-   the notebook's own sigil, what it holds (sources / artifacts / chats) as
-   labelled counts rather than a run-on meta line, its description as the
-   thing that actually distinguishes it, and one primary action: open it.
-   A stretched-link card keeps rename/delete as real buttons in the corner. */
+   One shelf, full width, one card design. The old surface drew the same
+   notebooks twice — a coloured "most in the drawer" row and then the grey
+   "all notebooks" grid underneath — and capped both at three columns, leaving
+   the right of a 16:9 window empty. There is now a single responsive grid that
+   spans the content column, one action in the header (New notebook, beside the
+   search field), and one card that carries an accent strip, a clamped title,
+   a description preview and counted metadata. */
 .nb-home{flex:1;min-height:0;display:flex;flex-direction:column}
-.nb-home-scroll{flex:1;min-height:0;overflow:auto;padding:var(--nb-sp-7) var(--nb-sp-8) var(--nb-sp-8);
+.nb-home-scroll{flex:1;min-height:0;overflow:auto;
+  padding:var(--nb-sp-7) var(--nb-sp-6) var(--nb-sp-8);
   overscroll-behavior:contain}
-.nb-home-head{display:flex;align-items:flex-end;gap:var(--nb-sp-5);margin-bottom:var(--nb-sp-7);
-  flex-wrap:wrap}
-.nb-home-title{font-size:var(--nb-fs-display);font-weight:700;letter-spacing:-.022em;margin:0;line-height:1.15}
+.nb-home-inner{max-width:1360px;margin:0 auto;width:100%;display:flex;flex-direction:column;
+  min-height:100%}
+/* the header is one bar: title + counts on the left, search + New notebook on
+   the right. The action lives where the person looks first, not stranded over
+   the second row of cards. */
+.nb-home-head{display:flex;align-items:flex-end;gap:var(--nb-sp-4);flex-wrap:wrap;
+  margin-bottom:var(--nb-sp-6)}
+.nb-home-titles{min-width:0;flex:1 1 220px}
+.nb-home-title{font-size:var(--nb-fs-display);font-weight:700;letter-spacing:-.022em;
+  margin:0;line-height:1.15}
 .nb-home-sub{font-size:var(--nb-fs-ui);color:${T.text2};margin:var(--nb-sp-2) 0 0;line-height:1.5}
 .nb-home-sub b{color:${T.text};font-weight:650;font-variant-numeric:tabular-nums}
-.nb-home-search{width:280px;margin-left:auto}
-
-/* featured shelf — the three notebooks with the most in them, one row */
-.nb-feature-row{display:flex;gap:var(--nb-sp-4);overflow-x:auto;padding:2px 2px 0;
-  scrollbar-width:thin}
-.nb-feature{flex:0 0 306px;min-height:164px;height:auto;border-radius:var(--nb-r-box);
-  padding:var(--nb-sp-5);position:relative;overflow:hidden;
-  display:flex;flex-direction:column;gap:var(--nb-sp-4);
-  text-align:left;cursor:pointer;color:${T.text};font-family:inherit;
-  border:1px solid var(--nb-hair-soft);
-  background:linear-gradient(145deg, color-mix(in srgb,var(--kc) 22%, var(--nb-card)), var(--nb-card) 68%);
-  transition:transform var(--nb-dur-fast) var(--nb-ease),box-shadow var(--nb-dur-fast) var(--nb-ease),
-    border-color var(--nb-dur-fast) var(--nb-ease)}
-.nb-feature:hover{transform:translateY(-2px);box-shadow:var(--nb-shadow-lift);
-  border-color:color-mix(in srgb,var(--kc) 34%, var(--nb-hair))}
-.nb-feature:focus-visible{outline:2px solid ${T.accent};outline-offset:3px}
-.nb-feature::after{content:'';position:absolute;right:-52px;bottom:-64px;width:196px;height:196px;
-  border-radius:var(--nb-r-pill);background:color-mix(in srgb,var(--kc) 18%, transparent);pointer-events:none}
-.nb-feature-sec{display:flex;flex-direction:column;gap:var(--nb-sp-3);margin-bottom:var(--nb-sp-7)}
-.nb-feature-top{display:flex;align-items:center;gap:var(--nb-sp-3);position:relative;min-width:0}
-.nb-feature-top .nb-feature-title{font-size:var(--nb-fs-title);font-weight:650;line-height:1.3;
-  letter-spacing:-.012em;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;
-  overflow:hidden;min-width:0}
-.nb-feature-emoji{flex:0 0 auto;display:grid;place-items:center;max-width:44px}
-.nb-feature-title{font-size:var(--nb-fs-title);font-weight:650;line-height:1.3;position:relative;
-  margin-top:auto;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;
-  letter-spacing:-.012em}
-.nb-feature-meta{font-size:var(--nb-fs-meta);line-height:1.5;color:${T.text3};position:relative;
-  white-space:normal;display:flex;align-items:center;gap:var(--nb-sp-2);flex-wrap:wrap}
-
+.nb-home-tools{display:flex;align-items:center;gap:var(--nb-sp-3);flex-wrap:wrap}
+.nb-home-search{width:min(280px,46vw)}
 /* count chips read as measurements, not prose: glyph + number + quiet noun */
 .nb-counts{display:flex;align-items:center;gap:var(--nb-sp-3);flex-wrap:wrap}
 .nb-count{display:inline-flex;align-items:center;gap:5px;color:${T.text3};
@@ -792,12 +876,13 @@ const CSS = `
 .nb-count b{color:${T.text2};font-weight:650;font-variant-numeric:tabular-nums}
 .nb-count svg{opacity:.75}
 
-.nb-home-sec{display:flex;align-items:center;gap:var(--nb-sp-4);margin:0 0 var(--nb-sp-4);
+.nb-home-sec{display:flex;align-items:center;gap:var(--nb-sp-3);margin:0 0 var(--nb-sp-4);
   padding-bottom:var(--nb-sp-3);border-bottom:1px solid var(--nb-hair-soft)}
 .nb-home-sec .nb-meta{color:${T.text2}}
-.nb-home-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(268px,1fr));
-  gap:var(--nb-sp-4);align-content:start}
-.nb-nbcard-wrap{position:relative;min-height:196px}
+/* the shelf fills whatever width the card is given: 320px minimum, no cap */
+.nb-home-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(320px,1fr));
+  gap:var(--nb-sp-4);align-content:start;width:100%}
+.nb-nbcard-wrap{position:relative;min-height:176px;animation:nb-card-in var(--nb-dur-med) var(--nb-ease) both}
 .nb-nbcard{width:100%;height:100%;position:relative;border-radius:var(--nb-r-box);
   padding:var(--nb-sp-5) var(--nb-sp-5) var(--nb-sp-4);
   display:flex;flex-direction:column;gap:var(--nb-sp-3);
@@ -805,13 +890,20 @@ const CSS = `
   border:1px solid var(--nb-hair-soft);background:var(--nb-card);
   transition:border-color var(--nb-dur-fast) var(--nb-ease),transform var(--nb-dur-fast) var(--nb-ease),
     box-shadow var(--nb-dur-fast) var(--nb-ease),background var(--nb-dur-fast) var(--nb-ease)}
-.nb-nbcard:hover{border-color:color-mix(in srgb,${T.accent} 38%, var(--nb-hair));
+/* the accent strip: the notebook's own sigil hue, drawn from its id, so two
+   cards never read as the same object */
+.nb-nbcard::before{content:'';position:absolute;left:0;right:0;top:0;height:3px;
+  border-radius:var(--nb-r-box) var(--nb-r-box) 0 0;
+  background:linear-gradient(90deg,
+    color-mix(in srgb,var(--kc) 78%, transparent),
+    color-mix(in srgb,var(--kc) 18%, transparent))}
+.nb-nbcard:hover{border-color:color-mix(in srgb,var(--kc) 44%, var(--nb-hair));
   transform:translateY(-2px);box-shadow:var(--nb-shadow-lift);background:var(--nb-wash-2)}
 .nb-nbcard:focus-visible{outline:2px solid ${T.accent};outline-offset:3px}
 .nb-nbcard-top{display:flex;align-items:flex-start;gap:var(--nb-sp-3);min-width:0}
 .nb-nbcard-emoji{flex:0 0 auto;line-height:1;display:grid;place-items:center}
 .nb-nbcard-head{min-width:0;flex:1;padding-right:var(--nb-sp-6)}
-.nb-nbcard-title{font-size:var(--nb-fs-read);font-weight:650;line-height:1.32;letter-spacing:-.01em;
+.nb-nbcard-title{font-size:var(--nb-fs-title);font-weight:650;line-height:1.3;letter-spacing:-.012em;
   display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;
   overflow-wrap:anywhere}
 .nb-nbcard-when{display:block;margin-top:3px;font-size:var(--nb-fs-meta);color:${T.text3};font-weight:500}
@@ -820,9 +912,9 @@ const CSS = `
   min-height:calc(2 * 1.5 * var(--nb-fs-label))}
 .nb-nbcard-desc[data-empty="true"]{color:${T.text4};font-style:italic}
 .nb-nbcard-foot{display:flex;align-items:center;gap:var(--nb-sp-3);margin-top:auto;
-  padding-top:var(--nb-sp-3);border-top:1px solid var(--nb-hair-soft)}
+  padding-top:var(--nb-sp-3);border-top:1px solid var(--nb-hair-soft);flex-wrap:wrap;row-gap:var(--nb-sp-2)}
 .nb-nbcard-open{display:inline-flex;align-items:center;gap:6px;margin-left:auto;
-  font-size:var(--nb-fs-label);font-weight:650;color:color-mix(in srgb,${T.accent} 70%, ${T.text});
+  font-size:var(--nb-fs-label);font-weight:650;color:color-mix(in srgb,var(--kc) 62%, ${T.text});
   white-space:nowrap}
 .nb-nbcard:hover .nb-nbcard-open svg{transform:translateX(2px)}
 .nb-nbcard-open svg{transition:transform var(--nb-dur-fast) var(--nb-ease)}
@@ -1331,6 +1423,9 @@ const P = {
   cards: 'M8 7h11v11H8V7ZM5 17V4h11',
   slides: 'M3 4h18v11H3V4Zm9 11v5M8 20h8',
   chart: 'M4 20h16M7 16V9M12 16V5M17 16v-5',
+  // a blueprint reads as a plan view, not a bar chart: three stacked
+  // zones with a column split, which is what the poster actually is
+  blueprint: 'M3 4h18v16H3V4Zm0 5h18M9 9v11M14 9v11M3 15h18',
   summary: 'M5 6h14M5 10h14M5 14h9M5 18h6',
   quiz: 'M4 5h16v14H4V5Zm3.5 7.2 2 2 3.5-3.5',
   search: 'M10.5 17a6.5 6.5 0 1 0 0-13 6.5 6.5 0 0 0 0 13Zm4.8.2L20 21',
@@ -1845,7 +1940,8 @@ const KIND_ICON = {
   video_overview: 'video', audio_overview: 'audio', summary: 'summary',
   briefing_doc: 'doc', study_guide: 'study', faq: 'faq', timeline: 'timeline',
   mind_map: 'mindmap', flashcards: 'cards', quiz: 'quiz', slides: 'slides',
-  infographic: 'chart', data_table: 'grid'
+  infographic: 'chart', data_table: 'grid',
+  blueprint_evolution: 'blueprint'
 }
 
 /* Studio groups — the workbench sorts outputs by what they make, so its group
@@ -2118,10 +2214,18 @@ function App() {
   const kinds = (data && data.kinds) || []
 
   // Ctrl/Cmd+K → notebook search (NotebookLM's global find)
+  // Ctrl/Cmd+\\ → fold the make drawer (reading a timeline or a slide wants the
+  //   canvas, and a 380px panel that cannot be dismissed from the keyboard is a
+  //   permanent tax on the reading width).
   useEffect(() => {
     const onKey = (e) => {
-      if ((e.metaKey || e.ctrlKey) && String(e.key).toLowerCase() === 'k') {
+      const cmd = e.metaKey || e.ctrlKey
+      if (cmd && String(e.key).toLowerCase() === 'k') {
         if (mode === 'studio' && notebook) { e.preventDefault(); setSearchOpen(true) }
+        return
+      }
+      if (cmd && e.key === '\\') {
+        if (mode === 'studio' && notebook) { e.preventDefault(); setStudioOpen((v) => !v) }
       }
     }
     document.addEventListener('keydown', onKey)
@@ -2431,6 +2535,9 @@ function App() {
   const ops = mode === 'ops'
   const home = mode === 'home'
   const discoverMode = mode === 'discover'
+  // Study and the workbench are notebook-scoped: with no notebook open they
+  // render their own "pick or create one" state rather than an empty workspace,
+  // and the surface switcher does not offer them at all.
   const studyMode = mode === 'study'
 
   return el('div', {
@@ -2467,21 +2574,35 @@ function App() {
                     : el('b', { children: 'no notebook' })))
       ),
       el('div', { className: 'nb-spacer' }),
+      // The bar switches WORKSPACE LAYOUTS, and it says which ones exist right
+      // now: Home, Discover and Lab Ops are notebook-independent; Study and the
+      // notebook workbench only appear once a notebook is actually open, so
+      // nobody clicks into an empty state. (The right-hand drawer is a panel
+      // inside the workbench, not a fourth copy of this switch — its heading is
+      // "Make", so the word Studio names exactly one thing.)
       jsx(Seg, {
-        label: 'Surface', value: mode, onChange: (v) => setMode(v),
-        options: [
-          { id: 'home', label: 'Home', icon: 'grid' },
-          { id: 'discover', label: 'Discover', icon: 'search' },
-          { id: 'study', label: 'Study', icon: 'cards' },
-          { id: 'studio', label: 'Studio', icon: 'notebook' },
-          { id: 'ops', label: 'Lab Ops', icon: 'server' }
-        ]
+        label: 'Surface', value: mode,
+        onChange: (v) => {
+          if (v === 'studio' && !notebook) { setMode('home'); return }
+          setMode(v)
+        },
+        options: (notebook && mode !== 'home'
+          ? [
+              { id: 'home', label: 'Home', icon: 'grid' },
+              { id: 'studio', label: 'Studio', icon: 'notebook' },
+              { id: 'study', label: 'Study', icon: 'cards' },
+              { id: 'discover', label: 'Discover', icon: 'search' },
+              { id: 'ops', label: 'Lab Ops', icon: 'server' }
+            ]
+          : [
+              { id: 'home', label: 'Home', icon: 'grid' },
+              { id: 'discover', label: 'Discover', icon: 'search' },
+              { id: 'ops', label: 'Lab Ops', icon: 'server' }
+            ])
       }),
       el('div', { className: 'nb-actions' },
-        mode === 'studio' ? jsx(Btn, {
-          icon: 'plus', variant: 'primary', onClick: () => openAddSource(),
-          disabled: !notebook, children: 'Add source'
-        }) : null,
+        // Add-source lives in ONE place: the sources panel header. The nav used
+        // to repeat it, so the same dialog had two triggers eight pixels apart.
         mode === 'studio' && notebook ? jsx(IconBtn, {
           icon: 'search', label: 'Search notebook (Ctrl+K)', onClick: () => setSearchOpen(true)
         }) : null,
@@ -2598,6 +2719,11 @@ function NotebookDescription(n) {
   return el('span', { className: 'nb-nbcard-desc', children: desc })
 }
 
+/* one shelf: a single responsive grid. The colour a card carries is its own
+ * sigil hue (derived from the id), so the accent strip is an identity, not a
+ * ranking — there is no second "featured" row to duplicate the same notebooks
+ * 40px further down. The New notebook action sits in the header, beside the
+ * search field, where a person looks for it first. */
 function HomeDashboard({ data, onOpen, onNew, onDelete, onRename, onDuplicate }) {
   const [query, setQuery] = useState('')
   const [del, setDel] = useState(null)
@@ -2606,117 +2732,85 @@ function HomeDashboard({ data, onOpen, onNew, onDelete, onRename, onDuplicate })
   const needle = query.trim().toLowerCase()
   const shown = notebooks.filter((n) =>
     !needle || `${n.title} ${n.description || ''}`.toLowerCase().includes(needle))
-  const featured = [...notebooks]
-    .filter((n) => (n.sources || 0) > 0)
-    .sort((a, b) => (b.sources || 0) - (a.sources || 0) || (b.artifacts || 0) - (a.artifacts || 0))
-    .slice(0, 3)
-  const hues = ['#81c995', '#a8c7fa', '#f28b82', '#c58af9', '#fde293']
   const totalSources = notebooks.reduce((s, n) => s + (n.sources || 0), 0)
   const totalArtifacts = notebooks.reduce((s, n) => s + (n.artifacts || 0), 0)
   const empty = notebooks.filter((n) => !n.sources).length
 
   return el('div', { className: 'nb-home' },
     el('div', { className: 'nb-home-scroll' },
-      el('div', { className: 'nb-home-head' },
-        el('div', null,
-          el('h1', { className: 'nb-home-title', children: 'Notebooks' }),
-          el('p', { className: 'nb-home-sub', children: [
-            el('b', { children: String(notebooks.length) }), ' notebook' + (notebooks.length === 1 ? '' : 's'),
-            ' · ', el('b', { children: String(totalSources) }), ' sources',
-            ' · ', el('b', { children: String(totalArtifacts) }), ' outputs',
-            empty ? ` · ${empty} still empty` : ''
-          ] })),
-        el('div', { className: 'nb-home-search' },
-          jsx(SearchField, { value: query, onChange: setQuery,
-            placeholder: 'Search notebooks', label: 'Search notebooks' }))
-      ),
+      el('div', { className: 'nb-home-inner' },
+        el('div', { className: 'nb-home-head' },
+          el('div', { className: 'nb-home-titles' },
+            el('h1', { className: 'nb-home-title', children: 'Notebooks' }),
+            el('p', { className: 'nb-home-sub', children: [
+              el('b', { children: String(notebooks.length) }), ' notebook' + (notebooks.length === 1 ? '' : 's'),
+              ' · ', el('b', { children: String(totalSources) }), ' sources',
+              ' · ', el('b', { children: String(totalArtifacts) }), ' outputs',
+              empty ? ` · ${empty} still empty` : ''
+            ] })),
+          el('div', { className: 'nb-home-tools' },
+            el('div', { className: 'nb-home-search' },
+              jsx(SearchField, { value: query, onChange: setQuery,
+                placeholder: 'Search notebooks', label: 'Search notebooks' })),
+            jsx(Btn, { icon: 'plus', variant: 'primary', onClick: onNew, children: 'New notebook' }))
+        ),
 
-      featured.length
-        ? el('div', { className: 'nb-feature-sec' },
-            // the row is ordered by how much is in the notebook, and it says so:
-            // a "featured" strip whose rule is hidden is just decoration
-            el('div', { className: 'nb-home-sec' },
-              el('span', { className: 'nb-meta', children: 'Most in the drawer' }),
-              el('span', { className: 'nb-hint', children: 'by sources' }),
-              el('span', { style: { flex: 1 } })),
-            el('div', { className: 'nb-feature-row', role: 'list', 'aria-label': 'Notebooks with the most sources' },
-              featured.map((n, i) => el('button', {
-                key: n.id, type: 'button', role: 'listitem', className: 'nb-feature',
-                style: { '--kc': hues[i % hues.length] },
-                onClick: () => onOpen(n.id),
-                'aria-label': `Open notebook ${n.title}`,
-                children: [
-                  el('span', { className: 'nb-feature-top' },
-                    el('span', { className: 'nb-feature-emoji', 'aria-hidden': 'true',
-                      children: (n.emoji && String(n.emoji).trim())
-                        ? emojiFor(n.id, n.emoji)
-                        : jsx(Sigil, { seed: n.id, size: 40 }) }),
-                    el('span', { className: 'nb-feature-title', children: n.title })),
-                  el('span', { className: 'nb-feature-meta', children: [
-                    jsx(CountChip, { icon: 'layers', n: n.sources || 0, noun: 'source' }),
-                    jsx(CountChip, { icon: 'sparkle', n: n.artifacts || 0, noun: 'output' }),
-                    n.updated_at
-                      ? el('span', { className: 'nb-count', children: dshort(n.updated_at) })
-                      : null
-                  ] })
-                ]
-              }, n.id))))
-        : null,
+        el('div', { className: 'nb-home-sec' },
+          el('span', { className: 'nb-meta', children: shown.length === notebooks.length
+            ? 'All notebooks' : `${shown.length} of ${notebooks.length} notebooks` }),
+          el('span', { className: 'nb-hint', children: notebooks.length > 6
+            ? 'ordered by what is in them' : '' }),
+          el('span', { style: { flex: 1 } })),
 
-      el('div', { className: 'nb-home-sec' },
-        el('span', { className: 'nb-meta', children: shown.length === notebooks.length
-          ? 'All notebooks' : `${shown.length} of ${notebooks.length} notebooks` }),
-        el('span', { style: { flex: 1 } }),
-        jsx(Btn, { icon: 'plus', variant: 'primary', onClick: onNew, children: 'New notebook' })
-      ),
-
-      shown.length === 0
-        ? el('div', { className: 'nb-void', style: { height: 'auto', padding: '30px 8px' } },
-            el('div', null,
-              el('h3', { children: notebooks.length ? 'Nothing matches' : 'No notebooks yet' }),
-              el('p', { children: notebooks.length
-                ? 'Try a different search.'
-                : 'A notebook is a set of sources. Create one, then describe what you need — Hermes finds, labels and grounds everything in them.' }),
-              !notebooks.length
-                ? el('div', { style: { marginTop: '14px' } },
-                    jsx(Btn, { variant: 'primary', icon: 'plus', onClick: onNew, children: 'New notebook' }))
-                : null))
-        : el('div', { className: 'nb-home-grid', role: 'list' },
-            shown.map((n) => el('div', { key: n.id, className: 'nb-nbcard-wrap', role: 'listitem' },
-              el('button', {
-                type: 'button', className: 'nb-nbcard',
-                onClick: () => onOpen(n.id),
-                'aria-label': `Open notebook ${n.title}`,
-                children: [
-                  el('div', { className: 'nb-nbcard-top' },
-                    el('span', { className: 'nb-nbcard-emoji', 'aria-hidden': 'true',
-                      children: (n.emoji && String(n.emoji).trim())
-                        ? emojiFor(n.id, n.emoji)
-                        : jsx(Sigil, { seed: n.id, size: 34 }) }),
-                    el('div', { className: 'nb-nbcard-head' },
-                      el('span', { className: 'nb-nbcard-title', children: n.title }),
-                      el('span', { className: 'nb-nbcard-when',
-                        children: n.updated_at ? `Touched ${dshort(n.updated_at)}` : 'Never touched' }))),
-                  jsx(NotebookDescription, { description: n.description, sources: n.sources }),
-                  el('div', { className: 'nb-nbcard-foot' },
-                    jsx(CountChip, { icon: 'layers', n: n.sources || 0, noun: 'source' }),
-                    jsx(CountChip, { icon: 'sparkle', n: n.artifacts || 0, noun: 'output' }),
-                    n.threads ? jsx(CountChip, { icon: 'note', n: n.threads, noun: 'chat' }) : null,
-                    el('span', { className: 'nb-nbcard-open', 'aria-hidden': 'true' },
-                      'Open', jsx(Glyph, { name: 'arrowRight', size: 13 })))
-                ]
-              }, n.id),
-              jsx(IconBtn, {
-                icon: 'note', label: `Rename notebook ${n.title}`, size: 14,
-                className: 'nb-nbcard-ren',
-                onClick: (e) => { e.stopPropagation(); setRen(n) }
-              }),
-              jsx(IconBtn, {
-                icon: 'trash', label: `Delete notebook ${n.title}`, size: 14,
-                className: 'nb-nbcard-del',
-                onClick: (e) => { e.stopPropagation(); setDel(n) }
-              })
-            )))
+        shown.length === 0
+          ? el('div', { className: 'nb-void', style: { height: 'auto', padding: '30px 8px' } },
+              el('div', null,
+                el('h3', { children: notebooks.length ? 'Nothing matches' : 'No notebooks yet' }),
+                el('p', { children: notebooks.length
+                  ? 'Try a different search.'
+                  : 'A notebook is a set of sources. Create one, then describe what you need — Hermes finds, labels and grounds everything in them.' }),
+                !notebooks.length
+                  ? el('div', { style: { marginTop: '14px' } },
+                      jsx(Btn, { variant: 'primary', icon: 'plus', onClick: onNew, children: 'New notebook' }))
+                  : null))
+          : el('div', { className: 'nb-home-grid', role: 'list' },
+              shown.map((n) => el('div', { key: n.id, className: 'nb-nbcard-wrap', role: 'listitem' },
+                el('button', {
+                  type: 'button', className: 'nb-nbcard',
+                  style: { '--kc': `hsl(${sigHue(n.id)} 68% 62%)` },
+                  onClick: () => onOpen(n.id),
+                  'aria-label': `Open notebook ${n.title}`,
+                  children: [
+                    el('div', { className: 'nb-nbcard-top' },
+                      el('span', { className: 'nb-nbcard-emoji', 'aria-hidden': 'true',
+                        children: (n.emoji && String(n.emoji).trim())
+                          ? emojiFor(n.id, n.emoji)
+                          : jsx(Sigil, { seed: n.id, size: 32 }) }),
+                      el('div', { className: 'nb-nbcard-head' },
+                        el('span', { className: 'nb-nbcard-title', children: n.title }),
+                        el('span', { className: 'nb-nbcard-when',
+                          children: n.updated_at ? ago(n.updated_at) : 'Never touched' }))),
+                    jsx(NotebookDescription, { description: n.description, sources: n.sources }),
+                    el('div', { className: 'nb-nbcard-foot' },
+                      jsx(CountChip, { icon: 'layers', n: n.sources || 0, noun: 'source' }),
+                      jsx(CountChip, { icon: 'sparkle', n: n.artifacts || 0, noun: 'output' }),
+                      n.threads ? jsx(CountChip, { icon: 'note', n: n.threads, noun: 'chat' }) : null,
+                      el('span', { className: 'nb-nbcard-open', 'aria-hidden': 'true' },
+                        'Open', jsx(Glyph, { name: 'arrowRight', size: 13 })))
+                  ]
+                }, n.id),
+                jsx(IconBtn, {
+                  icon: 'note', label: `Rename notebook ${n.title}`, size: 14,
+                  className: 'nb-nbcard-ren',
+                  onClick: (e) => { e.stopPropagation(); setRen(n) }
+                }),
+                jsx(IconBtn, {
+                  icon: 'trash', label: `Delete notebook ${n.title}`, size: 14,
+                  className: 'nb-nbcard-del',
+                  onClick: (e) => { e.stopPropagation(); setDel(n) }
+                })
+              )))
+      )
     ),
 
     del ? jsx(Dialog, {
@@ -2807,8 +2901,21 @@ function PanelToggles({ side, onShow }) {
 
 /* -------------------------------------------------------------------- rail */
 
-function Rail({ data, notebook, onAddSource, onOpenSource, onToggleSource,
-               onToggleAll, onToggleGroup, onDeleteSource, onLabel, onCollapse, onGoHome, onSay, onDropFiles, loading, error, reload }) {
+/* The sources panel is three zones and nothing else:
+ *   1 header  title + count, one primary "+ Add", and the three quiet tools
+ *   2 filter  one search field and one horizontally scrolling tag row
+ *   3 list    the sources as one flat column of rows (a topic is a section
+ *             label, not a folding checkbox tree)
+ *
+ * The notebook switcher card, the dashed second Add button, the web-search box,
+ * the second search field, the tag wrapper, the triple-nested checkboxes and
+ * the decorative footer pill are gone: each of them was a duplicate or a
+ * decoration, and together they took ~380px above the ~120px where the sources
+ * actually were. Adding a source (URL, file, pasted text, or a web search) is
+ * one dialog, opened from the one button that says "+ Add". */
+function Rail({ notebook, onAddSource, onOpenSource, onToggleSource,
+               onToggleAll, onDeleteSource, onLabel, onCollapse, onSay, onDropFiles,
+               loading, error, reload }) {
   const sources = (notebook && notebook.sources) || []
   const labels = (notebook && notebook.labels) || []
   const [q, setQ] = useState('')
@@ -2817,7 +2924,7 @@ function Rail({ data, notebook, onAddSource, onOpenSource, onToggleSource,
   const [closed, setClosed] = useState({})
 
   const shown = useMemo(() => {
-    const needle = (q || '').trim().toLowerCase()
+    const needle = (q || '').trim().toLowerCase().replace(/^#/, '')
     return sources.filter((s) => {
       if (srcFilter !== 'all' && !(s.labels || []).some((l) => l.toLowerCase() === srcFilter)) return false
       if (!needle) return true
@@ -2826,7 +2933,8 @@ function Rail({ data, notebook, onAddSource, onOpenSource, onToggleSource,
     })
   }, [sources, q, srcFilter])
 
-  // NotebookLM groups the list by topic; the first auto-label is the topic.
+  // A topic still orders the list — the first auto-label is the topic — but it
+  // is a quiet section label now, not a fourth checkbox and a fold.
   const groups = useMemo(() => {
     const map = new Map()
     for (const s of shown) {
@@ -2839,6 +2947,9 @@ function Rail({ data, notebook, onAddSource, onOpenSource, onToggleSource,
 
   const allOn = sources.length > 0 && sources.every((s) => s.active !== false)
   const activeCount = sources.filter((s) => s.active !== false).length
+  // one topic grouping is noise: with fewer than 8 sources the flat list reads
+  // better than a label over every other row
+  const grouped = sources.length >= 8
 
   const srcRow = (s) => {
     const on = s.active !== false
@@ -2848,35 +2959,37 @@ function Rail({ data, notebook, onAddSource, onOpenSource, onToggleSource,
       'data-off': on ? 'false' : 'true'
     },
       el('button', {
-        type: 'button', className: 'nb-src-open',
-        onClick: () => onOpenSource(s),
-        'aria-label': `Open source ${s.n} — ${s.title}`,
-        title: s.summary || s.origin || s.title,
-        children: [
-          el('span', { className: 'nb-src-ico' },
-            jsx(Glyph, { name: SRC_ICON[s.kind] || 'file', size: 15 }),
-            el('b', { className: 'nb-cite', children: `S${s.n}` })),
-          el('span', { style: { minWidth: 0, flex: 1 } },
-            el('span', { className: 'nb-src-title', children: s.title }),
-            el('span', { className: 'nb-src-meta' },
-              el('span', { className: 'nb-chip', children: `${kindLabel(s.kind)} · ${nfmt(s.chars)}` }),
-              (s.labels || []).slice(0, 2).map((l) => el('span', { className: 'nb-chip', children: l }, l)),
-              (s.labels || []).length > 2
-                ? el('span', {
-                    className: 'nb-chip',
-                    title: `Also tagged: ${s.labels.slice(2).join(', ')}`,
-                    children: `+${s.labels.length - 2}`
-                  })
-                : null))
-        ]
-      }),
-      el('button', {
         type: 'button', className: 'nb-srccheck', role: 'checkbox',
         'aria-checked': on,
         'aria-label': `${on ? 'Exclude' : 'Include'} “${s.title}” ${on ? 'from' : 'in'} answers`,
         title: on ? 'Included in answers — click to exclude' : 'Excluded from answers — click to include',
         onClick: () => onToggleSource(s),
-        children: on ? jsx(Glyph, { name: 'check', size: 14 }) : null
+        children: on ? jsx(Glyph, { name: 'check', size: 13 }) : null
+      }),
+      el('button', {
+        type: 'button', className: 'nb-src-open',
+        onClick: () => onOpenSource(s),
+        'aria-label': `Open source ${s.n} — ${s.title}`,
+        title: s.summary || s.origin || s.title,
+        children: [
+          el('span', { className: 'nb-src-ico', 'aria-hidden': 'true' },
+            jsx(Glyph, { name: SRC_ICON[s.kind] || 'file', size: 14 }),
+            el('b', { className: 'nb-cite', children: `S${s.n}` })),
+          el('span', { className: 'nb-src-body' },
+            el('span', { className: 'nb-src-title', children: s.title }),
+            el('span', { className: 'nb-src-meta' },
+              el('span', { className: 'nb-chip', children: `${kindLabel(s.kind)} · ${nfmt(s.chars)}` }),
+              (s.labels || []).length
+                ? el('span', { className: 'nb-chip', children: s.labels[0] })
+                : null,
+              (s.labels || []).length > 1
+                ? el('span', {
+                    className: 'nb-chip',
+                    title: `Also tagged: ${s.labels.slice(1).join(', ')}`,
+                    children: `+${s.labels.length - 1}`
+                  })
+                : null))
+        ]
       }),
       onDeleteSource ? jsx(IconBtn, {
         icon: 'trash', size: 13, className: 'nb-src-del',
@@ -2902,139 +3015,104 @@ function Rail({ data, notebook, onAddSource, onOpenSource, onToggleSource,
       if (files && files.length && onDropFiles) onDropFiles(Array.from(files))
     }
   },
-    el('div', { className: 'nb-pane-head' },
-      el('span', { className: 'nb-pane-title', children: 'Sources' }),
-      el('span', { className: 'nb-meta', children: `${activeCount}/${sources.length}` }),
-      jsx(IconBtn, {
-        icon: 'sparkle', label: 'Auto-label unlabelled sources', onClick: onLabel,
-        disabled: !(notebook && notebook.stats && notebook.stats.unlabeled)
-      }),
-      jsx(IconBtn, { icon: 'refresh', label: 'Refresh sources', onClick: () => reload(true) }),
-      jsx(IconBtn, { icon: 'arrowLeft', label: 'Hide sources panel', onClick: onCollapse })
-    ),
-
-    el('div', { className: 'nb-pad', style: { paddingTop: '10px', paddingBottom: '8px' } },
-      notebook
-        ? el('button', {
-            type: 'button', className: 'nb-nbrow', 'aria-current': 'true',
-            onClick: onGoHome, title: 'Back to all notebooks',
-            children: [
-              el('span', { className: 'nb-avatar', 'aria-hidden': 'true' },
-                jsx(Glyph, { name: 'notebook', size: 15 })),
-              el('span', { style: { minWidth: 0, flex: 1 } },
-                el('span', { className: 'nb-nbtitle', children: notebook.title }),
-                el('span', { className: 'nb-nbsub',
-                  children: `${sources.length} source${sources.length === 1 ? '' : 's'} · ${(notebook.artifacts || []).length} artifact${(notebook.artifacts || []).length === 1 ? '' : 's'}` })),
-              jsx(Glyph, { name: 'arrowLeft', size: 14 })
-            ]
-          })
-        : el('div', { className: 'nb-hint', style: { padding: '6px 4px', lineHeight: 1.5 } },
-            'Pick a notebook on Home first — sources belong to one.')),
-
-    el('div', { className: 'nb-pad', style: { paddingBottom: '8px' } },
+    el('div', { className: 'nb-rail-head' },
+      el('span', { className: 'nb-rail-title' },
+        'Sources',
+        el('span', { className: 'nb-rail-count',
+          children: sources.length ? `${activeCount}/${sources.length}` : '0' })),
       jsx(Btn, {
         icon: 'plus', onClick: onAddSource, disabled: !notebook,
-        className: 'nb-addsrc', children: 'Add sources'
-      })),
-
-    notebook ? jsx(WebFinder, { notebook, onAdded: () => reload(true), onSay: onSay }) : null,
-
-    el('div', { className: 'nb-pad', style: { paddingBottom: '8px' } },
-      jsx(SearchField, { value: q || '', onChange: setQ, placeholder: 'Search sources', label: 'Search sources' })
+        className: 'nb-addsrc', children: 'Add',
+        'aria-label': notebook ? 'Add sources — link, file, pasted text, or a web search' : 'Add sources (open a notebook first)'
+      }),
+      el('div', { className: 'nb-rail-tools' },
+        jsx(IconBtn, {
+          icon: 'sparkle', label: 'Auto-label unlabelled sources', onClick: onLabel,
+          disabled: !(notebook && notebook.stats && notebook.stats.unlabeled)
+        }),
+        jsx(IconBtn, { icon: 'refresh', label: 'Refresh sources', onClick: () => reload(true) }),
+        jsx(IconBtn, { icon: 'arrowLeft', label: 'Hide sources panel', onClick: onCollapse }))
     ),
 
-    labels.length
-      ? el('div', {
-          className: 'nb-pad',
-          style: { display: 'flex', gap: '6px', flexWrap: 'wrap', paddingTop: 0, paddingBottom: '10px' },
-          role: 'group', 'aria-label': 'Filter sources by label'
-        },
-          labels.slice(0, 6).map((l) =>
-            jsx(Chip, {
-              key: l.label, tone: srcFilter === l.label.toLowerCase() ? 'accent' : undefined,
-              pressed: srcFilter === l.label.toLowerCase(),
-              onClick: () => setSrcFilter(srcFilter === l.label.toLowerCase() ? 'all' : l.label.toLowerCase()),
-              title: `${l.count} source${l.count === 1 ? '' : 's'} labelled ${l.label}`,
-              children: `${l.label} ${l.count}`
-            }))
-        )
-      : null,
+    el('div', { className: 'nb-rail-filter' },
+      jsx(SearchField, { value: q || '', onChange: setQ,
+        placeholder: 'Filter sources or #tags', label: 'Filter sources' }),
+      el('div', { className: 'nb-tagrow', role: 'group', 'aria-label': 'Filter sources by tag' },
+        labels.length
+          ? labels.slice(0, 8).map((l) =>
+              jsx(Chip, {
+                key: l.label, tone: srcFilter === l.label.toLowerCase() ? 'accent' : undefined,
+                pressed: srcFilter === l.label.toLowerCase(),
+                onClick: () => setSrcFilter(srcFilter === l.label.toLowerCase() ? 'all' : l.label.toLowerCase()),
+                title: `${l.count} source${l.count === 1 ? '' : 's'} tagged ${l.label}`,
+                children: `${l.label} ${l.count}`
+              }))
+          : el('span', { className: 'nb-tagrow-empty', children: 'No tags yet — labelling adds them' }))
+    ),
 
-    el('div', { className: 'nb-scroll', 'aria-label': 'Source list' },
-      el('div', { className: 'nb-pad', style: { paddingTop: 0, paddingBottom: '12px' } },
-        sources.length
-          ? el('div', { className: 'nb-selall' },
-              el('button', {
-                type: 'button', className: 'nb-srccheck', role: 'checkbox',
-                'aria-checked': allOn,
-                'aria-label': allOn ? 'Exclude all sources from answers' : 'Include all sources in answers',
-                title: allOn ? 'Exclude every source' : 'Include every source',
-                onClick: onToggleAll,
-                children: allOn ? jsx(Glyph, { name: 'check', size: 12 }) : null
-              }),
-              el('span', { className: 'nb-src-title', style: { fontSize: '12.5px' },
-                children: 'All sources' }),
-              el('span', { className: 'nb-hint', style: { marginLeft: 'auto' },
-                children: `${activeCount} of ${sources.length}` }))
-          : null,
-        error
-          ? el('div', { className: 'nb-hint', style: { padding: '10px', color: T.danger }, children: error })
-          : !notebook
-            ? null
-            : shown.length === 0
-              ? el('div', { className: 'nb-void', style: { height: 'auto', padding: '24px 8px' } },
+    el('div', { className: 'nb-scroll nb-rail-list', 'aria-label': 'Source list' },
+      error
+        ? el('div', { className: 'nb-hint', style: { padding: '10px 14px', color: T.danger }, children: error })
+        : !notebook
+          ? el('div', { className: 'nb-void', style: { height: 'auto', padding: '24px 14px' } },
+              el('div', null,
+                el('h3', { style: { fontSize: 'var(--nb-fs-title)' }, children: 'No notebook open' }),
+                el('p', { style: { fontSize: 'var(--nb-fs-label)' },
+                  children: 'Sources belong to a notebook. Open one from Home to see what is in it.' })))
+          : loading && !sources.length
+            ? el('div', { className: 'nb-hint', style: { padding: '14px' }, children: 'reading sources…' })
+            : sources.length === 0
+              ? el('div', { className: 'nb-void', style: { height: 'auto', padding: '24px 14px' } },
                   el('div', null,
-                    el('h3', { style: { fontSize: '15px' }, children: sources.length ? 'Nothing matches' : 'No sources yet' }),
-                    el('p', { style: { fontSize: '13px' }, children: sources.length
-                      ? 'Clear the filter or the search to see every source.'
-                      : 'Add a file, a URL or pasted text — or describe the topic and let Hermes find sources for you.' })))
-              : el('div', { style: { display: 'flex', flexDirection: 'column', gap: '2px' } },
-                  groups.map(([g, list]) => {
-                    const isClosed = !!closed[g]
-                    const gAllOn = list.every((s) => s.active !== false)
-                    const gSomeOn = list.some((s) => s.active !== false)
-                    return el('div', { key: g },
-                      el('div', {
-                        style: { display: 'flex', alignItems: 'center', gap: '2px' }
-                      },
-                        el('button', {
-                          type: 'button', className: 'nb-srccheck', role: 'checkbox',
-                          'aria-checked': gAllOn ? 'true' : (gSomeOn ? 'mixed' : 'false'),
-                          'data-mixed': gSomeOn && !gAllOn ? 'true' : 'false',
-                          'aria-label': `${gAllOn ? 'Exclude' : 'Include'} all sources in “${g}”`,
-                          title: gAllOn
-                            ? `Exclude all ${list.length} sources in “${g}”`
-                            : `Include all ${list.length} sources in “${g}”`,
-                          onClick: () => onToggleGroup && onToggleGroup(list),
-                          children: gAllOn
-                            ? jsx(Glyph, { name: 'check', size: 12 })
-                            : (gSomeOn ? el('span', { 'aria-hidden': 'true',
-                                style: { fontSize: '11.5px', fontWeight: 700, lineHeight: 1 },
-                                children: '–' }) : null)
-                        }),
-                        el('button', {
-                          type: 'button', className: 'nb-srcgroup',
-                          'data-closed': isClosed ? 'true' : 'false',
-                          'aria-expanded': !isClosed,
-                          onClick: () => setClosed((c) => ({ ...c, [g]: !c[g] })),
-                          style: { flex: 1 },
-                          children: [
-                            jsx(Glyph, { name: 'chevron', size: 13 }),
-                            el('span', { style: { textTransform: 'capitalize' }, children: g }),
-                            el('em', { children: `${list.filter((s) => s.active !== false).length}/${list.length}` })
-                          ]
-                        })),
-                      isClosed ? null : el('div', { className: 'nb-srcgroup-list' }, list.map(srcRow))
-                    )
-                  }))
-      ),
-    el('div', { className: 'nb-pad', style: { paddingTop: 0, paddingBottom: '12px' } },
-      el('span', {
-        className: 'nb-chip',
-        title: 'Sources live on this machine with no per-notebook cap — grounding scales from full-context injection to hybrid retrieval as the corpus grows.',
-        style: { fontSize: '11.5px', opacity: 0.85 },
-        children: '♾️ Unlimited sources · 🛡️ Local-first ready'
-      }))
+                    el('h3', { style: { fontSize: 'var(--nb-fs-title)' }, children: 'No sources yet' }),
+                    el('p', { style: { fontSize: 'var(--nb-fs-label)' },
+                      children: 'Add a file, a link or pasted text — or describe the topic and let Hermes find sources for you.' })))
+              : shown.length === 0
+                ? el('div', { className: 'nb-void', style: { height: 'auto', padding: '24px 14px' } },
+                    el('div', null,
+                      el('h3', { style: { fontSize: 'var(--nb-fs-title)' }, children: 'Nothing matches' }),
+                      el('p', { style: { fontSize: 'var(--nb-fs-label)' },
+                        children: 'Clear the filter or the search to see every source.' })))
+                : el('div', { className: 'nb-src-list' },
+                    // one bulk control, one row — "all sources" is a filter over
+                    // the list, not a checkbox above a tree of checkboxes
+                    sources.length > 1
+                      ? el('div', { className: 'nb-selall' },
+                          el('button', {
+                            type: 'button', className: 'nb-srccheck', role: 'checkbox',
+                            'aria-checked': allOn,
+                            'aria-label': allOn ? 'Exclude all sources from answers' : 'Include all sources in answers',
+                            title: allOn ? 'Exclude every source' : 'Include every source',
+                            onClick: onToggleAll,
+                            children: allOn ? jsx(Glyph, { name: 'check', size: 13 }) : null
+                          }),
+                          el('span', { className: 'nb-src-title',
+                            children: allOn ? 'All included' : `${activeCount} of ${sources.length} included` }),
+                          el('span', { style: { flex: 1 } }),
+                          srcFilter !== 'all'
+                            ? jsx(Chip, {
+                                onClick: () => setSrcFilter('all'),
+                                title: 'Clear the tag filter',
+                                children: `#${srcFilter} ×`
+                              })
+                            : null)
+                      : null,
+                    grouped
+                      ? groups.map(([g, list]) => el('div', { key: g },
+                          el('button', {
+                            type: 'button', className: 'nb-srcgroup',
+                            'aria-expanded': !closed[g],
+                            onClick: () => setClosed((c) => ({ ...c, [g]: !c[g] })),
+                            children: [
+                              el('span', { children: g }),
+                              el('em', { children: closed[g] ? String(list.length) : '' }),
+                              el('span', { style: { flex: 1 } }),
+                              jsx(Glyph, { name: 'chevron', size: 11 })
+                            ]
+                          }),
+                          closed[g] ? null : el('div', { className: 'nb-src-flat' }, list.map(srcRow))))
+                      : el('div', { className: 'nb-src-flat' }, shown.map(srcRow))
+                  )
     ),
     dragOver
       ? el('div', {
@@ -3049,102 +3127,6 @@ function Rail({ data, notebook, onAddSource, onOpenSource, onToggleSource,
             'Drop files to add them as sources'
           ]
         })
-      : null
-  )
-}
-
-/* ------------------------------------------------------------- web finder */
-
-/** The "describe it" box: live web search inside the sources panel. Candidates
- *  come from the real /discover route; each adds through /sources one at a
- *  time so failures are reported per url, never hidden. */
-function WebFinder({ notebook, onAdded, onSay }) {
-  const [q, setQ] = useState('')
-  const [busy, setBusy] = useState(false)
-  const [cands, setCands] = useState(null)
-  const [err, setErr] = useState('')
-  const [added, setAdded] = useState({})
-  const [adding, setAdding] = useState('')
-
-  const search = async () => {
-    const query = q.trim()
-    if (!query || busy || !notebook) return
-    setBusy(true); setErr(''); setCands(null); setAdded({})
-    try {
-      const out = await api('/discover', {
-        method: 'POST',
-        body: { notebook: notebook.id, query, max_results: 6 },
-        timeoutMs: 90000
-      })
-      const list = out.candidates || []
-      setCands(list)
-      if (!list.length) setErr('Nothing found — try different words.')
-    } catch (e) {
-      setErr(e.message || String(e))
-    } finally {
-      setBusy(false)
-    }
-  }
-
-  const addOne = async (c) => {
-    if (adding || added[c.url] || !notebook) return
-    setAdding(c.url); setErr('')
-    try {
-      await api('/sources', {
-        method: 'POST', body: { notebook: notebook.id, urls: [c.url] }, timeoutMs: 120000
-      })
-      setAdded((a) => ({ ...a, [c.url]: true }))
-      if (onAdded) onAdded()
-    } catch (e) {
-      setErr(e.message || String(e))
-      if (onSay) onSay(e.message || 'could not add source')
-    } finally {
-      setAdding('')
-    }
-  }
-
-  return el('div', { className: 'nb-finder' },
-    el('div', { className: 'nb-finder-row' },
-      jsx(Glyph, { name: 'search', size: 14 }),
-      el('input', {
-        value: q, placeholder: 'Search the web for new sources',
-        'aria-label': 'Search the web for new sources',
-        onChange: (e) => setQ(e.target.value),
-        onKeyDown: (e) => { if (e.key === 'Enter') search() },
-        disabled: !notebook || busy, spellCheck: false
-      }),
-      el('button', {
-        type: 'button', className: 'nb-finder-go',
-        'aria-label': 'Find sources', title: 'Find sources',
-        disabled: !q.trim() || busy || !notebook, onClick: search,
-        children: jsx(Glyph, { name: 'arrowRight', size: 15 })
-      })
-    ),
-    busy ? el('div', { className: 'nb-hint', style: { fontSize: '11.5px', padding: '7px 4px 0' },
-      children: 'searching the web…' }) : null,
-    err ? el('div', { className: 'nb-hint', style: { fontSize: '11.5px', padding: '7px 4px 0', color: T.danger },
-      children: err }) : null,
-    cands && cands.length
-      ? el('div', { style: { marginTop: '8px', display: 'flex', flexDirection: 'column', gap: '2px' } },
-          cands.map((c) => {
-            const host = hostOf(c.url)
-            const isAdded = !!added[c.url]
-            return el('button', {
-              key: c.url, type: 'button', className: 'nb-fcand',
-              onClick: () => addOne(c),
-              disabled: isAdded || !!adding,
-              'aria-label': `${isAdded ? 'Added' : 'Add'} source: ${c.title || c.url}`,
-              title: c.snippet || c.url,
-              children: [
-                el('span', { className: 'nb-fcand-main' },
-                  el('span', { className: 'nb-fcand-title', children: c.title || c.url }),
-                  el('span', { className: 'nb-fcand-sub',
-                    children: `${host}${c.snippet ? ` · ${String(c.snippet).slice(0, 90)}` : ''}` })),
-                el('span', { className: 'nb-fcand-add', 'data-added': isAdded ? 'true' : 'false', 'aria-hidden': 'true' },
-                  jsx(Glyph, { name: isAdded ? 'check' : adding === c.url ? 'refresh' : 'plus', size: 13 }))
-              ]
-            }, c.url)
-          }))
       : null
   )
 }
@@ -3302,47 +3284,55 @@ function Main({ notebook, kinds, tab, setTab, picked, setPicked, busy, generate,
 
   return el('main', { className: 'nb-col nb-main-col' },
     el('div', { className: 'nb-main-head' },
-      el('div', { className: 'nb-hero' },
-        el('span', { className: 'nb-hero-emoji', 'aria-hidden': 'true',
+      // ONE header line: sigil, title, one meta line, the grounded chip, and the
+      // view switcher on the same baseline. The old block was a 52px sigil +
+      // two-line h1 + two meta paragraphs + a chip row, then a 38px tab row
+      // below it — ~180px of vertically stacked titles before any content, and
+      // the notebook's title was printed four times in one viewport (breadcrumb,
+      // rail switcher card, this h1, and the artifact's own markdown h1).
+      el('div', { className: 'nb-head-top' },
+        el('span', { className: 'nb-head-sigil', 'aria-hidden': 'true',
           children: (notebook.emoji && String(notebook.emoji).trim())
             ? emojiFor(notebook.id, notebook.emoji)
-            : jsx(Sigil, { seed: notebook.id, size: 52, draw: true }) }),
-        el('div', { className: 'nb-hero-main' },
-          el('h1', { className: 'nb-h1', children: notebook.title }),
-          el('p', { className: 'nb-sub', children:
-            `${sources.length} source${sources.length === 1 ? '' : 's'} · ${activeCount} active · ${stats.labels || 0} topics · updated ${ago(notebook.updated_at) || 'recently'}` }),
-          notebook.description
-            ? el('p', { className: 'nb-sub', style: { marginTop: '4px', color: T.text3, fontStyle: 'italic' },
-                children: notebook.description })
-            : null),
+            : jsx(Sigil, { seed: notebook.id, size: 26 }) }),
+        el('div', { className: 'nb-head-main' },
+          el('h1', { className: 'nb-h1', children: notebook.title,
+            title: notebook.title }),
+          el('p', { className: 'nb-sub', title: notebook.description || undefined,
+            children: notebook.description
+              ? notebook.description
+              : `${sources.length} source${sources.length === 1 ? '' : 's'} · ${stats.labels || 0} topics · updated ${ago(notebook.updated_at) || 'recently'}` })),
+        el('div', { className: 'nb-tabs', role: 'tablist', 'aria-label': 'Notebook views' },
+          el('button', {
+            type: 'button', role: 'tab', className: 'nb-tab', 'aria-selected': tab === 'chat',
+            onClick: () => setTab('chat'),
+            children: [jsx(Glyph, { name: 'faq', size: 14 }), el('span', { children: 'Chat' })]
+          }),
+          el('button', {
+            type: 'button', role: 'tab', className: 'nb-tab', 'aria-selected': tab === 'tensions',
+            onClick: () => setTab('tensions'), disabled: !sources.length,
+            title: 'Where the sources disagree, and whether they corroborate each other',
+            children: [jsx(Glyph, { name: 'shield', size: 14 }), el('span', { children: 'Tensions' })]
+          }),
+          el('button', {
+            type: 'button', role: 'tab', className: 'nb-tab', 'aria-selected': tab === 'view',
+            onClick: () => setTab('view'), disabled: !picked,
+            title: picked ? `${picked.label} — ${picked.title || picked.primary}` : 'No artifact open',
+            children: [jsx(Glyph, { name: picked ? (KIND_ICON[picked.kind] || 'doc') : 'doc', size: 14 }),
+                       el('span', { children: viewName || 'Viewer' })]
+          }),
+          peek ? el('button', {
+            type: 'button', role: 'tab', className: 'nb-tab', 'aria-selected': tab === 'peek',
+            onClick: () => setTab('peek'), title: peek.title,
+            children: [jsx(Glyph, { name: 'book', size: 14 }),
+                       el('span', { children: `S${peek.n} · ${peek.title}` })]
+          }) : null
+        ),
         el('div', { className: 'nb-hero-side' },
           el('span', {
             className: 'nb-chip', 'data-tone': modelReady ? 'ok' : 'warn',
             children: modelReady ? 'grounded' : 'model offline'
           }))
-      ),
-      el('div', { className: 'nb-tabs', role: 'tablist', 'aria-label': 'Notebook views' },
-        el('button', {
-          type: 'button', role: 'tab', className: 'nb-tab', 'aria-selected': tab === 'chat',
-          onClick: () => setTab('chat'), children: [jsx(Glyph, { name: 'faq', size: 15 }), 'Chat']
-        }),
-        el('button', {
-          type: 'button', role: 'tab', className: 'nb-tab', 'aria-selected': tab === 'tensions',
-          onClick: () => setTab('tensions'), disabled: !sources.length,
-          title: 'Where the sources disagree, and whether they corroborate each other',
-          children: [jsx(Glyph, { name: 'shield', size: 15 }), 'Tensions']
-        }),
-        el('button', {
-          type: 'button', role: 'tab', className: 'nb-tab', 'aria-selected': tab === 'view',
-          onClick: () => setTab('view'), disabled: !picked,
-          children: [jsx(Glyph, { name: picked ? (KIND_ICON[picked.kind] || 'doc') : 'doc', size: 15 }),
-                     viewName || 'Viewer']
-        }),
-        peek ? el('button', {
-          type: 'button', role: 'tab', className: 'nb-tab', 'aria-selected': tab === 'peek',
-          onClick: () => setTab('peek'),
-          children: [jsx(Glyph, { name: 'book', size: 15 }), `S${peek.n} · ${peek.title}`]
-        }) : null
       )
     ),
 
@@ -4288,12 +4278,12 @@ function SourcePeek({ source, notebook, onClose, onAskAbout, onRefresh, onPrev, 
     el('div', { className: 'nb-view-head' },
       el('span', { className: 'nb-chip', 'data-tone': 'accent', children: `S${source.n}` }),
       jsx(Sigil, { seed: source.id || source.title, size: 26 }),
-      el('div', { style: { flex: 1, minWidth: 0 } },
-        el('div', { className: 'nb-view-title', children: source.title }),
-        el('div', { style: { fontSize: '12.5px', color: T.text4, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' },
+      el('div', { style: { flex: '1 1 auto', minWidth: 0 } },
+        el('div', { className: 'nb-view-title', title: source.title, children: source.title }),
+        el('div', { className: 'nb-view-sub',
           children: `${kindLabel(source.kind)} · ${nfmt(source.chars)} chars · ${source.origin || 'stored text'}` +
-            (source.added_at ? ` · added ${ago(source.added_at)}` : '') +
             (source.refreshed_at ? ` · refreshed ${ago(source.refreshed_at)}` : '') })),
+      el('div', { className: 'nb-view-acts' },
       source.origin && source.origin.startsWith('http')
         ? jsx(IconBtn, { icon: 'external', label: 'Open the original', onClick: () => host.openLink ? host.openLink(source.origin) : window.open(source.origin, '_blank') })
         : null,
@@ -4315,7 +4305,7 @@ function SourcePeek({ source, notebook, onClose, onAskAbout, onRefresh, onPrev, 
         : null,
       onPrev ? jsx(IconBtn, { icon: 'arrowLeft', label: `Previous source — S${source.n - 1}`, onClick: onPrev }) : null,
       onNext ? jsx(IconBtn, { icon: 'arrowRight', label: `Next source — S${source.n + 1}`, onClick: onNext }) : null,
-      jsx(IconBtn, { icon: 'close', label: 'Close source', onClick: onClose })
+      jsx(IconBtn, { icon: 'close', label: 'Close source', onClick: onClose }))
     ),
     el('div', { className: 'nb-view-body' },
       onAskAbout
@@ -4430,7 +4420,7 @@ function StudioPanel({ kinds, notebook, busy, generate, filter, setFilter, onOpe
 
   return el('aside', { className: 'nb-col nb-studio', 'aria-label': 'Studio' },
     el('div', { className: 'nb-pane-head nb-studio-head' },
-      el('span', { className: 'nb-pane-title', children: 'Studio' }),
+      el('span', { className: 'nb-pane-title', children: 'Make' }),
       el('span', {
         className: 'nb-chip',
         'data-tone': readyCount ? 'ok' : undefined,
@@ -4439,7 +4429,7 @@ function StudioPanel({ kinds, notebook, busy, generate, filter, setFilter, onOpe
       }),
       runningCount ? el('span', { className: 'nb-chip', 'data-tone': 'accent',
         children: `${runningCount} writing` }) : null,
-      jsx(IconBtn, { icon: 'arrowRight', label: 'Hide studio panel', onClick: onCollapse })
+      jsx(IconBtn, { icon: 'arrowRight', label: 'Hide the make panel (Ctrl+\\)', onClick: onCollapse })
     ),
 
     el('div', { className: 'nb-studio-body nb-scroll', ref: scrollRef,
@@ -4477,6 +4467,7 @@ function StudioPanel({ kinds, notebook, busy, generate, filter, setFilter, onOpe
                   onClick: () => onOpen(a),
                   'aria-label': `Open ${a.title || a.label || a.kind}`,
                   title: `${a.title || a.primary || a.label}${optsSummary(a.opts) ? ` — ${optsSummary(a.opts)}` : ''}`,
+                  'data-ready': 'true',
                   children: [
                     el('span', { className: 'nb-art-ico', 'aria-hidden': 'true' },
                       i < 12 ? jsx(ArtThumb, { run: a, nbId: notebook && notebook.id })
@@ -4484,7 +4475,11 @@ function StudioPanel({ kinds, notebook, busy, generate, filter, setFilter, onOpe
                     el('span', { className: 'nb-art-main' },
                       el('span', { className: 'nb-art-title', children: a.title || a.label || a.kind }),
                       el('span', { className: 'nb-art-sub',
-                        children: `${nfmt(a.bytes)} · ${ago(a.modified)}${a.opts && Object.keys(a.opts).length ? ' · tailored' : ''}` }))
+                        children: `Ready · ${ago(a.modified)}${a.opts && Object.keys(a.opts).length ? ' · tailored' : ''}` })),
+                    // a finished run is distinguishable from a not-yet-made one at a
+                    // glance: green accent + an open affordance that appears on hover
+                    el('span', { className: 'nb-art-go', 'aria-hidden': 'true' },
+                      jsx(Glyph, { name: 'arrowRight', size: 14 }))
                   ]
                 }, a.key || a.primary || i),
                 onDelete ? jsx(IconBtn, {
@@ -4576,10 +4571,16 @@ function GenPill({ kind, art, started, nbId, onOpen, onGenerate }) {
                   onChange: (e) => pick(spec.id, e.target.value)
                 })
               : el(Seg, {
-                  value: opts[spec.id] || spec.choices[0],
+                  // The backend may name a choice ('Vector · exact'). Title-casing
+                  // the id is the fallback, not the rule: an engine called
+                  // 'imagen_blueprint' should not read as 'Imagen Blueprint' to
+                  // someone deciding whether to spend money on a render.
+                  value: opts[spec.id] || spec.default || spec.choices[0],
                   onChange: (v) => pick(spec.id, v),
                   options: spec.choices.map((c) => ({
-                    id: c, label: c.replace(/_/g, ' ').replace(/\b\w/g, (ch) => ch.toUpperCase())
+                    id: c,
+                    label: (spec.labels && spec.labels[c]) ||
+                      c.replace(/_/g, ' ').replace(/\b\w/g, (ch) => ch.toUpperCase())
                   }))
                 }))),
           kind.id === 'video_overview' && nbId
@@ -5968,7 +5969,9 @@ function Viewer({ artifact, notebook, onCite, onRegenerate, regenerating, onChan
   } else if (artifact.kind === 'slides') {
     body = jsx(SlidesView, { data: asJson.json, text: primary.text, notebook, jsonName,
                              htmlUrl: primary.url && artifact.ext === 'html' ? primary.url : '' })
-  } else if (artifact.kind === 'infographic') {
+  } else if (artifact.kind === 'infographic' || artifact.kind === 'blueprint_evolution') {
+    // The blueprint is an SVG poster like an infographic: same stage, same
+    // zoom, same style chip. A separate viewer would be the same code twice.
     body = jsx(InfographicView, { src: primary.url, data: asJson.json })
   } else if (artifact.kind === 'data_table') {
     body = jsx(DataTableView, { text: primary.text, name: artifact.primary })
@@ -5980,34 +5983,41 @@ function Viewer({ artifact, notebook, onCite, onRegenerate, regenerating, onChan
   }
 
   return el('div', { className: 'nb-view' },
+    // ONE 44px toolbar: category badge, the artifact's name, a human-readable
+    // provenance line, then the icon actions. There is no second sub-header and
+    // no "<notebook> — <kind>" H1 anywhere below it: the tab above already names
+    // the kind, and the file's size in bytes is not something a reader needs.
     el('div', { className: 'nb-view-head' },
       el('span', { className: 'nb-chip', 'data-tone': 'accent', children: artifact.label }),
-      el('div', { style: { flex: 1, minWidth: 0 } },
-        el('div', { className: 'nb-view-title', children: artifact.title || (asJson.json && (asJson.json.title || asJson.json.topic)) || prettyFile(artifact.primary) }),
-        el('div', { style: { fontSize: '12.5px', color: T.text4 },
-          children: `${artifact.files.length} file${artifact.files.length === 1 ? '' : 's'} · ${Math.max(1, Math.round(artifact.bytes / 1024))} KB · ${ago(artifact.modified)}${optsSummary(artifact.opts) ? ` · ${optsSummary(artifact.opts)}` : ''}` })),
-      primary.text
-        ? jsx(IconBtn, {
-            icon: 'copy', label: 'Copy artifact text',
-            onClick: () => { try { navigator.clipboard.writeText(primary.text) } catch { /* clipboard may be unavailable */ } }
-          })
-        : null,
-      jsx(IconBtn, {
-        icon: 'download', label: `Download ${artifact.label}`,
-        onClick: () => downloading(primary.url, artifact.primary)
-      }),
-      onPrevRun ? jsx(IconBtn, { icon: 'arrowLeft', label: 'Older version', onClick: onPrevRun }) : null,
-      onNextRun ? jsx(IconBtn, { icon: 'arrowRight', label: 'Newer version', onClick: onNextRun }) : null,
-      runPos ? el('span', { className: 'nb-meta', style: { fontSize: '12.5px' }, children: runPos }) : null,
-      onRegenerate ? jsx(IconBtn, {
-        icon: 'refresh', label: `Regenerate ${artifact.label}`,
-        active: !!regenerating, disabled: !!regenerating,
-        onClick: onRegenerate
-      }) : null,
-      jsx(IconBtn, {
-        icon: 'pencil', label: 'Rename this artifact',
-        onClick: () => { setRenVal(artifact.title || ''); setRenOpen(true) }
-      })
+      el('div', { style: { flex: '1 1 auto', minWidth: 0 } },
+        el('div', { className: 'nb-view-title',
+          title: artifact.title || (asJson.json && (asJson.json.title || asJson.json.topic)) || artifact.primary,
+          children: artifact.title || (asJson.json && (asJson.json.title || asJson.json.topic)) || prettyFile(artifact.primary) }),
+        el('div', { className: 'nb-view-sub',
+          title: optsSummary(artifact.opts) || undefined,
+          children: `Updated ${ago(artifact.modified) || 'just now'} · ${artifact.files.length} file${artifact.files.length === 1 ? '' : 's'}${runPos ? ` · version ${runPos}` : ''}${optsSummary(artifact.opts) ? ` · ${optsSummary(artifact.opts)}` : ''}` })),
+      el('div', { className: 'nb-view-acts' },
+        primary.text
+          ? jsx(IconBtn, {
+              icon: 'copy', label: 'Copy artifact text',
+              onClick: () => { try { navigator.clipboard.writeText(primary.text) } catch { /* clipboard may be unavailable */ } }
+            })
+          : null,
+        jsx(IconBtn, {
+          icon: 'download', label: `Download ${artifact.label}`,
+          onClick: () => downloading(primary.url, artifact.primary)
+        }),
+        onPrevRun ? jsx(IconBtn, { icon: 'arrowLeft', label: 'Older version', onClick: onPrevRun }) : null,
+        onNextRun ? jsx(IconBtn, { icon: 'arrowRight', label: 'Newer version', onClick: onNextRun }) : null,
+        onRegenerate ? jsx(IconBtn, {
+          icon: 'refresh', label: `Regenerate ${artifact.label}`,
+          active: !!regenerating, disabled: !!regenerating,
+          onClick: onRegenerate
+        }) : null,
+        jsx(IconBtn, {
+          icon: 'pencil', label: 'Rename this artifact',
+          onClick: () => { setRenVal(artifact.title || ''); setRenOpen(true) }
+        }))
     ),
     body,
     renOpen
@@ -7071,27 +7081,259 @@ function DataTableView({ text, name }) {
             head.map((_, ci) => el('td', { key: `c${ci}`, children: String(r[ci] || '') }, `c${ci}`))))))))
 }
 
-/* ------------------------------------------------------------- timeline */
+/* ------------------------------------------------------------- timeline
+ *
+ * A timeline artifact is markdown, and for a year it was drawn as plain
+ * paragraphs with literal "(Source 1)" strings — which is a dump, not a
+ * timeline. It is now parsed into nodes and drawn on a spine:
+ *
+ *   - `## <date|period|phase>` starts a node; the bullets under it are its body
+ *   - `- **1971** — …` is a node of its own
+ *   - "(Source 2)" and "(Sources 1 and 4)" become real [S2] citation chips
+ *   - the model's meta-commentary ("Note: the provided source is thematic…")
+ *     is stripped: if the material is a process rather than a chronology, the
+ *     surface says "sequenced phases" once and draws phase badges, instead of
+ *     printing the apology as body text.
+ */
+const TL_MONTHS = 'january|february|march|april|may|june|july|august|september|october|november|december|jan|feb|mar|apr|jun|jul|aug|sep|sept|oct|nov|dec'
+const TL_DATED = new RegExp(`\\b(1[0-9]{3}|20[0-9]{2}|2100)\\b|\\b(${TL_MONTHS})\\b`, 'i')
+const TL_META = /^(?:note[:—-]|nb[:]|disclaimer[:])?\s*(?:the (?:provided |given )?(?:source|sources|material|document|text)\s+(?:is|are|does|do|was|were)|i (?:cannot|can not|can’t|don’t|do not)|as an ai|keep in mind that|please note that|there (?:is|are) no (?:explicit|specific) (?:dates|timeline|dates or timeline)|this (?:timeline|document) (?:is|was) (?:compiled|based|created) (?:from|using))/i
+const TL_NOISE = /^(?:note[:—-]\s*)?(?:nb[:]|caution[:]|caveat[:])\s*/i
+/** "- <when> — body": the marker a one-line milestone starts with. Accepts
+ *  years, year ranges, "April 2025", "Apr 12, 2025", "12 April 2025". */
+const TL_NODE_PREFIX = new RegExp('^(?:\\*\\*)?(' + [
+  // procedural labels: "Phase 2", "T+90 days", "Pre-interview phase", "Step 3"
+  '(?:Phase|Stage|Step|Wave|Round)\\s*[0-9A-Za-z+.-]*',
+  '(?:Pre|Post|During|After|Before)[- ]?[A-Za-z]+\\s+phase',
+  '[A-Za-z]+(?:-[A-Za-z]+)?\\s+phase',
+  'T\\s*\\u00b1?\\+\\s*[0-9]+(?:\\s*[A-Za-z]+)?',
+  '[0-9]{3,4}(?:\\s*[\\u2013-]\\s*[0-9]{2,4})?',
+  '(?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Sept|Oct|Nov|Dec)[a-z]*\\s+[0-9]{1,2}(?:,\\s*[0-9]{4})?',
+  '[A-Z][a-z]+\\s+[0-9]{1,2}(?:,\\s*|[\\s]+)[0-9]{4}',
+  '[A-Z][a-z]+\\s+[0-9]{4}',
+  '[0-9]{1,2}\\s+[A-Z][a-z]+\\s+[0-9]{4}'
+].join('|') + ')(?:\\*\\*)?\\s*[\\u2014\\u2013:-]\\s*(.+)$')
+
+/** "(Source 2)" / "(Sources 1 and 4)" → "[S2]" / "[S1][S4]". */
+function tlCiteFix(line) {
+  return String(line)
+    .replace(/\(\s*(?:see\s+)?(?:sources?|ref(?:erence)?s?\.?)\s*(?:no\.?\s*)?([0-9]+(?:\s*(?:,|and|&(?:amp;)?)\s*[0-9]+)*)\s*\)/gi,
+      (m, list) => list.split(/[,\s]+|and|&amp;|&/).filter((n) => n && /^[0-9]+$/.test(n))
+        .map((n) => `[S${n}]`).join(''))
+    .replace(/\s*\(\s*si\s*\)/gi, '')
+}
+
+/** Strip the model talking about itself: a timeline that apologises for its
+ *  shape instead of being shaped is the failure this viewer exists to hide. */
+const tlIsMeta = (line) => {
+  const t = String(line).trim()
+  if (!t) return false
+  if (TL_META.test(t)) return true
+  return TL_NOISE.test(t) && /(thematic|not (?:strictly )?chronolog|no (?:explicit )?dates|rather than chronological)/i.test(t)
+}
+
+function tlParse(text) {
+  const lines = tlCiteFix(String(text || '').replace(/\r\n/g, '\n')).split('\n')
+  const nodes = []
+  const lede = []
+  let title = ''
+  let pending = null     // the heading a bullet list belongs to
+  let sawMeta = false
+  const openNode = (when) => {
+    const n = { when: String(when || '').trim(), body: [], tags: [] }
+    nodes.push(n)
+    return n
+  }
+  const pushBody = (n, line) => { if (n) n.body.push(line.trim()) }
+  for (const raw of lines) {
+    const line = raw.trimEnd()
+    const t = line.trim()
+    if (!t) { if (pending) pushBody(pending.obj, ''); continue }
+    if (tlIsMeta(t)) { sawMeta = true; continue }
+    const h1 = /^#\s+(.*)$/.exec(t)
+    if (h1) { title = h1[1].trim(); continue }
+    const h = /^#{2,4}\s+(.*)$/.exec(t)
+    if (h) {
+      const when = h[1].replace(/\*\*/g, '').replace(/^[\d.]+\s+/, '').trim()
+      pending = { when, obj: openNode(when) }
+      continue
+    }
+    const item = /^(?:[-*+]|\d+\.)\s+(.*)$/.exec(t)
+    if (item) {
+      const body = item[1].trim()
+      // The canonical row is pipe-delimited (the artifact prompt asks for
+      // `- **<when>** | <category> | <headline> | <what changed> [S#] | <unblocked>`).
+      // Parse it here so the renderer can draw the category as a badge and the
+      // consequence as its own line, instead of printing one run-on sentence.
+      if (TL_ROW.test(body)) {
+        const cells = body.split(/\s*\|\s*/).map((c) => c.trim())
+        const when = (cells[0] || '').replace(/\*\*/g, '').trim()
+        const n = openNode(when)
+        n.row = {
+          category: (cells[1] || '').replace(/\*\*/g, '').trim(),
+          headline: (cells[2] || '').replace(/\*\*/g, '').trim(),
+          what: (cells[3] || '').trim(),
+          consequence: (cells[4] || '').replace(/\*\*/g, '').trim()
+        }
+        pending = null
+        continue
+      }
+      // "- **1971** — text" / "- 1971: text" is a node by itself
+      const own = TL_NODE_PREFIX.exec(body)
+      if (own) {
+        const n = openNode(own[1].replace(/\*\*/g, '').trim())
+        pushBody(n, own[2])
+        pending = null
+      } else if (pending) {
+        pushBody(pending.obj, body)
+      } else {
+        // a bullet without a date and without a heading: keep it as its own
+        // numbered step so nothing is silently dropped
+        const n = openNode('')
+        pushBody(n, body)
+        pending = null
+      }
+      continue
+    }
+    if (/^(?:[-*_]){3,}$/.test(t)) continue
+    if (pending) pushBody(pending.obj, t)
+    else lede.push(t)
+  }
+  // dates only when the document is actually dated; a sequence of phases is a
+  // sequence even if half its labels are words
+  const datedCount = nodes.filter((n) => n.when && TL_DATED.test(n.when)).length
+  const kind = nodes.length && datedCount <= nodes.length / 2 ? 'phases' : 'dates'
+  // a fully dated timeline is a chronology: order it as one. If any node is a
+  // phase label (or undated), the document order is the sequence the model meant.
+  const keys = nodes.map((n) => tlWhenKey(n.when))
+  if (nodes.length && keys.every((k) => k !== null)) {
+    const ordered = nodes.slice().sort((a, b) => tlWhenKey(a.when) - tlWhenKey(b.when))
+    return { title, lede, nodes: ordered, sawMeta, kind, reordered: ordered.some((n, i) => n !== nodes[i]) }
+  }
+  return { title, lede, nodes, sawMeta, kind, reordered: false }
+}
+
+/** The canonical timeline row: at least four pipe-separated cells. */
+const TL_ROW = /\|/
+/** Categories the artifact prompt allows, and the tone each is drawn in. */
+const TL_CATS = {
+  'milestone': 'ok',
+  'architecture shift': 'accent',
+  'external event': 'accent',
+  'bottleneck': 'warn',
+  'target deadline': 'warn'
+}
+
+/** A sortable key for a node's date, or null when it is a phase label.
+ *  The artifact prompt asks the model for chronological order; models drift
+ *  (the December 2025 sample listed April before January), so a timeline that
+ *  is fully dated is sorted here — the reader is looking at a chronology, not
+ *  at the model's draft. */
+const TL_MONTH_INDEX = {
+  jan: 1, feb: 2, mar: 3, apr: 4, may: 5, jun: 6,
+  jul: 7, aug: 8, sep: 9, oct: 10, nov: 11, dec: 12
+}
+function tlWhenKey(when) {
+  const t = String(when || '').trim()
+  const year = /(1[0-9]{3}|20[0-9]{2})/.exec(t)
+  if (!year) return null
+  const y = Number(year[1])
+  const month = /\b(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)[a-z]*\b/i.exec(t)
+  const day = new RegExp(`\\b${month ? month[1] : '(?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)'}\\w*\\s+([0-9]{1,2})`, 'i').exec(t)
+    || /([0-9]{1,2})\s+[A-Z][a-z]+/.exec(t)
+  // a year-only entry summarizes that year, so it sorts after the year's dated
+  // events rather than ahead of January (which read as "2025, then January 2025")
+  const mo = month ? TL_MONTH_INDEX[month[1].slice(0, 3).toLowerCase()] || 12 : 12
+  const d = month ? (day ? Number(day[1]) : 1) : 31
+  return y * 10000 + mo * 100 + d
+}
+
+/** The S# markers a node cites, in order. */
+const tlSRefs = (body) => {
+  const out = []
+  for (const m of String(body || '').matchAll(/\[S([0-9]+)\]/g)) {
+    const n = Number(m[1])
+    if (!out.includes(n)) out.push(n)
+  }
+  return out
+}
 
 function TimelineView({ text, onCite }) {
-  const rows = useMemo(() => {
-    const out = []
-    for (const line of String(text || '').split('\n')) {
-      const m = /^\s*[-*]\s*(?:\*\*)?([0-9]{3,4}[^—\-:\*]*|[A-Z][a-z]{2,8}\.?\s+[0-9]{1,2},?\s+[0-9]{4})(?:\*\*)?\s*[—\-:]\s*(.+)$/.exec(line)
-      if (m) out.push({ when: m[1].trim().replace(/\*\*/g, ''), what: m[2].trim() })
-    }
-    return out
-  }, [text])
-  if (rows.length < 3) {
-    return el('div', { className: 'nb-view-body' }, el('div', { className: 'nb-doc' }, jsx(Markdown, { text, onCite })))
+  const doc = useMemo(() => tlParse(text), [text])
+  if (doc.nodes.length < 2) {
+    // not enough structure to draw: render the document honestly, minus the
+    // meta commentary the parser already identified
+    const fallback = doc.nodes.length
+      ? `${[doc.title && `# ${doc.title}`, ...doc.lede, ...doc.nodes.map((n) => `- ${n.when ? `${n.when} — ` : ''}${n.body.filter(Boolean).join(' ')}`)].filter(Boolean).join('\n\n')}`
+      : text
+    return el('div', { className: 'nb-view-body' }, el('div', { className: 'nb-doc' }, jsx(Markdown, { text: fallback, onCite })))
   }
+  const bodyOf = (n) => (n.row
+    ? `${n.row.headline} ${n.row.what} ${n.row.consequence}`
+    : n.body.filter(Boolean).join('\n\n'))
+  const cited = new Set()
+  for (const n of doc.nodes) for (const r of tlSRefs(bodyOf(n))) cited.add(r)
   return el('div', { className: 'nb-view-body' },
-    el('div', { style: { maxWidth: '72ch' } },
-      el('ol', { className: 'nb-timeline', 'aria-label': 'Timeline' },
-        rows.map((r, i) => el('li', { className: 'nb-tl', key: `t${i}` },
-          el('span', { className: 'nb-tl-when', children: r.when }),
-          el('span', { className: 'nb-tl-what', children: jsx(Markdown, { text: r.what, onCite }) })))))
-  )
+    el('div', { style: { display: 'flex', flexDirection: 'column' } },
+      el('div', { className: 'nb-spine-lede' },
+        jsx(Glyph, { name: 'timeline', size: 14 }),
+        el('span', { children: [
+          el('b', { children: String(doc.nodes.length) }),
+          doc.kind === 'dates' ? ' milestones' : ' phases',
+          cited.size ? ` · cites ${[...cited].sort((a, b) => a - b).map((n) => `S${n}`).join(', ')}` : '',
+          doc.reordered ? ' · reordered chronologically' : ''
+        ] }),
+        doc.kind === 'phases'
+          ? el('span', { className: 'nb-chip', title: 'The sources describe a sequence of steps rather than dated events.',
+              children: 'sequenced phases' })
+          : null),
+      el('ol', { className: 'nb-spine', 'aria-label': doc.title ? `Timeline — ${doc.title}` : 'Timeline' },
+        doc.nodes.map((n, i) => {
+          const refs = tlSRefs(bodyOf(n))
+          const phase = doc.kind === 'phases'
+          const when = n.when || (phase ? `Phase ${i + 1}` : `Entry ${i + 1}`)
+          const chips = el('div', { className: 'nb-node-src' },
+            refs.map((r) => (onCite
+              ? el('button', {
+                  type: 'button', className: 'nb-srcchip',
+                  title: `Open source S${r}`,
+                  'aria-label': `Citation S${r} — open the source`,
+                  onClick: (e) => { e.stopPropagation(); onCite(r) },
+                  children: `S${r}`
+                }, `s${i}-${r}`)
+              : el('span', { className: 'nb-srcchip', children: `S${r}` }, `s${i}-${r}`))))
+          // a canonical row carries its own structure: category, headline, what
+          // changed, and what it unblocked. Drawing it as one paragraph is what
+          // made the old viewer read like a text dump.
+          const card = n.row
+            ? el('div', { className: 'nb-node-card' },
+                n.row.category
+                  ? el('span', { className: 'nb-node-cat', 'data-tone': TL_CATS[n.row.category.toLowerCase()] || undefined,
+                      children: n.row.category })
+                  : null,
+                n.row.headline
+                  ? el('div', { className: 'nb-node-headline', children: n.row.headline })
+                  : null,
+                n.row.what
+                  ? el('div', { className: 'nb-node-what', children: jsx(Markdown, { text: n.row.what, onCite }) })
+                  : null,
+                n.row.consequence
+                  ? el('div', { className: 'nb-node-cons' }, [
+                      jsx(Glyph, { name: 'bolt', size: 12 }),
+                      el('span', { children: n.row.consequence })
+                    ])
+                  : null)
+            : el('div', { className: 'nb-node-card' },
+                jsx(Markdown, { text: n.body.filter(Boolean).join('\n\n'), onCite }))
+          const kids = [
+            el('span', { className: 'nb-node-dot', 'aria-hidden': 'true' }),
+            el('span', { className: 'nb-node-when', 'data-phase': phase ? 'true' : 'false', children: when }),
+            card,
+            refs.length ? chips : null
+          ].filter(Boolean)
+          return el('li', { className: 'nb-node', key: `n${i}` }, kids)
+        }))
+  ))
 }
 
 /* -------------------------------------------------------------------- ops
@@ -7700,7 +7942,7 @@ function SettingsPage() {
 
 const KINDS_FALLBACK = ['video_overview', 'audio_overview', 'summary', 'briefing_doc',
   'study_guide', 'faq', 'timeline', 'mind_map', 'flashcards', 'quiz', 'slides',
-  'infographic', 'data_table']
+  'infographic', 'data_table', 'blueprint_evolution']
 
 /** The agent can write `::notebook{name="Fusion 2026"}` in a reply. */
 function NotebookDirective({ attrs }) {

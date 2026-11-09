@@ -126,10 +126,18 @@ function App() {
   const kinds = (data && data.kinds) || []
 
   // Ctrl/Cmd+K → notebook search (NotebookLM's global find)
+  // Ctrl/Cmd+\\ → fold the make drawer (reading a timeline or a slide wants the
+  //   canvas, and a 380px panel that cannot be dismissed from the keyboard is a
+  //   permanent tax on the reading width).
   useEffect(() => {
     const onKey = (e) => {
-      if ((e.metaKey || e.ctrlKey) && String(e.key).toLowerCase() === 'k') {
+      const cmd = e.metaKey || e.ctrlKey
+      if (cmd && String(e.key).toLowerCase() === 'k') {
         if (mode === 'studio' && notebook) { e.preventDefault(); setSearchOpen(true) }
+        return
+      }
+      if (cmd && e.key === '\\') {
+        if (mode === 'studio' && notebook) { e.preventDefault(); setStudioOpen((v) => !v) }
       }
     }
     document.addEventListener('keydown', onKey)
@@ -439,6 +447,9 @@ function App() {
   const ops = mode === 'ops'
   const home = mode === 'home'
   const discoverMode = mode === 'discover'
+  // Study and the workbench are notebook-scoped: with no notebook open they
+  // render their own "pick or create one" state rather than an empty workspace,
+  // and the surface switcher does not offer them at all.
   const studyMode = mode === 'study'
 
   return el('div', {
@@ -475,21 +486,35 @@ function App() {
                     : el('b', { children: 'no notebook' })))
       ),
       el('div', { className: 'nb-spacer' }),
+      // The bar switches WORKSPACE LAYOUTS, and it says which ones exist right
+      // now: Home, Discover and Lab Ops are notebook-independent; Study and the
+      // notebook workbench only appear once a notebook is actually open, so
+      // nobody clicks into an empty state. (The right-hand drawer is a panel
+      // inside the workbench, not a fourth copy of this switch — its heading is
+      // "Make", so the word Studio names exactly one thing.)
       jsx(Seg, {
-        label: 'Surface', value: mode, onChange: (v) => setMode(v),
-        options: [
-          { id: 'home', label: 'Home', icon: 'grid' },
-          { id: 'discover', label: 'Discover', icon: 'search' },
-          { id: 'study', label: 'Study', icon: 'cards' },
-          { id: 'studio', label: 'Studio', icon: 'notebook' },
-          { id: 'ops', label: 'Lab Ops', icon: 'server' }
-        ]
+        label: 'Surface', value: mode,
+        onChange: (v) => {
+          if (v === 'studio' && !notebook) { setMode('home'); return }
+          setMode(v)
+        },
+        options: (notebook && mode !== 'home'
+          ? [
+              { id: 'home', label: 'Home', icon: 'grid' },
+              { id: 'studio', label: 'Studio', icon: 'notebook' },
+              { id: 'study', label: 'Study', icon: 'cards' },
+              { id: 'discover', label: 'Discover', icon: 'search' },
+              { id: 'ops', label: 'Lab Ops', icon: 'server' }
+            ]
+          : [
+              { id: 'home', label: 'Home', icon: 'grid' },
+              { id: 'discover', label: 'Discover', icon: 'search' },
+              { id: 'ops', label: 'Lab Ops', icon: 'server' }
+            ])
       }),
       el('div', { className: 'nb-actions' },
-        mode === 'studio' ? jsx(Btn, {
-          icon: 'plus', variant: 'primary', onClick: () => openAddSource(),
-          disabled: !notebook, children: 'Add source'
-        }) : null,
+        // Add-source lives in ONE place: the sources panel header. The nav used
+        // to repeat it, so the same dialog had two triggers eight pixels apart.
         mode === 'studio' && notebook ? jsx(IconBtn, {
           icon: 'search', label: 'Search notebook (Ctrl+K)', onClick: () => setSearchOpen(true)
         }) : null,
@@ -606,6 +631,11 @@ function NotebookDescription(n) {
   return el('span', { className: 'nb-nbcard-desc', children: desc })
 }
 
+/* one shelf: a single responsive grid. The colour a card carries is its own
+ * sigil hue (derived from the id), so the accent strip is an identity, not a
+ * ranking — there is no second "featured" row to duplicate the same notebooks
+ * 40px further down. The New notebook action sits in the header, beside the
+ * search field, where a person looks for it first. */
 function HomeDashboard({ data, onOpen, onNew, onDelete, onRename, onDuplicate }) {
   const [query, setQuery] = useState('')
   const [del, setDel] = useState(null)
@@ -614,117 +644,85 @@ function HomeDashboard({ data, onOpen, onNew, onDelete, onRename, onDuplicate })
   const needle = query.trim().toLowerCase()
   const shown = notebooks.filter((n) =>
     !needle || `${n.title} ${n.description || ''}`.toLowerCase().includes(needle))
-  const featured = [...notebooks]
-    .filter((n) => (n.sources || 0) > 0)
-    .sort((a, b) => (b.sources || 0) - (a.sources || 0) || (b.artifacts || 0) - (a.artifacts || 0))
-    .slice(0, 3)
-  const hues = ['#81c995', '#a8c7fa', '#f28b82', '#c58af9', '#fde293']
   const totalSources = notebooks.reduce((s, n) => s + (n.sources || 0), 0)
   const totalArtifacts = notebooks.reduce((s, n) => s + (n.artifacts || 0), 0)
   const empty = notebooks.filter((n) => !n.sources).length
 
   return el('div', { className: 'nb-home' },
     el('div', { className: 'nb-home-scroll' },
-      el('div', { className: 'nb-home-head' },
-        el('div', null,
-          el('h1', { className: 'nb-home-title', children: 'Notebooks' }),
-          el('p', { className: 'nb-home-sub', children: [
-            el('b', { children: String(notebooks.length) }), ' notebook' + (notebooks.length === 1 ? '' : 's'),
-            ' · ', el('b', { children: String(totalSources) }), ' sources',
-            ' · ', el('b', { children: String(totalArtifacts) }), ' outputs',
-            empty ? ` · ${empty} still empty` : ''
-          ] })),
-        el('div', { className: 'nb-home-search' },
-          jsx(SearchField, { value: query, onChange: setQuery,
-            placeholder: 'Search notebooks', label: 'Search notebooks' }))
-      ),
+      el('div', { className: 'nb-home-inner' },
+        el('div', { className: 'nb-home-head' },
+          el('div', { className: 'nb-home-titles' },
+            el('h1', { className: 'nb-home-title', children: 'Notebooks' }),
+            el('p', { className: 'nb-home-sub', children: [
+              el('b', { children: String(notebooks.length) }), ' notebook' + (notebooks.length === 1 ? '' : 's'),
+              ' · ', el('b', { children: String(totalSources) }), ' sources',
+              ' · ', el('b', { children: String(totalArtifacts) }), ' outputs',
+              empty ? ` · ${empty} still empty` : ''
+            ] })),
+          el('div', { className: 'nb-home-tools' },
+            el('div', { className: 'nb-home-search' },
+              jsx(SearchField, { value: query, onChange: setQuery,
+                placeholder: 'Search notebooks', label: 'Search notebooks' })),
+            jsx(Btn, { icon: 'plus', variant: 'primary', onClick: onNew, children: 'New notebook' }))
+        ),
 
-      featured.length
-        ? el('div', { className: 'nb-feature-sec' },
-            // the row is ordered by how much is in the notebook, and it says so:
-            // a "featured" strip whose rule is hidden is just decoration
-            el('div', { className: 'nb-home-sec' },
-              el('span', { className: 'nb-meta', children: 'Most in the drawer' }),
-              el('span', { className: 'nb-hint', children: 'by sources' }),
-              el('span', { style: { flex: 1 } })),
-            el('div', { className: 'nb-feature-row', role: 'list', 'aria-label': 'Notebooks with the most sources' },
-              featured.map((n, i) => el('button', {
-                key: n.id, type: 'button', role: 'listitem', className: 'nb-feature',
-                style: { '--kc': hues[i % hues.length] },
-                onClick: () => onOpen(n.id),
-                'aria-label': `Open notebook ${n.title}`,
-                children: [
-                  el('span', { className: 'nb-feature-top' },
-                    el('span', { className: 'nb-feature-emoji', 'aria-hidden': 'true',
-                      children: (n.emoji && String(n.emoji).trim())
-                        ? emojiFor(n.id, n.emoji)
-                        : jsx(Sigil, { seed: n.id, size: 40 }) }),
-                    el('span', { className: 'nb-feature-title', children: n.title })),
-                  el('span', { className: 'nb-feature-meta', children: [
-                    jsx(CountChip, { icon: 'layers', n: n.sources || 0, noun: 'source' }),
-                    jsx(CountChip, { icon: 'sparkle', n: n.artifacts || 0, noun: 'output' }),
-                    n.updated_at
-                      ? el('span', { className: 'nb-count', children: dshort(n.updated_at) })
-                      : null
-                  ] })
-                ]
-              }, n.id))))
-        : null,
+        el('div', { className: 'nb-home-sec' },
+          el('span', { className: 'nb-meta', children: shown.length === notebooks.length
+            ? 'All notebooks' : `${shown.length} of ${notebooks.length} notebooks` }),
+          el('span', { className: 'nb-hint', children: notebooks.length > 6
+            ? 'ordered by what is in them' : '' }),
+          el('span', { style: { flex: 1 } })),
 
-      el('div', { className: 'nb-home-sec' },
-        el('span', { className: 'nb-meta', children: shown.length === notebooks.length
-          ? 'All notebooks' : `${shown.length} of ${notebooks.length} notebooks` }),
-        el('span', { style: { flex: 1 } }),
-        jsx(Btn, { icon: 'plus', variant: 'primary', onClick: onNew, children: 'New notebook' })
-      ),
-
-      shown.length === 0
-        ? el('div', { className: 'nb-void', style: { height: 'auto', padding: '30px 8px' } },
-            el('div', null,
-              el('h3', { children: notebooks.length ? 'Nothing matches' : 'No notebooks yet' }),
-              el('p', { children: notebooks.length
-                ? 'Try a different search.'
-                : 'A notebook is a set of sources. Create one, then describe what you need — Hermes finds, labels and grounds everything in them.' }),
-              !notebooks.length
-                ? el('div', { style: { marginTop: '14px' } },
-                    jsx(Btn, { variant: 'primary', icon: 'plus', onClick: onNew, children: 'New notebook' }))
-                : null))
-        : el('div', { className: 'nb-home-grid', role: 'list' },
-            shown.map((n) => el('div', { key: n.id, className: 'nb-nbcard-wrap', role: 'listitem' },
-              el('button', {
-                type: 'button', className: 'nb-nbcard',
-                onClick: () => onOpen(n.id),
-                'aria-label': `Open notebook ${n.title}`,
-                children: [
-                  el('div', { className: 'nb-nbcard-top' },
-                    el('span', { className: 'nb-nbcard-emoji', 'aria-hidden': 'true',
-                      children: (n.emoji && String(n.emoji).trim())
-                        ? emojiFor(n.id, n.emoji)
-                        : jsx(Sigil, { seed: n.id, size: 34 }) }),
-                    el('div', { className: 'nb-nbcard-head' },
-                      el('span', { className: 'nb-nbcard-title', children: n.title }),
-                      el('span', { className: 'nb-nbcard-when',
-                        children: n.updated_at ? `Touched ${dshort(n.updated_at)}` : 'Never touched' }))),
-                  jsx(NotebookDescription, { description: n.description, sources: n.sources }),
-                  el('div', { className: 'nb-nbcard-foot' },
-                    jsx(CountChip, { icon: 'layers', n: n.sources || 0, noun: 'source' }),
-                    jsx(CountChip, { icon: 'sparkle', n: n.artifacts || 0, noun: 'output' }),
-                    n.threads ? jsx(CountChip, { icon: 'note', n: n.threads, noun: 'chat' }) : null,
-                    el('span', { className: 'nb-nbcard-open', 'aria-hidden': 'true' },
-                      'Open', jsx(Glyph, { name: 'arrowRight', size: 13 })))
-                ]
-              }, n.id),
-              jsx(IconBtn, {
-                icon: 'note', label: `Rename notebook ${n.title}`, size: 14,
-                className: 'nb-nbcard-ren',
-                onClick: (e) => { e.stopPropagation(); setRen(n) }
-              }),
-              jsx(IconBtn, {
-                icon: 'trash', label: `Delete notebook ${n.title}`, size: 14,
-                className: 'nb-nbcard-del',
-                onClick: (e) => { e.stopPropagation(); setDel(n) }
-              })
-            )))
+        shown.length === 0
+          ? el('div', { className: 'nb-void', style: { height: 'auto', padding: '30px 8px' } },
+              el('div', null,
+                el('h3', { children: notebooks.length ? 'Nothing matches' : 'No notebooks yet' }),
+                el('p', { children: notebooks.length
+                  ? 'Try a different search.'
+                  : 'A notebook is a set of sources. Create one, then describe what you need — Hermes finds, labels and grounds everything in them.' }),
+                !notebooks.length
+                  ? el('div', { style: { marginTop: '14px' } },
+                      jsx(Btn, { variant: 'primary', icon: 'plus', onClick: onNew, children: 'New notebook' }))
+                  : null))
+          : el('div', { className: 'nb-home-grid', role: 'list' },
+              shown.map((n) => el('div', { key: n.id, className: 'nb-nbcard-wrap', role: 'listitem' },
+                el('button', {
+                  type: 'button', className: 'nb-nbcard',
+                  style: { '--kc': `hsl(${sigHue(n.id)} 68% 62%)` },
+                  onClick: () => onOpen(n.id),
+                  'aria-label': `Open notebook ${n.title}`,
+                  children: [
+                    el('div', { className: 'nb-nbcard-top' },
+                      el('span', { className: 'nb-nbcard-emoji', 'aria-hidden': 'true',
+                        children: (n.emoji && String(n.emoji).trim())
+                          ? emojiFor(n.id, n.emoji)
+                          : jsx(Sigil, { seed: n.id, size: 32 }) }),
+                      el('div', { className: 'nb-nbcard-head' },
+                        el('span', { className: 'nb-nbcard-title', children: n.title }),
+                        el('span', { className: 'nb-nbcard-when',
+                          children: n.updated_at ? ago(n.updated_at) : 'Never touched' }))),
+                    jsx(NotebookDescription, { description: n.description, sources: n.sources }),
+                    el('div', { className: 'nb-nbcard-foot' },
+                      jsx(CountChip, { icon: 'layers', n: n.sources || 0, noun: 'source' }),
+                      jsx(CountChip, { icon: 'sparkle', n: n.artifacts || 0, noun: 'output' }),
+                      n.threads ? jsx(CountChip, { icon: 'note', n: n.threads, noun: 'chat' }) : null,
+                      el('span', { className: 'nb-nbcard-open', 'aria-hidden': 'true' },
+                        'Open', jsx(Glyph, { name: 'arrowRight', size: 13 })))
+                  ]
+                }, n.id),
+                jsx(IconBtn, {
+                  icon: 'note', label: `Rename notebook ${n.title}`, size: 14,
+                  className: 'nb-nbcard-ren',
+                  onClick: (e) => { e.stopPropagation(); setRen(n) }
+                }),
+                jsx(IconBtn, {
+                  icon: 'trash', label: `Delete notebook ${n.title}`, size: 14,
+                  className: 'nb-nbcard-del',
+                  onClick: (e) => { e.stopPropagation(); setDel(n) }
+                })
+              )))
+      )
     ),
 
     del ? jsx(Dialog, {
@@ -815,8 +813,21 @@ function PanelToggles({ side, onShow }) {
 
 /* -------------------------------------------------------------------- rail */
 
-function Rail({ data, notebook, onAddSource, onOpenSource, onToggleSource,
-               onToggleAll, onToggleGroup, onDeleteSource, onLabel, onCollapse, onGoHome, onSay, onDropFiles, loading, error, reload }) {
+/* The sources panel is three zones and nothing else:
+ *   1 header  title + count, one primary "+ Add", and the three quiet tools
+ *   2 filter  one search field and one horizontally scrolling tag row
+ *   3 list    the sources as one flat column of rows (a topic is a section
+ *             label, not a folding checkbox tree)
+ *
+ * The notebook switcher card, the dashed second Add button, the web-search box,
+ * the second search field, the tag wrapper, the triple-nested checkboxes and
+ * the decorative footer pill are gone: each of them was a duplicate or a
+ * decoration, and together they took ~380px above the ~120px where the sources
+ * actually were. Adding a source (URL, file, pasted text, or a web search) is
+ * one dialog, opened from the one button that says "+ Add". */
+function Rail({ notebook, onAddSource, onOpenSource, onToggleSource,
+               onToggleAll, onDeleteSource, onLabel, onCollapse, onSay, onDropFiles,
+               loading, error, reload }) {
   const sources = (notebook && notebook.sources) || []
   const labels = (notebook && notebook.labels) || []
   const [q, setQ] = useState('')
@@ -825,7 +836,7 @@ function Rail({ data, notebook, onAddSource, onOpenSource, onToggleSource,
   const [closed, setClosed] = useState({})
 
   const shown = useMemo(() => {
-    const needle = (q || '').trim().toLowerCase()
+    const needle = (q || '').trim().toLowerCase().replace(/^#/, '')
     return sources.filter((s) => {
       if (srcFilter !== 'all' && !(s.labels || []).some((l) => l.toLowerCase() === srcFilter)) return false
       if (!needle) return true
@@ -834,7 +845,8 @@ function Rail({ data, notebook, onAddSource, onOpenSource, onToggleSource,
     })
   }, [sources, q, srcFilter])
 
-  // NotebookLM groups the list by topic; the first auto-label is the topic.
+  // A topic still orders the list — the first auto-label is the topic — but it
+  // is a quiet section label now, not a fourth checkbox and a fold.
   const groups = useMemo(() => {
     const map = new Map()
     for (const s of shown) {
@@ -847,6 +859,9 @@ function Rail({ data, notebook, onAddSource, onOpenSource, onToggleSource,
 
   const allOn = sources.length > 0 && sources.every((s) => s.active !== false)
   const activeCount = sources.filter((s) => s.active !== false).length
+  // one topic grouping is noise: with fewer than 8 sources the flat list reads
+  // better than a label over every other row
+  const grouped = sources.length >= 8
 
   const srcRow = (s) => {
     const on = s.active !== false
@@ -856,35 +871,37 @@ function Rail({ data, notebook, onAddSource, onOpenSource, onToggleSource,
       'data-off': on ? 'false' : 'true'
     },
       el('button', {
-        type: 'button', className: 'nb-src-open',
-        onClick: () => onOpenSource(s),
-        'aria-label': `Open source ${s.n} — ${s.title}`,
-        title: s.summary || s.origin || s.title,
-        children: [
-          el('span', { className: 'nb-src-ico' },
-            jsx(Glyph, { name: SRC_ICON[s.kind] || 'file', size: 15 }),
-            el('b', { className: 'nb-cite', children: `S${s.n}` })),
-          el('span', { style: { minWidth: 0, flex: 1 } },
-            el('span', { className: 'nb-src-title', children: s.title }),
-            el('span', { className: 'nb-src-meta' },
-              el('span', { className: 'nb-chip', children: `${kindLabel(s.kind)} · ${nfmt(s.chars)}` }),
-              (s.labels || []).slice(0, 2).map((l) => el('span', { className: 'nb-chip', children: l }, l)),
-              (s.labels || []).length > 2
-                ? el('span', {
-                    className: 'nb-chip',
-                    title: `Also tagged: ${s.labels.slice(2).join(', ')}`,
-                    children: `+${s.labels.length - 2}`
-                  })
-                : null))
-        ]
-      }),
-      el('button', {
         type: 'button', className: 'nb-srccheck', role: 'checkbox',
         'aria-checked': on,
         'aria-label': `${on ? 'Exclude' : 'Include'} “${s.title}” ${on ? 'from' : 'in'} answers`,
         title: on ? 'Included in answers — click to exclude' : 'Excluded from answers — click to include',
         onClick: () => onToggleSource(s),
-        children: on ? jsx(Glyph, { name: 'check', size: 14 }) : null
+        children: on ? jsx(Glyph, { name: 'check', size: 13 }) : null
+      }),
+      el('button', {
+        type: 'button', className: 'nb-src-open',
+        onClick: () => onOpenSource(s),
+        'aria-label': `Open source ${s.n} — ${s.title}`,
+        title: s.summary || s.origin || s.title,
+        children: [
+          el('span', { className: 'nb-src-ico', 'aria-hidden': 'true' },
+            jsx(Glyph, { name: SRC_ICON[s.kind] || 'file', size: 14 }),
+            el('b', { className: 'nb-cite', children: `S${s.n}` })),
+          el('span', { className: 'nb-src-body' },
+            el('span', { className: 'nb-src-title', children: s.title }),
+            el('span', { className: 'nb-src-meta' },
+              el('span', { className: 'nb-chip', children: `${kindLabel(s.kind)} · ${nfmt(s.chars)}` }),
+              (s.labels || []).length
+                ? el('span', { className: 'nb-chip', children: s.labels[0] })
+                : null,
+              (s.labels || []).length > 1
+                ? el('span', {
+                    className: 'nb-chip',
+                    title: `Also tagged: ${s.labels.slice(1).join(', ')}`,
+                    children: `+${s.labels.length - 1}`
+                  })
+                : null))
+        ]
       }),
       onDeleteSource ? jsx(IconBtn, {
         icon: 'trash', size: 13, className: 'nb-src-del',
@@ -910,139 +927,104 @@ function Rail({ data, notebook, onAddSource, onOpenSource, onToggleSource,
       if (files && files.length && onDropFiles) onDropFiles(Array.from(files))
     }
   },
-    el('div', { className: 'nb-pane-head' },
-      el('span', { className: 'nb-pane-title', children: 'Sources' }),
-      el('span', { className: 'nb-meta', children: `${activeCount}/${sources.length}` }),
-      jsx(IconBtn, {
-        icon: 'sparkle', label: 'Auto-label unlabelled sources', onClick: onLabel,
-        disabled: !(notebook && notebook.stats && notebook.stats.unlabeled)
-      }),
-      jsx(IconBtn, { icon: 'refresh', label: 'Refresh sources', onClick: () => reload(true) }),
-      jsx(IconBtn, { icon: 'arrowLeft', label: 'Hide sources panel', onClick: onCollapse })
-    ),
-
-    el('div', { className: 'nb-pad', style: { paddingTop: '10px', paddingBottom: '8px' } },
-      notebook
-        ? el('button', {
-            type: 'button', className: 'nb-nbrow', 'aria-current': 'true',
-            onClick: onGoHome, title: 'Back to all notebooks',
-            children: [
-              el('span', { className: 'nb-avatar', 'aria-hidden': 'true' },
-                jsx(Glyph, { name: 'notebook', size: 15 })),
-              el('span', { style: { minWidth: 0, flex: 1 } },
-                el('span', { className: 'nb-nbtitle', children: notebook.title }),
-                el('span', { className: 'nb-nbsub',
-                  children: `${sources.length} source${sources.length === 1 ? '' : 's'} · ${(notebook.artifacts || []).length} artifact${(notebook.artifacts || []).length === 1 ? '' : 's'}` })),
-              jsx(Glyph, { name: 'arrowLeft', size: 14 })
-            ]
-          })
-        : el('div', { className: 'nb-hint', style: { padding: '6px 4px', lineHeight: 1.5 } },
-            'Pick a notebook on Home first — sources belong to one.')),
-
-    el('div', { className: 'nb-pad', style: { paddingBottom: '8px' } },
+    el('div', { className: 'nb-rail-head' },
+      el('span', { className: 'nb-rail-title' },
+        'Sources',
+        el('span', { className: 'nb-rail-count',
+          children: sources.length ? `${activeCount}/${sources.length}` : '0' })),
       jsx(Btn, {
         icon: 'plus', onClick: onAddSource, disabled: !notebook,
-        className: 'nb-addsrc', children: 'Add sources'
-      })),
-
-    notebook ? jsx(WebFinder, { notebook, onAdded: () => reload(true), onSay: onSay }) : null,
-
-    el('div', { className: 'nb-pad', style: { paddingBottom: '8px' } },
-      jsx(SearchField, { value: q || '', onChange: setQ, placeholder: 'Search sources', label: 'Search sources' })
+        className: 'nb-addsrc', children: 'Add',
+        'aria-label': notebook ? 'Add sources — link, file, pasted text, or a web search' : 'Add sources (open a notebook first)'
+      }),
+      el('div', { className: 'nb-rail-tools' },
+        jsx(IconBtn, {
+          icon: 'sparkle', label: 'Auto-label unlabelled sources', onClick: onLabel,
+          disabled: !(notebook && notebook.stats && notebook.stats.unlabeled)
+        }),
+        jsx(IconBtn, { icon: 'refresh', label: 'Refresh sources', onClick: () => reload(true) }),
+        jsx(IconBtn, { icon: 'arrowLeft', label: 'Hide sources panel', onClick: onCollapse }))
     ),
 
-    labels.length
-      ? el('div', {
-          className: 'nb-pad',
-          style: { display: 'flex', gap: '6px', flexWrap: 'wrap', paddingTop: 0, paddingBottom: '10px' },
-          role: 'group', 'aria-label': 'Filter sources by label'
-        },
-          labels.slice(0, 6).map((l) =>
-            jsx(Chip, {
-              key: l.label, tone: srcFilter === l.label.toLowerCase() ? 'accent' : undefined,
-              pressed: srcFilter === l.label.toLowerCase(),
-              onClick: () => setSrcFilter(srcFilter === l.label.toLowerCase() ? 'all' : l.label.toLowerCase()),
-              title: `${l.count} source${l.count === 1 ? '' : 's'} labelled ${l.label}`,
-              children: `${l.label} ${l.count}`
-            }))
-        )
-      : null,
+    el('div', { className: 'nb-rail-filter' },
+      jsx(SearchField, { value: q || '', onChange: setQ,
+        placeholder: 'Filter sources or #tags', label: 'Filter sources' }),
+      el('div', { className: 'nb-tagrow', role: 'group', 'aria-label': 'Filter sources by tag' },
+        labels.length
+          ? labels.slice(0, 8).map((l) =>
+              jsx(Chip, {
+                key: l.label, tone: srcFilter === l.label.toLowerCase() ? 'accent' : undefined,
+                pressed: srcFilter === l.label.toLowerCase(),
+                onClick: () => setSrcFilter(srcFilter === l.label.toLowerCase() ? 'all' : l.label.toLowerCase()),
+                title: `${l.count} source${l.count === 1 ? '' : 's'} tagged ${l.label}`,
+                children: `${l.label} ${l.count}`
+              }))
+          : el('span', { className: 'nb-tagrow-empty', children: 'No tags yet — labelling adds them' }))
+    ),
 
-    el('div', { className: 'nb-scroll', 'aria-label': 'Source list' },
-      el('div', { className: 'nb-pad', style: { paddingTop: 0, paddingBottom: '12px' } },
-        sources.length
-          ? el('div', { className: 'nb-selall' },
-              el('button', {
-                type: 'button', className: 'nb-srccheck', role: 'checkbox',
-                'aria-checked': allOn,
-                'aria-label': allOn ? 'Exclude all sources from answers' : 'Include all sources in answers',
-                title: allOn ? 'Exclude every source' : 'Include every source',
-                onClick: onToggleAll,
-                children: allOn ? jsx(Glyph, { name: 'check', size: 12 }) : null
-              }),
-              el('span', { className: 'nb-src-title', style: { fontSize: '12.5px' },
-                children: 'All sources' }),
-              el('span', { className: 'nb-hint', style: { marginLeft: 'auto' },
-                children: `${activeCount} of ${sources.length}` }))
-          : null,
-        error
-          ? el('div', { className: 'nb-hint', style: { padding: '10px', color: T.danger }, children: error })
-          : !notebook
-            ? null
-            : shown.length === 0
-              ? el('div', { className: 'nb-void', style: { height: 'auto', padding: '24px 8px' } },
+    el('div', { className: 'nb-scroll nb-rail-list', 'aria-label': 'Source list' },
+      error
+        ? el('div', { className: 'nb-hint', style: { padding: '10px 14px', color: T.danger }, children: error })
+        : !notebook
+          ? el('div', { className: 'nb-void', style: { height: 'auto', padding: '24px 14px' } },
+              el('div', null,
+                el('h3', { style: { fontSize: 'var(--nb-fs-title)' }, children: 'No notebook open' }),
+                el('p', { style: { fontSize: 'var(--nb-fs-label)' },
+                  children: 'Sources belong to a notebook. Open one from Home to see what is in it.' })))
+          : loading && !sources.length
+            ? el('div', { className: 'nb-hint', style: { padding: '14px' }, children: 'reading sources…' })
+            : sources.length === 0
+              ? el('div', { className: 'nb-void', style: { height: 'auto', padding: '24px 14px' } },
                   el('div', null,
-                    el('h3', { style: { fontSize: '15px' }, children: sources.length ? 'Nothing matches' : 'No sources yet' }),
-                    el('p', { style: { fontSize: '13px' }, children: sources.length
-                      ? 'Clear the filter or the search to see every source.'
-                      : 'Add a file, a URL or pasted text — or describe the topic and let Hermes find sources for you.' })))
-              : el('div', { style: { display: 'flex', flexDirection: 'column', gap: '2px' } },
-                  groups.map(([g, list]) => {
-                    const isClosed = !!closed[g]
-                    const gAllOn = list.every((s) => s.active !== false)
-                    const gSomeOn = list.some((s) => s.active !== false)
-                    return el('div', { key: g },
-                      el('div', {
-                        style: { display: 'flex', alignItems: 'center', gap: '2px' }
-                      },
-                        el('button', {
-                          type: 'button', className: 'nb-srccheck', role: 'checkbox',
-                          'aria-checked': gAllOn ? 'true' : (gSomeOn ? 'mixed' : 'false'),
-                          'data-mixed': gSomeOn && !gAllOn ? 'true' : 'false',
-                          'aria-label': `${gAllOn ? 'Exclude' : 'Include'} all sources in “${g}”`,
-                          title: gAllOn
-                            ? `Exclude all ${list.length} sources in “${g}”`
-                            : `Include all ${list.length} sources in “${g}”`,
-                          onClick: () => onToggleGroup && onToggleGroup(list),
-                          children: gAllOn
-                            ? jsx(Glyph, { name: 'check', size: 12 })
-                            : (gSomeOn ? el('span', { 'aria-hidden': 'true',
-                                style: { fontSize: '11.5px', fontWeight: 700, lineHeight: 1 },
-                                children: '–' }) : null)
-                        }),
-                        el('button', {
-                          type: 'button', className: 'nb-srcgroup',
-                          'data-closed': isClosed ? 'true' : 'false',
-                          'aria-expanded': !isClosed,
-                          onClick: () => setClosed((c) => ({ ...c, [g]: !c[g] })),
-                          style: { flex: 1 },
-                          children: [
-                            jsx(Glyph, { name: 'chevron', size: 13 }),
-                            el('span', { style: { textTransform: 'capitalize' }, children: g }),
-                            el('em', { children: `${list.filter((s) => s.active !== false).length}/${list.length}` })
-                          ]
-                        })),
-                      isClosed ? null : el('div', { className: 'nb-srcgroup-list' }, list.map(srcRow))
-                    )
-                  }))
-      ),
-    el('div', { className: 'nb-pad', style: { paddingTop: 0, paddingBottom: '12px' } },
-      el('span', {
-        className: 'nb-chip',
-        title: 'Sources live on this machine with no per-notebook cap — grounding scales from full-context injection to hybrid retrieval as the corpus grows.',
-        style: { fontSize: '11.5px', opacity: 0.85 },
-        children: '♾️ Unlimited sources · 🛡️ Local-first ready'
-      }))
+                    el('h3', { style: { fontSize: 'var(--nb-fs-title)' }, children: 'No sources yet' }),
+                    el('p', { style: { fontSize: 'var(--nb-fs-label)' },
+                      children: 'Add a file, a link or pasted text — or describe the topic and let Hermes find sources for you.' })))
+              : shown.length === 0
+                ? el('div', { className: 'nb-void', style: { height: 'auto', padding: '24px 14px' } },
+                    el('div', null,
+                      el('h3', { style: { fontSize: 'var(--nb-fs-title)' }, children: 'Nothing matches' }),
+                      el('p', { style: { fontSize: 'var(--nb-fs-label)' },
+                        children: 'Clear the filter or the search to see every source.' })))
+                : el('div', { className: 'nb-src-list' },
+                    // one bulk control, one row — "all sources" is a filter over
+                    // the list, not a checkbox above a tree of checkboxes
+                    sources.length > 1
+                      ? el('div', { className: 'nb-selall' },
+                          el('button', {
+                            type: 'button', className: 'nb-srccheck', role: 'checkbox',
+                            'aria-checked': allOn,
+                            'aria-label': allOn ? 'Exclude all sources from answers' : 'Include all sources in answers',
+                            title: allOn ? 'Exclude every source' : 'Include every source',
+                            onClick: onToggleAll,
+                            children: allOn ? jsx(Glyph, { name: 'check', size: 13 }) : null
+                          }),
+                          el('span', { className: 'nb-src-title',
+                            children: allOn ? 'All included' : `${activeCount} of ${sources.length} included` }),
+                          el('span', { style: { flex: 1 } }),
+                          srcFilter !== 'all'
+                            ? jsx(Chip, {
+                                onClick: () => setSrcFilter('all'),
+                                title: 'Clear the tag filter',
+                                children: `#${srcFilter} ×`
+                              })
+                            : null)
+                      : null,
+                    grouped
+                      ? groups.map(([g, list]) => el('div', { key: g },
+                          el('button', {
+                            type: 'button', className: 'nb-srcgroup',
+                            'aria-expanded': !closed[g],
+                            onClick: () => setClosed((c) => ({ ...c, [g]: !c[g] })),
+                            children: [
+                              el('span', { children: g }),
+                              el('em', { children: closed[g] ? String(list.length) : '' }),
+                              el('span', { style: { flex: 1 } }),
+                              jsx(Glyph, { name: 'chevron', size: 11 })
+                            ]
+                          }),
+                          closed[g] ? null : el('div', { className: 'nb-src-flat' }, list.map(srcRow))))
+                      : el('div', { className: 'nb-src-flat' }, shown.map(srcRow))
+                  )
     ),
     dragOver
       ? el('div', {
@@ -1057,102 +1039,6 @@ function Rail({ data, notebook, onAddSource, onOpenSource, onToggleSource,
             'Drop files to add them as sources'
           ]
         })
-      : null
-  )
-}
-
-/* ------------------------------------------------------------- web finder */
-
-/** The "describe it" box: live web search inside the sources panel. Candidates
- *  come from the real /discover route; each adds through /sources one at a
- *  time so failures are reported per url, never hidden. */
-function WebFinder({ notebook, onAdded, onSay }) {
-  const [q, setQ] = useState('')
-  const [busy, setBusy] = useState(false)
-  const [cands, setCands] = useState(null)
-  const [err, setErr] = useState('')
-  const [added, setAdded] = useState({})
-  const [adding, setAdding] = useState('')
-
-  const search = async () => {
-    const query = q.trim()
-    if (!query || busy || !notebook) return
-    setBusy(true); setErr(''); setCands(null); setAdded({})
-    try {
-      const out = await api('/discover', {
-        method: 'POST',
-        body: { notebook: notebook.id, query, max_results: 6 },
-        timeoutMs: 90000
-      })
-      const list = out.candidates || []
-      setCands(list)
-      if (!list.length) setErr('Nothing found — try different words.')
-    } catch (e) {
-      setErr(e.message || String(e))
-    } finally {
-      setBusy(false)
-    }
-  }
-
-  const addOne = async (c) => {
-    if (adding || added[c.url] || !notebook) return
-    setAdding(c.url); setErr('')
-    try {
-      await api('/sources', {
-        method: 'POST', body: { notebook: notebook.id, urls: [c.url] }, timeoutMs: 120000
-      })
-      setAdded((a) => ({ ...a, [c.url]: true }))
-      if (onAdded) onAdded()
-    } catch (e) {
-      setErr(e.message || String(e))
-      if (onSay) onSay(e.message || 'could not add source')
-    } finally {
-      setAdding('')
-    }
-  }
-
-  return el('div', { className: 'nb-finder' },
-    el('div', { className: 'nb-finder-row' },
-      jsx(Glyph, { name: 'search', size: 14 }),
-      el('input', {
-        value: q, placeholder: 'Search the web for new sources',
-        'aria-label': 'Search the web for new sources',
-        onChange: (e) => setQ(e.target.value),
-        onKeyDown: (e) => { if (e.key === 'Enter') search() },
-        disabled: !notebook || busy, spellCheck: false
-      }),
-      el('button', {
-        type: 'button', className: 'nb-finder-go',
-        'aria-label': 'Find sources', title: 'Find sources',
-        disabled: !q.trim() || busy || !notebook, onClick: search,
-        children: jsx(Glyph, { name: 'arrowRight', size: 15 })
-      })
-    ),
-    busy ? el('div', { className: 'nb-hint', style: { fontSize: '11.5px', padding: '7px 4px 0' },
-      children: 'searching the web…' }) : null,
-    err ? el('div', { className: 'nb-hint', style: { fontSize: '11.5px', padding: '7px 4px 0', color: T.danger },
-      children: err }) : null,
-    cands && cands.length
-      ? el('div', { style: { marginTop: '8px', display: 'flex', flexDirection: 'column', gap: '2px' } },
-          cands.map((c) => {
-            const host = hostOf(c.url)
-            const isAdded = !!added[c.url]
-            return el('button', {
-              key: c.url, type: 'button', className: 'nb-fcand',
-              onClick: () => addOne(c),
-              disabled: isAdded || !!adding,
-              'aria-label': `${isAdded ? 'Added' : 'Add'} source: ${c.title || c.url}`,
-              title: c.snippet || c.url,
-              children: [
-                el('span', { className: 'nb-fcand-main' },
-                  el('span', { className: 'nb-fcand-title', children: c.title || c.url }),
-                  el('span', { className: 'nb-fcand-sub',
-                    children: `${host}${c.snippet ? ` · ${String(c.snippet).slice(0, 90)}` : ''}` })),
-                el('span', { className: 'nb-fcand-add', 'data-added': isAdded ? 'true' : 'false', 'aria-hidden': 'true' },
-                  jsx(Glyph, { name: isAdded ? 'check' : adding === c.url ? 'refresh' : 'plus', size: 13 }))
-              ]
-            }, c.url)
-          }))
       : null
   )
 }

@@ -147,47 +147,55 @@ function Main({ notebook, kinds, tab, setTab, picked, setPicked, busy, generate,
 
   return el('main', { className: 'nb-col nb-main-col' },
     el('div', { className: 'nb-main-head' },
-      el('div', { className: 'nb-hero' },
-        el('span', { className: 'nb-hero-emoji', 'aria-hidden': 'true',
+      // ONE header line: sigil, title, one meta line, the grounded chip, and the
+      // view switcher on the same baseline. The old block was a 52px sigil +
+      // two-line h1 + two meta paragraphs + a chip row, then a 38px tab row
+      // below it — ~180px of vertically stacked titles before any content, and
+      // the notebook's title was printed four times in one viewport (breadcrumb,
+      // rail switcher card, this h1, and the artifact's own markdown h1).
+      el('div', { className: 'nb-head-top' },
+        el('span', { className: 'nb-head-sigil', 'aria-hidden': 'true',
           children: (notebook.emoji && String(notebook.emoji).trim())
             ? emojiFor(notebook.id, notebook.emoji)
-            : jsx(Sigil, { seed: notebook.id, size: 52, draw: true }) }),
-        el('div', { className: 'nb-hero-main' },
-          el('h1', { className: 'nb-h1', children: notebook.title }),
-          el('p', { className: 'nb-sub', children:
-            `${sources.length} source${sources.length === 1 ? '' : 's'} · ${activeCount} active · ${stats.labels || 0} topics · updated ${ago(notebook.updated_at) || 'recently'}` }),
-          notebook.description
-            ? el('p', { className: 'nb-sub', style: { marginTop: '4px', color: T.text3, fontStyle: 'italic' },
-                children: notebook.description })
-            : null),
+            : jsx(Sigil, { seed: notebook.id, size: 26 }) }),
+        el('div', { className: 'nb-head-main' },
+          el('h1', { className: 'nb-h1', children: notebook.title,
+            title: notebook.title }),
+          el('p', { className: 'nb-sub', title: notebook.description || undefined,
+            children: notebook.description
+              ? notebook.description
+              : `${sources.length} source${sources.length === 1 ? '' : 's'} · ${stats.labels || 0} topics · updated ${ago(notebook.updated_at) || 'recently'}` })),
+        el('div', { className: 'nb-tabs', role: 'tablist', 'aria-label': 'Notebook views' },
+          el('button', {
+            type: 'button', role: 'tab', className: 'nb-tab', 'aria-selected': tab === 'chat',
+            onClick: () => setTab('chat'),
+            children: [jsx(Glyph, { name: 'faq', size: 14 }), el('span', { children: 'Chat' })]
+          }),
+          el('button', {
+            type: 'button', role: 'tab', className: 'nb-tab', 'aria-selected': tab === 'tensions',
+            onClick: () => setTab('tensions'), disabled: !sources.length,
+            title: 'Where the sources disagree, and whether they corroborate each other',
+            children: [jsx(Glyph, { name: 'shield', size: 14 }), el('span', { children: 'Tensions' })]
+          }),
+          el('button', {
+            type: 'button', role: 'tab', className: 'nb-tab', 'aria-selected': tab === 'view',
+            onClick: () => setTab('view'), disabled: !picked,
+            title: picked ? `${picked.label} — ${picked.title || picked.primary}` : 'No artifact open',
+            children: [jsx(Glyph, { name: picked ? (KIND_ICON[picked.kind] || 'doc') : 'doc', size: 14 }),
+                       el('span', { children: viewName || 'Viewer' })]
+          }),
+          peek ? el('button', {
+            type: 'button', role: 'tab', className: 'nb-tab', 'aria-selected': tab === 'peek',
+            onClick: () => setTab('peek'), title: peek.title,
+            children: [jsx(Glyph, { name: 'book', size: 14 }),
+                       el('span', { children: `S${peek.n} · ${peek.title}` })]
+          }) : null
+        ),
         el('div', { className: 'nb-hero-side' },
           el('span', {
             className: 'nb-chip', 'data-tone': modelReady ? 'ok' : 'warn',
             children: modelReady ? 'grounded' : 'model offline'
           }))
-      ),
-      el('div', { className: 'nb-tabs', role: 'tablist', 'aria-label': 'Notebook views' },
-        el('button', {
-          type: 'button', role: 'tab', className: 'nb-tab', 'aria-selected': tab === 'chat',
-          onClick: () => setTab('chat'), children: [jsx(Glyph, { name: 'faq', size: 15 }), 'Chat']
-        }),
-        el('button', {
-          type: 'button', role: 'tab', className: 'nb-tab', 'aria-selected': tab === 'tensions',
-          onClick: () => setTab('tensions'), disabled: !sources.length,
-          title: 'Where the sources disagree, and whether they corroborate each other',
-          children: [jsx(Glyph, { name: 'shield', size: 15 }), 'Tensions']
-        }),
-        el('button', {
-          type: 'button', role: 'tab', className: 'nb-tab', 'aria-selected': tab === 'view',
-          onClick: () => setTab('view'), disabled: !picked,
-          children: [jsx(Glyph, { name: picked ? (KIND_ICON[picked.kind] || 'doc') : 'doc', size: 15 }),
-                     viewName || 'Viewer']
-        }),
-        peek ? el('button', {
-          type: 'button', role: 'tab', className: 'nb-tab', 'aria-selected': tab === 'peek',
-          onClick: () => setTab('peek'),
-          children: [jsx(Glyph, { name: 'book', size: 15 }), `S${peek.n} · ${peek.title}`]
-        }) : null
       )
     ),
 
@@ -1133,12 +1141,12 @@ function SourcePeek({ source, notebook, onClose, onAskAbout, onRefresh, onPrev, 
     el('div', { className: 'nb-view-head' },
       el('span', { className: 'nb-chip', 'data-tone': 'accent', children: `S${source.n}` }),
       jsx(Sigil, { seed: source.id || source.title, size: 26 }),
-      el('div', { style: { flex: 1, minWidth: 0 } },
-        el('div', { className: 'nb-view-title', children: source.title }),
-        el('div', { style: { fontSize: '12.5px', color: T.text4, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' },
+      el('div', { style: { flex: '1 1 auto', minWidth: 0 } },
+        el('div', { className: 'nb-view-title', title: source.title, children: source.title }),
+        el('div', { className: 'nb-view-sub',
           children: `${kindLabel(source.kind)} · ${nfmt(source.chars)} chars · ${source.origin || 'stored text'}` +
-            (source.added_at ? ` · added ${ago(source.added_at)}` : '') +
             (source.refreshed_at ? ` · refreshed ${ago(source.refreshed_at)}` : '') })),
+      el('div', { className: 'nb-view-acts' },
       source.origin && source.origin.startsWith('http')
         ? jsx(IconBtn, { icon: 'external', label: 'Open the original', onClick: () => host.openLink ? host.openLink(source.origin) : window.open(source.origin, '_blank') })
         : null,
@@ -1160,7 +1168,7 @@ function SourcePeek({ source, notebook, onClose, onAskAbout, onRefresh, onPrev, 
         : null,
       onPrev ? jsx(IconBtn, { icon: 'arrowLeft', label: `Previous source — S${source.n - 1}`, onClick: onPrev }) : null,
       onNext ? jsx(IconBtn, { icon: 'arrowRight', label: `Next source — S${source.n + 1}`, onClick: onNext }) : null,
-      jsx(IconBtn, { icon: 'close', label: 'Close source', onClick: onClose })
+      jsx(IconBtn, { icon: 'close', label: 'Close source', onClick: onClose }))
     ),
     el('div', { className: 'nb-view-body' },
       onAskAbout
@@ -1275,7 +1283,7 @@ function StudioPanel({ kinds, notebook, busy, generate, filter, setFilter, onOpe
 
   return el('aside', { className: 'nb-col nb-studio', 'aria-label': 'Studio' },
     el('div', { className: 'nb-pane-head nb-studio-head' },
-      el('span', { className: 'nb-pane-title', children: 'Studio' }),
+      el('span', { className: 'nb-pane-title', children: 'Make' }),
       el('span', {
         className: 'nb-chip',
         'data-tone': readyCount ? 'ok' : undefined,
@@ -1284,7 +1292,7 @@ function StudioPanel({ kinds, notebook, busy, generate, filter, setFilter, onOpe
       }),
       runningCount ? el('span', { className: 'nb-chip', 'data-tone': 'accent',
         children: `${runningCount} writing` }) : null,
-      jsx(IconBtn, { icon: 'arrowRight', label: 'Hide studio panel', onClick: onCollapse })
+      jsx(IconBtn, { icon: 'arrowRight', label: 'Hide the make panel (Ctrl+\\)', onClick: onCollapse })
     ),
 
     el('div', { className: 'nb-studio-body nb-scroll', ref: scrollRef,
@@ -1322,6 +1330,7 @@ function StudioPanel({ kinds, notebook, busy, generate, filter, setFilter, onOpe
                   onClick: () => onOpen(a),
                   'aria-label': `Open ${a.title || a.label || a.kind}`,
                   title: `${a.title || a.primary || a.label}${optsSummary(a.opts) ? ` — ${optsSummary(a.opts)}` : ''}`,
+                  'data-ready': 'true',
                   children: [
                     el('span', { className: 'nb-art-ico', 'aria-hidden': 'true' },
                       i < 12 ? jsx(ArtThumb, { run: a, nbId: notebook && notebook.id })
@@ -1329,7 +1338,11 @@ function StudioPanel({ kinds, notebook, busy, generate, filter, setFilter, onOpe
                     el('span', { className: 'nb-art-main' },
                       el('span', { className: 'nb-art-title', children: a.title || a.label || a.kind }),
                       el('span', { className: 'nb-art-sub',
-                        children: `${nfmt(a.bytes)} · ${ago(a.modified)}${a.opts && Object.keys(a.opts).length ? ' · tailored' : ''}` }))
+                        children: `Ready · ${ago(a.modified)}${a.opts && Object.keys(a.opts).length ? ' · tailored' : ''}` })),
+                    // a finished run is distinguishable from a not-yet-made one at a
+                    // glance: green accent + an open affordance that appears on hover
+                    el('span', { className: 'nb-art-go', 'aria-hidden': 'true' },
+                      jsx(Glyph, { name: 'arrowRight', size: 14 }))
                   ]
                 }, a.key || a.primary || i),
                 onDelete ? jsx(IconBtn, {
@@ -1421,10 +1434,16 @@ function GenPill({ kind, art, started, nbId, onOpen, onGenerate }) {
                   onChange: (e) => pick(spec.id, e.target.value)
                 })
               : el(Seg, {
-                  value: opts[spec.id] || spec.choices[0],
+                  // The backend may name a choice ('Vector · exact'). Title-casing
+                  // the id is the fallback, not the rule: an engine called
+                  // 'imagen_blueprint' should not read as 'Imagen Blueprint' to
+                  // someone deciding whether to spend money on a render.
+                  value: opts[spec.id] || spec.default || spec.choices[0],
                   onChange: (v) => pick(spec.id, v),
                   options: spec.choices.map((c) => ({
-                    id: c, label: c.replace(/_/g, ' ').replace(/\b\w/g, (ch) => ch.toUpperCase())
+                    id: c,
+                    label: (spec.labels && spec.labels[c]) ||
+                      c.replace(/_/g, ' ').replace(/\b\w/g, (ch) => ch.toUpperCase())
                   }))
                 }))),
           kind.id === 'video_overview' && nbId

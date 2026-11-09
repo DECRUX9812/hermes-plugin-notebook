@@ -9,3 +9,4 @@ build/
 assets/*.html
 tests/tmp/load-*/
 tests/shots/
+tests/tmp/*.png

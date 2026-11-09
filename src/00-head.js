@@ -85,7 +85,7 @@ const CSS = `
    ========================================================================== */
 
 .nb-root{
-  --nb-rail: 300px; --nb-studio: 396px;
+  --nb-rail: 280px; --nb-studio: 380px;
   --nb-hair: color-mix(in srgb, ${T.text} 10%, transparent);
   --nb-hair-soft: color-mix(in srgb, ${T.text} 6%, transparent);
   --nb-wash: color-mix(in srgb, ${T.text} 4%, transparent);
@@ -231,32 +231,53 @@ const CSS = `
 .nb-pad{padding:12px 14px}
 
 /* ------------------------------------------------------------------- rail */
-.nb-nbrow{display:flex;align-items:center;gap:12px;width:100%;
-  text-align:left;cursor:pointer;border:0;border-radius:var(--nb-r-el);background:transparent;
-  padding:9px 10px;color:${T.text};transition:background var(--nb-dur-fast) var(--nb-ease)}
-.nb-nbrow:hover{background:var(--nb-wash-2)}
-.nb-nbrow[aria-current=true]{background:color-mix(in srgb,${T.accent} 11%, transparent)}
-.nb-nbtitle{font-size:13px;font-weight:600;line-height:1.32;color:${T.text2};letter-spacing:-.005em;
-  overflow:hidden;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical}
-.nb-nbrow[aria-current=true] .nb-nbtitle{color:${T.text}}
-.nb-nbsub{font-size:11.5px;color:${T.text3};margin-top:2px;display:block}
-.nb-avatar{width:36px;height:36px;flex:0 0 auto;display:grid;place-items:center;border-radius:var(--nb-r-el);
-  background:var(--nb-wash-2);color:${T.text2};font-size:13px;font-weight:700}
-.nb-nbrow[aria-current=true] .nb-avatar{background:color-mix(in srgb,${T.accent} 20%, transparent);color:color-mix(in srgb,${T.accent} 70%, ${T.text})}
+/* the assistant's mark in a message row; the rail's notebook switcher card is
+   gone, so this is the only avatar the surface still draws */
+.nb-avatar{width:36px;height:36px;flex:0 0 auto;display:grid;place-items:center;
+  border-radius:var(--nb-r-el);background:var(--nb-wash-2);color:${T.text2};
+  font-size:13px;font-weight:700}
 
-.nb-src{display:flex;align-items:center;gap:6px;width:100%;border-radius:var(--nb-r-el);
-  padding:7px 8px 7px 5px;position:relative;transition:background var(--nb-dur-fast) var(--nb-ease)}
+/* ---- the rail is three zones, not eight stacked boxes ---------------------
+   header (title + add + tools) · one filter bar · the source list. The old
+   panel stacked a notebook switcher card, a dashed Add button, a web-search
+   box, a second search field, wrapped tag pills, a triply-nested checkbox tree
+   and a decorative footer pill — about 380px of chrome above a 120px slit of
+   actual sources. Everything that is not the list now lives behind the header
+   (Add opens the one dialog that can take a URL, a file, pasted text or a web
+   search) or in the single filter bar. */
+.nb-rail-head{display:flex;align-items:center;gap:var(--nb-sp-2);min-height:52px;
+  flex:0 0 52px;padding:0 var(--nb-sp-2) 0 var(--nb-sp-5);border-bottom:1px solid var(--nb-hair-soft)}
+.nb-rail-title{font-size:var(--nb-fs-ui);font-weight:650;letter-spacing:-.01em;color:${T.text};
+  display:flex;align-items:baseline;gap:var(--nb-sp-2);min-width:0}
+.nb-rail-count{font-size:var(--nb-fs-meta);font-weight:600;color:${T.text3};
+  font-variant-numeric:tabular-nums;white-space:nowrap}
+.nb-rail-tools{display:flex;align-items:center;gap:1px;margin-left:auto}
+/* one filter bar: a search field and one horizontally scrolling tag row */
+.nb-rail-filter{padding:var(--nb-sp-3) var(--nb-sp-4) var(--nb-sp-3);display:flex;
+  flex-direction:column;gap:var(--nb-sp-2);flex:0 0 auto}
+.nb-tagrow{display:flex;align-items:center;gap:var(--nb-sp-2);flex-wrap:nowrap;
+  overflow-x:auto;overflow-y:hidden;scrollbar-width:none;padding-bottom:1px;
+  min-height:24px}
+.nb-tagrow::-webkit-scrollbar{display:none}
+.nb-tagrow .nb-chip{flex:0 0 auto}
+.nb-tagrow-empty{font-size:var(--nb-fs-meta);color:${T.text4};white-space:nowrap}
+.nb-rail-list{flex:1;min-height:0;display:flex;flex-direction:column}
+/* the source list itself: one flat card per source, checkbox on the left */
+.nb-src-list{display:flex;flex-direction:column;gap:2px;padding:0 var(--nb-sp-3) var(--nb-sp-4)}
+.nb-src{display:flex;align-items:center;gap:2px;width:100%;border-radius:var(--nb-r-el);
+  padding:3px 4px;position:relative;transition:background var(--nb-dur-fast) var(--nb-ease)}
 .nb-src:hover{background:var(--nb-wash-2)}
-.nb-src[data-on=true]{background:color-mix(in srgb,${T.accent} 10%, transparent)}
-.nb-src[data-off=true]{opacity:.55}
-.nb-src-open{flex:1;min-width:0;display:grid;grid-template-columns:36px minmax(0,1fr);gap:11px;
-  align-items:center;text-align:left;background:transparent;border:0;padding:4px;border-radius:var(--nb-r-el);
+.nb-src[data-off=true]{opacity:.5}
+.nb-src[data-on=true]{background:color-mix(in srgb,${T.accent} 9%, transparent)}
+.nb-src-open{flex:1;min-width:0;display:flex;align-items:center;gap:var(--nb-sp-3);
+  text-align:left;background:transparent;border:0;padding:5px 4px;border-radius:var(--nb-r-el);
   color:${T.text};cursor:pointer;font-family:inherit}
-.nb-src-ico{position:relative;width:36px;height:36px;border-radius:var(--nb-r-el);display:grid;place-items:center;
+.nb-src-ico{position:relative;width:30px;height:30px;border-radius:var(--nb-r-in);display:grid;place-items:center;
   background:var(--nb-wash-2);color:${T.text2};flex:0 0 auto}
-.nb-src[data-on=true] .nb-src-ico{background:color-mix(in srgb,${T.accent} 18%, transparent);color:color-mix(in srgb,${T.accent} 70%, ${T.text})}
+.nb-src[data-on=true] .nb-src-ico{background:color-mix(in srgb,${T.accent} 16%, transparent);
+  color:color-mix(in srgb,${T.accent} 70%, ${T.text})}
 /* the citation number rides the icon's corner, like a source badge */
-.nb-cite{position:absolute;right:-6px;bottom:-6px;min-width:18px;height:18px;padding:0 5px;
+.nb-cite{position:absolute;right:-5px;bottom:-5px;min-width:17px;height:17px;padding:0 4px;
   border-radius:var(--nb-r-pill);display:grid;place-items:center;background:${T.accent};
   /* The host's accent family is always a mid-to-bright hue in both themes
      (light default #B8860B measures 5.92:1 against near-black and 3.25:1
@@ -266,62 +287,41 @@ const CSS = `
   color:#0d0e15;
   font-size:10.5px;font-weight:700;
   box-shadow:0 1px 4px rgba(8,10,18,.4)}
-.nb-src-title{font-size:13px;font-weight:600;line-height:1.4;color:${T.text};
+.nb-src-body{min-width:0;flex:1;display:flex;flex-direction:column;gap:1px}
+.nb-src-title{font-size:var(--nb-fs-label);font-weight:600;line-height:1.35;color:${T.text};
   overflow:hidden;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical}
-.nb-src-meta{display:flex;align-items:center;gap:5px;margin-top:4px;flex-wrap:wrap;row-gap:3px}
-/* NotebookLM's per-source checkbox: a rounded box at the row's right edge */
+.nb-src-meta{display:flex;align-items:center;gap:5px;flex-wrap:wrap;row-gap:3px}
+/* NotebookLM's per-source checkbox: a rounded box on the row's left edge */
 .nb-srccheck{width:32px;height:32px;flex:0 0 auto;border-radius:var(--nb-r-in);cursor:pointer;
   border:1.5px solid var(--nb-hair-soft);background:transparent;color:#0d0e15;
   display:grid;place-items:center;padding:0;transition:all var(--nb-dur-fast) var(--nb-ease)}
 .nb-srccheck:hover{border-color:color-mix(in srgb,${T.accent} 55%, transparent)}
 .nb-srccheck[aria-checked=true]{background:${T.accent};border-color:${T.accent}}
-.nb-selall{display:flex;align-items:center;gap:9px;padding:2px 6px}
-.nb-selall .nb-srccheck{width:32px;height:32px;border-radius:var(--nb-r-in)}
-.nb-src-del{position:absolute;right:44px;top:50%;transform:translateY(-50%);
-  opacity:0;transition:opacity var(--nb-dur-fast) var(--nb-ease)}
+/* "all included" is a filter row over the list, not a checkbox above a tree */
+.nb-selall{display:flex;align-items:center;gap:var(--nb-sp-2);padding:0 2px var(--nb-sp-2);
+  border-bottom:1px solid var(--nb-hair-soft);margin-bottom:var(--nb-sp-1)}
+.nb-selall .nb-src-title{font-size:var(--nb-fs-label);font-weight:600}
+.nb-src-flat{display:flex;flex-direction:column;gap:1px}
+.nb-src-del{position:absolute;right:var(--nb-sp-1);top:50%;transform:translateY(-50%);
+  opacity:0;transition:opacity var(--nb-dur-fast) var(--nb-ease);background:var(--nb-card)}
 .nb-src:hover .nb-src-del,.nb-src-del:focus-visible{opacity:1}
-.nb-srcgroup{display:flex;align-items:center;gap:8px;width:100%;text-align:left;
-  padding:9px 10px;border:0;border-radius:var(--nb-r-el);background:transparent;color:${T.text3};
-  font-size:12.5px;font-weight:650;letter-spacing:.01em;cursor:pointer;font-family:inherit}
-.nb-srcgroup:hover{background:var(--nb-wash-2);color:${T.text2}}
-.nb-srcgroup svg{transition:transform var(--nb-dur-fast) var(--nb-ease)}
-.nb-srcgroup[data-closed=true] svg{transform:rotate(-90deg)}
-.nb-srcgroup em{margin-left:auto;font-style:normal;font-weight:500;color:${T.text3};font-size:11.5px}
-.nb-srcgroup-list{display:flex;flex-direction:column;gap:2px;padding-left:14px}
+/* a topic is a section label, not a control: no checkbox, no fold-in-fold */
+.nb-srcgroup{display:flex;align-items:center;gap:6px;width:100%;
+  padding:10px var(--nb-sp-3) 4px;border:0;background:transparent;color:${T.text4};
+  font-size:var(--nb-fs-meta);font-weight:650;letter-spacing:.02em;text-transform:uppercase;
+  font-family:inherit}
+.nb-srcgroup svg{display:none}
+.nb-srcgroup em{margin-left:auto;font-style:normal;font-weight:600;color:var(--nb-text3, ${T.text3});
+  font-size:var(--nb-fs-meta);text-transform:none;letter-spacing:0}
 
-/* the web-research box inside the sources panel */
-.nb-finder{margin:0 14px 10px;border-radius:var(--nb-r-box);border:1px solid var(--nb-hair-soft);
-  background:var(--nb-wash);padding:10px}
-.nb-finder-row{display:flex;align-items:center;gap:8px}
-.nb-finder-row input{flex:1;min-width:0;height:34px;border:0;outline:0;background:transparent;
-  color:${T.text};font-size:13px;font-family:inherit}
-.nb-finder-row input::placeholder{color:${T.text4}}
-.nb-finder-go{width:32px;height:32px;flex:0 0 auto;border-radius:var(--nb-r-pill);border:0;cursor:pointer;
-  background:${T.accent};color:#0d0e15;display:grid;place-items:center;padding:0}
-.nb-addsrc{width:100%;justify-content:flex-start;height:34px;background:transparent;
-  border:1px dashed var(--nb-hair);color:${T.text2};font-size:12.5px;box-shadow:none}
-.nb-addsrc:hover{background:var(--nb-wash-2);border-color:color-mix(in srgb,${T.accent} 40%, var(--nb-hair));color:${T.text}}
+/* the "+ Add" control in the rail header is the only add affordance */
+.nb-addsrc{height:32px;min-height:32px;padding:0 12px;border-radius:var(--nb-r-pill);
+  background:${T.accent};border:1px solid transparent;color:#0d0e15;
+  font-size:var(--nb-fs-label);font-weight:650;box-shadow:none;gap:5px}
+.nb-addsrc:hover{background:color-mix(in srgb,${T.accent} 88%, ${T.text});border-color:transparent;
+  color:#0d0e15}
 .nb-paneltog{flex:0 0 44px;display:flex;flex-direction:column;align-items:center;
   gap:10px;padding-top:16px}
-.nb-finder-go[disabled]{opacity:.45;cursor:not-allowed}
-.nb-fcand[disabled]{cursor:default}
-.nb-fcand[disabled]:not([data-added=true]){opacity:.55}
-.nb-fcand{display:flex;align-items:center;gap:10px;width:100%;text-align:left;
-  padding:9px 10px;border-radius:var(--nb-r-el);border:0;background:transparent;color:${T.text};
-  cursor:pointer;font-family:inherit}
-.nb-fcand:hover{background:var(--nb-wash-2)}
-.nb-fcand-main{flex:1;min-width:0}
-.nb-fcand-title{display:block;font-size:12.5px;font-weight:600;line-height:1.35;color:${T.text};
-  overflow:hidden;white-space:nowrap;text-overflow:ellipsis}
-.nb-fcand-sub{display:block;font-size:11.5px;color:${T.text3};margin-top:2px;
-  overflow:hidden;white-space:nowrap;text-overflow:ellipsis}
-.nb-fcand-add{width:28px;height:28px;flex:0 0 auto;border-radius:var(--nb-r-pill);cursor:pointer;
-  border:1.5px solid var(--nb-hair);background:transparent;color:${T.text2};
-  display:grid;place-items:center;padding:0}
-.nb-fcand-add:hover{border-color:color-mix(in srgb,${T.accent} 70%, ${T.text});color:color-mix(in srgb,${T.accent} 70%, ${T.text})}
-.nb-fcand-add[data-added=true]{background:color-mix(in srgb,${T.ok} 15%, transparent);
-  border-color:color-mix(in srgb,${T.ok} 50%, transparent);color:${T.ok};cursor:default}
-
 /* chips are soft pills; clickable ones are full 32px targets */
 .nb-chip{display:inline-flex;align-items:center;gap:5px;height:22px;padding:0 9px;border-radius:var(--nb-r-pill);
   font-size:11.5px;font-weight:600;letter-spacing:.01em;color:${T.text3};
@@ -370,17 +370,26 @@ const CSS = `
 .nb-cand-sub > span:last-child{display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;
   overflow:hidden;min-width:0}
 
-/* ------------------------------------------------------- title block (main) */
-.nb-main-head{padding:24px 30px 0;border-bottom:1px solid var(--nb-hair-soft);flex:0 0 auto;position:relative}
-.nb-hero{display:flex;align-items:flex-start;gap:16px;margin-bottom:16px}
-.nb-hero-emoji{width:52px;height:52px;flex:0 0 auto;display:grid;place-items:center;font-size:30px;
-  border-radius:var(--nb-r-box);background:var(--nb-wash-2);border:1px solid var(--nb-hair-soft)}
-.nb-hero-main{min-width:0;flex:1}
-.nb-hero-main .nb-h1{margin-bottom:6px}
-.nb-h1{font-size:26px;font-weight:700;letter-spacing:-.025em;line-height:1.15;margin:0;max-width:30ch;
-  text-wrap:balance}
-.nb-sub{color:${T.text2};font-size:14px;line-height:1.55;margin:0;max-width:70ch}
-.nb-hero-side{display:flex;align-items:center;gap:8px;flex:0 0 auto;padding-top:6px}
+/* ------------------------------------------------------- title block (main)
+   One compact header instead of a hero + a tab row + a second meta row. The
+   notebook's title lives in the breadcrumb (the app bar already shows it), so
+   the centre pane starts with a 44px strip: sigil, title, one meta line, the
+   grounded chip, and the view tabs on the same baseline. That is ~180px of
+   reading height that the old stacked block spent on nothing. */
+.nb-main-head{padding:0 var(--nb-sp-6);border-bottom:1px solid var(--nb-hair-soft);
+  flex:0 0 auto;position:relative;display:flex;flex-direction:column;min-width:0}
+.nb-head-top{display:flex;align-items:center;gap:var(--nb-sp-3);min-height:52px;padding:var(--nb-sp-2) 0 0;
+  min-width:0}
+.nb-head-sigil{width:34px;height:34px;flex:0 0 auto;display:grid;place-items:center;font-size:20px;
+  border-radius:var(--nb-r-in);background:var(--nb-wash-2);border:1px solid var(--nb-hair-soft);
+  overflow:hidden}
+.nb-head-main{min-width:0;flex:1;display:flex;flex-direction:column;gap:1px}
+.nb-h1{font-size:var(--nb-fs-title);font-weight:650;letter-spacing:-.015em;line-height:1.25;margin:0;
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0}
+.nb-sub{color:${T.text3};font-size:var(--nb-fs-meta);line-height:1.45;margin:0;
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0}
+.nb-hero-side{display:flex;align-items:center;gap:var(--nb-sp-2);flex:0 0 auto}
+.nb-head-desc{display:none}
 /* ops host-measurement strip (Lab Ops only) */
 .nb-strip{display:flex;align-items:stretch;gap:8px;margin:14px 0 0;flex-wrap:wrap}
 .nb-cell{flex:1;min-width:90px;padding:10px 14px 11px;border-radius:var(--nb-r-el);
@@ -388,13 +397,18 @@ const CSS = `
 .nb-cell b{display:block;font-size:17px;font-weight:650;letter-spacing:-.02em;
   line-height:1.1;font-variant-numeric:tabular-nums}
 .nb-cell span{display:block;font-size:11.5px;color:${T.text3};margin-top:6px;font-weight:600}
-.nb-tabs{display:flex;gap:4px;align-items:flex-end;margin:16px 0 0;position:relative;bottom:-1px}
-.nb-tab{min-height:38px;padding:0 14px 11px;border:0;border-bottom:2px solid transparent;
-  border-radius:var(--nb-r-el) var(--nb-r-el) 0 0;background:transparent;color:${T.text2};font-size:var(--nb-fs-ui);
-  font-weight:600;cursor:pointer;display:inline-flex;align-items:center;gap:7px;letter-spacing:0;
+/* the view switcher: one pill track on the header line, never a second row.
+   Long artifact titles truncate instead of pushing the track into overflow. */
+.nb-tabs{display:inline-flex;align-items:center;gap:2px;padding:3px;flex:0 1 auto;
+  min-width:0;max-width:100%;overflow:hidden;border-radius:var(--nb-r-el);
+  border:1px solid var(--nb-hair-soft);background:var(--nb-wash)}
+.nb-tab{min-height:32px;padding:0 11px;border:0;border-radius:var(--nb-r-in);background:transparent;
+  color:${T.text2};font-size:var(--nb-fs-label);font-weight:600;cursor:pointer;
+  display:inline-flex;align-items:center;gap:6px;letter-spacing:0;min-width:0;
   font-family:inherit;transition:background var(--nb-dur-fast) var(--nb-ease),color var(--nb-dur-fast) var(--nb-ease)}
-.nb-tab:hover{color:${T.text};background:var(--nb-wash)}
-.nb-tab[aria-selected=true]{color:${T.text};border-bottom-color:color-mix(in srgb,${T.accent} 70%, ${T.text});background:var(--nb-wash)}
+.nb-tab > span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:150px}
+.nb-tab:hover{color:${T.text};background:var(--nb-wash-2)}
+.nb-tab[aria-selected=true]{color:${T.text};background:var(--nb-card);box-shadow:var(--nb-shadow)}
 .nb-tab[disabled]{opacity:.45;cursor:default}
 
 /* ------------------------------------------------------------------- chat */
@@ -407,10 +421,10 @@ const CSS = `
 .nb-msg{max-width:72ch;animation:nb-msg-in var(--nb-dur-fast) var(--nb-ease) both}
 @keyframes nb-msg-in{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:none}}
 /* generative marks breathe — a slow 1.5% drift so sigils feel alive, not pasted */
-.nb-hero-emoji svg,.nb-nbcard-emoji svg,.nb-feature-emoji svg{animation:nb-sigil-float 9s ease-in-out infinite}
+.nb-nbcard-emoji svg,.nb-nbcard-emoji svg{animation:nb-sigil-float 9s ease-in-out infinite}
 @keyframes nb-sigil-float{0%,100%{transform:translateY(0) rotate(0deg)}50%{transform:translateY(-2px) rotate(1.2deg)}}
 /* home cards arrive in a stagger — the directory assembles itself */
-.nb-nbcard-wrap,.nb-feature{animation:nb-card-in var(--nb-dur-med) var(--nb-ease) both}
+.nb-nbcard-wrap{animation:nb-card-in var(--nb-dur-med) var(--nb-ease) both}
 @keyframes nb-card-in{from{opacity:0;transform:translateY(12px) scale(.985)}to{opacity:1;transform:none}}
 /* sigil inscription — ribbons draw themselves in sequence, nodes pop after */
 .nb-sigil-draw path{stroke-dasharray:1;stroke-dashoffset:1;animation:nb-draw .9s cubic-bezier(.45,.05,.3,1) forwards}
@@ -424,7 +438,7 @@ const CSS = `
 .nb-sigil-draw{transform-origin:center;animation:nb-sigil-settle 1.1s var(--nb-ease) both}
 @keyframes nb-sigil-settle{from{opacity:0;transform:scale(.92)}to{opacity:1;transform:scale(1)}}
 @media (prefers-reduced-motion:reduce){
-  .nb-msg,.nb-nbcard-wrap,.nb-feature,.nb-hero-emoji svg,.nb-nbcard-emoji svg,.nb-feature-emoji svg,.nb-blob,.nb-sigil-draw{animation:none!important}
+  .nb-msg,.nb-nbcard-wrap,.nb-nbcard-emoji svg,.nb-blob,.nb-sigil-draw{animation:none!important}
   .nb-sigil-draw path{stroke-dashoffset:0!important}
   .nb-sigil-draw circle{opacity:1!important;transform:none!important}
 }
@@ -435,9 +449,6 @@ const CSS = `
   border-radius:var(--nb-r-box);padding:11px 17px;font-size:15px;line-height:1.55;color:${T.text}}
 .nb-msg[data-role=assistant] .nb-bubble{font-size:16px;line-height:1.66;color:${T.text}}
 .nb-msg[data-role=assistant] .nb-avatar{width:30px;height:30px;margin-top:2px}
-.nb-avatar{width:36px;height:36px;flex:0 0 auto;display:grid;place-items:center;border-radius:var(--nb-r-el);
-  background:var(--nb-wash-2);color:${T.text2};font-size:13px;font-weight:700}
-.nb-nbrow[aria-current=true] .nb-avatar{background:color-mix(in srgb,${T.accent} 20%, transparent);color:color-mix(in srgb,${T.accent} 70%, ${T.text})}
 .nb-msg .nb-avatar{width:30px;height:30px;border-radius:var(--nb-r-pill);
   background:color-mix(in srgb,${T.accent} 16%, transparent);color:color-mix(in srgb,${T.accent} 70%, ${T.text});font-size:11.5px;letter-spacing:.02em}
 .nb-who{font-size:11.5px;letter-spacing:.02em;color:${T.text3};font-weight:600;margin-bottom:8px}
@@ -616,6 +627,15 @@ const CSS = `
   cursor:pointer;font-family:inherit;
   transition:background var(--nb-dur-fast) var(--nb-ease),border-color var(--nb-dur-fast) var(--nb-ease)}
 .nb-art:hover{background:var(--nb-wash-2);border-color:var(--nb-hair-soft)}
+/* a run that exists reads differently from one that has never been made:
+   the left edge carries the "ready" colour and a quiet open arrow appears on
+   hover, so the drawer answers "what can I read right now" at a glance */
+.nb-art[data-ready=true]{border-left:2px solid color-mix(in srgb,${T.ok} 55%, transparent)}
+.nb-art-go{margin-left:auto;display:grid;place-items:center;flex:0 0 auto;width:28px;height:28px;
+  border-radius:var(--nb-r-pill);color:color-mix(in srgb,${T.ok} 62%, ${T.text});
+  opacity:0;transform:translateX(-3px);
+  transition:opacity var(--nb-dur-fast) var(--nb-ease),transform var(--nb-dur-fast) var(--nb-ease)}
+.nb-art:hover .nb-art-go,.nb-art:focus-visible .nb-art-go{opacity:1;transform:none}
 .nb-art:focus-visible{outline:2px solid ${T.accent};outline-offset:2px}
 .nb-art-ico{width:38px;height:38px;flex:0 0 auto;border-radius:var(--nb-r-in);position:relative;overflow:hidden;
   display:grid;place-items:center;
@@ -641,14 +661,27 @@ const CSS = `
 .nb-art-ico .nb-thumb-wave{display:flex;align-items:center;gap:1.5px;height:70%;width:80%}
 .nb-art-ico .nb-thumb-wave i{flex:1 1 0;min-width:1.5px;border-radius:var(--nb-r-pill);background:var(--kc);opacity:.8}
 
-/* ----------------------------------------------------------------- viewer */
+/* ----------------------------------------------------------------- viewer
+   The viewer owns exactly ONE toolbar. The surface tab already names the kind,
+   so the strip under it is a 44px line of category badge + human metadata +
+   icon actions — there is no second title, no file-size telemetry dump, and no
+   generated-at timestamp as a heading. */
 .nb-view{flex:1;min-height:0;display:flex;flex-direction:column}
-.nb-view-head{display:flex;align-items:center;gap:12px;padding:12px 24px;
-  border-bottom:1px solid var(--nb-hair-soft)}
-.nb-view-title{font-size:15px;font-weight:650;letter-spacing:-.01em}
-.nb-view-body{flex:1;min-height:0;overflow:auto;padding:26px}
+.nb-view-head{display:flex;align-items:center;gap:var(--nb-sp-3);min-height:44px;
+  padding:var(--nb-sp-1) var(--nb-sp-5);border-bottom:1px solid var(--nb-hair-soft);
+  flex:0 0 auto;background:var(--nb-wash)}
+.nb-view-title{font-size:var(--nb-fs-ui);font-weight:600;letter-spacing:-.005em;color:${T.text};
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0}
+.nb-view-sub{font-size:var(--nb-fs-meta);color:${T.text3};line-height:1.45;
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0}
+.nb-view-acts{display:flex;align-items:center;gap:2px;flex:0 0 auto;margin-left:auto}
+.nb-view-acts .nb-icon{width:32px;height:32px;min-height:32px}
+.nb-view-body{flex:1;min-height:0;overflow:auto;padding:var(--nb-sp-6) var(--nb-sp-6) var(--nb-sp-7)}
 .nb-doc{max-width:70ch;font-size:15px;line-height:1.68}
-.nb-doc h1{font-size:22px;line-height:1.2;letter-spacing:-.025em;margin:0 0 14px;text-wrap:balance}
+/* the artifact's own markdown title is a duplicate of the toolbar title: demote it
+   rather than print the same sentence twice in one viewport */
+.nb-doc h1{font-size:19px;line-height:1.25;letter-spacing:-.02em;margin:0 0 12px;text-wrap:balance;
+  color:${T.text};font-weight:650}
 .nb-doc em{color:${T.text2}}
 .nb-doc hr{border:0;border-top:1px solid var(--nb-hair-soft);margin:22px 0}
 .nb-doc h2{font-size:19px;margin:26px 0 10px;letter-spacing:-.02em}
@@ -688,6 +721,75 @@ const CSS = `
 .nb-tl-when{font-family:var(--ui-font-mono,ui-monospace,monospace);font-size:10.5px;font-weight:700;
   color:color-mix(in srgb,${T.accent} 70%, ${T.text});letter-spacing:.06em;text-transform:uppercase;padding-top:3px}
 .nb-tl-what{font-size:15px;color:${T.text2}}
+
+/* ---------------------------------------------- timeline artifact (spine)
+   A "timeline" that renders as paragraphs is not a timeline. The generated
+   markdown is parsed into dated/phase nodes and drawn on a vertical spine: a
+   glowing dot per node, a pill for the date or phase, the milestone in a card,
+   and [S1] rendered as a real citation chip that opens the source. When the
+   material is procedural rather than dated the nodes are phases, not dates —
+   the doc says so instead of apologising in prose. */
+.nb-spine{display:flex;flex-direction:column;gap:0;margin:0;padding:0;list-style:none;
+  position:relative;max-width:760px}
+.nb-spine::before{content:'';position:absolute;left:9px;top:14px;bottom:14px;width:2px;
+  border-radius:var(--nb-r-pill);background:linear-gradient(to bottom,
+    color-mix(in srgb,${T.accent} 60%, transparent),
+    color-mix(in srgb,${T.accent} 18%, transparent) 70%,
+    transparent)}
+.nb-node{position:relative;padding:0 0 var(--nb-sp-5) var(--nb-sp-7);display:flex;
+  flex-direction:column;gap:var(--nb-sp-2)}
+.nb-node:last-child{padding-bottom:0}
+.nb-node-dot{position:absolute;left:3px;top:15px;width:14px;height:14px;border-radius:var(--nb-r-pill);
+  background:var(--nb-card-deep, #14161f);border:2px solid color-mix(in srgb,${T.accent} 80%, ${T.text});
+  box-shadow:0 0 0 4px color-mix(in srgb,${T.accent} 12%, transparent),
+              0 0 14px -2px color-mix(in srgb,${T.accent} 55%, transparent)}
+.nb-node-when{display:inline-flex;align-items:center;align-self:flex-start;height:22px;
+  padding:0 9px;border-radius:var(--nb-r-pill);font-size:var(--nb-fs-meta);font-weight:700;
+  letter-spacing:.01em;font-variant-numeric:tabular-nums;
+  color:color-mix(in srgb,${T.accent} 74%, ${T.text});
+  background:color-mix(in srgb,${T.accent} 13%, transparent);
+  border:1px solid color-mix(in srgb,${T.accent} 26%, transparent)}
+.nb-node-when[data-phase=true]{color:color-mix(in srgb,${T.purple} 66%, ${T.text});
+  background:color-mix(in srgb,${T.purple} 15%, transparent);
+  border-color:color-mix(in srgb,${T.purple} 30%, transparent)}
+.nb-node-card{padding:var(--nb-sp-4) var(--nb-sp-5);border-radius:var(--nb-r-el);
+  border:1px solid var(--nb-hair-soft);background:var(--nb-card);
+  font-size:var(--nb-fs-read);line-height:1.6;color:${T.text2};
+  transition:border-color var(--nb-dur-fast) var(--nb-ease),background var(--nb-dur-fast) var(--nb-ease)}
+.nb-node-card:hover{border-color:var(--nb-hair);background:var(--nb-wash)}
+.nb-node-card .nb-md p:last-child{margin-bottom:0}
+.nb-node-src{display:flex;align-items:center;gap:5px;flex-wrap:wrap;padding-top:2px}
+/* the canonical row: category badge, headline, what changed, what it unblocked */
+.nb-node-cat{display:inline-flex;align-items:center;height:20px;padding:0 8px;margin-bottom:6px;
+  border-radius:var(--nb-r-pill);font-size:var(--nb-fs-meta);font-weight:650;letter-spacing:.01em;
+  color:${T.text2};background:var(--nb-wash)}
+.nb-node-cat[data-tone=ok]{color:color-mix(in srgb,${T.ok} 62%, ${T.text});
+  background:color-mix(in srgb,${T.ok} 13%, transparent)}
+.nb-node-cat[data-tone=accent]{color:color-mix(in srgb,${T.accent} 72%, ${T.text});
+  background:color-mix(in srgb,${T.accent} 13%, transparent)}
+.nb-node-cat[data-tone=warn]{color:color-mix(in srgb,${T.warn} 54%, ${T.text});
+  background:color-mix(in srgb,${T.warn} 14%, transparent)}
+.nb-node-headline{font-size:var(--nb-fs-read);font-weight:650;line-height:1.35;color:${T.text};
+  margin-bottom:4px;letter-spacing:-.01em}
+.nb-node-what{color:${T.text2};line-height:1.6}
+.nb-node-cons{display:flex;align-items:flex-start;gap:6px;margin-top:8px;padding-top:8px;
+  border-top:1px solid var(--nb-hair-soft);font-size:var(--nb-fs-label);line-height:1.5;color:${T.text3}}
+.nb-node-cons svg{flex:0 0 auto;margin-top:2px;opacity:.8}
+.nb-node-note{font-size:var(--nb-fs-meta);color:${T.text3};line-height:1.5;
+  padding:var(--nb-sp-2) 0 0 0}
+/* the phase preamble: says what kind of timeline this is, once */
+.nb-spine-lede{display:flex;align-items:center;gap:var(--nb-sp-2);flex-wrap:wrap;
+  margin-bottom:var(--nb-sp-5);font-size:var(--nb-fs-label);color:${T.text3};line-height:1.5}
+.nb-spine-lede b{color:${T.text2};font-weight:600}
+/* a source chip that opens S# — the same affordance the chat answer has */
+.nb-srcchip{display:inline-flex;align-items:center;gap:5px;min-height:32px;padding:0 10px;
+  border-radius:var(--nb-r-pill);border:1px solid color-mix(in srgb,${T.accent} 28%, transparent);
+  background:color-mix(in srgb,${T.accent} 9%, transparent);cursor:pointer;
+  font-size:var(--nb-fs-meta);font-weight:700;color:color-mix(in srgb,${T.accent} 72%, ${T.text});
+  max-width:100%;overflow:hidden;white-space:nowrap;text-overflow:ellipsis;font-family:inherit}
+.nb-srcchip:hover{background:color-mix(in srgb,${T.accent} 18%, transparent);
+  border-color:color-mix(in srgb,${T.accent} 50%, transparent)}
+.nb-srcchip[disabled]{cursor:default;opacity:.7}
 
 /* ---------------------------------------------------------------- mind map */
 .nb-map{width:100%;height:100%;min-height:340px;display:block;cursor:grab;border-radius:var(--nb-r-box);
@@ -742,49 +844,31 @@ const CSS = `
 .nb-void p{margin:0;max-width:48ch;font-size:14px;line-height:1.62}
 
 /* ------------------------------------------------------ home (the reading room)
-   The directory is a shelf of notebooks, not a grid of tiles. Each card shows
-   the notebook's own sigil, what it holds (sources / artifacts / chats) as
-   labelled counts rather than a run-on meta line, its description as the
-   thing that actually distinguishes it, and one primary action: open it.
-   A stretched-link card keeps rename/delete as real buttons in the corner. */
+   One shelf, full width, one card design. The old surface drew the same
+   notebooks twice — a coloured "most in the drawer" row and then the grey
+   "all notebooks" grid underneath — and capped both at three columns, leaving
+   the right of a 16:9 window empty. There is now a single responsive grid that
+   spans the content column, one action in the header (New notebook, beside the
+   search field), and one card that carries an accent strip, a clamped title,
+   a description preview and counted metadata. */
 .nb-home{flex:1;min-height:0;display:flex;flex-direction:column}
-.nb-home-scroll{flex:1;min-height:0;overflow:auto;padding:var(--nb-sp-7) var(--nb-sp-8) var(--nb-sp-8);
+.nb-home-scroll{flex:1;min-height:0;overflow:auto;
+  padding:var(--nb-sp-7) var(--nb-sp-6) var(--nb-sp-8);
   overscroll-behavior:contain}
-.nb-home-head{display:flex;align-items:flex-end;gap:var(--nb-sp-5);margin-bottom:var(--nb-sp-7);
-  flex-wrap:wrap}
-.nb-home-title{font-size:var(--nb-fs-display);font-weight:700;letter-spacing:-.022em;margin:0;line-height:1.15}
+.nb-home-inner{max-width:1360px;margin:0 auto;width:100%;display:flex;flex-direction:column;
+  min-height:100%}
+/* the header is one bar: title + counts on the left, search + New notebook on
+   the right. The action lives where the person looks first, not stranded over
+   the second row of cards. */
+.nb-home-head{display:flex;align-items:flex-end;gap:var(--nb-sp-4);flex-wrap:wrap;
+  margin-bottom:var(--nb-sp-6)}
+.nb-home-titles{min-width:0;flex:1 1 220px}
+.nb-home-title{font-size:var(--nb-fs-display);font-weight:700;letter-spacing:-.022em;
+  margin:0;line-height:1.15}
 .nb-home-sub{font-size:var(--nb-fs-ui);color:${T.text2};margin:var(--nb-sp-2) 0 0;line-height:1.5}
 .nb-home-sub b{color:${T.text};font-weight:650;font-variant-numeric:tabular-nums}
-.nb-home-search{width:280px;margin-left:auto}
-
-/* featured shelf — the three notebooks with the most in them, one row */
-.nb-feature-row{display:flex;gap:var(--nb-sp-4);overflow-x:auto;padding:2px 2px 0;
-  scrollbar-width:thin}
-.nb-feature{flex:0 0 306px;min-height:164px;height:auto;border-radius:var(--nb-r-box);
-  padding:var(--nb-sp-5);position:relative;overflow:hidden;
-  display:flex;flex-direction:column;gap:var(--nb-sp-4);
-  text-align:left;cursor:pointer;color:${T.text};font-family:inherit;
-  border:1px solid var(--nb-hair-soft);
-  background:linear-gradient(145deg, color-mix(in srgb,var(--kc) 22%, var(--nb-card)), var(--nb-card) 68%);
-  transition:transform var(--nb-dur-fast) var(--nb-ease),box-shadow var(--nb-dur-fast) var(--nb-ease),
-    border-color var(--nb-dur-fast) var(--nb-ease)}
-.nb-feature:hover{transform:translateY(-2px);box-shadow:var(--nb-shadow-lift);
-  border-color:color-mix(in srgb,var(--kc) 34%, var(--nb-hair))}
-.nb-feature:focus-visible{outline:2px solid ${T.accent};outline-offset:3px}
-.nb-feature::after{content:'';position:absolute;right:-52px;bottom:-64px;width:196px;height:196px;
-  border-radius:var(--nb-r-pill);background:color-mix(in srgb,var(--kc) 18%, transparent);pointer-events:none}
-.nb-feature-sec{display:flex;flex-direction:column;gap:var(--nb-sp-3);margin-bottom:var(--nb-sp-7)}
-.nb-feature-top{display:flex;align-items:center;gap:var(--nb-sp-3);position:relative;min-width:0}
-.nb-feature-top .nb-feature-title{font-size:var(--nb-fs-title);font-weight:650;line-height:1.3;
-  letter-spacing:-.012em;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;
-  overflow:hidden;min-width:0}
-.nb-feature-emoji{flex:0 0 auto;display:grid;place-items:center;max-width:44px}
-.nb-feature-title{font-size:var(--nb-fs-title);font-weight:650;line-height:1.3;position:relative;
-  margin-top:auto;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;
-  letter-spacing:-.012em}
-.nb-feature-meta{font-size:var(--nb-fs-meta);line-height:1.5;color:${T.text3};position:relative;
-  white-space:normal;display:flex;align-items:center;gap:var(--nb-sp-2);flex-wrap:wrap}
-
+.nb-home-tools{display:flex;align-items:center;gap:var(--nb-sp-3);flex-wrap:wrap}
+.nb-home-search{width:min(280px,46vw)}
 /* count chips read as measurements, not prose: glyph + number + quiet noun */
 .nb-counts{display:flex;align-items:center;gap:var(--nb-sp-3);flex-wrap:wrap}
 .nb-count{display:inline-flex;align-items:center;gap:5px;color:${T.text3};
@@ -792,12 +876,13 @@ const CSS = `
 .nb-count b{color:${T.text2};font-weight:650;font-variant-numeric:tabular-nums}
 .nb-count svg{opacity:.75}
 
-.nb-home-sec{display:flex;align-items:center;gap:var(--nb-sp-4);margin:0 0 var(--nb-sp-4);
+.nb-home-sec{display:flex;align-items:center;gap:var(--nb-sp-3);margin:0 0 var(--nb-sp-4);
   padding-bottom:var(--nb-sp-3);border-bottom:1px solid var(--nb-hair-soft)}
 .nb-home-sec .nb-meta{color:${T.text2}}
-.nb-home-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(268px,1fr));
-  gap:var(--nb-sp-4);align-content:start}
-.nb-nbcard-wrap{position:relative;min-height:196px}
+/* the shelf fills whatever width the card is given: 320px minimum, no cap */
+.nb-home-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(320px,1fr));
+  gap:var(--nb-sp-4);align-content:start;width:100%}
+.nb-nbcard-wrap{position:relative;min-height:176px;animation:nb-card-in var(--nb-dur-med) var(--nb-ease) both}
 .nb-nbcard{width:100%;height:100%;position:relative;border-radius:var(--nb-r-box);
   padding:var(--nb-sp-5) var(--nb-sp-5) var(--nb-sp-4);
   display:flex;flex-direction:column;gap:var(--nb-sp-3);
@@ -805,13 +890,20 @@ const CSS = `
   border:1px solid var(--nb-hair-soft);background:var(--nb-card);
   transition:border-color var(--nb-dur-fast) var(--nb-ease),transform var(--nb-dur-fast) var(--nb-ease),
     box-shadow var(--nb-dur-fast) var(--nb-ease),background var(--nb-dur-fast) var(--nb-ease)}
-.nb-nbcard:hover{border-color:color-mix(in srgb,${T.accent} 38%, var(--nb-hair));
+/* the accent strip: the notebook's own sigil hue, drawn from its id, so two
+   cards never read as the same object */
+.nb-nbcard::before{content:'';position:absolute;left:0;right:0;top:0;height:3px;
+  border-radius:var(--nb-r-box) var(--nb-r-box) 0 0;
+  background:linear-gradient(90deg,
+    color-mix(in srgb,var(--kc) 78%, transparent),
+    color-mix(in srgb,var(--kc) 18%, transparent))}
+.nb-nbcard:hover{border-color:color-mix(in srgb,var(--kc) 44%, var(--nb-hair));
   transform:translateY(-2px);box-shadow:var(--nb-shadow-lift);background:var(--nb-wash-2)}
 .nb-nbcard:focus-visible{outline:2px solid ${T.accent};outline-offset:3px}
 .nb-nbcard-top{display:flex;align-items:flex-start;gap:var(--nb-sp-3);min-width:0}
 .nb-nbcard-emoji{flex:0 0 auto;line-height:1;display:grid;place-items:center}
 .nb-nbcard-head{min-width:0;flex:1;padding-right:var(--nb-sp-6)}
-.nb-nbcard-title{font-size:var(--nb-fs-read);font-weight:650;line-height:1.32;letter-spacing:-.01em;
+.nb-nbcard-title{font-size:var(--nb-fs-title);font-weight:650;line-height:1.3;letter-spacing:-.012em;
   display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;
   overflow-wrap:anywhere}
 .nb-nbcard-when{display:block;margin-top:3px;font-size:var(--nb-fs-meta);color:${T.text3};font-weight:500}
@@ -820,9 +912,9 @@ const CSS = `
   min-height:calc(2 * 1.5 * var(--nb-fs-label))}
 .nb-nbcard-desc[data-empty="true"]{color:${T.text4};font-style:italic}
 .nb-nbcard-foot{display:flex;align-items:center;gap:var(--nb-sp-3);margin-top:auto;
-  padding-top:var(--nb-sp-3);border-top:1px solid var(--nb-hair-soft)}
+  padding-top:var(--nb-sp-3);border-top:1px solid var(--nb-hair-soft);flex-wrap:wrap;row-gap:var(--nb-sp-2)}
 .nb-nbcard-open{display:inline-flex;align-items:center;gap:6px;margin-left:auto;
-  font-size:var(--nb-fs-label);font-weight:650;color:color-mix(in srgb,${T.accent} 70%, ${T.text});
+  font-size:var(--nb-fs-label);font-weight:650;color:color-mix(in srgb,var(--kc) 62%, ${T.text});
   white-space:nowrap}
 .nb-nbcard:hover .nb-nbcard-open svg{transform:translateX(2px)}
 .nb-nbcard-open svg{transition:transform var(--nb-dur-fast) var(--nb-ease)}

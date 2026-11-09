@@ -13,7 +13,7 @@ metadata:
 
 # Notebook Infographics
 
-The `hermes-notebook` plugin ships a graphics library: **38 looks × 9 templates ×
+The `hermes-notebook` plugin ships a graphics library: **38 looks × 10 templates ×
 7 canvases × 3 detail levels**, emitted as SVG by `hermes_notebook.gfx`. This skill is
 how to choose a look and a layout, how to call it, and — when the user wants
 something painted rather than typeset — how to fall back to the image model.
@@ -214,6 +214,60 @@ python3 -m pytest tests/test_igstyles.py -q  # catalog + render + tone gates
 (`grid`, `ticks`, `hairline`, `halftone`, `tape`, `glow`, `scanlines`, `hard-border`,
 `offset-shadow`, `wobble`, `overprint`). Nothing else needs editing — the page picker, the
 tool enum and the API catalog all read the same list.
+
+## The engineering poster (`blueprint_evolution`)
+
+A tile grid is not a blueprint. `template="blueprint_evolution"` draws a fixed
+five-zone engineering poster from its own schema — not from `stats`/`quotes`:
+
+| zone | what it holds | drawn from |
+|---|---|---|
+| 1 · left column | 5 muted slate "current gap" cards, each with an isometric icon | `current_gaps[]` |
+| 2 · centre card | a `domain -> before -> after` matrix with an arrow per row | `evolution_matrix[]` |
+| 3 · conduit | 5 grey inputs through a metal collar, fanning into 5 colour ribbons | derived |
+| 4 · right column | 5 pill cards in amber/purple/cyan/coral/emerald with a diagram pane | `core_pillars[]` |
+| 5 · bottom | a 4-step scale ladder and a 2x2 validation bench grid | `expansion_stages[]`, `validation_benches[]` |
+
+```python
+gfx.render(graphic, template="blueprint_evolution", preset="sections")
+```
+
+Geometry is authored on a 1200×900 base and multiplied by the canvas scale, so a
+2400×1800 render is the same poster at 2× rather than a different layout. The
+five signal colours are **fixed by the spec** (amber = compute, purple = logic,
+cyan = render/state, coral = telemetry/power, emerald = interchange): a reader
+learns the mapping once, so a notebook cannot repaint them per run. Surfaces
+follow the preset, and every ink is resolved through `core.readable` against the
+surface it sits on.
+
+### The isometric vocabulary (`gfx.isometrics`)
+
+Line icons read as UI chrome; a blueprint needs axonometric structure. Five
+deterministic helpers, all pure functions of their arguments:
+
+| kind | what it draws |
+|---|---|
+| `iso_grid_cube` | wireframe cube, three shaded planes, top-face grid |
+| `kinematic_node_graph` | joint chain, hinge arcs, force vector, CoM marker |
+| `oscilloscope_trace` | dark monitor frame, graticule, two waveform channels |
+| `file_pipeline_nodes` | interchange badges joined by routed arrows |
+| `test_ramp_and_rig` | axonometric ramp, rig frame, hanging load mass |
+
+`isometrics.draw(kind, x, y, size, accent, paper)` returns SVG elements and never
+raises on an unknown kind (it falls back to the cube). The schema enum imports
+this list rather than retyping it, so a prompt can never ask for an icon the
+renderer does not have.
+
+### Painted vs vector (`engine`)
+
+Deterministic SVG is the default and stays the default: text is text, files are a
+few KB, and a diffusion step cannot invent a number. `engine="imagen_blueprint"`
+routes the **same** structured JSON through the host's image model instead, for
+when a painted poster is the product. It is opt-in and it **falls back to the
+vector render** when the host has no image backend, reporting `engine_fallback`
+rather than failing the run. Two honest limits: the image backend accepts only
+landscape/square/portrait, so a requested 4:3 comes back 16:9 with margins; and
+the painted text is a picture, not selectable or editable.
 
 ## The layout contract (what will fail a build)
 

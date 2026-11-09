@@ -888,7 +888,20 @@ def tpl_illustration(f: Frame, p: Preset, g: Dict[str, Any], detail: str = "stan
     return els, f.h, 0
 
 
+def tpl_blueprint_evolution(f: Frame, p: Preset, g: Dict[str, Any],
+                            detail: str = "standard", **_: Any) -> Tuple[List[str], int, int]:
+    """The multi-zone engineering poster. Its geometry lives in blueprint.py.
+
+    Kept as a thin adapter so the registry, the schema enum and the preview
+    harness all treat it like any other template while the zone math stays in
+    one place.
+    """
+    from . import blueprint
+    return blueprint.render(f, p, g, detail)
+
+
 TEMPLATES: Dict[str, Any] = {
+    "blueprint_evolution": tpl_blueprint_evolution,
     "infographic": tpl_infographic,
     "key_figure": tpl_key_figure,
     "stat_grid": tpl_stat_grid,
@@ -913,4 +926,6 @@ TEMPLATE_PRESETS: Dict[str, List[str]] = {
     "process": ["sections", "cartoon", "blueprint", "terminal", "bento"],
     "cover": ["poster", "neon", "realistic", "brutalist", "cartoon", "magazine"],
     "illustration": ["cartoon", "realistic"],
+    "blueprint_evolution": ["blueprint", "sections", "swiss", "carbon", "dashboard",
+                            "terminal", "mission", "hud"],
 }

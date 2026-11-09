@@ -14,7 +14,11 @@ from typing import Any, Optional
 from . import llmio, retrieve, runtime, store
 
 MD_KINDS = ("summary", "briefing_doc", "study_guide", "faq", "timeline")
-STRUCT_KINDS = ("mind_map", "flashcards", "quiz", "slides", "infographic", "data_table")
+STRUCT_KINDS = ("mind_map", "flashcards", "quiz", "slides", "infographic", "data_table",
+                # a five-zone engineering poster is its own artifact, not an
+                # infographic with a different template: it has its own schema,
+                # its own label and its own viewer expectations
+                "blueprint_evolution")
 ALL_KINDS = MD_KINDS + STRUCT_KINDS
 
 KIND_LABEL = {
@@ -29,199 +33,235 @@ KIND_LABEL = {
     "slides": "Slide Deck",
     "infographic": "Infographic",
     "data_table": "Data Table",
+    "blueprint_evolution": "Architecture Blueprint",
 }
 
-_MD_PROMPTS = {
-    "summary": (
-        "Write a concise SUMMARY of this notebook's sources. Structure: a 2-3 "
-        "sentence overview, then 'Key points' bullets (5-10), then 'Notable "
-        "details' bullets. Attribute claims to sources by name in brackets like "
-        "[Source title]. Plain markdown, no preamble."
-    ),
-    "briefing_doc": (
-        "Write a detailed BRIEFING DOC from these sources. Sections: Context & "
-        "background, Key facts, Developments & details, Implications & "
-        "takeaways, Open questions. Use headings, bullets and short paragraphs. "
-        "Cite source names in brackets. This should read like a polished analyst "
-        "brief — thorough but skimmable."
-    ),
-    "study_guide": (
-        "Write a STUDY GUIDE from these sources, organized for learning: "
-        "Learning objectives, Core concepts (each with a plain-language "
-        "explanation + example from the sources), Key terms glossary, Practice "
-        "questions (with answers in a collapsed-style 'Answer:' line), and a "
-        "'Remember' recap. Markdown."
-    ),
-    "faq": (
-        "Write an FAQ document: the 10-15 questions a reader would most likely "
-        "ask about this material, each answered accurately from the sources in "
-        "2-5 sentences. Format: '## Q: ...' then the answer. Ground every "
-        "answer in the sources; if the sources can't answer a natural question, "
-        "skip it."
-    ),
-    "timeline": (
-        "Write a TIMELINE of the events, periods, developments or steps covered "
-        "by these sources, in chronological order. Format: '## <date/period>' "
-        "then 1-3 bullets of what happened and which source covers it. If the "
-        "material isn't chronological, organize it as a logical progression "
-        "instead and title the doc accordingly."
-    ),
-}
+from . import artifact_prompts as prompts
 
-_STRUCT_SCHEMAS = {
-    "mind_map": {
-        "type": "object",
-        "properties": {
-            "title": {"type": "string"},
-            "children": {"type": "array", "items": {"$ref": "#/$defs/node"}},
-        },
-        "required": ["title", "children"],
-        "$defs": {
-            "node": {
-                "type": "object",
-                "properties": {
-                    "label": {"type": "string", "description": "short node label (<= 8 words)"},
-                    "detail": {"type": "string", "description": "optional one-line detail"},
-                    "children": {"type": "array", "items": {"$ref": "#/$defs/node"}},
-                },
-                "required": ["label"],
-            }
-        },
-    },
-    "flashcards": {
-        "type": "object",
-        "properties": {
-            "cards": {"type": "array", "items": {
-                "type": "object",
-                "properties": {
-                    "front": {"type": "string", "description": "question or prompt"},
-                    "back": {"type": "string", "description": "concise answer from the sources"},
-                    "source": {"type": "string", "description": "source title it came from"},
-                },
-                "required": ["front", "back"],
-            }},
-        },
-        "required": ["cards"],
-    },
-    "quiz": {
-        "type": "object",
-        "properties": {
-            "questions": {"type": "array", "items": {
-                "type": "object",
-                "properties": {
-                    "question": {"type": "string"},
-                    "choices": {"type": "array", "items": {"type": "string"},
-                                "description": "optional 4 options for multiple-choice"},
-                    "answer": {"type": "string", "description": "correct answer (option letter or text)"},
-                    "explanation": {"type": "string"},
-                },
-                "required": ["question", "answer"],
-            }},
-        },
-        "required": ["questions"],
-    },
-    "slides": {
-        "type": "object",
-        "properties": {
-            "title": {"type": "string", "description": "deck title"},
-            "slides": {"type": "array", "items": {
-                "type": "object",
-                "properties": {
-                    "title": {"type": "string", "description": "slide headline (<= 10 words)"},
-                    "bullets": {"type": "array", "items": {"type": "string"},
-                                "description": "3-6 punchy bullets, each <= 18 words"},
-                    "note": {"type": "string", "description": "optional speaker note"},
-                },
-                "required": ["title", "bullets"],
-            }},
-        },
-        "required": ["title", "slides"],
-    },
-    "infographic": {
-        "type": "object",
-        "properties": {
-            "title": {"type": "string"},
-            "takeaway": {"type": "string", "description": "one-line bottom-line takeaway"},
-            "stats": {"type": "array", "items": {
-                "type": "object",
-                "properties": {
-                    "value": {"type": "string", "description": "big number/short stat, e.g. '1789' or '3x'"},
-                    "label": {"type": "string", "description": "what the stat means (<= 8 words)"},
-                    "detail": {"type": "string", "description": "optional one-line source-backed detail"},
-                },
-                "required": ["value", "label"],
-            }, "description": "3-6 headline stats/facts from the sources"},
-            "quotes": {"type": "array", "items": {
-                "type": "object",
-                "properties": {
-                    "text": {"type": "string", "description": "a striking fact or near-quote from the sources"},
-                    "source": {"type": "string"},
-                },
-                "required": ["text"],
-            }, "description": "2-4 key facts worth highlighting"},
-        },
-        "required": ["title", "stats", "quotes", "takeaway"],
-    },
-    "data_table": {
-        "type": "object",
-        "properties": {
-            "title": {"type": "string", "description": "what the table compares or lists"},
-            "columns": {"type": "array", "items": {"type": "string"},
-                        "description": "3-8 short column headers"},
-            "rows": {"type": "array", "items": {"type": "array", "items": {"type": "string"}},
-                     "description": "5-15 data rows; every cell a short string from the sources"},
-        },
-        "required": ["title", "columns", "rows"],
-    },
-}
+#: The per-kind instructions and schemas live in `artifact_prompts` now — one
+#: registry that states the shape of every output (citation contract, tension
+#: ledger, KPI strip, slide archetypes, node/edge graph). This module keeps the
+#: short aliases the rest of the plugin and the preview harness read.
+_PROMPTS = prompts.INSTRUCTIONS
+_STRUCT_INSTRUCTIONS = {k: prompts.build_instructions(k, mode="struct")
+                        for k in STRUCT_KINDS}
+_STRUCT_SCHEMAS = {k: prompts.SCHEMAS[k] for k in STRUCT_KINDS}
 
-_STRUCT_INSTRUCTIONS = {
-    "mind_map": (
-        "Build a MIND MAP of this material as a nested JSON tree. The root is the "
-        "notebook's central topic; branches are major themes; leaves are specific "
-        "facts/concepts. 3 levels deep max, 15-40 nodes total. Labels <= 8 words."
-    ),
-    "flashcards": (
-        "Create STUDY FLASHCARDS from these sources: 12-20 cards. Front = a "
-        "question or 'what/why/how' prompt; back = a concise answer (1-3 "
-        "sentences) grounded in the sources. Include the source title when a "
-        "card is source-specific."
-    ),
-    "quiz": (
-        "Create a PRACTICE QUIZ from these sources: 8-12 questions. Mix formats — "
-        "some multiple-choice (4 choices), some short-answer. Every answer must "
-        "be verifiable from the sources; include a one-line explanation."
-    ),
-    "slides": (
-        "Design a SLIDE DECK from these sources: 8-14 slides. First slide = title "
-        "+ one-line framing; last slide = key takeaways. Middle slides each cover "
-        "one idea with a punchy headline (<=10 words) and 3-6 bullets of <=18 "
-        "words. Order for narrative flow. Every bullet must be grounded in the "
-        "sources — this is a presentation, not an essay."
-    ),
-    "infographic": (
-        "Design an INFOGRAPHIC's content from these sources: pick the 3-6 most "
-        "striking stats/facts/dates (the 'value' should be the number or short "
-        "fact itself, e.g. '1789', '70%', '3 treaties'), 2-4 quotable key facts, "
-        "and a one-line takeaway. All grounded in the sources."
-    ),
-    "data_table": (
-        "Build a DATA TABLE from these sources: pick the comparison the material "
-        "most supports (entities × attributes, events × dates, options × tradeoffs). "
-        "3-8 columns with short headers, 5-15 rows. Every cell must be a short "
-        "verbatim-ish fact from the sources — no invented numbers, no empty cells "
-        "unless the source genuinely lacks the value."
-    ),
-}
+
+def _ledger_for(nb_id: str, language: str = "") -> dict:
+    """The tension audit for this notebook, cached per source-state.
+
+    Every artifact gets the same ledger, so a notebook's ten outputs cost one
+    audit rather than ten. A failed audit degrades to the measured independence
+    alone — an artifact with fewer conflict notes still beats no artifact."""
+    try:
+        return prompts.tensions_brief(nb_id, language=language)
+    except Exception as exc:  # noqa: BLE001 - never fail a generation over an audit
+        logger.warning("tension ledger unavailable: %s", exc)
+        return {"text": "", "items": [], "independence": {}, "degraded": str(exc)}
 
 
 def _meta(notebook_id: str) -> dict:
     return store.get_meta(notebook_id)
 
 
+def _tension_brief(notebook_id: str) -> str:
+    """The measured tension audit, formatted for the blueprint prompt.
+
+    Deterministic half only (independence + the conflicts already computed on
+    demand): the model must not be asked to audit its own evidence in the same
+    call that consumes it. When there is nothing to report, the string is empty
+    and the prompt is unchanged.
+    """
+    try:
+        from . import tensions as tensions_mod
+        indep = tensions_mod.independence(notebook_id)
+    except Exception:
+        return ""
+    if not indep or not indep.get("sources"):
+        return ""
+    bits = [f"\nINDEPENDENCE AUDIT (measured from the text, not asked of you): "
+            f"{indep['sources']} active sources, {indep.get('independent')} independent."]
+    clusters = indep.get("clusters") or []
+    for c in clusters[:3]:
+        members = ", ".join(f"S{m}" for m in c.get("members") or [])
+        bits.append(f"  {members} repeat the same opening text — treat their agreement as ONE voice.")
+    known = ""
+    try:
+        from . import retrieve
+        known = retrieve.notebook_digest(notebook_id, max_chars=6000)
+    except Exception:
+        known = ""
+    if clusters and known:
+        bits.append("  So a claim carried only by a cluster is weakly corroborated: "
+                    "mark it as a gap rather than a target.")
+    return "\n".join(bits) + "\n"
+
+
+#: The image-generation route, as the plugin reaches it: Hermes' own
+#: `image_generate` tool through the context dispatcher. Nothing is called
+#: directly (the agent's modules are not importable from a plugin process) and
+#: nothing is assumed about which backend answers.
+IMAGE_TOOL = "image_generate"
+
+
+def image_mode_available() -> bool:
+    """Is there an image backend behind `image_generate` right now?
+
+    Deliberately conservative and CHEAP. There is no probe endpoint that answers
+    this without generating an image, and paying for a render just to light up a
+    toggle would be a bug, so this reads the two things the host's own gate
+    reads:
+
+    * `image_gen.provider` in the host config (``nous`` / ``fal`` / a plugin), and
+    * an API key in the environment for that provider.
+
+    A False here is a hint, not a promise — `_image_blueprint` still attempts the
+    dispatch and falls back to the vector engine if the host disagrees. Being
+    wrong toward False only leaves the hand-drawn poster, which is the default
+    anyway.
+    """
+    import os
+    from pathlib import Path
+
+    provider = ""
+    for candidate in (Path.home() / ".hermes-webapp" / "config.yaml",
+                      Path.home() / ".hermes" / "config.yaml"):
+        try:
+            text = candidate.read_text(encoding="utf-8", errors="ignore")
+        except Exception:
+            continue
+        block = text.split("image_gen:", 1)
+        if len(block) < 2:
+            continue
+        for line in block[1].splitlines()[:6]:
+            stripped = line.strip()
+            if stripped.startswith("provider:"):
+                provider = stripped.split(":", 1)[1].strip().strip("'\"") or provider
+                break
+        break
+    if not provider:
+        return False
+    keys = ("FAL_KEY", "FAL_API_KEY", "OPENAI_API_KEY", "KREA_API_KEY", "NOUS_API_KEY")
+    if any(os.getenv(k) for k in keys):
+        return True
+    # a managed host backend (provider: nous) bills through the gateway, not a
+    # key in this process, so a configured provider is enough to try
+    return provider in ("nous", "fal")
+
+
+def _image_blueprint(parsed: Dict[str, Any], style_id: str,
+                     notebook_id: str = "") -> Optional[str]:
+    """Render a blueprint poster through the image model instead of the vector engine.
+
+    Deterministic SVG is the default and stays the default: it is crisp at any
+    size, a few KB, and its text cannot be hallucinated by a diffusion step.
+    This path exists because a painted poster is a different product, and it is
+    offered as an opt-in the caller must ask for.
+
+    Returns the artefact path, or None when the backend refused — the caller
+    then falls back to the vector render rather than failing the run.
+    """
+    prompt = _blueprint_image_prompt(parsed, style_id)
+    try:
+        from . import runtime
+        raw = runtime.dispatch(IMAGE_TOOL, {"prompt": prompt, "aspect_ratio": "4:3"})
+    except Exception:
+        return None
+    try:
+        import json
+        data = json.loads(raw) if isinstance(raw, str) else raw
+    except Exception:
+        return None
+    if not isinstance(data, dict) or not data.get("success"):
+        return None
+    image = data.get("agent_visible_image") or data.get("image")
+    if not image:
+        return None
+    image = str(image)
+    # The backend hands back a CDN URL or a temp path. Neither survives: a URL
+    # expires and a temp file is cleaned up, so the artifact would open as a
+    # broken image tomorrow. Copy it into the notebook's artifacts directory and
+    # return the local path, which is what every other writer here returns.
+    try:
+        return str(_keep_local_image(notebook_id, image))
+    except Exception:
+        return image
+
+
+def _blueprint_image_prompt(parsed: Dict[str, Any], style_id: str) -> str:
+    """The Master Blueprint Prompt: the structured JSON, restated as art direction.
+
+    The poster's content is passed as an already-decided plan, not as a question:
+    a diffusion model given fields to invent will invent them, and an invention
+    in a technical poster is worse than a gap.
+    """
+    title = str(parsed.get("title") or "Architecture blueprint")
+    sub = str(parsed.get("subtitle") or "").strip()
+    gaps = [f"{g.get('title')}: {g.get('spec')}" for g in parsed.get("current_gaps") or []
+            if isinstance(g, dict)]
+    pillars = [f"{p.get('title')}: {p.get('concise_spec')}"
+               for p in parsed.get("core_pillars") or [] if isinstance(p, dict)]
+    matrix = [f"{m.get('domain')}: {m.get('before_label')} -> {m.get('after_label')}"
+              for m in parsed.get("evolution_matrix") or [] if isinstance(m, dict)]
+    lines = [
+        f"Executive engineering poster, landscape 4:3, high-density technical "
+        f"illustration. Title: {title}."]
+    if sub:
+        lines.append(f"Subtitle: {sub}.")
+    lines += [
+        "Left column: five stacked muted slate cards headed CURRENT GAPS, each with "
+        "a small isometric wireframe icon: " + "; ".join(gaps) + ".",
+        "Centre: a white comparison table card, rows domain, before -> after, with "
+        "sankey ribbons passing behind it: " + "; ".join(matrix) + ".",
+        "Right column: five pill-shaped colour-coded pillars in amber, purple, cyan, "
+        "coral and emerald, each with a dark technical diagram pane: "
+        + "; ".join(pillars) + ".",
+        "Bottom: a progressive scale ladder on the left and a 2x2 validation bench "
+        "grid on the right.",
+        "Strict left-to-right saturation gradient: desaturated cool greys on the left, "
+        "high-saturation functional colour on the right. Off-white background "
+        "#F8FAFC, Inter typography, mathematically aligned grid, vector-crisp "
+        "micro-labels, no photographic elements, no decorative flourishes, no "
+        "invented numbers - only the text listed above.",
+    ]
+    return "\n".join(lines)
+
+
 def _digest(notebook_id: str) -> str:
     budget = int(runtime.config("podcast_context_chars", default=42000))
     return retrieve.notebook_digest(notebook_id, max_chars=budget)
+
+
+def _keep_local_image(notebook_id: str, image: str) -> "Any":
+    """Copy a generated image into the notebook's artifacts dir, keep its bytes.
+
+    A remote URL or a temp path is not an artifact. This downloads with the
+    plugin's own HTTP client (no model call, no new dependency) and writes the
+    same stamped filename the other writers use, so the image is discoverable by
+    the artifact list, exportable, and still there next week.
+    """
+    import shutil
+    from pathlib import Path
+
+    nb_id = store.resolve_notebook(notebook_id)
+    d = store._nb_dir(nb_id) / "artifacts"
+    d.mkdir(parents=True, exist_ok=True)
+    dest = d / f"{runtime.utc_stamp()}-blueprint_evolution.png"
+
+    src = Path(image)
+    if src.exists():
+        shutil.copyfile(src, dest)
+    else:
+        import urllib.request
+        req = urllib.request.Request(image, headers={"User-Agent": "hermes-notebook"})
+        with urllib.request.urlopen(req, timeout=60) as response:  # noqa: S310
+            data = response.read()
+        if not data:
+            raise RuntimeError("the image backend returned an empty body")
+        dest.write_bytes(data)
+    store.touch(nb_id)
+    return dest
 
 
 def _write_artifact(notebook_id: str, kind: str, ext: str, content: str) -> Path:
@@ -290,7 +330,7 @@ def generate(notebook: str, kind: str, *, focus: str = "", count_hint: str = "",
             {"role": "user", "content":
              f"Notebook: {meta.get('title')}\nDescription: {meta.get('description', '')}\n"
              f"Sources:\n{src_lines}\n{focus_line}{count_line}{conv_line}{lang_line}\n"
-             f"Task: {_MD_PROMPTS[kind]}\n\nSources content:\n{digest}"},
+             f"Task: {prompts.BRIEFS[kind]}\n\nSources content:\n{digest}"},
         ]
         text = llmio.complete(
             messages, purpose=f"hermes-notebook.generate.{kind}",
@@ -308,7 +348,7 @@ def generate(notebook: str, kind: str, *, focus: str = "", count_hint: str = "",
     # structured kinds
     instructions = _STRUCT_INSTRUCTIONS[kind]
     style_spec = None
-    if kind == "infographic":
+    if kind in ("infographic", "blueprint_evolution"):
         from .gfx import themes as _themes
         # `igstyles.prompt_hint` was dropped by the gfx rewrite (4850aa0) but the
         # call was left behind, so every infographic generation raised NameError
@@ -324,11 +364,19 @@ def generate(notebook: str, kind: str, *, focus: str = "", count_hint: str = "",
         except Exception:
             hint = ""  # the look still resolves; only its content hint is missing
         instructions += "\n\nVisual treatment: " + style_spec.blurb + hint
+    extra = ""
+    if kind == "blueprint_evolution":
+        # "Current gaps vs target standard" must come from evidence, so the
+        # measured tension audit goes in with the sources: a disagreement between
+        # them IS a gap, and an independence cluster stops one wire story from
+        # counting as corroboration across five pillars.
+        extra = _tension_brief(nb_id)
     parsed = llmio.structured(
         instructions=instructions,
         input=[{"type": "text", "text":
                 f"Notebook: {meta.get('title')}\nSources:\n{src_lines}\n"
-                f"{focus_line}{count_line}{conv_line}{lang_line}\nSources content:\n{digest}"}],
+                f"{focus_line}{count_line}{conv_line}{lang_line}{extra}"
+                f"\nSources content:\n{digest}"}],
         json_schema=_STRUCT_SCHEMAS[kind],
         schema_name=f"notebook.{kind}",
         system_prompt=(
@@ -349,6 +397,43 @@ def generate(notebook: str, kind: str, *, focus: str = "", count_hint: str = "",
         html = _render_slides_html(parsed, meta.get("title") or nb_id)
         path = _write_artifact(nb_id, kind, "html", html)
         return {"path": str(path), "kind": kind, "preview": html[:1200]}
+
+    if kind == "blueprint_evolution":
+        from . import gfx
+        style_spec = style_spec or gfx.resolve_preset("")
+        parsed["_style"] = {"id": style_spec.id, "label": style_spec.label,
+                            "family": style_spec.family}
+        engine = str(options.get("engine") or "gfx").strip().lower()
+        json_path = _write_artifact(nb_id, kind, "json",
+                                    json.dumps(parsed, indent=2, ensure_ascii=False))
+
+        # Opt-in only. The vector engine is the default because it is exact: the
+        # text is the text, it is crisp at any size, and it is a few KB. A painted
+        # poster is offered as `engine="imagen_blueprint"` and degrades back to the
+        # vector render when the host has no image backend, so a demo cannot end
+        # on a 500 because someone ticked a toggle.
+        if engine == "imagen_blueprint":
+            painted = _image_blueprint(parsed, style_spec.id, nb_id)
+            if painted:
+                return {"path": painted, "json": str(json_path), "kind": kind,
+                        "style": style_spec.id, "style_label": style_spec.label,
+                        "template": "blueprint_evolution", "format": "png",
+                        "engine": "imagen_blueprint",
+                        "preview": json.dumps(parsed, ensure_ascii=False)[:1200]}
+
+        svg = gfx.render(parsed, template="blueprint_evolution", preset=style_spec.id,
+                         orientation=str(options.get("orientation") or "landscape").lower(),
+                         detail=str(options.get("detail") or "standard").lower())
+        path = _write_artifact(nb_id, kind, "svg", svg)
+        result = {"path": str(path), "json": str(json_path), "kind": kind,
+                  "style": style_spec.id, "style_label": style_spec.label,
+                  "template": "blueprint_evolution", "format": "svg",
+                  "engine": "gfx",
+                  "preview": json.dumps(parsed, ensure_ascii=False)[:1200]}
+        if engine == "imagen_blueprint":
+            # the fallback is stated, not silently swallowed
+            result["engine_fallback"] = "the image backend did not return a render"
+        return result
 
     if kind == "infographic":
         assert style_spec is not None
