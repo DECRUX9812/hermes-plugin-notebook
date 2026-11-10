@@ -12887,6 +12887,17 @@ var CSS = `
   --nb-canvas:#F8F5EE; --nb-panel:#FFFFFF; --nb-edge:#E8E2D8;
   --nb-tile:#F3EEE4; --nb-tile-hi:#EBE4D8; --nb-ink:#1F1F1F; --nb-ink2:#5F6368;
   --nb-inset:#FBF8F2;
+  /* Everything derived, rebuilt on light ink. Without these the card faces and
+     washes stay night-coloured while the text turns dark \u2014 the "1.02:1" bug the
+     design pass reports: black ink on a black tile. */
+  --nb-card:#F3EEE4;
+  --nb-hair:rgba(31,31,31,.10); --nb-hair-soft:rgba(31,31,31,.06);
+  --nb-wash:rgba(31,31,31,.04); --nb-wash-2:rgba(31,31,31,.075);
+  --nb-shadow:0 1px 2px rgba(24,24,27,.05), 0 14px 34px -20px rgba(24,24,27,.22);
+  /* The few rules still written against the host's own tokens are scoped to
+     this subtree, so they follow the notebook rather than the app shell. */
+  --ui-bg-secondary:#F3EEE4; --ui-bg-tertiary:#EDE6D9;
+  --ui-stroke-secondary:rgba(31,31,31,.10); --ui-stroke-tertiary:rgba(31,31,31,.06);
 }
 /* ambient generative field \u2014 each notebook's sigil hue bleeds into the room */
 .nb-aurora{position:absolute;inset:0;z-index:0;overflow:hidden;pointer-events:none}
@@ -14094,6 +14105,57 @@ var CSS = `
 .nb-nbcard-del:focus-visible,.nb-nbcard-ren:focus-visible{opacity:1}
 @media (hover:none){ .nb-nbcard-del,.nb-nbcard-ren{opacity:1} }
 
+/* ---------------------------------------------- composer modes + action cards */
+.nb-modes{display:flex;gap:6px;align-items:center;margin-bottom:8px;flex-wrap:wrap}
+.nb-mode{display:inline-flex;align-items:center;gap:6px;height:32px;padding:0 12px;
+  border-radius:var(--nb-r-pill);cursor:pointer;font-family:inherit;
+  font-size:var(--nb-fs-meta);font-weight:650;letter-spacing:.01em;
+  border:1px solid var(--nb-edge);background:transparent;color:${T.text3};
+  transition:background var(--nb-dur-fast) var(--nb-ease),color var(--nb-dur-fast) var(--nb-ease),
+    border-color var(--nb-dur-fast) var(--nb-ease)}
+.nb-mode:hover{color:${T.text};background:var(--nb-wash-2)}
+.nb-mode[data-active=true]{color:color-mix(in srgb,${T.accent} 65%, ${T.text});
+  border-color:color-mix(in srgb,${T.accent} 45%, var(--nb-edge));
+  background:color-mix(in srgb,${T.accent} 12%, transparent)}
+.nb-mode:focus-visible{outline:2px solid ${T.accent};outline-offset:2px}
+
+.nb-acts{display:flex;flex-direction:column;gap:8px;margin-bottom:10px}
+.nb-act{background:var(--nb-tile);border:1px solid var(--nb-edge);
+  border-radius:var(--nb-r-el);overflow:hidden}
+.nb-act[data-ok=false]{border-color:color-mix(in srgb,${T.danger} 45%, var(--nb-edge))}
+.nb-act-head{display:flex;align-items:center;gap:8px;width:100%;padding:9px 11px;
+  background:transparent;border:0;cursor:pointer;font-family:inherit;
+  color:${T.text2};font-size:var(--nb-fs-label);text-align:left;min-height:36px}
+.nb-act-head:hover{background:var(--nb-wash)}
+.nb-act-status{display:grid;place-items:center;width:18px;height:18px;border-radius:50%;
+  font-size:11px;font-weight:800;color:#0d0e15;background:${T.ok}}
+.nb-act[data-ok=false] .nb-act-status{background:${T.danger};color:#fff}
+.nb-act-title{font-weight:700;color:${T.text};white-space:nowrap;overflow:hidden;
+  text-overflow:ellipsis}
+.nb-act-meta{color:${T.text3};font-size:var(--nb-fs-meta);font-weight:600}
+.nb-act-ms{margin-left:auto;color:${T.text4};font-size:var(--nb-fs-meta);
+  font-variant-numeric:tabular-nums}
+.nb-act-chev{display:grid;place-items:center;color:${T.text4};
+  transition:transform var(--nb-dur-fast) var(--nb-ease)}
+.nb-act-head[aria-expanded=true] .nb-act-chev{transform:rotate(180deg)}
+.nb-act-body{padding:0 11px 11px;display:flex;flex-direction:column;gap:8px}
+.nb-act-label{font-size:var(--nb-fs-meta);font-weight:700;letter-spacing:.06em;
+  text-transform:uppercase;color:${T.text4}}
+.nb-act-pre{margin:0;padding:9px 11px;border-radius:var(--nb-r-in);background:var(--nb-inset);
+  border:1px solid var(--nb-edge);font-family:ui-monospace,SFMono-Regular,Menlo,monospace;
+  font-size:12.5px;line-height:1.5;color:${T.text2};overflow:auto;max-height:220px;
+  white-space:pre-wrap;overflow-wrap:anywhere}
+.nb-act-in{color:${T.text}}
+.nb-act-err{color:${T.danger}}
+.nb-act-tablewrap{overflow:auto;max-height:240px;border:1px solid var(--nb-edge);
+  border-radius:var(--nb-r-in);background:var(--nb-inset)}
+.nb-act-table{border-collapse:collapse;width:100%;font-size:12.5px}
+.nb-act-table th,.nb-act-table td{padding:6px 10px;text-align:left;
+  border-bottom:1px solid var(--nb-edge);white-space:nowrap}
+.nb-act-table th{font-weight:700;color:${T.text2};position:sticky;top:0;background:var(--nb-tile)}
+.nb-act-note{font-size:var(--nb-fs-meta);color:${T.text3}}
+.nb-act-foot{display:flex;gap:6px;flex-wrap:wrap}
+
 /* ------------------------------------------------ infographic (live render)
    The artifact is JSON first and a poster second: this renders the JSON, so the
    numbers are selectable text, each one carries its source, and the layout
@@ -14651,6 +14713,7 @@ var P = {
   shield: "M12 3l8 3v6c0 4.5-3.2 7.6-8 9-4.8-1.4-8-4.5-8-9V6l8-3Zm-3 9 2 2 4-4",
   copy: "M9 9h10v10H9V9Zm-4 6H4V4h11v1",
   sun: "M12 4v2M12 18v2M4 12h2M18 12h2M6.3 6.3l1.4 1.4M16.3 16.3l1.4 1.4M17.7 6.3l-1.4 1.4M7.7 16.3l-1.4 1.4M12 8.5a3.5 3.5 0 1 0 0 7 3.5 3.5 0 0 0 0-7Z",
+  lock: "M7 11V8a5 5 0 0 1 10 0v3M5 11h14v9H5v-9Zm7 3v3",
   moon: "M20 14.5A8.5 8.5 0 0 1 9.5 4a8.5 8.5 0 1 0 10.5 10.5Z",
   check: "M5 13l4.5 4.5L19 7",
   download: "M12 4v10M8 11l4 4 4-4M5 19h14",
@@ -15888,7 +15951,7 @@ function App() {
     const mo = new MutationObserver(() => read());
     mo.observe(document.documentElement, { attributes: true, attributeFilter: ["class", "style", "data-theme"] });
     if (document.head) mo.observe(document.head, { childList: true, subtree: true });
-    const id = setInterval(read, 1500);
+    const id = setInterval(read, 300);
     return () => {
       mo.disconnect();
       clearInterval(id);
@@ -16500,11 +16563,11 @@ function Rail({
   onDeleteSource,
   onLabel,
   onCollapse,
-  onSay: onSay2,
+  onSay,
   onDropFiles,
   loading,
   error,
-  reload: reload2
+  reload
 }) {
   const sources = notebook && notebook.sources || [];
   const labels = notebook && notebook.labels || [];
@@ -16642,7 +16705,7 @@ function Rail({
           onClick: onLabel,
           disabled: !(notebook && notebook.stats && notebook.stats.unlabeled)
         }),
-        (0, import_jsx_runtime.jsx)(IconBtn, { icon: "refresh", label: "Refresh sources", onClick: () => reload2(true) }),
+        (0, import_jsx_runtime.jsx)(IconBtn, { icon: "refresh", label: "Refresh sources", onClick: () => reload(true) }),
         (0, import_jsx_runtime.jsx)(IconBtn, { icon: "arrowLeft", label: "Hide sources panel", onClick: onCollapse })
       )
     ),
@@ -16891,8 +16954,8 @@ function Main({
   generate,
   onAsk,
   askOpen,
-  onSay: onSay2,
-  reload: reload2,
+  onSay,
+  reload,
   modelReady,
   error,
   loading,
@@ -16938,7 +17001,7 @@ function Main({
           el(
             "div",
             { style: { marginTop: "14px" } },
-            (0, import_jsx_runtime.jsx)(Btn, { icon: "refresh", onClick: () => reload2(false), children: "Try again" })
+            (0, import_jsx_runtime.jsx)(Btn, { icon: "refresh", onClick: () => reload(false), children: "Try again" })
           )
         )
       )
@@ -17104,7 +17167,7 @@ function Main({
       return (0, import_jsx_runtime.jsx)(SourcePeek, {
         source: peek,
         notebook,
-        onSay: onSay2,
+        onSay,
         onClose: () => {
           setPeek(null);
           setTab("chat");
@@ -17119,7 +17182,7 @@ function Main({
       });
     })() : tab === "tensions" ? (0, import_jsx_runtime.jsx)(TensionsPanel, {
       notebook,
-      onSay: onSay2,
+      onSay,
       modelReady,
       onOpenSource,
       onCite: (n, cite) => {
@@ -17135,10 +17198,10 @@ function Main({
       return (0, import_jsx_runtime.jsx)(Viewer, {
         artifact: picked,
         notebook,
-        onSay: onSay2,
+        onSay,
         regenerating: !!(busy && busy[picked.kind]),
         onRegenerate: () => generate(picked.kind, picked.opts || {}),
-        onChanged: refreshArtifact || (() => reload2 && reload2(true)),
+        onChanged: refreshArtifact || (() => reload && reload(true)),
         onPrevRun: si > 0 ? () => setPicked(sibs[si - 1]) : null,
         onNextRun: si >= 0 && si < sibs.length - 1 ? () => setPicked(sibs[si + 1]) : null,
         runPos: sibs.length > 1 ? `${si + 1} of ${sibs.length}` : "",
@@ -17158,9 +17221,9 @@ function Main({
       notebook,
       kinds,
       askOpen,
-      onSay: onSay2,
+      onSay,
       modelReady,
-      reload: reload2,
+      reload,
       askScope,
       setAskScope,
       generate,
@@ -17183,11 +17246,16 @@ var SUGGEST = [
 ];
 var ovCache = /* @__PURE__ */ new Map();
 var threadCache = /* @__PURE__ */ new Map();
-function Chat({ notebook, kinds, askOpen, onSay: onSay2, modelReady, onCite, onOpenSource, onFindSources, reload: reload2, askScope, setAskScope, generate }) {
+function Chat({ notebook, kinds, askOpen, onSay, modelReady, onCite, onOpenSource, onFindSources, reload, askScope, setAskScope, generate }) {
   const nbKey = `${notebook.id}:default`;
   const [thread, setThread] = (0, import_react.useState)("default");
   const [threads, setThreads] = (0, import_react.useState)(() => notebook.threads || []);
   const [thrOpen, setThrOpen] = (0, import_react.useState)(false);
+  const [agentMode, setAgentMode] = (0, import_react.useState)(() => persist.get("composerMode", "grounded"));
+  const setMode = (m) => {
+    setAgentMode(m);
+    persist.set("composerMode", m);
+  };
   const curThread = (0, import_react.useRef)("default");
   curThread.current = thread;
   const [msgs, setMsgs] = (0, import_react.useState)(() => threadCache.get(nbKey) || (notebook.thread || []).map((m, i) => ({ ...m, k: `t${i}` })));
@@ -17252,7 +17320,7 @@ function Chat({ notebook, kinds, askOpen, onSay: onSay2, modelReady, onCite, onO
       cacheMsgs(key, mapped);
       setMsgs(mapped);
     }).catch(() => {
-      if (live && onSay2) onSay2("could not load that conversation \u2014 try again");
+      if (live && onSay) onSay("could not load that conversation \u2014 try again");
     });
     return () => {
       live = false;
@@ -17302,13 +17370,13 @@ function Chat({ notebook, kinds, askOpen, onSay: onSay2, modelReady, onCite, onO
         body: { notebook: notebook.id, text: ov, title: `Overview \u2014 ${notebook.title}` },
         timeoutMs: 6e4
       });
-      if (onSay2) onSay2("overview saved as a note \u2014 it is searchable now");
-      if (reload2) await reload2(true);
+      if (onSay) onSay("overview saved as a note \u2014 it is searchable now");
+      if (reload) await reload(true);
     } catch (e) {
-      if (onSay2) onSay2(`could not save note: ${e.message || e}`);
+      if (onSay) onSay(`could not save note: ${e.message || e}`);
     }
   };
-  const copyOv = () => copyText(ov, onSay2);
+  const copyOv = () => copyText(ov, onSay);
   (0, import_react.useEffect)(() => {
     if (askOpen) {
       const n = boxRef.current;
@@ -17358,16 +17426,18 @@ function Chat({ notebook, kinds, askOpen, onSay: onSay2, modelReady, onCite, onO
     const started = Date.now();
     TURN.send("ASK", { q: q2, since: started });
     try {
-      const out = await api("/ask", {
+      const agentRun = agentMode === "agent" && !retry;
+      const out = await api(agentRun ? "/agent/run" : "/ask", {
         method: "POST",
         body: {
           notebook: notebook.id,
           question: q2,
           thread: t,
+          ...agentRun ? { mode: "agent" } : {},
           ...retry ? { retry: true } : {},
-          ...askScope && (askScope.ids || askScope.id) ? { source_ids: askScope.ids || [askScope.id] } : {}
+          ...!agentRun && askScope && (askScope.ids || askScope.id) ? { source_ids: askScope.ids || [askScope.id] } : {}
         },
-        timeoutMs: 18e4
+        timeoutMs: 24e4
       });
       const answer = {
         role: "assistant",
@@ -17375,12 +17445,13 @@ function Chat({ notebook, kinds, askOpen, onSay: onSay2, modelReady, onCite, onO
         k: `a${Date.now()}`,
         citations: out.citations || [],
         seconds: out.seconds,
-        meta: `${out.chunks_used || 0} of ${out.total_chunks || 0} passages`
+        actions: out.actions || [],
+        meta: (out.actions || []).length ? `${out.actions.length} tool${out.actions.length === 1 ? "" : "s"} ran` : `${out.chunks_used || 0} of ${out.total_chunks || 0} passages`
       };
       const prev = threadCache.get(key) || [];
       const next = cacheMsgs(key, [...prev, answer]);
       if (curThread.current === t) setMsgs(next);
-      if (reload2) reload2(true);
+      if (reload) reload(true);
     } catch (e) {
       const errMsg = {
         role: "assistant",
@@ -17393,7 +17464,7 @@ ${e.message || e}`,
       const prev = threadCache.get(key) || [];
       const next = cacheMsgs(key, [...prev, errMsg]);
       if (curThread.current === t) setMsgs(next);
-      if (onSay2) onSay2(e.message || "ask failed");
+      if (onSay) onSay(e.message || "ask failed");
       TURN.send("FAIL");
     } finally {
       TURN.send("ANSWER");
@@ -17553,6 +17624,8 @@ ${e.message || e}`,
           onCite,
           onOpenSource,
           notebook,
+          onSay,
+          reload,
           canRetry: !pending && m.role === "assistant" && i === msgs.length - 1 && msgs.slice(0, i).some((x) => x.role === "user"),
           onRetry: () => send(null, { retry: true })
         }, m.k)),
@@ -17577,7 +17650,7 @@ ${e.message || e}`,
                 "aria-label": "Stop waiting for the answer",
                 onClick: () => {
                   TURN.send("CANCEL");
-                  if (onSay2) onSay2("stopped waiting \u2014 the answer may still arrive on the server");
+                  if (onSay) onSay("stopped waiting \u2014 the answer may still arrive on the server");
                 },
                 style: {
                   marginLeft: "4px",
@@ -17627,12 +17700,41 @@ ${e.message || e}`,
       el(
         "div",
         { className: "nb-askbox" },
+        // What "send" is allowed to do. The pill is the consent control for
+        // agent mode: nothing runs a query or a script until the reader picks it.
+        el(
+          "div",
+          { className: "nb-modes", role: "group", "aria-label": "Answer mode" },
+          [
+            ["grounded", "Grounded", "Answers only from your sources, with citations"],
+            ["agent", "Agent + tools", "May run one SQL query or a short script, grounded in the sources"],
+            ["council", "Council", "Ask more than one model and compare"]
+          ].map(([id, label, title]) => el("button", {
+            key: id,
+            type: "button",
+            className: "nb-mode",
+            "data-active": agentMode === id ? "true" : "false",
+            "aria-pressed": agentMode === id,
+            title,
+            onClick: () => {
+              if (id === "council") {
+                if (onSay) onSay("council needs two models bound to this profile \u2014 only one is, so this stays off");
+                return;
+              }
+              setMode(id);
+            },
+            children: [
+              (0, import_jsx_runtime.jsx)(Glyph, { name: id === "agent" ? "terminal" : id === "council" ? "shield" : "lock", size: 13 }),
+              el("span", { children: label })
+            ]
+          }))
+        ),
         el("textarea", {
           ref: boxRef,
           value: text,
           onChange: (e) => setText(e.target.value),
           onKeyDown: onKey,
-          placeholder: "Ask a question or create something",
+          placeholder: agentMode === "agent" ? "Ask something, and Hermes may run a query or a script" : "Ask a question or create something",
           "aria-label": "Ask the notebook",
           rows: 2
         }),
@@ -17794,9 +17896,9 @@ ${e.message || e}`,
                     timeoutMs: 3e4
                   });
                   setCfgOpen(false);
-                  if (reload2) reload2();
+                  if (reload) reload();
                 } catch (e) {
-                  onSay2 && onSay2(`could not save chat options: ${e.message || e}`);
+                  onSay && onSay(`could not save chat options: ${e.message || e}`);
                 } finally {
                   setCfgBusy(false);
                 }
@@ -17842,7 +17944,7 @@ ${e.message || e}`,
             setThread(name);
             setThrOpen(false);
           } catch (e) {
-            onSay2 && onSay2(`could not start a chat: ${e.message || e}`);
+            onSay && onSay(`could not start a chat: ${e.message || e}`);
           }
         },
         onRename: async (name, title) => {
@@ -17854,9 +17956,9 @@ ${e.message || e}`,
             });
             const fresh = out && out.thread || {};
             setThreads((ts) => ts.map((t) => t.name === name ? { ...t, title: fresh.title || title } : t));
-            if (reload2) reload2(true);
+            if (reload) reload(true);
           } catch (e) {
-            onSay2 && onSay2(`could not rename: ${e.message || e}`);
+            onSay && onSay(`could not rename: ${e.message || e}`);
           }
         },
         onDelete: async (name) => {
@@ -17875,10 +17977,10 @@ ${e.message || e}`,
                 setMsgs([]);
               } else setThread("default");
             }
-            if (reload2) reload2(true);
-            if (onSay2) onSay2("conversation deleted");
+            if (reload) reload(true);
+            if (onSay) onSay("conversation deleted");
           } catch (e) {
-            onSay2 && onSay2(`could not delete chat: ${e.message || e}`);
+            onSay && onSay(`could not delete chat: ${e.message || e}`);
           }
         }
       }) : null
@@ -18092,7 +18194,7 @@ function ThreadDialog({ notebook, threads, current, onClose, onPick, onNew, onDe
   });
 }
 var CITE_TEXT_CACHE = /* @__PURE__ */ new Map();
-function Msg({ msg, onCite, notebook, canRetry, onRetry }) {
+function Msg({ msg, onCite, notebook, canRetry, onRetry, onSay, reload }) {
   const isUser = msg.role === "user";
   const [citePop, setCitePop] = (0, import_react.useState)(null);
   const citeFor = (n) => (msg.citations || []).find((c) => c.n === n);
@@ -18144,6 +18246,13 @@ function Msg({ msg, onCite, notebook, canRetry, onRetry }) {
       ) : el(
         "div",
         null,
+        (msg.actions || []).length ? el("div", { className: "nb-acts" }, msg.actions.map((a, i) => (0, import_jsx_runtime.jsx)(ActionCard, {
+          key: i,
+          action: a,
+          notebook,
+          onSay,
+          onSaved: reload ? () => reload(true) : null
+        }))) : null,
         el(
           "div",
           { className: "nb-who" },
@@ -18217,7 +18326,7 @@ function Msg({ msg, onCite, notebook, canRetry, onRetry }) {
     }) : null
   );
 }
-function SourcePeek({ source, notebook, onClose, onAskAbout, onRefresh, onPrev, onNext, onSay: onSay2 }) {
+function SourcePeek({ source, notebook, onClose, onAskAbout, onRefresh, onPrev, onNext, onSay }) {
   const [text, setText] = (0, import_react.useState)("");
   const [err, setErr] = (0, import_react.useState)("");
   const [refreshing, setRefreshing] = (0, import_react.useState)(false);
@@ -18300,7 +18409,7 @@ function SourcePeek({ source, notebook, onClose, onAskAbout, onRefresh, onPrev, 
         text ? (0, import_jsx_runtime.jsx)(IconBtn, {
           icon: "copy",
           label: "Copy source text",
-          onClick: () => copyText(text, onSay2)
+          onClick: () => copyText(text, onSay)
         }) : null,
         onRefresh && !["note", "text"].includes(source.kind) ? (0, import_jsx_runtime.jsx)(IconBtn, {
           icon: "refresh",
@@ -19588,7 +19697,7 @@ var INGEST = Machine("ingest", {
     failed: { on: { ADD: "adding", DISMISS: { target: "idle", action: () => ({ error: "" }) } } }
   }
 });
-function DiscoverPanel({ notebook, onSay: onSay2, reload: reload2 }) {
+function DiscoverPanel({ notebook, onSay, reload }) {
   const scout = useMachine(SCOUT);
   const ingest = useMachine(INGEST);
   const [q2, setQ] = (0, import_react.useState)("");
@@ -19618,7 +19727,7 @@ function DiscoverPanel({ notebook, onSay: onSay2, reload: reload2 }) {
       SCOUT.send("RESULTS", { result: out });
     } catch (e) {
       SCOUT.send("FAIL", { message: String(e.message || e) });
-      if (onSay2) onSay2(`discover failed: ${e.message || e}`);
+      if (onSay) onSay(`discover failed: ${e.message || e}`);
     }
   };
   const addChosen = async () => {
@@ -19631,14 +19740,14 @@ function DiscoverPanel({ notebook, onSay: onSay2, reload: reload2 }) {
         timeoutMs: 3e5
       });
       const landed = (out && out.results || []).filter((r) => r.ok).length;
-      if (onSay2) onSay2(`${landed} of ${chosen.length} sources added`);
+      if (onSay) onSay(`${landed} of ${chosen.length} sources added`);
       setPicked({});
       INGEST.send("DONE", { landed, asked: chosen.length });
-      if (reload2) await reload2();
+      if (reload) await reload();
       await run(res && res.query);
     } catch (e) {
       INGEST.send("FAIL", { message: String(e.message || e) });
-      if (onSay2) onSay2(`adding failed: ${e.message || e}`);
+      if (onSay) onSay(`adding failed: ${e.message || e}`);
     }
   };
   const emptyState = () => {
@@ -19854,7 +19963,7 @@ var RATING_HINT = {
   good: "as scheduled",
   easy: "much later"
 };
-function StudyPanel({ notebook, onSay: onSay2, onOpenSource }) {
+function StudyPanel({ notebook, onSay, onOpenSource }) {
   const m = useMachine(STUDY);
   const nbId = notebook && notebook.id;
   const card = m.ctx.queue[m.ctx.idx] || null;
@@ -20101,7 +20210,7 @@ function SidePill({ side }) {
     )
   );
 }
-function TensionsPanel({ notebook, onSay: onSay2, onOpenSource, modelReady, onCite }) {
+function TensionsPanel({ notebook, onSay, onOpenSource, modelReady, onCite }) {
   const audit = useMachine(TENSION_AUDIT);
   const [reported, setReported] = (0, import_react.useState)(null);
   const nbId = notebook && notebook.id;
@@ -20121,10 +20230,10 @@ function TensionsPanel({ notebook, onSay: onSay2, onOpenSource, modelReady, onCi
       });
       setReported(out);
       TENSION_AUDIT.send("DONE", { report: out });
-      if (out && out.degraded && onSay2) onSay2(`audit limited: ${out.degraded}`);
+      if (out && out.degraded && onSay) onSay(`audit limited: ${out.degraded}`);
     } catch (e) {
       TENSION_AUDIT.send("FAIL", { message: String(e.message || e) });
-      if (onSay2) onSay2(`tension audit failed: ${e.message || e}`);
+      if (onSay) onSay(`tension audit failed: ${e.message || e}`);
     }
   };
   const verdict = (() => {
@@ -20304,7 +20413,7 @@ function useFile(notebookId, name) {
   }, [notebookId, name]);
   return st;
 }
-function Viewer({ artifact, notebook, onCite, onRegenerate, regenerating, onChanged, onPrevRun, onNextRun, runPos, onClose, onSay: onSay2 }) {
+function Viewer({ artifact, notebook, onCite, onRegenerate, regenerating, onChanged, onPrevRun, onNextRun, runPos, onClose, onSay }) {
   const [renOpen, setRenOpen] = (0, import_react.useState)(false);
   const [renVal, setRenVal] = (0, import_react.useState)("");
   const [renBusy, setRenBusy] = (0, import_react.useState)(false);
@@ -20318,10 +20427,10 @@ function Viewer({ artifact, notebook, onCite, onRegenerate, regenerating, onChan
         timeoutMs: 3e4
       });
       setRenOpen(false);
-      if (onSay2) onSay2("renamed");
+      if (onSay) onSay("renamed");
       if (onChanged) onChanged();
     } catch (e) {
-      if (onSay2) onSay2(`could not rename: ${e.message || e}`);
+      if (onSay) onSay(`could not rename: ${e.message || e}`);
     } finally {
       setRenBusy(false);
     }
@@ -20360,7 +20469,7 @@ function Viewer({ artifact, notebook, onCite, onRegenerate, regenerating, onChan
       notebook,
       jsonName,
       onCite,
-      onSay: onSay2,
+      onSay,
       htmlUrl: primary.url && artifact.ext === "html" ? primary.url : ""
     });
   } else if (artifact.kind === "infographic" || artifact.kind === "blueprint_evolution") {
@@ -20371,7 +20480,7 @@ function Viewer({ artifact, notebook, onCite, onRegenerate, regenerating, onChan
       name: artifact.primary,
       data: asJson.json,
       notebookId: notebook && notebook.id,
-      onSay: onSay2
+      onSay
     });
   } else if (artifact.kind === "summary" || artifact.kind === "briefing_doc") {
     body = (0, import_jsx_runtime.jsx)(DocView, { text: primary.text, kind: artifact.kind, onCite });
@@ -20419,7 +20528,7 @@ function Viewer({ artifact, notebook, onCite, onRegenerate, regenerating, onChan
         primary.text ? (0, import_jsx_runtime.jsx)(IconBtn, {
           icon: "copy",
           label: "Copy artifact text",
-          onClick: () => copyText(primary.text, onSay2 || (host2.say ? (m) => host2.say(m) : null))
+          onClick: () => copyText(primary.text, onSay || (host2.say ? (m) => host2.say(m) : null))
         }) : null,
         (0, import_jsx_runtime.jsx)(IconBtn, {
           icon: "download",
@@ -21730,7 +21839,7 @@ function QuizView({ data, text, deckId }) {
   );
 }
 var normAnswer = (s) => String(s == null ? "" : s).trim().toLowerCase().replace(/^[a-d][).]\s*/, "").replace(/[^a-z0-9 ]/g, "").trim();
-function SlidesView({ data, htmlUrl, notebook, jsonName, onCite, onSay: onSay2 }) {
+function SlidesView({ data, htmlUrl, notebook, jsonName, onCite, onSay }) {
   const deck = data || {};
   const slides = deck.slides || [];
   const [i, setI] = (0, import_react.useState)(0);
@@ -21778,11 +21887,11 @@ function SlidesView({ data, htmlUrl, notebook, jsonName, onCite, onSay: onSay2 }
       a.remove();
       setTimeout(() => URL.revokeObjectURL(url), 2e3);
       const said = `downloaded ${out.name || "deck.pptx"}`;
-      if (onSay2) onSay2(said);
+      if (onSay) onSay(said);
       else if (host2.say) host2.say(said);
     } catch (e) {
       const said = `pptx export failed: ${e.message || e}`;
-      if (onSay2) onSay2(said);
+      if (onSay) onSay(said);
       else if (host2.say) host2.say(said);
     } finally {
       setPptxBusy(false);
@@ -22058,7 +22167,7 @@ function parseCsv(text) {
   }
   return rows;
 }
-function DownloadMenu({ csvText, name, notebookId, onCsv, onSay: onSay2 }) {
+function DownloadMenu({ csvText, name, notebookId, onCsv, onSay }) {
   const [open, setOpen] = (0, import_react.useState)(false);
   const [busy, setBusy] = (0, import_react.useState)(false);
   const ref = (0, import_react.useRef)(null);
@@ -22082,7 +22191,7 @@ function DownloadMenu({ csvText, name, notebookId, onCsv, onSay: onSay2 }) {
     const tsv = rows.map((r) => r.join("	")).join("\n");
     await copyText(tsv, (m) => {
       const out = m === "copied to the clipboard" ? "copied as tab-separated text \u2014 paste into a sheet" : m;
-      if (onSay2) onSay2(out);
+      if (onSay) onSay(out);
       else if (host2.say) host2.say(out);
     });
     setOpen(false);
@@ -22103,11 +22212,11 @@ function DownloadMenu({ csvText, name, notebookId, onCsv, onSay: onSay2 }) {
       a.remove();
       setTimeout(() => URL.revokeObjectURL(url), 2e3);
       const said = `downloaded ${out.name || `${stem}.xlsx`}`;
-      if (onSay2) onSay2(said);
+      if (onSay) onSay(said);
       else if (host2.say) host2.say(said);
     } catch (e) {
       const said = `xlsx export failed: ${e.message || e}`;
-      if (onSay2) onSay2(said);
+      if (onSay) onSay(said);
       else if (host2.say) host2.say(said);
     } finally {
       setBusy(false);
@@ -22146,7 +22255,7 @@ function DownloadMenu({ csvText, name, notebookId, onCsv, onSay: onSay2 }) {
     ]) : null
   ]);
 }
-function DataTableView({ text, name, data, notebookId, onSay: onSay2 }) {
+function DataTableView({ text, name, data, notebookId, onSay }) {
   const rows = (0, import_react.useMemo)(() => parseCsv(text), [text]);
   const [sort, setSort] = (0, import_react.useState)({ col: -1, dir: 1 });
   const [q2, setQ] = (0, import_react.useState)("");
@@ -22190,7 +22299,7 @@ function DataTableView({ text, name, data, notebookId, onSay: onSay2 }) {
       el("span", { className: "nb-meta", children: q2.trim() ? `${filtered.length} of ${body.length} rows \xD7 ${head.length} columns` : `${body.length} rows \xD7 ${head.length} columns` }),
       el("span", { style: { flex: 1 } }),
       body.length > 8 ? (0, import_jsx_runtime.jsx)(SearchField, { value: q2, onChange: setQ, placeholder: "Filter rows", label: "Filter table rows" }) : null,
-      (0, import_jsx_runtime.jsx)(DownloadMenu, { csvText: text, name, notebookId, onCsv: exportCsv, onSay: onSay2 })
+      (0, import_jsx_runtime.jsx)(DownloadMenu, { csvText: text, name, notebookId, onCsv: exportCsv, onSay })
     ),
     // the aggregates the prompt computed are not in the CSV (it is rectangular);
     // they belong beside the table, not only inside the workbook
@@ -23215,6 +23324,161 @@ function SlideBody({ slide: s, ctx }) {
     )
   );
 }
+function ActionCard({ action, notebook, onSay, onSaved }) {
+  const [open, setOpen] = (0, import_react.useState)(false);
+  const [busy, setBusy] = (0, import_react.useState)(false);
+  const [result, setResult] = (0, import_react.useState)(null);
+  const view = result || action;
+  const ok = !!view.ok;
+  const engine = view.engine ? ` \xB7 ${view.engine}` : "";
+  const tool = view.tool || "query_table";
+  const language = view.language === "bash" ? "Bash" : tool === "run_script" ? "Python" : "";
+  const title = tool === "query_table" ? `SQL${engine}` : tool === "run_script" ? `${language} sandbox` : `MCP \xB7 ${view.server || "server"}`;
+  const input = tool === "query_table" ? view.sql || "" : tool === "run_script" ? view.code || "" : JSON.stringify({ server: view.server, tool: view.tool_name, arguments: view.arguments }, null, 2);
+  const ms = view.ms;
+  const output = () => {
+    if (tool === "query_table") {
+      if (!ok) return el("div", { className: "nb-act-err", children: view.error || "the query failed" });
+      const cols = view.columns || [];
+      const rows = view.rows || [];
+      const table = el(
+        "div",
+        { className: "nb-act-tablewrap" },
+        el(
+          "table",
+          { className: "nb-act-table" },
+          el("thead", null, el("tr", null, cols.map((c, i) => el("th", { key: i, children: String(c) })))),
+          el("tbody", null, rows.slice(0, 40).map((r, i) => el(
+            "tr",
+            { key: i },
+            r.map((cell, k) => el("td", { key: k, children: cell === null ? "\u2205" : String(cell) }))
+          )))
+        )
+      );
+      return view.truncated ? el("div", null, table, el("div", { className: "nb-act-note", children: "first 40 of a longer result" })) : table;
+    }
+    const text = view.out || "";
+    const err = tool === "run_script" ? view.err || "" : ok ? "" : view.error || "";
+    return el(
+      "div",
+      null,
+      text ? el("pre", { className: "nb-act-pre", children: text }) : null,
+      err ? el("pre", { className: "nb-act-pre nb-act-err", children: err }) : null,
+      !text && !err ? el("div", { className: "nb-act-note", children: "no output" }) : null
+    );
+  };
+  const rerun = async () => {
+    setBusy(true);
+    try {
+      const out = await api("/agent/rerun", {
+        method: "POST",
+        body: {
+          notebook: notebook.id,
+          tool,
+          arguments: tool === "query_table" ? { sql: view.sql } : tool === "run_script" ? { language: view.language || "python", code: view.code } : { server: view.server, tool: view.tool_name, arguments: view.arguments }
+        },
+        timeoutMs: 9e4
+      });
+      setResult(out.action);
+      setOpen(true);
+      if (onSay) onSay(`${title} re-ran \xB7 ${out.action.ok ? "ok" : "failed"}`);
+    } catch (e) {
+      if (onSay) onSay(`could not re-run: ${e.message || e}`);
+    } finally {
+      setBusy(false);
+    }
+  };
+  const saveAsSource = async () => {
+    const body = tool === "query_table" && ok ? (view.columns || []).length ? [view.columns.join(" | "), ...(view.rows || []).map((r) => r.join(" | "))].join("\n") : "" : view.out || "";
+    if (!body.trim()) {
+      if (onSay) onSay("nothing to save from this run");
+      return;
+    }
+    setBusy(true);
+    try {
+      await api("/note", {
+        method: "POST",
+        body: { notebook: notebook.id, text: body, title: `Result \xB7 ${title}` },
+        timeoutMs: 6e4
+      });
+      if (onSay) onSay("saved as a source \u2014 it is searchable now");
+      if (onSaved) onSaved();
+    } catch (e) {
+      if (onSay) onSay(`could not save: ${e.message || e}`);
+    } finally {
+      setBusy(false);
+    }
+  };
+  return el(
+    "div",
+    { className: "nb-act", "data-ok": ok ? "true" : "false" },
+    el(
+      "button",
+      {
+        type: "button",
+        className: "nb-act-head",
+        onClick: () => setOpen((o) => !o),
+        "aria-expanded": open,
+        title: open ? "Hide the details" : "Show what ran"
+      },
+      el("span", {
+        className: "nb-act-status",
+        "aria-hidden": "true",
+        children: busy ? "\u25D0" : ok ? "\u2713" : "\u2715"
+      }),
+      el("span", { className: "nb-act-title", children: title }),
+      el("span", {
+        className: "nb-act-meta",
+        // the right noun per tool: an exit code is a script's vocabulary, a row
+        // count is a query's
+        children: tool === "query_table" ? ok ? `${(view.rows || []).length} row${(view.rows || []).length === 1 ? "" : "s"}${view.truncated ? "+" : ""}` : "failed" : tool === "run_script" ? ok ? "exit 0" : `exit ${view.exit === null || view.exit === void 0 ? "?" : view.exit}` : ok ? "ok" : "failed"
+      }),
+      ms !== void 0 && ms !== null ? el("span", { className: "nb-act-ms", children: `${ms}ms` }) : null,
+      (0, import_jsx_runtime.jsx)("span", {
+        className: "nb-act-chev",
+        "aria-hidden": "true",
+        children: (0, import_jsx_runtime.jsx)(Glyph, { name: "chevron", size: 13 })
+      })
+    ),
+    open ? el(
+      "div",
+      { className: "nb-act-body" },
+      input ? el(
+        "div",
+        null,
+        el("div", { className: "nb-act-label", children: tool === "query_table" ? "Statement" : "Code" }),
+        el("pre", { className: "nb-act-pre nb-act-in", children: input })
+      ) : null,
+      el("div", { className: "nb-act-label", children: "Result" }),
+      output(),
+      el(
+        "div",
+        { className: "nb-act-foot" },
+        (0, import_jsx_runtime.jsx)(Btn, { size: "sm", icon: "refresh", disabled: busy, onClick: rerun, children: "Re-run" }),
+        tool === "query_table" && ok ? (0, import_jsx_runtime.jsx)(Btn, { size: "sm", icon: "download", onClick: () => {
+          const cols = view.columns || [];
+          const rows = view.rows || [];
+          const csv = [cols.join(","), ...rows.map((r) => r.map((c) => {
+            const v = c === null || c === void 0 ? "" : String(c);
+            return /[",\n]/.test(v) ? '"' + v.replace(/"/g, '""') + '"' : v;
+          }).join(","))].join("\n");
+          const url = URL.createObjectURL(new Blob([csv], { type: "text/csv;charset=utf-8" }));
+          const a = document.createElement("a");
+          a.href = url;
+          a.download = `${tool}-result.csv`;
+          a.click();
+          URL.revokeObjectURL(url);
+          if (onSay) onSay(`exported ${rows.length} rows as CSV`);
+        }, children: "Export CSV" }) : null,
+        (0, import_jsx_runtime.jsx)(Btn, { size: "sm", icon: "note", disabled: busy, onClick: saveAsSource, children: "Save as source" }),
+        (0, import_jsx_runtime.jsx)(Btn, { size: "sm", icon: "copy", onClick: () => copyText(
+          tool === "query_table" && ok ? [view.columns.join("	"), ...(view.rows || []).map((r) => r.join("	"))].join("\n") : view.out || view.code || "",
+          onSay
+        ), children: "Copy output" })
+      )
+    ) : null
+  );
+}
 var OPS_TABS = [
   { id: "services", label: "Services", icon: "server" },
   { id: "terminal", label: "Terminal", icon: "terminal" },
@@ -23222,7 +23486,7 @@ var OPS_TABS = [
   { id: "snapshots", label: "Snapshots", icon: "camera" },
   { id: "audit", label: "Audit", icon: "shield" }
 ];
-function OpsDeck({ onSay: onSay2, onStats }) {
+function OpsDeck({ onSay, onStats }) {
   const [state, setState] = (0, import_react.useState)({ loading: true, hosts: [], error: "", measured_at: "" });
   const [sel, setSel] = (0, import_react.useState)("local");
   const [tab, setTab] = (0, import_react.useState)("services");
@@ -23353,7 +23617,7 @@ function OpsDeck({ onSay: onSay2, onStats }) {
     el(
       "section",
       { className: "nb-col nb-main-col", "aria-label": "Selected host" },
-      host3 ? (0, import_jsx_runtime.jsx)(HostView, { host: host3, tab, setTab, onSay: onSay2, key: host3.id }) : el(
+      host3 ? (0, import_jsx_runtime.jsx)(HostView, { host: host3, tab, setTab, onSay, key: host3.id }) : el(
         "div",
         { className: "nb-void" },
         el(
@@ -23366,7 +23630,7 @@ function OpsDeck({ onSay: onSay2, onStats }) {
     )
   );
 }
-function HostView({ host: host3, tab, setTab, onSay: onSay2 }) {
+function HostView({ host: host3, tab, setTab, onSay }) {
   const ok = host3.reachable;
   return el(
     "div",
@@ -23412,7 +23676,7 @@ function HostView({ host: host3, tab, setTab, onSay: onSay2 }) {
         }, t.id))
       )
     ),
-    ok ? tab === "services" ? (0, import_jsx_runtime.jsx)(ServicesTab, { host: host3, onSay: onSay2 }) : tab === "terminal" ? (0, import_jsx_runtime.jsx)(TerminalTab, { host: host3, onSay: onSay2 }) : tab === "files" ? (0, import_jsx_runtime.jsx)(FilesTab, { host: host3 }) : tab === "snapshots" ? (0, import_jsx_runtime.jsx)(SnapshotsTab, { host: host3, onSay: onSay2 }) : (0, import_jsx_runtime.jsx)(AuditTab, { onSay: onSay2 }) : el(
+    ok ? tab === "services" ? (0, import_jsx_runtime.jsx)(ServicesTab, { host: host3, onSay }) : tab === "terminal" ? (0, import_jsx_runtime.jsx)(TerminalTab, { host: host3, onSay }) : tab === "files" ? (0, import_jsx_runtime.jsx)(FilesTab, { host: host3 }) : tab === "snapshots" ? (0, import_jsx_runtime.jsx)(SnapshotsTab, { host: host3, onSay }) : (0, import_jsx_runtime.jsx)(AuditTab, { onSay }) : el(
       "div",
       { className: "nb-void" },
       el(
@@ -23431,7 +23695,7 @@ var fmtUptime = (s) => {
   if (d) return `${d}d ${h}h`;
   return `${h}h ${Math.floor(v % 3600 / 60)}m`;
 };
-function ServicesTab({ host: host3, onSay: onSay2 }) {
+function ServicesTab({ host: host3, onSay }) {
   const [state, setState] = (0, import_react.useState)({ loading: true, units: [], failed: 0, error: "" });
   const [q2, setQ] = (0, import_react.useState)("");
   const [busy, setBusy] = (0, import_react.useState)("");
@@ -23461,7 +23725,7 @@ function ServicesTab({ host: host3, onSay: onSay2 }) {
       await load();
     } catch (e) {
       setResult({ unit, verb, ok: false, err: e.message || String(e) });
-      if (onSay2) onSay2(`${verb} ${unit}: ${e.message || e}`);
+      if (onSay) onSay(`${verb} ${unit}: ${e.message || e}`);
     } finally {
       setBusy("");
     }
@@ -23544,7 +23808,7 @@ ${(result.out || result.err || "").trim().slice(0, 400)}`
     )
   );
 }
-function TerminalTab({ host: host3, onSay: onSay2 }) {
+function TerminalTab({ host: host3, onSay }) {
   const [lines, setLines] = (0, import_react.useState)([]);
   const [cmd, setCmd] = (0, import_react.useState)("");
   const [busy, setBusy] = (0, import_react.useState)(false);
@@ -23577,7 +23841,7 @@ ${r.err}` : ""),
       }]);
     } catch (e) {
       setLines((l) => [...l, { kind: "out", ok: false, text: e.message || String(e), at: Date.now() }]);
-      if (onSay2) onSay2(e.message || "exec failed");
+      if (onSay) onSay(e.message || "exec failed");
     } finally {
       setBusy(false);
     }
@@ -23747,7 +24011,7 @@ function FilesTab({ host: host3 }) {
     ) : null
   );
 }
-function SnapshotsTab({ host: host3, onSay: onSay2 }) {
+function SnapshotsTab({ host: host3, onSay }) {
   const [vmid, setVmid] = (0, import_react.useState)("100");
   const [state, setState] = (0, import_react.useState)({ loading: false, list: [], raw: "", error: "" });
   const [name, setName] = (0, import_react.useState)("");
@@ -23765,10 +24029,10 @@ function SnapshotsTab({ host: host3, onSay: onSay2 }) {
     setBusy(true);
     try {
       const out = await api("/ops/snapshot", { method: "POST", body: { host: host3.id, vmid, name }, timeoutMs: 2e5 });
-      if (onSay2) onSay2(`snapshot ${out.label} ${out.ok ? "created" : "failed"}`);
+      if (onSay) onSay(`snapshot ${out.label} ${out.ok ? "created" : "failed"}`);
       await load();
     } catch (e) {
-      if (onSay2) onSay2(e.message || "snapshot failed");
+      if (onSay) onSay(e.message || "snapshot failed");
       setState((s) => ({ ...s, error: e.message || String(e) }));
     } finally {
       setBusy(false);
@@ -23828,7 +24092,7 @@ function SnapshotsTab({ host: host3, onSay: onSay2 }) {
     )
   );
 }
-function AuditTab({ onSay: onSay2 }) {
+function AuditTab({ onSay }) {
   const [state, setState] = (0, import_react.useState)({ loading: true, entries: [], error: "" });
   const load = (0, import_react.useCallback)(async () => {
     try {
@@ -26419,6 +26683,50 @@ var rest = async (path, opts) => {
       seconds: 4.2
     };
   }
+  if (route === "agent/catalog") {
+    return {
+      ok: true,
+      model_ready: true,
+      engine: "sqlite",
+      tools: [{ id: "query_table", title: "SQL", blurb: "", args: {} }],
+      tables: [{ table: "data_table", source: "data_table.csv", columns: ["entity", "amount"], rows: 3, kind: "csv" }],
+      mcp: []
+    };
+  }
+  if (route === "agent/run") {
+    await new Promise((r) => setTimeout(r, 700));
+    return {
+      ok: true,
+      mode: "agent",
+      seconds: 3.1,
+      answer: "Across the three funding lines the sources name, the total is **$6.37B**, and FIA accounts for the largest share at $4.48B [S4].",
+      citations: [
+        { n: 4, title: "FIA funding", kind: "url", origin: "https://fusionindustryassociation.org", id: "fia-funding" }
+      ].map((c) => ({ ...c, snippet: "FIA counts $4.48B in the year to July 2026." })),
+      actions: [{
+        tool: "query_table",
+        ok: true,
+        engine: "sqlite",
+        ms: 12,
+        sql: "SELECT entity, amount FROM data_table ORDER BY amount DESC",
+        columns: ["entity", "amount"],
+        rows: [["FIA", 4.48], ["ITER", 1.1], ["DOE", 0.79]],
+        truncation: false
+      }]
+    };
+  }
+  if (route === "agent/rerun") {
+    return { ok: true, action: {
+      tool: "query_table",
+      ok: true,
+      engine: "sqlite",
+      ms: 9,
+      sql: "SELECT entity, amount FROM data_table ORDER BY amount DESC",
+      columns: ["entity", "amount"],
+      rows: [["FIA", 4.48], ["ITER", 1.1], ["DOE", 0.79]]
+    } };
+  }
+  if (route === "note") return { ok: true };
   if (route === "tensions") {
     await new Promise((r) => setTimeout(r, 900));
     return {

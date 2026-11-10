@@ -396,6 +396,39 @@ async function functional(port) {
     }
   }
 
+  // ------------------------------------------------------------ agent mode
+  // The pill is the consent control: pressing it must switch the request path to
+  // /agent/run, and the answer must carry the tool that ran as a card you can open.
+  {
+    const agentPill = page.locator('.nb-mode', { hasText: 'Agent' }).first()
+    const council = page.locator('.nb-mode', { hasText: 'Council' }).first()
+    ok('the composer offers grounded / agent / council', await page.locator('.nb-mode').count() === 3,
+      `${await page.locator('.nb-mode').count()} pills`)
+    ok('council refuses instead of pretending', (await council.getAttribute('aria-pressed')) === 'false', 'off by default')
+    await agentPill.click()
+    await settle(page, 200)
+    ok('agent mode is a sticky, visible state', (await agentPill.getAttribute('aria-pressed')) === 'true', 'pressed')
+    await page.locator('.nb-askbox textarea').fill('Which entity received the most funding?')
+    await page.locator('.nb-askbox .nb-sendbtn').click()
+    await settle(page, 1600)
+    const cards = page.locator('.nb-act')
+    ok('a tool run renders as its own card', (await cards.count()) >= 1, `${await cards.count()} card(s)`)
+    if (await cards.count()) {
+      const head = (await cards.first().locator('.nb-act-title').innerText()).trim()
+      ok('the card names the tool and its engine', /SQL/i.test(head), head)
+      await cards.first().locator('.nb-act-head').click()
+      await settle(page, 300)
+      const rows = await cards.first().locator('.nb-act-table tbody tr').count()
+      const sql = await cards.first().locator('.nb-act-in').innerText().catch(() => '')
+      ok('opening the card shows the statement and its rows', rows >= 3 && /select/i.test(sql),
+        `${rows} rows · ${sql.slice(0, 30)}`)
+      ok('a run can be saved as a source', await cards.first().locator('button', { hasText: 'Save as source' }).count() === 1, 'present')
+    }
+    await page.locator('.nb-mode', { hasText: 'Grounded' }).first().click()
+    await settle(page, 200)
+    ok('switching back to grounded is one click', (await page.locator('.nb-mode', { hasText: 'Grounded' }).first().getAttribute('aria-pressed')) === 'true', 'back')
+  }
+
   // label filter narrows the rail
   const before = await page.locator('.nb-src').count()
   const chip = page.locator('.nb-chip[data-click="true"]').first()

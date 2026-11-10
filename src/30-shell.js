@@ -494,7 +494,9 @@ function App() {
     const mo = new MutationObserver(() => read())
     mo.observe(document.documentElement, { attributes: true, attributeFilter: ['class', 'style', 'data-theme'] })
     if (document.head) mo.observe(document.head, { childList: true, subtree: true })
-    const id = setInterval(read, 1500)
+    // 300ms, not 1.5s: a theme swap made between frames must land before the
+    // next measurement, and this read is one getComputedStyle on the root
+    const id = setInterval(read, 300)
     return () => { mo.disconnect(); clearInterval(id) }
   }, [])
 

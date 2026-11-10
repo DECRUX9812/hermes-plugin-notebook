@@ -35,6 +35,9 @@ notebook generated in chat shows up in the studio and vice versa.
     POST /generate                   {notebook, kind, focus?, count_hint?, style?, language?, …}
     POST /label                      {notebook, force?} -> auto-labels via the model
     POST /search                     {notebook, query|q, limit?} -> ranked hits with snippets
+    GET  /agent/catalog?notebook=    the tables, tools and MCP servers agent mode can use
+    POST /agent/run                  {notebook, question, mode} -> one grounded tool call + answer
+    POST /agent/rerun                {notebook, tool, arguments} -> run one recorded action again
     POST /tensions                   {notebook, max_items?, language?} -> where the sources disagree
     POST /options                    {notebook, options{}} -> per-notebook preferences
     POST /study/review               {notebook, card, rating} -> schedule the next review
@@ -1066,6 +1069,67 @@ def source_text(notebook: str = Query(...), id: str = Query(...),
     return {"ok": True, "id": src.get("id", id), "title": src.get("title") or id,
             "kind": src.get("kind", ""), "origin": src.get("origin", ""),
             "chars": len(text), "truncated": len(text) > limit, "text": text[:limit]}
+
+
+@router.get("/agent/catalog")
+def agent_catalog(notebook: str = Query("", description="notebook id or title")) -> Any:
+    """What agent mode can actually do here: the tables, the tools, the MCP servers."""
+    from hermes_notebook import agent_tools
+    nb = str(notebook or "")
+    try:
+        nb_id = store.resolve_notebook(nb) if nb else ""
+    except Exception as exc:
+        return _fail(_why(exc), 404)
+    out = agent_tools.catalog(nb_id) if nb_id else {
+        "ok": True, "engine": agent_tools.engine_name(), "tools": agent_tools.TOOLS,
+        "tables": [], "mcp": []}
+    out["model_ready"] = _model_ready()
+    return out
+
+
+@router.post("/agent/run")
+def agent_run(payload: Dict[str, Any] = Body(...)) -> Any:
+    """One grounded tool call, then an answer made from its real output.
+
+    ``mode`` is the composer's pill: ``agent`` plans and may execute,
+    ``grounded`` answers from the sources only (no tool is run even if asked).
+    """
+    from hermes_notebook import agent
+    nb = str(payload.get("notebook") or "")
+    question = str(payload.get("question") or "")
+    if not question.strip():
+        return _fail("ask something first")
+    try:
+        nb_id = store.resolve_notebook(nb)
+    except Exception as exc:
+        return _fail(_why(exc), 404)
+    _ensure_model()
+    mode = "agent" if str(payload.get("mode") or "agent") == "agent" else "grounded"
+    try:
+        out = agent.run(nb_id, question, thread=str(payload.get("thread") or ""), mode=mode)
+    except Exception as exc:
+        return _fail(_why(exc), 500)
+    if not out.get("ok"):
+        return _fail(str(out.get("error") or "the agent did not answer"),
+                     extra={"actions": out.get("actions") or []})
+    return {"ok": True, "notebook": nb_id, "answer": out.get("answer", ""),
+            "citations": out.get("citations") or [], "actions": out.get("actions") or [],
+            "mode": out.get("mode"), "seconds": out.get("seconds")}
+
+
+@router.post("/agent/rerun")
+def agent_rerun(payload: Dict[str, Any] = Body(...)) -> Any:
+    """Re-run one recorded action verbatim — the card's ⚡ Re-run button."""
+    from hermes_notebook import agent
+    try:
+        nb_id = store.resolve_notebook(str(payload.get("notebook") or ""))
+    except Exception as exc:
+        return _fail(_why(exc), 404)
+    out = agent.rerun(nb_id, str(payload.get("tool") or ""),
+                      payload.get("arguments") if isinstance(payload.get("arguments"), dict) else {})
+    if not out.get("ok"):
+        return _fail(str(out.get("error") or "that action did not run"), 400, action=out.get("action"))
+    return {"ok": True, "action": out["action"]}
 
 
 @router.post("/search")

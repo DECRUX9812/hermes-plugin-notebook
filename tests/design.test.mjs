@@ -221,7 +221,11 @@ const LIGHT_RAMP = `
   --ui-bg-elevated:#FEFCF7;
   --ui-success:#3D8B40; --ui-warning:#E68A00; --ui-danger:#C62828;
 }
-html,body{background:#FEFCF7}`
+html,body{background:#FEFCF7}
+/* Colours are a resting property: a palette flip animates every surface and
+   text colour, so a probe that samples mid-transition reports ghost ratios
+   (light ink over a light canvas at 1.02:1). Freeze motion for the pass. */
+*,*::before,*::after{transition:none!important;animation:none!important}`
 
 const lightFails = []
 for (const [name, query] of surfaces) {
@@ -231,7 +235,11 @@ for (const [name, query] of surfaces) {
   await page.waitForSelector('.nb-root', { timeout: 15000 }).catch(() => {})
   await settle(page, 900)
   await page.addStyleTag({ content: LIGHT_RAMP })
-  await settle(page, 500)
+  // The page decides its skin by MEASURING the host's canvas (the host sets no
+  // color-scheme, so CSS alone cannot know). Wait for that decision instead of
+  // assuming it lands inside a fixed sleep — a race here read as a contrast bug.
+  await page.waitForSelector('.nb-root[data-skin="light"]', { timeout: 6000 }).catch(() => {})
+  await settle(page, 250)
   const r = await page.evaluate(`(${PROBE.toString()})()`)
   for (const n of r.lowContrast) {
     lightFails.push(`${name}: ${n.ratio}:1 ${n.size} .${n.cls} "${n.text}"`)

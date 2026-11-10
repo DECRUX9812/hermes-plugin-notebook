@@ -386,6 +386,11 @@ def list_artifacts(notebook_id: str) -> list[dict]:
     return out
 
 
+def artifact_dir(notebook_id: str) -> Path:
+    """The notebook's artifacts directory (whether or not it exists yet)."""
+    return _nb_dir(notebook_id) / "artifacts"
+
+
 def artifact_path(notebook_id: str, filename: str) -> Path:
     """Resolve an artifact filename inside the notebook's artifacts dir (no traversal)."""
     if "/" in filename or "\\" in filename or filename.startswith("."):

@@ -85,6 +85,37 @@ const rest = async (path, opts) => {
       chunks_used: 12, total_chunks: 96, seconds: 4.2
     }
   }
+  // ---- agent mode: one grounded tool run, replayed from a real shape
+  if (route === 'agent/catalog') {
+    return { ok: true, model_ready: true, engine: 'sqlite',
+      tools: [{ id: 'query_table', title: 'SQL', blurb: '', args: {} }],
+      tables: [{ table: 'data_table', source: 'data_table.csv', columns: ['entity', 'amount'], rows: 3, kind: 'csv' }],
+      mcp: [] }
+  }
+  if (route === 'agent/run') {
+    await new Promise((r) => setTimeout(r, 700))
+    return {
+      ok: true, mode: 'agent', seconds: 3.1,
+      answer: 'Across the three funding lines the sources name, the total is **$6.37B**, and FIA accounts for the largest share at $4.48B [S4].',
+      citations: [
+        { n: 4, title: 'FIA funding', kind: 'url', origin: 'https://fusionindustryassociation.org', id: 'fia-funding' }
+      ].map((c) => ({ ...c, snippet: 'FIA counts $4.48B in the year to July 2026.' })),
+      actions: [{
+        tool: 'query_table', ok: true, engine: 'sqlite', ms: 12,
+        sql: 'SELECT entity, amount FROM data_table ORDER BY amount DESC',
+        columns: ['entity', 'amount'],
+        rows: [['FIA', 4.48], ['ITER', 1.1], ['DOE', 0.79]],
+        truncation: false
+      }]
+    }
+  }
+  if (route === 'agent/rerun') {
+    return { ok: true, action: { tool: 'query_table', ok: true, engine: 'sqlite', ms: 9,
+      sql: 'SELECT entity, amount FROM data_table ORDER BY amount DESC',
+      columns: ['entity', 'amount'], rows: [['FIA', 4.48], ['ITER', 1.1], ['DOE', 0.79]] } }
+  }
+  if (route === 'note') return { ok: true }
+
   if (route === 'tensions') {
     await new Promise((r) => setTimeout(r, 900))
     return {

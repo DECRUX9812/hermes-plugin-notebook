@@ -278,6 +278,10 @@ function Chat({ notebook, kinds, askOpen, onSay, modelReady, onCite, onOpenSourc
   const [thread, setThread] = useState('default')
   const [threads, setThreads] = useState(() => notebook.threads || [])
   const [thrOpen, setThrOpen] = useState(false)
+  // The composer's pill: what "send" means. Grounded is read-only, agent may run
+  // a tool, council wants more than one model to answer.
+  const [agentMode, setAgentMode] = useState(() => persist.get('composerMode', 'grounded'))
+  const setMode = (m) => { setAgentMode(m); persist.set('composerMode', m) }
   const curThread = useRef('default')
   curThread.current = thread
   const [msgs, setMsgs] = useState(() =>
@@ -447,21 +451,26 @@ function Chat({ notebook, kinds, askOpen, onSay, modelReady, onCite, onOpenSourc
     const started = Date.now()
     TURN.send('ASK', { q, since: started })
     try {
-      const out = await api('/ask', {
+      const agentRun = agentMode === 'agent' && !retry
+      const out = await api(agentRun ? '/agent/run' : '/ask', {
         method: 'POST',
         body: {
           notebook: notebook.id, question: q, thread: t,
+          ...(agentRun ? { mode: 'agent' } : {}),
           ...(retry ? { retry: true } : {}),
-          ...(askScope && (askScope.ids || askScope.id)
+          ...(!agentRun && askScope && (askScope.ids || askScope.id)
             ? { source_ids: askScope.ids || [askScope.id] }
             : {})
         },
-        timeoutMs: 180000
+        timeoutMs: 240000
       })
       const answer = {
         role: 'assistant', content: out.answer, k: `a${Date.now()}`,
         citations: out.citations || [], seconds: out.seconds,
-        meta: `${out.chunks_used || 0} of ${out.total_chunks || 0} passages`
+        actions: out.actions || [],
+        meta: (out.actions || []).length
+          ? `${out.actions.length} tool${out.actions.length === 1 ? '' : 's'} ran`
+          : `${out.chunks_used || 0} of ${out.total_chunks || 0} passages`
       }
       const prev = threadCache.get(key) || []
       const next = cacheMsgs(key, [...prev, answer])
@@ -580,7 +589,7 @@ function Chat({ notebook, kinds, askOpen, onSay, modelReady, onCite, onOpenSourc
             }))
         : null,
       msgs.map((m, i) => jsx(Msg, {
-        msg: m, onCite, onOpenSource, notebook,
+        msg: m, onCite, onOpenSource, notebook, onSay, reload,
         canRetry: !pending && m.role === 'assistant' && i === msgs.length - 1 &&
                   msgs.slice(0, i).some((x) => x.role === 'user'),
         onRetry: () => send(null, { retry: true })
@@ -627,9 +636,32 @@ function Chat({ notebook, kinds, askOpen, onSay, modelReady, onCite, onOpenSourc
             })))
         : null,
       el('div', { className: 'nb-askbox' },
+        // What "send" is allowed to do. The pill is the consent control for
+        // agent mode: nothing runs a query or a script until the reader picks it.
+        el('div', { className: 'nb-modes', role: 'group', 'aria-label': 'Answer mode' },
+          [['grounded', 'Grounded', 'Answers only from your sources, with citations'],
+           ['agent', 'Agent + tools', 'May run one SQL query or a short script, grounded in the sources'],
+           ['council', 'Council', 'Ask more than one model and compare']]
+            .map(([id, label, title]) => el('button', {
+              key: id, type: 'button', className: 'nb-mode',
+              'data-active': agentMode === id ? 'true' : 'false',
+              'aria-pressed': agentMode === id,
+              title,
+              onClick: () => {
+                if (id === 'council') {
+                  if (onSay) onSay('council needs two models bound to this profile — only one is, so this stays off')
+                  return
+                }
+                setMode(id)
+              },
+              children: [jsx(Glyph, { name: id === 'agent' ? 'terminal' : id === 'council' ? 'shield' : 'lock', size: 13 }),
+                         el('span', { children: label })]
+            }))),
         el('textarea', {
           ref: boxRef, value: text, onChange: (e) => setText(e.target.value), onKeyDown: onKey,
-          placeholder: 'Ask a question or create something',
+          placeholder: agentMode === 'agent'
+            ? 'Ask something, and Hermes may run a query or a script'
+            : 'Ask a question or create something',
           'aria-label': 'Ask the notebook',
           rows: 2
         }),
@@ -975,7 +1007,7 @@ function ThreadDialog({ notebook, threads, current, onClose, onPick, onNew, onDe
 
 const CITE_TEXT_CACHE = new Map()
 
-function Msg({ msg, onCite, notebook, canRetry, onRetry }) {
+function Msg({ msg, onCite, notebook, canRetry, onRetry, onSay, reload }) {
   const isUser = msg.role === 'user'
   const [citePop, setCitePop] = useState(null)
 
@@ -1026,6 +1058,12 @@ function Msg({ msg, onCite, notebook, canRetry, onRetry }) {
             el('div', { className: 'nb-who', children: 'You' }),
             el('div', { children: msg.content }))
         : el('div', null,
+            (msg.actions || []).length
+              ? el('div', { className: 'nb-acts' }, msg.actions.map((a, i) => jsx(ActionCard, {
+                  key: i, action: a, notebook, onSay,
+                  onSaved: reload ? () => reload(true) : null
+                })))
+              : null,
             el('div', { className: 'nb-who' },
               'Hermes Notebook',
               msg.meta ? el('span', { style: { marginLeft: '8px', color: T.text4, fontWeight: 500, textTransform: 'none', letterSpacing: 0 }, children: `· ${msg.meta}` }) : null,

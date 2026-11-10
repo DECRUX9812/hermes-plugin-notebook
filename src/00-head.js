@@ -131,6 +131,17 @@ const CSS = `
   --nb-canvas:#F8F5EE; --nb-panel:#FFFFFF; --nb-edge:#E8E2D8;
   --nb-tile:#F3EEE4; --nb-tile-hi:#EBE4D8; --nb-ink:#1F1F1F; --nb-ink2:#5F6368;
   --nb-inset:#FBF8F2;
+  /* Everything derived, rebuilt on light ink. Without these the card faces and
+     washes stay night-coloured while the text turns dark — the "1.02:1" bug the
+     design pass reports: black ink on a black tile. */
+  --nb-card:#F3EEE4;
+  --nb-hair:rgba(31,31,31,.10); --nb-hair-soft:rgba(31,31,31,.06);
+  --nb-wash:rgba(31,31,31,.04); --nb-wash-2:rgba(31,31,31,.075);
+  --nb-shadow:0 1px 2px rgba(24,24,27,.05), 0 14px 34px -20px rgba(24,24,27,.22);
+  /* The few rules still written against the host's own tokens are scoped to
+     this subtree, so they follow the notebook rather than the app shell. */
+  --ui-bg-secondary:#F3EEE4; --ui-bg-tertiary:#EDE6D9;
+  --ui-stroke-secondary:rgba(31,31,31,.10); --ui-stroke-tertiary:rgba(31,31,31,.06);
 }
 /* ambient generative field — each notebook's sigil hue bleeds into the room */
 .nb-aurora{position:absolute;inset:0;z-index:0;overflow:hidden;pointer-events:none}
@@ -1337,6 +1348,57 @@ const CSS = `
 .nb-nbcard-wrap:focus-within .nb-nbcard-del,.nb-nbcard-wrap:focus-within .nb-nbcard-ren,
 .nb-nbcard-del:focus-visible,.nb-nbcard-ren:focus-visible{opacity:1}
 @media (hover:none){ .nb-nbcard-del,.nb-nbcard-ren{opacity:1} }
+
+/* ---------------------------------------------- composer modes + action cards */
+.nb-modes{display:flex;gap:6px;align-items:center;margin-bottom:8px;flex-wrap:wrap}
+.nb-mode{display:inline-flex;align-items:center;gap:6px;height:32px;padding:0 12px;
+  border-radius:var(--nb-r-pill);cursor:pointer;font-family:inherit;
+  font-size:var(--nb-fs-meta);font-weight:650;letter-spacing:.01em;
+  border:1px solid var(--nb-edge);background:transparent;color:${T.text3};
+  transition:background var(--nb-dur-fast) var(--nb-ease),color var(--nb-dur-fast) var(--nb-ease),
+    border-color var(--nb-dur-fast) var(--nb-ease)}
+.nb-mode:hover{color:${T.text};background:var(--nb-wash-2)}
+.nb-mode[data-active=true]{color:color-mix(in srgb,${T.accent} 65%, ${T.text});
+  border-color:color-mix(in srgb,${T.accent} 45%, var(--nb-edge));
+  background:color-mix(in srgb,${T.accent} 12%, transparent)}
+.nb-mode:focus-visible{outline:2px solid ${T.accent};outline-offset:2px}
+
+.nb-acts{display:flex;flex-direction:column;gap:8px;margin-bottom:10px}
+.nb-act{background:var(--nb-tile);border:1px solid var(--nb-edge);
+  border-radius:var(--nb-r-el);overflow:hidden}
+.nb-act[data-ok=false]{border-color:color-mix(in srgb,${T.danger} 45%, var(--nb-edge))}
+.nb-act-head{display:flex;align-items:center;gap:8px;width:100%;padding:9px 11px;
+  background:transparent;border:0;cursor:pointer;font-family:inherit;
+  color:${T.text2};font-size:var(--nb-fs-label);text-align:left;min-height:36px}
+.nb-act-head:hover{background:var(--nb-wash)}
+.nb-act-status{display:grid;place-items:center;width:18px;height:18px;border-radius:50%;
+  font-size:11px;font-weight:800;color:#0d0e15;background:${T.ok}}
+.nb-act[data-ok=false] .nb-act-status{background:${T.danger};color:#fff}
+.nb-act-title{font-weight:700;color:${T.text};white-space:nowrap;overflow:hidden;
+  text-overflow:ellipsis}
+.nb-act-meta{color:${T.text3};font-size:var(--nb-fs-meta);font-weight:600}
+.nb-act-ms{margin-left:auto;color:${T.text4};font-size:var(--nb-fs-meta);
+  font-variant-numeric:tabular-nums}
+.nb-act-chev{display:grid;place-items:center;color:${T.text4};
+  transition:transform var(--nb-dur-fast) var(--nb-ease)}
+.nb-act-head[aria-expanded=true] .nb-act-chev{transform:rotate(180deg)}
+.nb-act-body{padding:0 11px 11px;display:flex;flex-direction:column;gap:8px}
+.nb-act-label{font-size:var(--nb-fs-meta);font-weight:700;letter-spacing:.06em;
+  text-transform:uppercase;color:${T.text4}}
+.nb-act-pre{margin:0;padding:9px 11px;border-radius:var(--nb-r-in);background:var(--nb-inset);
+  border:1px solid var(--nb-edge);font-family:ui-monospace,SFMono-Regular,Menlo,monospace;
+  font-size:12.5px;line-height:1.5;color:${T.text2};overflow:auto;max-height:220px;
+  white-space:pre-wrap;overflow-wrap:anywhere}
+.nb-act-in{color:${T.text}}
+.nb-act-err{color:${T.danger}}
+.nb-act-tablewrap{overflow:auto;max-height:240px;border:1px solid var(--nb-edge);
+  border-radius:var(--nb-r-in);background:var(--nb-inset)}
+.nb-act-table{border-collapse:collapse;width:100%;font-size:12.5px}
+.nb-act-table th,.nb-act-table td{padding:6px 10px;text-align:left;
+  border-bottom:1px solid var(--nb-edge);white-space:nowrap}
+.nb-act-table th{font-weight:700;color:${T.text2};position:sticky;top:0;background:var(--nb-tile)}
+.nb-act-note{font-size:var(--nb-fs-meta);color:${T.text3}}
+.nb-act-foot{display:flex;gap:6px;flex-wrap:wrap}
 
 /* ------------------------------------------------ infographic (live render)
    The artifact is JSON first and a poster second: this renders the JSON, so the

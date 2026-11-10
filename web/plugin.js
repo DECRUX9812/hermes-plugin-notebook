@@ -131,6 +131,17 @@ const CSS = `
   --nb-canvas:#F8F5EE; --nb-panel:#FFFFFF; --nb-edge:#E8E2D8;
   --nb-tile:#F3EEE4; --nb-tile-hi:#EBE4D8; --nb-ink:#1F1F1F; --nb-ink2:#5F6368;
   --nb-inset:#FBF8F2;
+  /* Everything derived, rebuilt on light ink. Without these the card faces and
+     washes stay night-coloured while the text turns dark — the "1.02:1" bug the
+     design pass reports: black ink on a black tile. */
+  --nb-card:#F3EEE4;
+  --nb-hair:rgba(31,31,31,.10); --nb-hair-soft:rgba(31,31,31,.06);
+  --nb-wash:rgba(31,31,31,.04); --nb-wash-2:rgba(31,31,31,.075);
+  --nb-shadow:0 1px 2px rgba(24,24,27,.05), 0 14px 34px -20px rgba(24,24,27,.22);
+  /* The few rules still written against the host's own tokens are scoped to
+     this subtree, so they follow the notebook rather than the app shell. */
+  --ui-bg-secondary:#F3EEE4; --ui-bg-tertiary:#EDE6D9;
+  --ui-stroke-secondary:rgba(31,31,31,.10); --ui-stroke-tertiary:rgba(31,31,31,.06);
 }
 /* ambient generative field — each notebook's sigil hue bleeds into the room */
 .nb-aurora{position:absolute;inset:0;z-index:0;overflow:hidden;pointer-events:none}
@@ -1338,6 +1349,57 @@ const CSS = `
 .nb-nbcard-del:focus-visible,.nb-nbcard-ren:focus-visible{opacity:1}
 @media (hover:none){ .nb-nbcard-del,.nb-nbcard-ren{opacity:1} }
 
+/* ---------------------------------------------- composer modes + action cards */
+.nb-modes{display:flex;gap:6px;align-items:center;margin-bottom:8px;flex-wrap:wrap}
+.nb-mode{display:inline-flex;align-items:center;gap:6px;height:32px;padding:0 12px;
+  border-radius:var(--nb-r-pill);cursor:pointer;font-family:inherit;
+  font-size:var(--nb-fs-meta);font-weight:650;letter-spacing:.01em;
+  border:1px solid var(--nb-edge);background:transparent;color:${T.text3};
+  transition:background var(--nb-dur-fast) var(--nb-ease),color var(--nb-dur-fast) var(--nb-ease),
+    border-color var(--nb-dur-fast) var(--nb-ease)}
+.nb-mode:hover{color:${T.text};background:var(--nb-wash-2)}
+.nb-mode[data-active=true]{color:color-mix(in srgb,${T.accent} 65%, ${T.text});
+  border-color:color-mix(in srgb,${T.accent} 45%, var(--nb-edge));
+  background:color-mix(in srgb,${T.accent} 12%, transparent)}
+.nb-mode:focus-visible{outline:2px solid ${T.accent};outline-offset:2px}
+
+.nb-acts{display:flex;flex-direction:column;gap:8px;margin-bottom:10px}
+.nb-act{background:var(--nb-tile);border:1px solid var(--nb-edge);
+  border-radius:var(--nb-r-el);overflow:hidden}
+.nb-act[data-ok=false]{border-color:color-mix(in srgb,${T.danger} 45%, var(--nb-edge))}
+.nb-act-head{display:flex;align-items:center;gap:8px;width:100%;padding:9px 11px;
+  background:transparent;border:0;cursor:pointer;font-family:inherit;
+  color:${T.text2};font-size:var(--nb-fs-label);text-align:left;min-height:36px}
+.nb-act-head:hover{background:var(--nb-wash)}
+.nb-act-status{display:grid;place-items:center;width:18px;height:18px;border-radius:50%;
+  font-size:11px;font-weight:800;color:#0d0e15;background:${T.ok}}
+.nb-act[data-ok=false] .nb-act-status{background:${T.danger};color:#fff}
+.nb-act-title{font-weight:700;color:${T.text};white-space:nowrap;overflow:hidden;
+  text-overflow:ellipsis}
+.nb-act-meta{color:${T.text3};font-size:var(--nb-fs-meta);font-weight:600}
+.nb-act-ms{margin-left:auto;color:${T.text4};font-size:var(--nb-fs-meta);
+  font-variant-numeric:tabular-nums}
+.nb-act-chev{display:grid;place-items:center;color:${T.text4};
+  transition:transform var(--nb-dur-fast) var(--nb-ease)}
+.nb-act-head[aria-expanded=true] .nb-act-chev{transform:rotate(180deg)}
+.nb-act-body{padding:0 11px 11px;display:flex;flex-direction:column;gap:8px}
+.nb-act-label{font-size:var(--nb-fs-meta);font-weight:700;letter-spacing:.06em;
+  text-transform:uppercase;color:${T.text4}}
+.nb-act-pre{margin:0;padding:9px 11px;border-radius:var(--nb-r-in);background:var(--nb-inset);
+  border:1px solid var(--nb-edge);font-family:ui-monospace,SFMono-Regular,Menlo,monospace;
+  font-size:12.5px;line-height:1.5;color:${T.text2};overflow:auto;max-height:220px;
+  white-space:pre-wrap;overflow-wrap:anywhere}
+.nb-act-in{color:${T.text}}
+.nb-act-err{color:${T.danger}}
+.nb-act-tablewrap{overflow:auto;max-height:240px;border:1px solid var(--nb-edge);
+  border-radius:var(--nb-r-in);background:var(--nb-inset)}
+.nb-act-table{border-collapse:collapse;width:100%;font-size:12.5px}
+.nb-act-table th,.nb-act-table td{padding:6px 10px;text-align:left;
+  border-bottom:1px solid var(--nb-edge);white-space:nowrap}
+.nb-act-table th{font-weight:700;color:${T.text2};position:sticky;top:0;background:var(--nb-tile)}
+.nb-act-note{font-size:var(--nb-fs-meta);color:${T.text3}}
+.nb-act-foot{display:flex;gap:6px;flex-wrap:wrap}
+
 /* ------------------------------------------------ infographic (live render)
    The artifact is JSON first and a poster second: this renders the JSON, so the
    numbers are selectable text, each one carries its source, and the layout
@@ -1929,6 +1991,7 @@ const P = {
   shield: 'M12 3l8 3v6c0 4.5-3.2 7.6-8 9-4.8-1.4-8-4.5-8-9V6l8-3Zm-3 9 2 2 4-4',
   copy: 'M9 9h10v10H9V9Zm-4 6H4V4h11v1',
   sun: 'M12 4v2M12 18v2M4 12h2M18 12h2M6.3 6.3l1.4 1.4M16.3 16.3l1.4 1.4M17.7 6.3l-1.4 1.4M7.7 16.3l-1.4 1.4M12 8.5a3.5 3.5 0 1 0 0 7 3.5 3.5 0 0 0 0-7Z',
+  lock: 'M7 11V8a5 5 0 0 1 10 0v3M5 11h14v9H5v-9Zm7 3v3',
   moon: 'M20 14.5A8.5 8.5 0 0 1 9.5 4a8.5 8.5 0 1 0 10.5 10.5Z',
   check: 'M5 13l4.5 4.5L19 7',
   download: 'M12 4v10M8 11l4 4 4-4M5 19h14',
@@ -3107,7 +3170,9 @@ function App() {
     const mo = new MutationObserver(() => read())
     mo.observe(document.documentElement, { attributes: true, attributeFilter: ['class', 'style', 'data-theme'] })
     if (document.head) mo.observe(document.head, { childList: true, subtree: true })
-    const id = setInterval(read, 1500)
+    // 300ms, not 1.5s: a theme swap made between frames must land before the
+    // next measurement, and this read is one getComputedStyle on the root
+    const id = setInterval(read, 300)
     return () => { mo.disconnect(); clearInterval(id) }
   }, [])
 
@@ -4056,6 +4121,10 @@ function Chat({ notebook, kinds, askOpen, onSay, modelReady, onCite, onOpenSourc
   const [thread, setThread] = useState('default')
   const [threads, setThreads] = useState(() => notebook.threads || [])
   const [thrOpen, setThrOpen] = useState(false)
+  // The composer's pill: what "send" means. Grounded is read-only, agent may run
+  // a tool, council wants more than one model to answer.
+  const [agentMode, setAgentMode] = useState(() => persist.get('composerMode', 'grounded'))
+  const setMode = (m) => { setAgentMode(m); persist.set('composerMode', m) }
   const curThread = useRef('default')
   curThread.current = thread
   const [msgs, setMsgs] = useState(() =>
@@ -4225,21 +4294,26 @@ function Chat({ notebook, kinds, askOpen, onSay, modelReady, onCite, onOpenSourc
     const started = Date.now()
     TURN.send('ASK', { q, since: started })
     try {
-      const out = await api('/ask', {
+      const agentRun = agentMode === 'agent' && !retry
+      const out = await api(agentRun ? '/agent/run' : '/ask', {
         method: 'POST',
         body: {
           notebook: notebook.id, question: q, thread: t,
+          ...(agentRun ? { mode: 'agent' } : {}),
           ...(retry ? { retry: true } : {}),
-          ...(askScope && (askScope.ids || askScope.id)
+          ...(!agentRun && askScope && (askScope.ids || askScope.id)
             ? { source_ids: askScope.ids || [askScope.id] }
             : {})
         },
-        timeoutMs: 180000
+        timeoutMs: 240000
       })
       const answer = {
         role: 'assistant', content: out.answer, k: `a${Date.now()}`,
         citations: out.citations || [], seconds: out.seconds,
-        meta: `${out.chunks_used || 0} of ${out.total_chunks || 0} passages`
+        actions: out.actions || [],
+        meta: (out.actions || []).length
+          ? `${out.actions.length} tool${out.actions.length === 1 ? '' : 's'} ran`
+          : `${out.chunks_used || 0} of ${out.total_chunks || 0} passages`
       }
       const prev = threadCache.get(key) || []
       const next = cacheMsgs(key, [...prev, answer])
@@ -4358,7 +4432,7 @@ function Chat({ notebook, kinds, askOpen, onSay, modelReady, onCite, onOpenSourc
             }))
         : null,
       msgs.map((m, i) => jsx(Msg, {
-        msg: m, onCite, onOpenSource, notebook,
+        msg: m, onCite, onOpenSource, notebook, onSay, reload,
         canRetry: !pending && m.role === 'assistant' && i === msgs.length - 1 &&
                   msgs.slice(0, i).some((x) => x.role === 'user'),
         onRetry: () => send(null, { retry: true })
@@ -4405,9 +4479,32 @@ function Chat({ notebook, kinds, askOpen, onSay, modelReady, onCite, onOpenSourc
             })))
         : null,
       el('div', { className: 'nb-askbox' },
+        // What "send" is allowed to do. The pill is the consent control for
+        // agent mode: nothing runs a query or a script until the reader picks it.
+        el('div', { className: 'nb-modes', role: 'group', 'aria-label': 'Answer mode' },
+          [['grounded', 'Grounded', 'Answers only from your sources, with citations'],
+           ['agent', 'Agent + tools', 'May run one SQL query or a short script, grounded in the sources'],
+           ['council', 'Council', 'Ask more than one model and compare']]
+            .map(([id, label, title]) => el('button', {
+              key: id, type: 'button', className: 'nb-mode',
+              'data-active': agentMode === id ? 'true' : 'false',
+              'aria-pressed': agentMode === id,
+              title,
+              onClick: () => {
+                if (id === 'council') {
+                  if (onSay) onSay('council needs two models bound to this profile — only one is, so this stays off')
+                  return
+                }
+                setMode(id)
+              },
+              children: [jsx(Glyph, { name: id === 'agent' ? 'terminal' : id === 'council' ? 'shield' : 'lock', size: 13 }),
+                         el('span', { children: label })]
+            }))),
         el('textarea', {
           ref: boxRef, value: text, onChange: (e) => setText(e.target.value), onKeyDown: onKey,
-          placeholder: 'Ask a question or create something',
+          placeholder: agentMode === 'agent'
+            ? 'Ask something, and Hermes may run a query or a script'
+            : 'Ask a question or create something',
           'aria-label': 'Ask the notebook',
           rows: 2
         }),
@@ -4753,7 +4850,7 @@ function ThreadDialog({ notebook, threads, current, onClose, onPick, onNew, onDe
 
 const CITE_TEXT_CACHE = new Map()
 
-function Msg({ msg, onCite, notebook, canRetry, onRetry }) {
+function Msg({ msg, onCite, notebook, canRetry, onRetry, onSay, reload }) {
   const isUser = msg.role === 'user'
   const [citePop, setCitePop] = useState(null)
 
@@ -4804,6 +4901,12 @@ function Msg({ msg, onCite, notebook, canRetry, onRetry }) {
             el('div', { className: 'nb-who', children: 'You' }),
             el('div', { children: msg.content }))
         : el('div', null,
+            (msg.actions || []).length
+              ? el('div', { className: 'nb-acts' }, msg.actions.map((a, i) => jsx(ActionCard, {
+                  key: i, action: a, notebook, onSay,
+                  onSaved: reload ? () => reload(true) : null
+                })))
+              : null,
             el('div', { className: 'nb-who' },
               'Hermes Notebook',
               msg.meta ? el('span', { style: { marginLeft: '8px', color: T.text4, fontWeight: 500, textTransform: 'none', letterSpacing: 0 }, children: `· ${msg.meta}` }) : null,
@@ -9092,6 +9195,156 @@ const SLIDE_LABEL = {
   tension_audit: 'Tensions',
   roadmap: 'Roadmap',
   closing: 'Close'
+}
+
+/* ============================================================================
+   Hermes actions — one card per tool that actually ran.
+
+   The point of the card is evidence, not decoration: the tool, the exact
+   statement or script that ran, its real exit code, its real output, and how
+   long it took. A failure is rendered as a failure, with the error the runtime
+   produced — the card never turns a red run green.
+   ========================================================================== */
+
+const ACTION_LABEL = {
+  query_table: 'SQL',
+  run_script: 'Script',
+  mcp_call: 'MCP'
+}
+
+function ActionCard({ action, notebook, onSay, onSaved }) {
+  const [open, setOpen] = useState(false)
+  const [busy, setBusy] = useState(false)
+  const [result, setResult] = useState(null)
+  const view = result || action
+  const ok = !!view.ok
+  const engine = view.engine ? ` · ${view.engine}` : ''
+  const tool = view.tool || 'query_table'
+  const language = view.language === 'bash' ? 'Bash' : tool === 'run_script' ? 'Python' : ''
+  const title = tool === 'query_table'
+    ? `SQL${engine}`
+    : tool === 'run_script' ? `${language} sandbox` : `MCP · ${view.server || 'server'}`
+  const input = tool === 'query_table'
+    ? (view.sql || '')
+    : tool === 'run_script' ? (view.code || '')
+      : JSON.stringify({ server: view.server, tool: view.tool_name, arguments: view.arguments }, null, 2)
+  const ms = view.ms
+
+  const output = () => {
+    if (tool === 'query_table') {
+      if (!ok) return el('div', { className: 'nb-act-err', children: view.error || 'the query failed' })
+      const cols = view.columns || []
+      const rows = view.rows || []
+      const table = el('div', { className: 'nb-act-tablewrap' },
+        el('table', { className: 'nb-act-table' },
+          el('thead', null, el('tr', null, cols.map((c, i) => el('th', { key: i, children: String(c) })))),
+          el('tbody', null, rows.slice(0, 40).map((r, i) => el('tr', { key: i },
+            r.map((cell, k) => el('td', { key: k, children: cell === null ? '∅' : String(cell) })))))))
+      return view.truncated
+        ? el('div', null, table, el('div', { className: 'nb-act-note', children: 'first 40 of a longer result' }))
+        : table
+    }
+    const text = view.out || ''
+    const err = tool === 'run_script' ? (view.err || '') : (ok ? '' : view.error || '')
+    return el('div', null,
+      text ? el('pre', { className: 'nb-act-pre', children: text }) : null,
+      err ? el('pre', { className: 'nb-act-pre nb-act-err', children: err }) : null,
+      !text && !err ? el('div', { className: 'nb-act-note', children: 'no output' }) : null)
+  }
+
+  const rerun = async () => {
+    setBusy(true)
+    try {
+      const out = await api('/agent/rerun', {
+        method: 'POST',
+        body: {
+          notebook: notebook.id, tool,
+          arguments: tool === 'query_table' ? { sql: view.sql }
+            : tool === 'run_script' ? { language: view.language || 'python', code: view.code }
+              : { server: view.server, tool: view.tool_name, arguments: view.arguments }
+        },
+        timeoutMs: 90000
+      })
+      setResult(out.action)
+      setOpen(true)
+      if (onSay) onSay(`${title} re-ran · ${out.action.ok ? 'ok' : 'failed'}`)
+    } catch (e) {
+      if (onSay) onSay(`could not re-run: ${e.message || e}`)
+    } finally { setBusy(false) }
+  }
+
+  const saveAsSource = async () => {
+    const body = tool === 'query_table' && ok
+      ? (view.columns || []).length
+        ? [view.columns.join(' | '), ...(view.rows || []).map((r) => r.join(' | '))].join('\n')
+        : ''
+      : (view.out || '')
+    if (!body.trim()) { if (onSay) onSay('nothing to save from this run'); return }
+    setBusy(true)
+    try {
+      await api('/note', {
+        method: 'POST',
+        body: { notebook: notebook.id, text: body, title: `Result · ${title}` },
+        timeoutMs: 60000
+      })
+      if (onSay) onSay('saved as a source — it is searchable now')
+      if (onSaved) onSaved()
+    } catch (e) {
+      if (onSay) onSay(`could not save: ${e.message || e}`)
+    } finally { setBusy(false) }
+  }
+
+  return el('div', { className: 'nb-act', 'data-ok': ok ? 'true' : 'false' },
+    el('button', {
+      type: 'button', className: 'nb-act-head',
+      onClick: () => setOpen((o) => !o),
+      'aria-expanded': open,
+      title: open ? 'Hide the details' : 'Show what ran'
+    },
+    el('span', { className: 'nb-act-status', 'aria-hidden': 'true',
+      children: busy ? '◐' : ok ? '✓' : '✕' }),
+    el('span', { className: 'nb-act-title', children: title }),
+    el('span', { className: 'nb-act-meta',
+      // the right noun per tool: an exit code is a script's vocabulary, a row
+      // count is a query's
+      children: tool === 'query_table'
+        ? (ok ? `${(view.rows || []).length} row${(view.rows || []).length === 1 ? '' : 's'}${view.truncated ? '+' : ''}` : 'failed')
+        : tool === 'run_script' ? (ok ? 'exit 0' : `exit ${view.exit === null || view.exit === undefined ? '?' : view.exit}`) : (ok ? 'ok' : 'failed') }),
+    ms !== undefined && ms !== null ? el('span', { className: 'nb-act-ms', children: `${ms}ms` }) : null,
+    jsx('span', { className: 'nb-act-chev', 'aria-hidden': 'true',
+      children: jsx(Glyph, { name: 'chevron', size: 13 }) })),
+    open
+      ? el('div', { className: 'nb-act-body' },
+          input ? el('div', null,
+            el('div', { className: 'nb-act-label', children: tool === 'query_table' ? 'Statement' : 'Code' }),
+            el('pre', { className: 'nb-act-pre nb-act-in', children: input })) : null,
+          el('div', { className: 'nb-act-label', children: 'Result' }),
+          output(),
+          el('div', { className: 'nb-act-foot' },
+            jsx(Btn, { size: 'sm', icon: 'refresh', disabled: busy, onClick: rerun, children: 'Re-run' }),
+            tool === 'query_table' && ok
+              ? jsx(Btn, { size: 'sm', icon: 'download', onClick: () => {
+                  const cols = view.columns || []
+                  const rows = view.rows || []
+                  const csv = [cols.join(','), ...rows.map((r) => r.map((c) => {
+                    const v = c === null || c === undefined ? '' : String(c)
+                    return /[",\n]/.test(v) ? '"' + v.replace(/"/g, '""') + '"' : v
+                  }).join(','))].join('\n')
+                  const url = URL.createObjectURL(new Blob([csv], { type: 'text/csv;charset=utf-8' }))
+                  const a = document.createElement('a')
+                  a.href = url
+                  a.download = `${tool}-result.csv`
+                  a.click()
+                  URL.revokeObjectURL(url)
+                  if (onSay) onSay(`exported ${rows.length} rows as CSV`)
+                }, children: 'Export CSV' })
+              : null,
+            jsx(Btn, { size: 'sm', icon: 'note', disabled: busy, onClick: saveAsSource, children: 'Save as source' }),
+            jsx(Btn, { size: 'sm', icon: 'copy', onClick: () => copyText(
+              tool === 'query_table' && ok
+                ? [view.columns.join('\t'), ...(view.rows || []).map((r) => r.join('\t'))].join('\n')
+                : (view.out || view.code || ''), onSay), children: 'Copy output' })))
+      : null)
 }
 
 /* -------------------------------------------------------------------- ops
