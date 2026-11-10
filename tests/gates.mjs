@@ -396,6 +396,27 @@ async function functional(port) {
     }
   }
 
+  // ------------------------------------------------------- rendering integrity
+  // A message body must never print the machinery: no "[object Object]", no
+  // bare "undefined"/"NaN", and the avatar is a mark rather than two letters
+  // that read as a broken tag.
+  {
+    const threadText = await page.locator('.nb-thread').innerText()
+    ok('no message prints an object, undefined or NaN',
+      !/\[object Object\]|\bundefined\b|\bNaN\b/.test(threadText),
+      (threadText.match(/\[object Object\]|\bundefined\b|\bNaN\b/) || ['clean'])[0])
+    const avatarText = (await page.locator('.nb-avatar').first().innerText().catch(() => '')).trim()
+    ok('the assistant mark is a glyph, not a two-letter tag', avatarText === '' || avatarText.length <= 2 && !/^[A-Z]{2}$/.test(avatarText),
+      JSON.stringify(avatarText))
+    const pad = await page.locator('.nb-thread').evaluate((n) => getComputedStyle(n).paddingBottom)
+    ok('the thread keeps room for the composer', parseFloat(pad) >= 72, pad)
+    const cite = page.locator('.nb-inline-cite').first()
+    if (await cite.count()) {
+      const bg = await cite.evaluate((n) => getComputedStyle(n).backgroundColor)
+      ok('citations use the pill material, not the accent wash', /45, 46, 51|232, 240, 254/.test(bg), bg)
+    }
+  }
+
   // ------------------------------------------------------------ agent mode
   // The pill is the consent control: pressing it must switch the request path to
   // /agent/run, and the answer must carry the tool that ran as a card you can open.

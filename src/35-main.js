@@ -604,7 +604,8 @@ function Chat({ notebook, kinds, askOpen, onSay, modelReady, onCite, onOpenSourc
       }, m.k)),
       pending
         ? el('div', { className: 'nb-msg', 'data-role': 'assistant' },
-            el('span', { className: 'nb-avatar', children: 'HN' }),
+            el('span', { className: 'nb-avatar', 'aria-hidden': 'true' },
+              jsx(Glyph, { name: 'sparkle', size: 14 })),
             el('div', { className: 'nb-msg-body' },
               el('div', { className: 'nb-who', children: 'Reading sources' }),
               el('div', { style: { display: 'flex', alignItems: 'center', gap: '10px', color: T.text3, fontSize: '14px' } },
@@ -1067,7 +1068,8 @@ function Msg({ msg, onCite, notebook, canRetry, onRetry, onSay, reload }) {
   }
 
   return el('div', { className: 'nb-msg', 'data-role': isUser ? 'user' : 'assistant' },
-    isUser ? null : el('span', { className: 'nb-avatar', children: 'HN' }),
+    isUser ? null : el('span', { className: 'nb-avatar', 'aria-hidden': 'true' },
+              jsx(Glyph, { name: 'sparkle', size: 14 })),
     el('div', { className: 'nb-msg-body', onMouseOver: isUser ? undefined : onMouseOver, onMouseOut: isUser ? undefined : onMouseOut },
       isUser
         ? el('div', { className: 'nb-bubble' },

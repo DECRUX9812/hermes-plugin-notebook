@@ -89,7 +89,7 @@ const CSS = `
   /* NotebookLM's palette, per skin. The host never sets a color-scheme, so the
      page publishes data-skin (measured from the host's own canvas) and these
      two blocks are the only place a colour is decided. */
-  --nb-canvas:#0C0D0E; --nb-panel:#16171A; --nb-edge:rgba(255,255,255,.08);
+  --nb-canvas:#0B0C0E; --nb-panel:#16171A; --nb-edge:rgba(255,255,255,.08);
   --nb-tile:#202124; --nb-tile-hi:#2A2B2E; --nb-ink:#F1F3F4; --nb-ink2:#9AA0A6;
   --nb-inset:#0F1012;
   --nb-hair: color-mix(in srgb, ${T.text} 10%, transparent);
@@ -97,6 +97,7 @@ const CSS = `
   --nb-wash: color-mix(in srgb, ${T.text} 4%, transparent);
   --nb-wash-2: color-mix(in srgb, ${T.text} 7.5%, transparent);
   --nb-card: ${T.card};
+  --nb-cite-bg:#2D2E33; --nb-cite-ink:#8AB4F8;
   --nb-shadow: 0 1px 2px rgba(8,10,18,.05), 0 14px 34px -20px rgba(8,10,18,.30);
   --nb-shadow-lift: 0 2px 6px rgba(8,10,18,.07), 0 20px 44px -18px rgba(8,10,18,.38);
   /* motion — Astryx cadence: fast for hovers, medium for entrances, standard
@@ -135,6 +136,7 @@ const CSS = `
      washes stay night-coloured while the text turns dark — the "1.02:1" bug the
      design pass reports: black ink on a black tile. */
   --nb-card:#F3EEE4;
+  --nb-cite-bg:#E8F0FE; --nb-cite-ink:#1967D2;
   --nb-hair:rgba(31,31,31,.10); --nb-hair-soft:rgba(31,31,31,.06);
   --nb-wash:rgba(31,31,31,.04); --nb-wash-2:rgba(31,31,31,.075);
   --nb-shadow:0 1px 2px rgba(24,24,27,.05), 0 14px 34px -20px rgba(24,24,27,.22);
@@ -384,9 +386,10 @@ const CSS = `
 .nb-chip[data-tone=danger]{color:color-mix(in srgb,${T.danger} 62%, ${T.text});
   background:color-mix(in srgb,${T.danger} 14%, transparent)}
 .nb-citechip{height:32px;min-height:32px;padding:0 7px 0 9px;border-radius:var(--nb-r-pill);gap:7px;
-  background:var(--nb-card);border-color:var(--nb-hair);color:${T.text2};font-size:12.5px;font-weight:500}
+  background:var(--nb-cite-bg);border-color:transparent;color:var(--nb-cite-ink);
+  font-size:12.5px;font-weight:550}
 .nb-citechip:hover{border-color:color-mix(in srgb,${T.accent} 50%, transparent)}
-.nb-citechip b{font-family:var(--ui-font-mono,ui-monospace,monospace);color:color-mix(in srgb,${T.accent} 70%, ${T.text});font-weight:700;
+.nb-citechip b{font-family:var(--ui-font-mono,ui-monospace,monospace);color:var(--nb-cite-ink);font-weight:750;
   font-size:10.5px;background:color-mix(in srgb,${T.accent} 14%, transparent);border-radius:var(--nb-r-pill);
   padding:3px 7px;flex:0 0 auto}
 .nb-citechip span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0;max-width:300px}
@@ -464,7 +467,9 @@ const CSS = `
 .nb-hl{background:color-mix(in srgb, ${T.accent} 30%, transparent);color:inherit;border-radius:var(--nb-r-in);padding:0 2px}
 .nb-latest{position:absolute;left:50%;bottom:14px;transform:translateX(-50%);z-index:20;display:inline-flex;align-items:center;gap:4px;padding:7px 14px;border-radius:var(--nb-r-pill);border:1px solid var(--nb-line,#2a2d3d);background:var(--nb-card,#14161f);color:var(--nb-text2,#c6c9d8);font-size:12.5px;font-weight:600;cursor:pointer;box-shadow:0 6px 20px rgba(0,0,0,.35);transition:transform var(--nb-dur-fast) var(--nb-ease),box-shadow var(--nb-dur-fast) var(--nb-ease)}
 .nb-latest:hover{transform:translateX(-50%) translateY(-1px);box-shadow:0 8px 24px rgba(0,0,0,.45)}
-.nb-thread{flex:1;min-height:0;overflow:auto;padding:28px 28px 12px;display:flex;flex-direction:column;gap:24px}
+/* 96px of tail: the composer and the floating zoom pill sit over this column, and a
+   last bubble padded only 12px reads as clipped text at the bottom edge */
+.nb-thread{flex:1;min-height:0;overflow:auto;padding:28px 28px 96px;display:flex;flex-direction:column;gap:24px}
 .nb-msg{max-width:72ch;animation:nb-msg-in var(--nb-dur-fast) var(--nb-ease) both}
 @keyframes nb-msg-in{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:none}}
 /* generative marks breathe — a slow 1.5% drift so sigils feel alive, not pasted */
@@ -514,10 +519,10 @@ const CSS = `
   background:var(--nb-wash);border-left:3px solid color-mix(in srgb,${T.accent} 55%, transparent)}
 /* inline citations are quiet accent pills with the source number */
 .nb-inline-cite{display:inline-flex;align-items:center;min-height:22px;padding:0 9px;margin:0 3px;
-  border-radius:var(--nb-r-pill);border:1px solid color-mix(in srgb,${T.accent} 45%, transparent);
-  background:color-mix(in srgb,${T.accent} 16%, transparent);
-  font-size:var(--nb-fs-meta);font-weight:700;letter-spacing:.01em;
-  color:color-mix(in srgb,${T.accent} 55%, ${T.text});
+  border-radius:var(--nb-r-pill);border:1px solid transparent;
+  background:var(--nb-cite-bg);
+  font-size:var(--nb-fs-meta);font-weight:650;letter-spacing:.01em;
+  color:var(--nb-cite-ink);
   color:color-mix(in srgb,${T.accent} 70%, ${T.text});cursor:pointer;vertical-align:1px;line-height:1}
 .nb-inline-cite:hover{background:color-mix(in srgb,${T.accent} 20%, transparent)}
 .nb-composer{flex:0 0 auto;padding:14px 30px 20px}
@@ -1350,15 +1355,21 @@ const CSS = `
 @media (hover:none){ .nb-nbcard-del,.nb-nbcard-ren{opacity:1} }
 
 /* --------------------------------------------------------------- council */
-.nb-council{display:flex;flex-wrap:wrap;align-items:center;gap:7px;margin:0 0 8px;
-  padding:9px 12px;border-radius:var(--nb-r-el);font-size:var(--nb-fs-label);
-  color:${T.text2};background:var(--nb-wash);border:1px solid var(--nb-hair)}
-.nb-council-dot{width:7px;height:7px;border-radius:50%;background:${T.ok};flex:none}
-.nb-council[data-verdict=partly] .nb-council-dot{background:${T.warn}}
-.nb-council[data-verdict=fails] .nb-council-dot{background:${T.danger}}
+.nb-council{display:inline-flex;flex-wrap:wrap;align-items:center;gap:7px;
+  margin:0 0 10px;max-width:100%;padding:7px 12px;border-radius:var(--nb-r-pill);
+  font-size:var(--nb-fs-label);line-height:1.45;color:var(--nb-ink);
+  background:var(--nb-wash);border:1px solid var(--nb-hair)}
+.nb-council>*{white-space:normal}
+.nb-council-dot{width:8px;height:8px;border-radius:50%;flex:none;background:#B8860B;
+  box-shadow:0 0 0 3px color-mix(in srgb,#B8860B 22%, transparent)}
+.nb-council[data-verdict=holds],.nb-council[data-verdict=partly],.nb-council[data-verdict=fails]{
+  color:var(--nb-ink)}
+.nb-council[data-verdict=holds] .nb-council-dot{background:${T.ok};box-shadow:0 0 0 3px color-mix(in srgb,${T.ok} 22%, transparent)}
+.nb-council[data-verdict=partly] .nb-council-dot{background:#C08A2E;box-shadow:0 0 0 3px rgba(192,138,46,.22)}
+.nb-council[data-verdict=fails] .nb-council-dot{background:${T.danger};box-shadow:0 0 0 3px color-mix(in srgb,${T.danger} 22%, transparent)}
 .nb-council[data-verdict=unknown] .nb-council-dot{background:${T.text4}}
-.nb-council-lab{font-weight:750;color:${T.text}}
-.nb-council-note{color:${T.text3};font-size:var(--nb-fs-meta)}
+.nb-council-lab{font-weight:750;color:var(--nb-ink)}
+.nb-council-note{color:var(--nb-ink2);font-size:var(--nb-fs-meta)}
 .nb-council-bad{margin:6px 0 0;padding-left:18px;width:100%;color:${T.text2};
   font-size:var(--nb-fs-label);line-height:1.5}
 .nb-council-bad li{margin:2px 0}
@@ -1404,7 +1415,8 @@ const CSS = `
   font-size:12.5px;line-height:1.5;color:${T.text2};overflow:auto;max-height:220px;
   white-space:pre-wrap;overflow-wrap:anywhere}
 .nb-act-in{color:${T.text}}
-.nb-hl-kw{color:color-mix(in srgb,${T.accent} 78%, ${T.text});font-weight:650}
+/* the same blue the citation pills use, so a query and its sources read as one family */
+.nb-hl-kw{color:var(--nb-cite-ink);font-weight:650}
 .nb-hl-str{color:color-mix(in srgb,${T.ok} 72%, ${T.text})}
 .nb-hl-num{color:color-mix(in srgb,${T.warn} 78%, ${T.text})}
 .nb-hl-com{color:${T.text4};font-style:italic}

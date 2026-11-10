@@ -16,6 +16,9 @@ function inlineNodes(text, keyBase, onCite) {
     if (m.index > last) out.push(s.slice(last, m.index))
     const tok = m[0]
     const k = `${keyBase}-${m.index}`
+    // A zero-width emphasis ("**" or "__") escapes the pattern rarely, but when
+    // it does React renders an empty span and the line collapses. Skip it.
+    if (!tok || tok.length <= 2 || !tok.slice(1, -1).trim()) { last = m.index + tok.length; continue }
     if (tok.startsWith('**') || tok.startsWith('__')) {
       out.push(el('strong', { children: tok.slice(2, -2) }, k))
     } else if (tok.startsWith('`')) {
@@ -37,7 +40,10 @@ function inlineNodes(text, keyBase, onCite) {
       } else out.push(el('span', { className: 'nb-inline-cite', children: tok }, k))
     } else {
       const mm = /^\[([^\]]+)\]\(([^)]+)\)$/.exec(tok)
-      out.push(el('a', {
+      // a URL containing ")" breaks the match; the text is still worth showing,
+      // so fall back to it instead of throwing and blanking the whole answer
+      if (!mm) out.push(tok)
+      else out.push(el('a', {
         href: mm[2], target: '_blank', rel: 'noreferrer', style: { color: T.accent },
         children: mm[1]
       }, k))
@@ -48,8 +54,25 @@ function inlineNodes(text, keyBase, onCite) {
   return out
 }
 
+function messageText(text) {
+  // The answer arrives as a string; older threads and a few artifact fields
+  // carry objects. Stringing those renders "[object Object]" in the bubble,
+  // which reads as leaked internals — take the one field that is text, or
+  // nothing at all.
+  if (text === null || text === undefined) return ''
+  if (typeof text === 'string') return text
+  if (typeof text === 'number' || typeof text === 'boolean') return String(text)
+  if (typeof text === 'object') {
+    for (const key of ['text', 'answer', 'content', 'markdown', 'value', 'summary']) {
+      if (typeof text[key] === 'string') return text[key]
+    }
+    return ''          // no renderable text key: drop it rather than print debris
+  }
+  return ''
+}
+
 function Markdown({ text, onCite, className }) {
-  const blocks = useMemo(() => parseBlocks(String(text || '')), [text])
+  const blocks = useMemo(() => parseBlocks(messageText(text)), [text])
   return el('div', {
     className: cx('nb-md', className),
     children: blocks.map((b, i) => renderBlock(b, i, onCite))
