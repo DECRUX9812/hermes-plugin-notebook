@@ -203,6 +203,21 @@ const rest = async (path, opts) => {
   }
   if (route === 'agent/run') {
     await new Promise((r) => setTimeout(r, 700))
+    // the pill decides the mode; the harness answers both shapes
+    const raw = (opts && (opts.body !== undefined ? opts.body : opts.json))
+    const body = typeof raw === 'string' ? raw : JSON.stringify(raw || {})
+    if (/"mode"\s*:\s*"council"/.test(body)) {
+      return {
+        ok: true, mode: 'council', seconds: 4.2,
+        answer: 'The sources put private fusion funding at **$6.37B** across the three lines named [S1].',
+        citations: [{ n: 1, title: 'FIA funding', kind: 'url', origin: 'fusionindustryassociation.org',
+                      id: 'fia-funding', snippet: 'FIA counts $4.48B in the year to July 2026.' }],
+        actions: [],
+        council: { ok: true, verdict: 'partly', model: 'same model, second pass',
+                   note: 'The total is right; the currency label is an inference.',
+                   unsupported: ['private fusion funding at $6.37B across the three lines named'] }
+      }
+    }
     return {
       ok: true, mode: 'agent', seconds: 3.1,
       answer: 'Across the three funding lines the sources name, the total is **$6.37B**, and FIA accounts for the largest share at $4.48B [S4].',

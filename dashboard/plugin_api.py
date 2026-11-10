@@ -1092,6 +1092,7 @@ def agent_run(payload: Dict[str, Any] = Body(...)) -> Any:
     """One grounded tool call, then an answer made from its real output.
 
     ``mode`` is the composer's pill: ``agent`` plans and may execute,
+    ``council`` answers then re-reads the passages trying to refute the answer,
     ``grounded`` answers from the sources only (no tool is run even if asked).
     """
     from hermes_notebook import agent
@@ -1104,7 +1105,8 @@ def agent_run(payload: Dict[str, Any] = Body(...)) -> Any:
     except Exception as exc:
         return _fail(_why(exc), 404)
     _ensure_model()
-    mode = "agent" if str(payload.get("mode") or "agent") == "agent" else "grounded"
+    asked = str(payload.get("mode") or "agent")
+    mode = asked if asked in ("agent", "council") else "grounded"
     try:
         out = agent.run(nb_id, question, thread=str(payload.get("thread") or ""), mode=mode)
     except Exception as exc:
@@ -1114,7 +1116,8 @@ def agent_run(payload: Dict[str, Any] = Body(...)) -> Any:
                      extra={"actions": out.get("actions") or []})
     return {"ok": True, "notebook": nb_id, "answer": out.get("answer", ""),
             "citations": out.get("citations") or [], "actions": out.get("actions") or [],
-            "mode": out.get("mode"), "seconds": out.get("seconds")}
+            "council": out.get("council"), "mode": out.get("mode"),
+            "seconds": out.get("seconds")}
 
 
 @router.post("/agent/rerun")

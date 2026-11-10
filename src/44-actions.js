@@ -13,6 +13,59 @@ const ACTION_LABEL = {
   mcp_call: 'MCP'
 }
 
+
+/* ------------------------------------------------------------ highlighting
+
+   One tokenizer for the three languages a card can hold. It runs over the
+   string and returns React children — never HTML — so a query containing
+   `<script>` renders as text, which is what the reader typed. */
+
+const HL_KEYWORDS = {
+  sql: 'select from where group by order having limit offset join left right inner outer full on using as and or not in is null like between distinct union all case when then else end with asc desc count sum avg min max cast round abs over partition row_number date_trunc strftime',
+  python: 'def return if elif else for while in not and or import from as class with try except finally raise yield lambda None True False is pass break continue global del assert async await print len sum min max abs round sorted list dict set tuple str int float range enumerate zip open',
+  bash: 'if then else elif fi for while do done case esac function return export local echo cd ls cat grep awk sed mkdir rm cp mv curl git sudo exit set source'
+}
+
+// Four groups, always in this order: comment, string, number, keyword. The
+// mapping is positional, so a non-capturing group anywhere in here would shift
+// every match one class to the right (keywords rendered as numbers).
+const HL_RE = (lang) => {
+  const kw = HL_KEYWORDS[lang].split(' ').join('|')
+  const parts = lang === 'python'
+    ? ['(#[^\\n]*)', "(\'\'\'[\\s\\S]*?\'\'\'|\'[^\'\\n]*\'|\"[^\"\\n]*\")", '(\\b\\d+(?:\\.\\d+)?\\b)', `(\\b(?:${kw})\\b)`]
+    : lang === 'bash'
+      ? ['(#[^\\n]*)', "(\'[^\']*\'|\"[^\"]*\")", '(\\b\\d+(?:\\.\\d+)?\\b)', `(\\b(?:${kw})\\b)`]
+      : ['(--[^\\n]*)', "(\'[^\']*\'|\"[^\"]*\")", '(\\b\\d+(?:\\.\\d+)?\\b)', `(\\b(?:${kw})\\b)`]
+  return new RegExp(parts.join('|'), 'gi')
+}
+
+const HL_CLASS = [null, 'nb-hl-com', 'nb-hl-str', 'nb-hl-num', 'nb-hl-kw']
+
+function highlight(code, lang) {
+  const text = String(code || '')
+  if (lang === 'json' || lang === 'text' || !text || !HL_KEYWORDS[lang]) return [text]
+  const re = HL_RE(lang)
+  const out = []
+  let last = 0
+  let m
+  let i = 0
+  while ((m = re.exec(text)) !== null) {
+    if (m[0].length === 0) { re.lastIndex++; continue }
+    if (m.index > last) out.push(text.slice(last, m.index))
+    const g = m[1] ? 1 : m[2] ? 2 : m[3] ? 3 : 4
+    out.push(jsx('span', { key: `h${i++}`, className: HL_CLASS[g], children: m[0] }))
+    last = m.index + m[0].length
+  }
+  if (last < text.length) out.push(text.slice(last))
+  return out
+}
+
+function codeLang(action) {
+  if (action.tool === 'query_table') return 'sql'
+  if (action.tool === 'run_script') return action.language === 'bash' ? 'bash' : 'python'
+  return 'json'
+}
+
 function ActionCard({ action, notebook, onSay, onSaved }) {
   const [open, setOpen] = useState(false)
   const [busy, setBusy] = useState(false)
@@ -118,7 +171,7 @@ function ActionCard({ action, notebook, onSay, onSaved }) {
       ? el('div', { className: 'nb-act-body' },
           input ? el('div', null,
             el('div', { className: 'nb-act-label', children: tool === 'query_table' ? 'Statement' : 'Code' }),
-            el('pre', { className: 'nb-act-pre nb-act-in', children: input })) : null,
+            el('pre', { className: 'nb-act-pre nb-act-in', children: highlight(input, codeLang(view)) })) : null,
           el('div', { className: 'nb-act-label', children: 'Result' }),
           output(),
           el('div', { className: 'nb-act-foot' },
@@ -146,4 +199,33 @@ function ActionCard({ action, notebook, onSay, onSaved }) {
                 ? [view.columns.join('\t'), ...(view.rows || []).map((r) => r.join('\t'))].join('\n')
                 : (view.out || view.code || ''), onSay), children: 'Copy output' })))
       : null)
+}
+
+/* --------------------------------------------------------------- council
+
+   The verdict band under a council answer. It is deliberately quiet: one line
+   of judgement and, when something did not hold, the exact claims the second
+   pass could not support — never a badge that looks like a second opinion from
+   a different model. */
+
+const COUNCIL_LABEL = { holds: 'every claim is supported', partly: 'some claims are not supported', fails: 'contradicts the passages' }
+
+function CouncilBand({ council, onSay }) {
+  if (!council) return null
+  if (!council.ok) {
+    return el('div', { className: 'nb-council', 'data-verdict': 'unknown' },
+      el('span', { className: 'nb-council-dot', 'aria-hidden': 'true' }),
+      el('span', { children: `Council could not check this answer: ${council.error || 'no verdict'}` }))
+  }
+  const v = council.verdict || 'partly'
+  const bad = council.unsupported || []
+  return el('div', { className: 'nb-council', 'data-verdict': v },
+    el('span', { className: 'nb-council-dot', 'aria-hidden': 'true' }),
+    el('span', { className: 'nb-council-lab', children: 'Council' }),
+    el('span', { children: COUNCIL_LABEL[v] || v }),
+    el('span', { className: 'nb-council-note', children: council.model || 'second pass' }),
+    bad.length
+      ? el('ul', { className: 'nb-council-bad' }, bad.map((c, i) => el('li', { key: i, children: c })))
+      : null,
+    council.note ? el('div', { className: 'nb-council-note', children: council.note }) : null)
 }

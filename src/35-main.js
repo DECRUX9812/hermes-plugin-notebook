@@ -451,12 +451,12 @@ function Chat({ notebook, kinds, askOpen, onSay, modelReady, onCite, onOpenSourc
     const started = Date.now()
     TURN.send('ASK', { q, since: started })
     try {
-      const agentRun = agentMode === 'agent' && !retry
+      const agentRun = (agentMode === 'agent' || agentMode === 'council') && !retry
       const out = await api(agentRun ? '/agent/run' : '/ask', {
         method: 'POST',
         body: {
           notebook: notebook.id, question: q, thread: t,
-          ...(agentRun ? { mode: 'agent' } : {}),
+          ...(agentRun ? { mode: agentMode } : {}),
           ...(retry ? { retry: true } : {}),
           ...(!agentRun && askScope && (askScope.ids || askScope.id)
             ? { source_ids: askScope.ids || [askScope.id] }
@@ -467,7 +467,7 @@ function Chat({ notebook, kinds, askOpen, onSay, modelReady, onCite, onOpenSourc
       const answer = {
         role: 'assistant', content: out.answer, k: `a${Date.now()}`,
         citations: out.citations || [], seconds: out.seconds,
-        actions: out.actions || [],
+        actions: out.actions || [], council: out.council || null,
         meta: (out.actions || []).length
           ? `${out.actions.length} tool${out.actions.length === 1 ? '' : 's'} ran`
           : `${out.chunks_used || 0} of ${out.total_chunks || 0} passages`
@@ -649,19 +649,13 @@ function Chat({ notebook, kinds, askOpen, onSay, modelReady, onCite, onOpenSourc
         el('div', { className: 'nb-modes', role: 'group', 'aria-label': 'Answer mode' },
           [['grounded', 'Grounded', 'Answers only from your sources, with citations'],
            ['agent', 'Agent + tools', 'May run one SQL query or a short script, grounded in the sources'],
-           ['council', 'Council', 'Ask more than one model and compare']]
+           ['council', 'Council', 'Answer, then re-read the passages trying to break that answer']]
             .map(([id, label, title]) => el('button', {
               key: id, type: 'button', className: 'nb-mode',
               'data-active': agentMode === id ? 'true' : 'false',
               'aria-pressed': agentMode === id,
               title,
-              onClick: () => {
-                if (id === 'council') {
-                  if (onSay) onSay('council needs two models bound to this profile — only one is, so this stays off')
-                  return
-                }
-                setMode(id)
-              },
+              onClick: () => setMode(id),
               children: [jsx(Glyph, { name: id === 'agent' ? 'terminal' : id === 'council' ? 'shield' : 'lock', size: 13 }),
                          el('span', { children: label })]
             }))),
@@ -669,7 +663,9 @@ function Chat({ notebook, kinds, askOpen, onSay, modelReady, onCite, onOpenSourc
           ref: boxRef, value: text, onChange: (e) => setText(e.target.value), onKeyDown: onKey,
           placeholder: agentMode === 'agent'
             ? 'Ask something, and Hermes may run a query or a script'
-            : 'Ask a question or create something',
+            : agentMode === 'council'
+              ? 'Ask something, and Hermes will try to break its own answer'
+              : 'Ask a question or create something',
           'aria-label': 'Ask the notebook',
           rows: 2
         }),
@@ -1013,6 +1009,14 @@ function ThreadDialog({ notebook, threads, current, onClose, onPick, onNew, onDe
   })
 }
 
+function tidyQuote(text) {
+  return String(text || '')
+    .replace(/\[([^\]]+)\]\([^)]*\)/g, '$1')
+    .replace(/^(skip to (main )?content[\s:.—-]*)+/i, '')
+    .replace(/\s+/g, ' ')
+    .trim()
+}
+
 const CITE_TEXT_CACHE = new Map()
 
 function Msg({ msg, onCite, notebook, canRetry, onRetry, onSay, reload }) {
@@ -1033,7 +1037,11 @@ function Msg({ msg, onCite, notebook, canRetry, onRetry, onSay, reload }) {
     const r = b.getBoundingClientRect()
     // citations carry the passage they were built from — show it instantly;
     // older messages without snippets fall back to the source's head
-    const snippet = c.snippet ? String(c.snippet).replace(/\s+/g, ' ').trim().slice(0, 420) : ''
+    const raw = c.snippet ? String(c.snippet).replace(/\s+/g, ' ').trim() : ''
+    // a snippet that is only the marker ("[S1]") or a stub is worse than none:
+    // it reads as the quote. Fall through to the source's own opening passage.
+    const usable = raw.replace(/\[S\d+\]/gi, '').trim().length >= 40
+    const snippet = usable ? raw.slice(0, 420) : ''
     setCitePop({ n, x: r.left, y: r.bottom + 8, title: c.title, kind: c.kind, id: c.id, text: snippet || null, loading: !snippet })
     if (snippet) return
     const key = `${notebook.id}:${c.id || n}`
@@ -1066,6 +1074,7 @@ function Msg({ msg, onCite, notebook, canRetry, onRetry, onSay, reload }) {
             el('div', { className: 'nb-who', children: 'You' }),
             el('div', { children: msg.content }))
         : el('div', null,
+            msg.council ? jsx(CouncilBand, { council: msg.council, onSay }) : null,
             (msg.actions || []).length
               ? el('div', { className: 'nb-acts' }, msg.actions.map((a, i) => jsx(ActionCard, {
                   key: i, action: a, notebook, onSay,
@@ -1123,7 +1132,9 @@ function Msg({ msg, onCite, notebook, canRetry, onRetry, onSay, reload }) {
               children: citePop.loading
                 ? 'reading the passage…'
                 : citePop.text
-                  ? `“${citePop.text}${citePop.text.length >= 420 ? '…' : ''}”`
+                  // a scraped page opens with nav: "[Skip to main content](…)".
+                  // Show the words, not the markdown that wrapped them.
+                  ? `“${tidyQuote(citePop.text)}${citePop.text.length >= 420 ? '…' : ''}”`
                   : 'passage unavailable — click the citation to open the source' })
           ]
         })

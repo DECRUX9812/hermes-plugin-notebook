@@ -132,8 +132,64 @@ def _answer(notebook_id: str, question: str, thread: str, action: Optional[Dict[
     return out
 
 
+COUNCIL_SCHEMA = {
+    "type": "object",
+    "properties": {
+        "verdict": {"type": "string", "enum": ["holds", "partly", "fails"]},
+        "unsupported": {"type": "array", "items": {"type": "string"}},
+        "note": {"type": "string"},
+    },
+    "required": ["verdict"],
+}
+
+
+def _council(notebook_id: str, question: str, answer: str) -> Dict[str, Any]:
+    """A second pass over the same passages that tries to break the answer.
+
+    This is not a second vendor — it is the same model reading the sources
+    again with instructions to refute. It catches the failure that matters in a
+    grounded notebook (a claim the passages do not support) and it is labelled
+    honestly in the card, because "council" implying two independent models
+    when one is bound would be a lie the reader could not detect.
+    """
+    try:
+        pool = retrieve.retrieve(notebook_id, question, max_chars=14000, top_k=14)
+    except Exception as exc:
+        return {"ok": False, "error": str(exc)}
+    passages = pool.get("context") or ""
+    if not passages.strip():
+        return {"ok": False, "error": "no passages to check against"}
+    try:
+        parsed = llmio.structured(
+            instructions=(
+                "You are checking a cited answer for grounding, not for style.\n"
+                "You are given the passages that were available and the answer that was written.\n"
+                'Return "holds" when every factual claim is supported by a passage,\n'
+                '"partly" when some claims are not supported, "fails" when the answer\n'
+                "contradicts the passages. List each unsupported claim verbatim in\n"
+                "`unsupported` (empty when none). Keep `note` to one sentence."
+            ),
+            input=[{"role": "user", "content":
+                    f"PASSAGES\n{passages[:12000]}\n\nANSWER TO CHECK\n{answer[:4000]}"}],
+            json_schema=COUNCIL_SCHEMA,
+            schema_name="notebook_council",
+            purpose="notebook.council.verify",
+            max_tokens=700,
+            temperature=0,
+        )
+        if not isinstance(parsed, dict):
+            return {"ok": False, "error": "the check did not return a verdict"}
+        return {"ok": True, "verdict": str(parsed.get("verdict") or "partly"),
+                "unsupported": [str(x) for x in (parsed.get("unsupported") or [])][:6],
+                "note": str(parsed.get("note") or ""),
+                "passes": 2, "model": "same model, second pass"}
+    except Exception as exc:
+        return {"ok": False, "error": str(exc)}
+
+
 def run(notebook_id: str, question: str, thread: str = "", mode: str = "agent") -> Dict[str, Any]:
-    """mode: 'agent' (plan + one tool + answer) or 'grounded' (answer only)."""
+    """mode: 'agent' (plan + one tool + answer), 'council' (answer + a refuting
+    second pass over the same passages) or 'grounded' (answer only)."""
     question = (question or "").strip()
     if not question:
         return {"ok": False, "error": "ask something first"}
@@ -152,6 +208,15 @@ def run(notebook_id: str, question: str, thread: str = "", mode: str = "agent") 
             # guess at arithmetic the first query already settled
             if action.get("ok"):
                 break
+    if mode == "council":
+        # answer first, then try to break it with the same passages
+        first = _answer(notebook_id, question, thread, None)
+        if not first.get("ok"):
+            return first
+        first["council"] = _council(notebook_id, question, str(first.get("answer") or ""))
+        first["actions"] = []
+        first["mode"] = "council"
+        return first
     out = _answer(notebook_id, question, thread, actions[-1] if actions else None)
     if not out.get("ok"):
         return {"ok": False, "error": out.get("error") or "the model did not answer", "actions": actions}

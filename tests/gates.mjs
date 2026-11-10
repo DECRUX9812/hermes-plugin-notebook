@@ -423,6 +423,26 @@ async function functional(port) {
       ok('opening the card shows the statement and its rows', rows >= 3 && /select/i.test(sql),
         `${rows} rows · ${sql.slice(0, 30)}`)
       ok('a run can be saved as a source', await cards.first().locator('button', { hasText: 'Save as source' }).count() === 1, 'present')
+      // the statement is tokenised, not flat text: keywords and numbers each
+      // carry their own class so a 200-character query stays readable
+      const kw = await cards.first().locator('.nb-act-in .nb-hl-kw').count()
+      ok('the statement is highlighted', kw >= 3, `${kw} keywords`)
+      ok('a SQL result can be exported', await cards.first().locator('button', { hasText: 'Export CSV' }).count() === 1, 'present')
+    }
+    // council: answers, then re-reads the passages trying to break the answer
+    await page.locator('.nb-mode', { hasText: 'Council' }).first().click()
+    await settle(page, 200)
+    ok('council is a selectable mode', (await page.locator('.nb-mode', { hasText: 'Council' }).first().getAttribute('aria-pressed')) === 'true', 'pressed')
+    await page.locator('.nb-askbox textarea').fill('How much private funding is there?')
+    await page.locator('.nb-askbox .nb-sendbtn').click()
+    await settle(page, 2200)
+    const band = page.locator('.nb-council').last()
+    ok('council shows a verdict on its own answer', await band.count() >= 1, 'band present')
+    if (await band.count()) {
+      const v = await band.getAttribute('data-verdict')
+      ok('the verdict names what did not hold', /holds|partly|fails/.test(String(v)), String(v))
+      const note = (await band.innerText()).replace(/\s+/g, ' ')
+      ok('council says it is one model reading twice, not two vendors', /second pass/i.test(note), note.slice(0, 60))
     }
     await page.locator('.nb-mode', { hasText: 'Grounded' }).first().click()
     await settle(page, 200)

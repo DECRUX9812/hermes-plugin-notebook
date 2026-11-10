@@ -1349,6 +1349,20 @@ const CSS = `
 .nb-nbcard-del:focus-visible,.nb-nbcard-ren:focus-visible{opacity:1}
 @media (hover:none){ .nb-nbcard-del,.nb-nbcard-ren{opacity:1} }
 
+/* --------------------------------------------------------------- council */
+.nb-council{display:flex;flex-wrap:wrap;align-items:center;gap:7px;margin:0 0 8px;
+  padding:9px 12px;border-radius:var(--nb-r-el);font-size:var(--nb-fs-label);
+  color:${T.text2};background:var(--nb-wash);border:1px solid var(--nb-hair)}
+.nb-council-dot{width:7px;height:7px;border-radius:50%;background:${T.ok};flex:none}
+.nb-council[data-verdict=partly] .nb-council-dot{background:${T.warn}}
+.nb-council[data-verdict=fails] .nb-council-dot{background:${T.danger}}
+.nb-council[data-verdict=unknown] .nb-council-dot{background:${T.text4}}
+.nb-council-lab{font-weight:750;color:${T.text}}
+.nb-council-note{color:${T.text3};font-size:var(--nb-fs-meta)}
+.nb-council-bad{margin:6px 0 0;padding-left:18px;width:100%;color:${T.text2};
+  font-size:var(--nb-fs-label);line-height:1.5}
+.nb-council-bad li{margin:2px 0}
+
 /* ---------------------------------------------- composer modes + action cards */
 .nb-modes{display:flex;gap:6px;align-items:center;margin-bottom:8px;flex-wrap:wrap}
 .nb-mode{display:inline-flex;align-items:center;gap:6px;height:32px;padding:0 12px;
@@ -1390,6 +1404,11 @@ const CSS = `
   font-size:12.5px;line-height:1.5;color:${T.text2};overflow:auto;max-height:220px;
   white-space:pre-wrap;overflow-wrap:anywhere}
 .nb-act-in{color:${T.text}}
+.nb-hl-kw{color:color-mix(in srgb,${T.accent} 78%, ${T.text});font-weight:650}
+.nb-hl-str{color:color-mix(in srgb,${T.ok} 72%, ${T.text})}
+.nb-hl-num{color:color-mix(in srgb,${T.warn} 78%, ${T.text})}
+.nb-hl-com{color:${T.text4};font-style:italic}
+
 .nb-act-err{color:${T.danger}}
 .nb-act-tablewrap{overflow:auto;max-height:240px;border:1px solid var(--nb-edge);
   border-radius:var(--nb-r-in);background:var(--nb-inset)}
@@ -1455,9 +1474,16 @@ const CSS = `
   border:1px solid ${T.line};background:${T.inset};color:${T.text};outline:none}
 .nb-genopt-text:focus{border-color:color-mix(in srgb,${T.accent} 55%,transparent)}
 
-.nb-citepop{position:fixed;z-index:80;width:320px;max-width:calc(100vw - 32px);
-  background:${T.card};border:1px solid ${T.line};border-radius:var(--nb-r-box);
-  box-shadow:var(--nb-shadow-lift);padding:12px 14px;pointer-events:none}
+/* A hover card floats OVER the page, so it gets its own material: the panel
+   colour at 95% over a blur, which reads as glass instead of a second pane. */
+.nb-citepop{position:fixed;z-index:80;width:340px;max-width:calc(100vw - 32px);
+  background:color-mix(in srgb,var(--nb-panel) 95%, transparent);
+  -webkit-backdrop-filter:blur(18px) saturate(1.3);
+  backdrop-filter:blur(18px) saturate(1.3);
+  border:1px solid color-mix(in srgb,var(--nb-ink) 12%, transparent);
+  border-radius:var(--nb-r-box);
+  box-shadow:0 24px 60px -24px rgba(0,0,0,.55);
+  padding:13px 15px;pointer-events:none}
 .nb-citepop-head{display:flex;align-items:center;gap:8px;font-size:12.5px;
   color:${T.text3};margin-bottom:6px;flex-wrap:wrap}
 .nb-citepop-head b{color:color-mix(in srgb,${T.accent} 70%, ${T.text});font-weight:700}

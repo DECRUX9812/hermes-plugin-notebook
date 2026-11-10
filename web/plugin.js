@@ -1349,6 +1349,20 @@ const CSS = `
 .nb-nbcard-del:focus-visible,.nb-nbcard-ren:focus-visible{opacity:1}
 @media (hover:none){ .nb-nbcard-del,.nb-nbcard-ren{opacity:1} }
 
+/* --------------------------------------------------------------- council */
+.nb-council{display:flex;flex-wrap:wrap;align-items:center;gap:7px;margin:0 0 8px;
+  padding:9px 12px;border-radius:var(--nb-r-el);font-size:var(--nb-fs-label);
+  color:${T.text2};background:var(--nb-wash);border:1px solid var(--nb-hair)}
+.nb-council-dot{width:7px;height:7px;border-radius:50%;background:${T.ok};flex:none}
+.nb-council[data-verdict=partly] .nb-council-dot{background:${T.warn}}
+.nb-council[data-verdict=fails] .nb-council-dot{background:${T.danger}}
+.nb-council[data-verdict=unknown] .nb-council-dot{background:${T.text4}}
+.nb-council-lab{font-weight:750;color:${T.text}}
+.nb-council-note{color:${T.text3};font-size:var(--nb-fs-meta)}
+.nb-council-bad{margin:6px 0 0;padding-left:18px;width:100%;color:${T.text2};
+  font-size:var(--nb-fs-label);line-height:1.5}
+.nb-council-bad li{margin:2px 0}
+
 /* ---------------------------------------------- composer modes + action cards */
 .nb-modes{display:flex;gap:6px;align-items:center;margin-bottom:8px;flex-wrap:wrap}
 .nb-mode{display:inline-flex;align-items:center;gap:6px;height:32px;padding:0 12px;
@@ -1390,6 +1404,11 @@ const CSS = `
   font-size:12.5px;line-height:1.5;color:${T.text2};overflow:auto;max-height:220px;
   white-space:pre-wrap;overflow-wrap:anywhere}
 .nb-act-in{color:${T.text}}
+.nb-hl-kw{color:color-mix(in srgb,${T.accent} 78%, ${T.text});font-weight:650}
+.nb-hl-str{color:color-mix(in srgb,${T.ok} 72%, ${T.text})}
+.nb-hl-num{color:color-mix(in srgb,${T.warn} 78%, ${T.text})}
+.nb-hl-com{color:${T.text4};font-style:italic}
+
 .nb-act-err{color:${T.danger}}
 .nb-act-tablewrap{overflow:auto;max-height:240px;border:1px solid var(--nb-edge);
   border-radius:var(--nb-r-in);background:var(--nb-inset)}
@@ -1455,9 +1474,16 @@ const CSS = `
   border:1px solid ${T.line};background:${T.inset};color:${T.text};outline:none}
 .nb-genopt-text:focus{border-color:color-mix(in srgb,${T.accent} 55%,transparent)}
 
-.nb-citepop{position:fixed;z-index:80;width:320px;max-width:calc(100vw - 32px);
-  background:${T.card};border:1px solid ${T.line};border-radius:var(--nb-r-box);
-  box-shadow:var(--nb-shadow-lift);padding:12px 14px;pointer-events:none}
+/* A hover card floats OVER the page, so it gets its own material: the panel
+   colour at 95% over a blur, which reads as glass instead of a second pane. */
+.nb-citepop{position:fixed;z-index:80;width:340px;max-width:calc(100vw - 32px);
+  background:color-mix(in srgb,var(--nb-panel) 95%, transparent);
+  -webkit-backdrop-filter:blur(18px) saturate(1.3);
+  backdrop-filter:blur(18px) saturate(1.3);
+  border:1px solid color-mix(in srgb,var(--nb-ink) 12%, transparent);
+  border-radius:var(--nb-r-box);
+  box-shadow:0 24px 60px -24px rgba(0,0,0,.55);
+  padding:13px 15px;pointer-events:none}
 .nb-citepop-head{display:flex;align-items:center;gap:8px;font-size:12.5px;
   color:${T.text3};margin-bottom:6px;flex-wrap:wrap}
 .nb-citepop-head b{color:color-mix(in srgb,${T.accent} 70%, ${T.text});font-weight:700}
@@ -4294,12 +4320,12 @@ function Chat({ notebook, kinds, askOpen, onSay, modelReady, onCite, onOpenSourc
     const started = Date.now()
     TURN.send('ASK', { q, since: started })
     try {
-      const agentRun = agentMode === 'agent' && !retry
+      const agentRun = (agentMode === 'agent' || agentMode === 'council') && !retry
       const out = await api(agentRun ? '/agent/run' : '/ask', {
         method: 'POST',
         body: {
           notebook: notebook.id, question: q, thread: t,
-          ...(agentRun ? { mode: 'agent' } : {}),
+          ...(agentRun ? { mode: agentMode } : {}),
           ...(retry ? { retry: true } : {}),
           ...(!agentRun && askScope && (askScope.ids || askScope.id)
             ? { source_ids: askScope.ids || [askScope.id] }
@@ -4310,7 +4336,7 @@ function Chat({ notebook, kinds, askOpen, onSay, modelReady, onCite, onOpenSourc
       const answer = {
         role: 'assistant', content: out.answer, k: `a${Date.now()}`,
         citations: out.citations || [], seconds: out.seconds,
-        actions: out.actions || [],
+        actions: out.actions || [], council: out.council || null,
         meta: (out.actions || []).length
           ? `${out.actions.length} tool${out.actions.length === 1 ? '' : 's'} ran`
           : `${out.chunks_used || 0} of ${out.total_chunks || 0} passages`
@@ -4492,19 +4518,13 @@ function Chat({ notebook, kinds, askOpen, onSay, modelReady, onCite, onOpenSourc
         el('div', { className: 'nb-modes', role: 'group', 'aria-label': 'Answer mode' },
           [['grounded', 'Grounded', 'Answers only from your sources, with citations'],
            ['agent', 'Agent + tools', 'May run one SQL query or a short script, grounded in the sources'],
-           ['council', 'Council', 'Ask more than one model and compare']]
+           ['council', 'Council', 'Answer, then re-read the passages trying to break that answer']]
             .map(([id, label, title]) => el('button', {
               key: id, type: 'button', className: 'nb-mode',
               'data-active': agentMode === id ? 'true' : 'false',
               'aria-pressed': agentMode === id,
               title,
-              onClick: () => {
-                if (id === 'council') {
-                  if (onSay) onSay('council needs two models bound to this profile — only one is, so this stays off')
-                  return
-                }
-                setMode(id)
-              },
+              onClick: () => setMode(id),
               children: [jsx(Glyph, { name: id === 'agent' ? 'terminal' : id === 'council' ? 'shield' : 'lock', size: 13 }),
                          el('span', { children: label })]
             }))),
@@ -4512,7 +4532,9 @@ function Chat({ notebook, kinds, askOpen, onSay, modelReady, onCite, onOpenSourc
           ref: boxRef, value: text, onChange: (e) => setText(e.target.value), onKeyDown: onKey,
           placeholder: agentMode === 'agent'
             ? 'Ask something, and Hermes may run a query or a script'
-            : 'Ask a question or create something',
+            : agentMode === 'council'
+              ? 'Ask something, and Hermes will try to break its own answer'
+              : 'Ask a question or create something',
           'aria-label': 'Ask the notebook',
           rows: 2
         }),
@@ -4856,6 +4878,14 @@ function ThreadDialog({ notebook, threads, current, onClose, onPick, onNew, onDe
   })
 }
 
+function tidyQuote(text) {
+  return String(text || '')
+    .replace(/\[([^\]]+)\]\([^)]*\)/g, '$1')
+    .replace(/^(skip to (main )?content[\s:.—-]*)+/i, '')
+    .replace(/\s+/g, ' ')
+    .trim()
+}
+
 const CITE_TEXT_CACHE = new Map()
 
 function Msg({ msg, onCite, notebook, canRetry, onRetry, onSay, reload }) {
@@ -4876,7 +4906,11 @@ function Msg({ msg, onCite, notebook, canRetry, onRetry, onSay, reload }) {
     const r = b.getBoundingClientRect()
     // citations carry the passage they were built from — show it instantly;
     // older messages without snippets fall back to the source's head
-    const snippet = c.snippet ? String(c.snippet).replace(/\s+/g, ' ').trim().slice(0, 420) : ''
+    const raw = c.snippet ? String(c.snippet).replace(/\s+/g, ' ').trim() : ''
+    // a snippet that is only the marker ("[S1]") or a stub is worse than none:
+    // it reads as the quote. Fall through to the source's own opening passage.
+    const usable = raw.replace(/\[S\d+\]/gi, '').trim().length >= 40
+    const snippet = usable ? raw.slice(0, 420) : ''
     setCitePop({ n, x: r.left, y: r.bottom + 8, title: c.title, kind: c.kind, id: c.id, text: snippet || null, loading: !snippet })
     if (snippet) return
     const key = `${notebook.id}:${c.id || n}`
@@ -4909,6 +4943,7 @@ function Msg({ msg, onCite, notebook, canRetry, onRetry, onSay, reload }) {
             el('div', { className: 'nb-who', children: 'You' }),
             el('div', { children: msg.content }))
         : el('div', null,
+            msg.council ? jsx(CouncilBand, { council: msg.council, onSay }) : null,
             (msg.actions || []).length
               ? el('div', { className: 'nb-acts' }, msg.actions.map((a, i) => jsx(ActionCard, {
                   key: i, action: a, notebook, onSay,
@@ -4966,7 +5001,9 @@ function Msg({ msg, onCite, notebook, canRetry, onRetry, onSay, reload }) {
               children: citePop.loading
                 ? 'reading the passage…'
                 : citePop.text
-                  ? `“${citePop.text}${citePop.text.length >= 420 ? '…' : ''}”`
+                  // a scraped page opens with nav: "[Skip to main content](…)".
+                  // Show the words, not the markdown that wrapped them.
+                  ? `“${tidyQuote(citePop.text)}${citePop.text.length >= 420 ? '…' : ''}”`
                   : 'passage unavailable — click the citation to open the source' })
           ]
         })
@@ -9220,6 +9257,59 @@ const ACTION_LABEL = {
   mcp_call: 'MCP'
 }
 
+
+/* ------------------------------------------------------------ highlighting
+
+   One tokenizer for the three languages a card can hold. It runs over the
+   string and returns React children — never HTML — so a query containing
+   `<script>` renders as text, which is what the reader typed. */
+
+const HL_KEYWORDS = {
+  sql: 'select from where group by order having limit offset join left right inner outer full on using as and or not in is null like between distinct union all case when then else end with asc desc count sum avg min max cast round abs over partition row_number date_trunc strftime',
+  python: 'def return if elif else for while in not and or import from as class with try except finally raise yield lambda None True False is pass break continue global del assert async await print len sum min max abs round sorted list dict set tuple str int float range enumerate zip open',
+  bash: 'if then else elif fi for while do done case esac function return export local echo cd ls cat grep awk sed mkdir rm cp mv curl git sudo exit set source'
+}
+
+// Four groups, always in this order: comment, string, number, keyword. The
+// mapping is positional, so a non-capturing group anywhere in here would shift
+// every match one class to the right (keywords rendered as numbers).
+const HL_RE = (lang) => {
+  const kw = HL_KEYWORDS[lang].split(' ').join('|')
+  const parts = lang === 'python'
+    ? ['(#[^\\n]*)', "(\'\'\'[\\s\\S]*?\'\'\'|\'[^\'\\n]*\'|\"[^\"\\n]*\")", '(\\b\\d+(?:\\.\\d+)?\\b)', `(\\b(?:${kw})\\b)`]
+    : lang === 'bash'
+      ? ['(#[^\\n]*)', "(\'[^\']*\'|\"[^\"]*\")", '(\\b\\d+(?:\\.\\d+)?\\b)', `(\\b(?:${kw})\\b)`]
+      : ['(--[^\\n]*)', "(\'[^\']*\'|\"[^\"]*\")", '(\\b\\d+(?:\\.\\d+)?\\b)', `(\\b(?:${kw})\\b)`]
+  return new RegExp(parts.join('|'), 'gi')
+}
+
+const HL_CLASS = [null, 'nb-hl-com', 'nb-hl-str', 'nb-hl-num', 'nb-hl-kw']
+
+function highlight(code, lang) {
+  const text = String(code || '')
+  if (lang === 'json' || lang === 'text' || !text || !HL_KEYWORDS[lang]) return [text]
+  const re = HL_RE(lang)
+  const out = []
+  let last = 0
+  let m
+  let i = 0
+  while ((m = re.exec(text)) !== null) {
+    if (m[0].length === 0) { re.lastIndex++; continue }
+    if (m.index > last) out.push(text.slice(last, m.index))
+    const g = m[1] ? 1 : m[2] ? 2 : m[3] ? 3 : 4
+    out.push(jsx('span', { key: `h${i++}`, className: HL_CLASS[g], children: m[0] }))
+    last = m.index + m[0].length
+  }
+  if (last < text.length) out.push(text.slice(last))
+  return out
+}
+
+function codeLang(action) {
+  if (action.tool === 'query_table') return 'sql'
+  if (action.tool === 'run_script') return action.language === 'bash' ? 'bash' : 'python'
+  return 'json'
+}
+
 function ActionCard({ action, notebook, onSay, onSaved }) {
   const [open, setOpen] = useState(false)
   const [busy, setBusy] = useState(false)
@@ -9325,7 +9415,7 @@ function ActionCard({ action, notebook, onSay, onSaved }) {
       ? el('div', { className: 'nb-act-body' },
           input ? el('div', null,
             el('div', { className: 'nb-act-label', children: tool === 'query_table' ? 'Statement' : 'Code' }),
-            el('pre', { className: 'nb-act-pre nb-act-in', children: input })) : null,
+            el('pre', { className: 'nb-act-pre nb-act-in', children: highlight(input, codeLang(view)) })) : null,
           el('div', { className: 'nb-act-label', children: 'Result' }),
           output(),
           el('div', { className: 'nb-act-foot' },
@@ -9353,6 +9443,35 @@ function ActionCard({ action, notebook, onSay, onSaved }) {
                 ? [view.columns.join('\t'), ...(view.rows || []).map((r) => r.join('\t'))].join('\n')
                 : (view.out || view.code || ''), onSay), children: 'Copy output' })))
       : null)
+}
+
+/* --------------------------------------------------------------- council
+
+   The verdict band under a council answer. It is deliberately quiet: one line
+   of judgement and, when something did not hold, the exact claims the second
+   pass could not support — never a badge that looks like a second opinion from
+   a different model. */
+
+const COUNCIL_LABEL = { holds: 'every claim is supported', partly: 'some claims are not supported', fails: 'contradicts the passages' }
+
+function CouncilBand({ council, onSay }) {
+  if (!council) return null
+  if (!council.ok) {
+    return el('div', { className: 'nb-council', 'data-verdict': 'unknown' },
+      el('span', { className: 'nb-council-dot', 'aria-hidden': 'true' }),
+      el('span', { children: `Council could not check this answer: ${council.error || 'no verdict'}` }))
+  }
+  const v = council.verdict || 'partly'
+  const bad = council.unsupported || []
+  return el('div', { className: 'nb-council', 'data-verdict': v },
+    el('span', { className: 'nb-council-dot', 'aria-hidden': 'true' }),
+    el('span', { className: 'nb-council-lab', children: 'Council' }),
+    el('span', { children: COUNCIL_LABEL[v] || v }),
+    el('span', { className: 'nb-council-note', children: council.model || 'second pass' }),
+    bad.length
+      ? el('ul', { className: 'nb-council-bad' }, bad.map((c, i) => el('li', { key: i, children: c })))
+      : null,
+    council.note ? el('div', { className: 'nb-council-note', children: council.note }) : null)
 }
 
 /* -------------------------------------------------------------------- ops

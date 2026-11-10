@@ -109,3 +109,30 @@ def test_rerun_runs_one_recorded_action_again(ctx):
     out = client.post("/agent/rerun", json={"notebook": "route-nb", "tool": "query_table",
                                             "arguments": {"sql": "SELECT COUNT(*) FROM data_table"}}).json()
     assert out["ok"] is True and int(out["action"]["rows"][0][0]) == 3
+
+def test_council_answers_then_checks_itself(ctx):
+    _mk()
+    ctx.llm.text_reply = "Funding totals $6.37B across three lines."
+    # the second pass is the only structured call council makes
+    ctx.llm.parsed_reply = {"verdict": "partly",
+                            "unsupported": ["three lines"],
+                            "note": "only two of the three are named"}
+    client = _client()
+    out = client.post("/agent/run", json={"notebook": "route-nb", "question": "how much?",
+                                          "mode": "council"}).json()
+    assert out["ok"] is True and out["mode"] == "council"
+    assert out["actions"] == []                     # council never runs a tool
+    assert out["council"]["verdict"] == "partly"
+    assert out["council"]["unsupported"] == ["three lines"]
+    assert "second pass" in out["council"]["model"]
+
+
+def test_council_says_so_when_the_check_fails(ctx):
+    _mk()
+    ctx.llm.text_reply = "An answer."
+    ctx.llm.parsed_reply = None                     # the verifier returns nothing
+    client = _client()
+    out = client.post("/agent/run", json={"notebook": "route-nb", "question": "q",
+                                          "mode": "council"}).json()
+    assert out["ok"] is True
+    assert out["council"]["ok"] is False and out["council"]["error"]
