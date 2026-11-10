@@ -4321,8 +4321,16 @@ function Chat({ notebook, kinds, askOpen, onSay, modelReady, onCite, onOpenSourc
       // refresh /state so the thread list + default thread stay truthful
       if (reload) reload(true)
     } catch (e) {
+      // A 404 here is not the model failing: /agent/* is served by the gateway,
+      // which loads a plugin's routes once at start. Say which step is missing
+      // instead of letting a fresh deploy look like a broken feature.
+      const raw = String(e.message || e)
+      const stale = agentMode === 'agent' && /404|not found|unauthenticated/i.test(raw)
       const errMsg = {
-        role: 'assistant', content: `**That question did not get an answer.**\n\n${e.message || e}`,
+        role: 'assistant',
+        content: stale
+          ? '**Agent mode is not running yet.**\n\nThe page is the new build, but the gateway still has the old routes: restart it once (`hermes gateway restart` from a shell outside it) and this will go through. Powered Q&A keeps working meanwhile.'
+          : `**That question did not get an answer.**\n\n${raw}`,
         k: `e${Date.now()}`, error: true
       }
       const prev = threadCache.get(key) || []
