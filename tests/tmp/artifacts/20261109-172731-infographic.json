@@ -1,0 +1,64 @@
+{
+  "title": "Fusion 2026: Hardware Moves, Funding Decides",
+  "stats": [
+    {
+      "value": "mid-2030s",
+      "label": "US target for fusion deployment",
+      "detail": "DOE's June Fusion Science and Technology Roadmap is the central plank of a federal strategy to catalyse early plants by the mid-2030s."
+    },
+    {
+      "value": "6 of 9",
+      "label": "ITER tokamak sector modules installed",
+      "detail": "The sixth module went in on 28 July 2026, almost six months ahead of schedule; the final module is targeted for mid-2027."
+    },
+    {
+      "value": "$4.48B",
+      "label": "Record private fusion funding, 12 months",
+      "detail": "Fusion Industry Association figure for the year to July 2026; cumulative funding since 2021 reached $14.24 billion."
+    },
+    {
+      "value": "$790M",
+      "label": "FES appropriation vs $1.1B authorised",
+      "detail": "Congress appropriated $790 million for fusion energy sciences for FY2027, below the $805.7 million enacted previously."
+    },
+    {
+      "value": "28",
+      "label": "US fusion companies developing concepts",
+      "detail": "Most are pursuing tokamaks or stellarators; others use laser-based inertial confinement."
+    },
+    {
+      "value": "12.3 years",
+      "label": "Tritium half-life drives breeding need",
+      "detail": "Tritium is scarce on Earth; future reactors plan lithium breeding blankets to generate it."
+    }
+  ],
+  "quotes": [
+    {
+      "text": "\"The plan isn't the problem. We all agree on the plan. The X factor is the funding. If we underfund the U.S. fusion program and we cut vital scope, we can all watch the timeline to commercialisation slip.\"",
+      "source": "Robb Hughes, Realta Fusion, via Reuters"
+    },
+    {
+      "text": "\"This latest achievement is a visible marker of the progress being made through our accelerated approach to machine assembly.\"",
+      "source": "Pietro Barabaschi, ITER Director-General"
+    },
+    {
+      "text": "As of 2025, the National Ignition Facility is the only laboratory to have demonstrated a fusion energy gain factor above one — but efficiencies orders of magnitude higher are required for engineering breakeven.",
+      "source": "Wikipedia, Fusion power"
+    },
+    {
+      "text": "Private developers have not yet achieved \"net energy gain,\" the point where a fusion reaction produces more energy than was used to start and sustain it.",
+      "source": "Reuters"
+    }
+  ],
+  "takeaway": "Fusion's 2026 story is fast assembly and record private capital against a materials-and-money bottleneck that still puts commercial power in the mid-2030s at best.",
+  "_style": {
+    "id": "swiss",
+    "label": "Swiss Grid",
+    "family": "rows"
+  },
+  "_graphic": {
+    "template": "process",
+    "orientation": "landscape",
+    "detail": "standard"
+  }
+}

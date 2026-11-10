@@ -13,9 +13,9 @@
 // 3 a11y         every interactive control has an accessible name, a >=32px
 //                target (inline prose citations excepted by WCAG 2.5.8), a
 //                focus ring that actually resolves, and 16px body type.
-// 4 layout       no horizontal overflow at 1440/1180/1024/820; the studio and
-//                rail collapse at their breakpoints; nothing straddles a
-//                scroll viewport's edge.
+// 4 layout       no horizontal overflow at 1440/1180/1024/820; the Make drawer
+//                survives every width and the rail is the panel that folds;
+//                nothing straddles a scroll viewport's edge.
 import { readFileSync } from 'node:fs'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
@@ -627,20 +627,39 @@ async function layout() {
         const outsideView = r2.bottom <= pb.top || r2.top >= pb.bottom
         return !inside && !outsideView
       }).map((c) => (c.querySelector('.nb-card-name') || {}).textContent || 'card')
+      // two rows that were clipped by their own panel edge: a Make row wider
+      // than the drawer (a 2-up grid's min-content floor) and the composer's
+      // Send button pushed out by an unshrinkable conversation chip
+      const insideOf = (sel, parentSel) => {
+        const n = document.querySelector(sel); const p2 = document.querySelector(parentSel)
+        if (!n || !p2) return true
+        return n.getBoundingClientRect().right <= p2.getBoundingClientRect().right + 1
+      }
       return {
         overflowX: doc.scrollWidth - doc.clientWidth,
         rail: box('.nb-rail'), studio: box('.nb-studio'), main: box('main'),
         strips: strips.filter((s) => s.sw > s.cw + 1),
-        outside, sliced
+        outside, sliced,
+        cardFits: insideOf('.nb-card', '.nb-studio'),
+        sendFits: insideOf('.nb-sendbtn', '.nb-main-col'),
+        footFits: (() => { const f = document.querySelector('.nb-askfoot'); return !f || f.scrollWidth <= f.clientWidth + 1 })()
       }
     })
     ok(`no horizontal overflow at ${w}`, r.overflowX <= 1, `overflow=${r.overflowX}`)
     ok(`no toolbar overflows its box at ${w}`, r.strips.length === 0, JSON.stringify(r.strips).slice(0, 120))
     ok(`no pane paints outside its column at ${w}`, r.outside === 0, `${r.outside} panes`)
     ok(`no studio card is sliced by the panel edge at ${w}`, r.sliced.length === 0, r.sliced.join(','))
-    if (w <= 1024) ok(`studio collapses at ${w}`, r.studio === null, 'hidden')
-    if (w <= 840) ok(`rail collapses at ${w}`, r.rail === null, 'hidden')
-    if (w > 1100) ok(`main column keeps >=560px at ${w}`, r.main.w >= 560, `${r.main.w}px`)
+    ok(`a Make row keeps inside the drawer at ${w}`, r.cardFits === true, String(r.cardFits))
+    ok(`Send keeps its slot in the composer at ${w}`, r.sendFits === true && r.footFits === true,
+      `button=${r.sendFits} foot=${r.footFits}`)
+    // The Make drawer NEVER folds: hiding it was the bug (with the shell's own
+    // sidebar, a 1024–1280px window hands this page ~760–1020px, and the old
+    // viewport query then hid the one panel that makes artifacts). The rail is
+    // the panel that gives way, and it gives way below 1060 root pixels.
+    ok(`the Make drawer survives at ${w}`, r.studio !== null && r.studio.w >= 260,
+      r.studio ? `${r.studio.w}px` : 'hidden')
+    if (w < 1060) ok(`rail folds below 1060 at ${w}`, r.rail === null, 'hidden')
+    if (w >= 1180) ok(`main column keeps >=520px at ${w}`, r.main.w >= 520, `${r.main.w}px`)
     await page.close()
   }
   await b.close()

@@ -1,0 +1,301 @@
+{
+  "title": "Commercial fusion in 2026: U.S. industry counts, ITER assembly milestones and DOE roadmap targets, by entity (numeric values kept separate from units)",
+  "columns": [
+    "Entity",
+    "Category",
+    "Metric",
+    "Value",
+    "Unit",
+    "Baseline or target",
+    "Status or risk",
+    "Source"
+  ],
+  "rows": [
+    [
+      "U.S. fusion companies",
+      "Industry scale",
+      "Company count (FIA 2026 dataset)",
+      "28",
+      "companies",
+      "—",
+      "Conflict: S3 rounds to 'around 30'; S2 tied to named 2026 dataset",
+      "S2"
+    ],
+    [
+      "U.S. fusion companies",
+      "Industry scale",
+      "Company count (rounded)",
+      "~30",
+      "companies",
+      "—",
+      "Explicit rounding; same tally as S2, not evidence of growth",
+      "S3"
+    ],
+    [
+      "ITER",
+      "Machine assembly",
+      "Tokamak sector modules installed",
+      "6",
+      "modules",
+      "9 (total)",
+      "Almost six months ahead of schedule; sixth module lowered 28 July 2026",
+      "S3, S4"
+    ],
+    [
+      "ITER",
+      "Machine assembly",
+      "Tokamak sector modules planned",
+      "9",
+      "modules",
+      "—",
+      "Final module positioning targeted for 2027",
+      "S4"
+    ],
+    [
+      "ITER",
+      "Machine assembly",
+      "Share of torus-shaped core in place",
+      "two-thirds",
+      "share of core",
+      "—",
+      "Agreed by S3 and S4; S3 phrases it as the plasma chamber",
+      "S3, S4"
+    ],
+    [
+      "ITER",
+      "Machine assembly",
+      "Sixth sector module mass",
+      "1,100",
+      "tonnes",
+      "—",
+      "Approx.; suspended load with lifting rig nearly 1,400 tonnes",
+      "S4"
+    ],
+    [
+      "ITER",
+      "Schedule",
+      "Schedule variance at sixth module",
+      "almost 6",
+      "months ahead",
+      "Original assembly schedule",
+      "Source phrase: 'almost six months ahead of schedule'",
+      "S4"
+    ],
+    [
+      "ITER",
+      "Manufacturing",
+      "Vacuum vessel sectors produced in Korea",
+      "4",
+      "sectors",
+      "9 (total)",
+      "Fourth and final Korean sector installed with module 6",
+      "S4"
+    ],
+    [
+      "ITER",
+      "Governance / cost",
+      "Europe share of construction cost",
+      "almost half",
+      "share of cost",
+      "—",
+      "China, India, Japan, Korea, Russia and US contribute equally to the remainder",
+      "S4"
+    ],
+    [
+      "ITER",
+      "Mission",
+      "Designed to produce electricity",
+      "No",
+      "—",
+      "—",
+      "Exploratory science initiative; not designed or intended to produce electricity",
+      "S1"
+    ],
+    [
+      "DOE Fusion Science and Technology Roadmap",
+      "Policy",
+      "Release date",
+      "June 2026",
+      "month",
+      "—",
+      "Central plank of the federal fusion strategy",
+      "S2"
+    ],
+    [
+      "Office of Fusion (DOE)",
+      "Policy",
+      "Creation date",
+      "November 2025",
+      "month",
+      "—",
+      "Coordinates roadmap implementation",
+      "S2"
+    ],
+    [
+      "U.S. federal fusion strategy",
+      "Policy",
+      "Early-stage plant deployment target",
+      "mid-2030s",
+      "target date",
+      "—",
+      "Success hinges on more federal funding, industry leaders say",
+      "S2"
+    ],
+    [
+      "DOE fusion roadmap",
+      "Policy",
+      "Stated main goals",
+      "3",
+      "goals",
+      "—",
+      "Materials/technology gap infrastructure; AI and computing access; public-private partnerships",
+      "S2"
+    ],
+    [
+      "Private fusion developers",
+      "Technology status",
+      "Net energy gain achieved",
+      "No",
+      "—",
+      "Net energy gain",
+      "Industry still experimental; not yet achieved",
+      "S2"
+    ],
+    [
+      "Fusion fuel cycle",
+      "Engineering gap",
+      "Tritium breeding blankets",
+      "—",
+      "—",
+      "Required for future reactors",
+      "Agreed across sources per ledger; tritium scarce and decays",
+      "S2"
+    ],
+    [
+      "Fusion materials",
+      "Engineering gap",
+      "Neutron-resistant structural materials and components",
+      "—",
+      "—",
+      "Required",
+      "Agreed across sources per ledger; central unsolved engineering challenge",
+      "S2"
+    ],
+    [
+      "National Ignition Facility (NIF)",
+      "Technology status",
+      "Highest demonstrated fusion energy gain factor",
+      ">1",
+      "gain factor (Q)",
+      "Engineering breakeven",
+      "Only laboratory to do so as of 2025; orders of magnitude higher needed",
+      "S6"
+    ],
+    [
+      "IAEA World Fusion Outlook 2025",
+      "Reference dataset",
+      "Publication edition",
+      "3",
+      "edition",
+      "—",
+      "89 pages, 90 figures; covers dozens of plant concepts, no count given",
+      "S5"
+    ],
+    [
+      "CRS report R48866",
+      "Policy analysis",
+      "Publication date",
+      "27 February 2026",
+      "date",
+      "—",
+      "Policy framing for Congress; specific DOE fusion funding figures not in retrieved text",
+      "S1"
+    ]
+  ],
+  "citations": [
+    [
+      2
+    ],
+    [
+      3
+    ],
+    [
+      3,
+      4
+    ],
+    [
+      4
+    ],
+    [
+      3,
+      4
+    ],
+    [
+      4
+    ],
+    [
+      4
+    ],
+    [
+      4
+    ],
+    [
+      4
+    ],
+    [
+      1
+    ],
+    [
+      2
+    ],
+    [
+      2
+    ],
+    [
+      2
+    ],
+    [
+      2
+    ],
+    [
+      2
+    ],
+    [
+      2
+    ],
+    [
+      2
+    ],
+    [
+      6
+    ],
+    [
+      5
+    ],
+    [
+      1
+    ]
+  ],
+  "summary": [
+    {
+      "label": "U.S. fusion-company count range",
+      "value": "28 [S2] to ~30 [S3]",
+      "basis": "Rows 1–2: same metric from two sources; S3's figure is an explicit rounding, so the gap is presentational, not a growth signal"
+    },
+    {
+      "label": "ITER sector modules installed vs planned",
+      "value": "6 of 9 (two-thirds of core)",
+      "basis": "Rows 3–5; module counts stated by S4, two-thirds share stated by S3 and S4"
+    },
+    {
+      "label": "Rows with a numeric value carrying a unit",
+      "value": "16 of 20",
+      "basis": "Count over all 20 rows where the Unit column is not '—'"
+    },
+    {
+      "label": "Engineering gaps recorded as ledger-agreed",
+      "value": "2 (tritium breeding blankets; neutron-resistant materials)",
+      "basis": "Rows 16–17, both marked 'agreed' in the tension ledger"
+    }
+  ]
+}

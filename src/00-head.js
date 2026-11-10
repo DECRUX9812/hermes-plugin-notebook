@@ -288,9 +288,17 @@ const CSS = `
   font-size:10.5px;font-weight:700;
   box-shadow:0 1px 4px rgba(8,10,18,.4)}
 .nb-src-body{min-width:0;flex:1;display:flex;flex-direction:column;gap:1px}
-.nb-src-title{font-size:var(--nb-fs-label);font-weight:600;line-height:1.35;color:${T.text};
-  overflow:hidden;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical}
-.nb-src-meta{display:flex;align-items:center;gap:5px;flex-wrap:wrap;row-gap:3px}
+/* Two lines, always: at 162px of text width a single line identifies nothing
+   ("US roadmap targets fusion deployment by mid 203…"). The clamp is stated on
+   the row's own title so the select-all label (a plain sentence) keeps its box. */
+.nb-src .nb-src-title{font-size:var(--nb-fs-label);font-weight:600;line-height:1.35;color:${T.text};
+  overflow:hidden;display:-webkit-box !important;-webkit-line-clamp:2;-webkit-box-orient:vertical;
+  overflow-wrap:anywhere}
+.nb-src-meta{display:flex;align-items:center;gap:5px;flex-wrap:nowrap;min-width:0;
+  overflow:hidden}
+.nb-src-meta .nb-chip{flex:0 0 auto}
+/* the first chip may shrink; the "+n" stays whole, so rows keep one line */
+.nb-src-meta .nb-chip:first-child{flex:0 1 auto;min-width:0;overflow:hidden;text-overflow:ellipsis}
 /* NotebookLM's per-source checkbox: a rounded box on the row's left edge */
 .nb-srccheck{width:32px;height:32px;flex:0 0 auto;border-radius:var(--nb-r-in);cursor:pointer;
   border:1.5px solid var(--nb-hair-soft);background:transparent;color:#0d0e15;
@@ -300,7 +308,11 @@ const CSS = `
 /* "all included" is a filter row over the list, not a checkbox above a tree */
 .nb-selall{display:flex;align-items:center;gap:var(--nb-sp-2);padding:0 2px var(--nb-sp-2);
   border-bottom:1px solid var(--nb-hair-soft);margin-bottom:var(--nb-sp-1)}
-.nb-selall .nb-src-title{font-size:var(--nb-fs-label);font-weight:600}
+.nb-selall .nb-src-title{font-size:var(--nb-fs-label);font-weight:600;color:${T.text2}}
+/* The master control keeps the row's 32px target and the semantic radius (the
+   a11y and design gates both refuse anything else); it is separated from the
+   list by its hairline and by a quieter label, not by a different shape. */
+
 .nb-src-flat{display:flex;flex-direction:column;gap:1px}
 .nb-src-del{position:absolute;right:var(--nb-sp-1);top:50%;transform:translateY(-50%);
   opacity:0;transition:opacity var(--nb-dur-fast) var(--nb-ease);background:var(--nb-card)}
@@ -382,12 +394,15 @@ const CSS = `
   flex:0 0 auto;position:relative;display:flex;flex-direction:column;min-width:0}
 .nb-head-top{display:flex;align-items:center;gap:var(--nb-sp-3);min-height:52px;padding:var(--nb-sp-2) 0 0;
   min-width:0}
+/* the view switcher's own row — the title keeps the width it needs */
+.nb-tabs-row{display:flex;align-items:center;gap:var(--nb-sp-3);padding:var(--nb-sp-2) 0 8px;min-width:0}
 .nb-head-sigil{width:34px;height:34px;flex:0 0 auto;display:grid;place-items:center;font-size:20px;
   border-radius:var(--nb-r-in);background:var(--nb-wash-2);border:1px solid var(--nb-hair-soft);
   overflow:hidden}
 .nb-head-main{min-width:0;flex:1;display:flex;flex-direction:column;gap:1px}
 .nb-h1{font-size:var(--nb-fs-title);font-weight:650;letter-spacing:-.015em;line-height:1.25;margin:0;
-  white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0}
+  overflow:hidden;min-width:0;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;
+  overflow-wrap:anywhere}
 .nb-sub{color:${T.text3};font-size:var(--nb-fs-meta);line-height:1.4;margin:0;
   white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0;max-width:100%}
 .nb-hero-side{display:flex;align-items:center;gap:var(--nb-sp-2);flex:0 0 auto}
@@ -482,7 +497,14 @@ const CSS = `
 .nb-askbox textarea{width:100%;min-height:44px;max-height:150px;resize:none;border:0;outline:0;
   background:transparent;color:${T.text};font-size:15px;line-height:1.5;font-family:inherit}
 .nb-askbox textarea::placeholder{color:${T.text3}}
-.nb-askfoot{display:flex;align-items:center;gap:8px}
+.nb-askfoot{display:flex;align-items:center;gap:8px;min-width:0}
+/* the keyboard hint yields before the Send button does: it was pushing the
+   button out of the column at 1330px, so the primary action sat half-clipped
+   at the panel edge */
+.nb-thrchip{min-width:0;max-width:min(210px,38%);overflow:hidden;flex:0 1 auto;min-height:32px}
+.nb-thrchip > span{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.nb-askfoot > .nb-hint{min-width:0;flex:1 1 0;overflow:hidden;text-overflow:ellipsis;
+  white-space:nowrap}
 .nb-sendbtn{width:38px;height:38px;flex:0 0 auto;border-radius:var(--nb-r-pill);border:0;cursor:pointer;
   background:${T.accent};color:#0d0e15;display:grid;place-items:center;padding:0;
   transition:opacity var(--nb-dur-fast) var(--nb-ease),transform var(--nb-dur-fast) var(--nb-ease)}
@@ -570,12 +592,16 @@ const CSS = `
   transition:transform var(--nb-dur-fast) var(--nb-ease)}
 .nb-group-head[aria-expanded=false] .nb-group-chev{transform:rotate(-90deg)}
 
-/* the output pills: two per row inside a family, each tinted by its kind */
-.nb-gen-grid{display:grid;grid-template-columns:1fr 1fr;gap:var(--nb-sp-3);padding:0 0 var(--nb-sp-2)}
+/* The output list: ONE per row, tinted by its kind.
+   Two-up cards in a 320–420px drawer left ~190px per card, so every blurb
+   wrapped to three lines, the timestamp dotted beside it, and the whole bench
+   read as a wall of equal-weight boxes. One row per output gives the name room,
+   keeps the state on the same line, and reads like a studio list should. */
+.nb-gen-grid{display:grid;grid-template-columns:minmax(0,1fr);gap:5px;padding:0 0 var(--nb-sp-2)}
 
 .nb-card{--kc:${T.accent};
-  display:flex;align-items:flex-start;gap:var(--nb-sp-3);width:100%;
-  min-height:78px;padding:var(--nb-sp-3) var(--nb-sp-3);
+  display:flex;align-items:center;gap:var(--nb-sp-3);width:100%;min-width:0;
+  min-height:52px;padding:8px 10px;
   border:1px solid var(--nb-hair-soft);border-radius:var(--nb-r-el);
   background:var(--nb-card);cursor:pointer;text-align:left;color:${T.text};
   transition:background var(--nb-dur-fast) var(--nb-ease),border-color var(--nb-dur-fast) var(--nb-ease),
@@ -608,9 +634,11 @@ const CSS = `
   overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .nb-card-name svg{color:var(--kc);flex:0 0 auto}
 /* the blurb is what the output actually is — the pill is not just a label */
-.nb-card-blurb{display:-webkit-box;font-size:var(--nb-fs-meta);line-height:1.4;color:${T.text3};
-  -webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
-.nb-card-foot{display:flex;align-items:center;gap:var(--nb-sp-2);margin-top:auto;padding-top:4px}
+.nb-card-blurb{font-size:var(--nb-fs-meta);line-height:1.4;color:${T.text3};min-width:0;
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.nb-card .nb-card-state{flex:0 0 auto}
+.nb-card{position:relative}
+.nb-card-bar{position:absolute;left:8px;right:8px;bottom:3px}
 .nb-card-state{display:inline-flex;align-items:center;gap:5px;white-space:nowrap;
   font-size:var(--nb-fs-meta);font-weight:600;color:${T.text3};
   padding:2px 7px;border-radius:var(--nb-r-pill)}
@@ -1344,7 +1372,9 @@ const CSS = `
 .nb-root[data-density=compact]{--nb-rail:200px; --nb-studio:320px}
 .nb-root[data-density=compact] .nb-body{padding:10px;gap:10px}
 .nb-root[data-density=compact] .nb-h1{font-size:22px}
-.nb-root[data-density=compact] .nb-gen-grid{grid-template-columns:1fr 1fr}
+/* the output list is one column at every density: a 2-up grid in a 300–420px
+   drawer forces a min-content floor wider than the panel, which is exactly how
+   rows ended up clipped by the drawer's edge */
 /* Below 900 root pixels the three-column workbench is three slivers. The RAIL
    folds away (its content is reachable from Home and the source dialog), and
    the drawer keeps its width because the artifacts are the product. Hiding both
@@ -1352,21 +1382,29 @@ const CSS = `
    nothing to make anything with. */
 .nb-root[data-density=tight]{--nb-rail:0px; --nb-studio:300px}
 .nb-root[data-density=tight] .nb-rail{display:none}
-.nb-root[data-density=tight] .nb-gen-grid{grid-template-columns:1fr}
-/* ================= the old viewport queries, kept for a host that renders the
-   page full-bleed (the preview harness and a fullscreen window do) ========= */
+
+/* ================= the old viewport queries, for a host that renders the page
+   full-bleed (the preview harness and a fullscreen window do) ================
+   EVERY rule here is scoped to the root's own density attribute; without that
+   scope they applied to EVERY host. They used to be unscoped,
+   and that was the bug that made the workbench look broken: with the shell's own
+   sidebar taking ~260px, a 1024–1280px window gives this page ~760–1020px, the
+   root-measured tier said "tight — keep the Make drawer", and then
+   the old max-width:1100 query hid it anyway. Rail
+   folded by density, drawer folded by viewport, and the page was a lone chat
+   column with nothing to make anything with. */
 @media (max-width:1280px){
   .nb-root:not([data-density]){--nb-rail:240px; --nb-studio:340px}
 }
 @media (max-width:1100px){
-  .nb-studio{display:none}
+  .nb-root:not([data-density]) .nb-studio{display:none}
   .nb-thread{padding:22px 20px 12px}
   .nb-main-head{padding:0 var(--nb-sp-4)}
   .nb-composer{padding:12px 20px 16px}
   .nb-home-scroll{padding:20px 18px 24px}
 }
 @media (max-width:820px){
-  .nb-rail{display:none}
+  .nb-root:not([data-density]) .nb-rail{display:none}
   .nb-h1{font-size:22px}
   .nb-body{padding:8px;gap:8px}
   .nb-suggest-grid{grid-template-columns:1fr}

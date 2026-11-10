@@ -459,9 +459,14 @@ function App() {
     const node = rootRef.current
     if (!node || typeof ResizeObserver === 'undefined') return undefined
     // Thresholds are chosen from the MAIN column this leaves, not from a round
-    // number: wide 268+420 leaves >=572 at 1280; compact 200+320 leaves >=560
-    // from 1100; below that the rail folds so the workbench keeps its width.
-    const measure = (w) => setDensity(w >= 1320 ? 'wide' : w >= 1100 ? 'compact' : 'tight')
+    // number, and they are measured on the ROOT because the host shell's own
+    // sidebar is not ours: a 1440 window hands this page ~1180, a 1280 window
+    // ~1020. The old 1320/1100 pair therefore almost never picked "wide" — on a
+    // 1440 laptop you got the 200px rail, and on a 1280 you got a rail-less
+    // "tight" tier. Now: wide 268+420 needs 1250 to keep main >= 520; compact
+    // 200+320 needs 1060 for the same; below that the rail folds and the Make
+    // drawer keeps 300, because the artifacts are the product.
+    const measure = (w) => setDensity(w >= 1250 ? 'wide' : w >= 1060 ? 'compact' : 'tight')
     measure(node.getBoundingClientRect().width)
     const ro = new ResizeObserver((entries) => {
       for (const e of entries) measure(e.contentRect.width)

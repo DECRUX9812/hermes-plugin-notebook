@@ -85,7 +85,7 @@ const CSS = `
    ========================================================================== */
 
 .nb-root{
-  --nb-rail: 280px; --nb-studio: 380px;
+  --nb-rail: 268px; --nb-studio: 420px;
   --nb-hair: color-mix(in srgb, ${T.text} 10%, transparent);
   --nb-hair-soft: color-mix(in srgb, ${T.text} 6%, transparent);
   --nb-wash: color-mix(in srgb, ${T.text} 4%, transparent);
@@ -288,9 +288,17 @@ const CSS = `
   font-size:10.5px;font-weight:700;
   box-shadow:0 1px 4px rgba(8,10,18,.4)}
 .nb-src-body{min-width:0;flex:1;display:flex;flex-direction:column;gap:1px}
-.nb-src-title{font-size:var(--nb-fs-label);font-weight:600;line-height:1.35;color:${T.text};
-  overflow:hidden;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical}
-.nb-src-meta{display:flex;align-items:center;gap:5px;flex-wrap:wrap;row-gap:3px}
+/* Two lines, always: at 162px of text width a single line identifies nothing
+   ("US roadmap targets fusion deployment by mid 203…"). The clamp is stated on
+   the row's own title so the select-all label (a plain sentence) keeps its box. */
+.nb-src .nb-src-title{font-size:var(--nb-fs-label);font-weight:600;line-height:1.35;color:${T.text};
+  overflow:hidden;display:-webkit-box !important;-webkit-line-clamp:2;-webkit-box-orient:vertical;
+  overflow-wrap:anywhere}
+.nb-src-meta{display:flex;align-items:center;gap:5px;flex-wrap:nowrap;min-width:0;
+  overflow:hidden}
+.nb-src-meta .nb-chip{flex:0 0 auto}
+/* the first chip may shrink; the "+n" stays whole, so rows keep one line */
+.nb-src-meta .nb-chip:first-child{flex:0 1 auto;min-width:0;overflow:hidden;text-overflow:ellipsis}
 /* NotebookLM's per-source checkbox: a rounded box on the row's left edge */
 .nb-srccheck{width:32px;height:32px;flex:0 0 auto;border-radius:var(--nb-r-in);cursor:pointer;
   border:1.5px solid var(--nb-hair-soft);background:transparent;color:#0d0e15;
@@ -300,7 +308,11 @@ const CSS = `
 /* "all included" is a filter row over the list, not a checkbox above a tree */
 .nb-selall{display:flex;align-items:center;gap:var(--nb-sp-2);padding:0 2px var(--nb-sp-2);
   border-bottom:1px solid var(--nb-hair-soft);margin-bottom:var(--nb-sp-1)}
-.nb-selall .nb-src-title{font-size:var(--nb-fs-label);font-weight:600}
+.nb-selall .nb-src-title{font-size:var(--nb-fs-label);font-weight:600;color:${T.text2}}
+/* The master control keeps the row's 32px target and the semantic radius (the
+   a11y and design gates both refuse anything else); it is separated from the
+   list by its hairline and by a quieter label, not by a different shape. */
+
 .nb-src-flat{display:flex;flex-direction:column;gap:1px}
 .nb-src-del{position:absolute;right:var(--nb-sp-1);top:50%;transform:translateY(-50%);
   opacity:0;transition:opacity var(--nb-dur-fast) var(--nb-ease);background:var(--nb-card)}
@@ -382,12 +394,15 @@ const CSS = `
   flex:0 0 auto;position:relative;display:flex;flex-direction:column;min-width:0}
 .nb-head-top{display:flex;align-items:center;gap:var(--nb-sp-3);min-height:52px;padding:var(--nb-sp-2) 0 0;
   min-width:0}
+/* the view switcher's own row — the title keeps the width it needs */
+.nb-tabs-row{display:flex;align-items:center;gap:var(--nb-sp-3);padding:var(--nb-sp-2) 0 8px;min-width:0}
 .nb-head-sigil{width:34px;height:34px;flex:0 0 auto;display:grid;place-items:center;font-size:20px;
   border-radius:var(--nb-r-in);background:var(--nb-wash-2);border:1px solid var(--nb-hair-soft);
   overflow:hidden}
 .nb-head-main{min-width:0;flex:1;display:flex;flex-direction:column;gap:1px}
 .nb-h1{font-size:var(--nb-fs-title);font-weight:650;letter-spacing:-.015em;line-height:1.25;margin:0;
-  white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0}
+  overflow:hidden;min-width:0;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;
+  overflow-wrap:anywhere}
 .nb-sub{color:${T.text3};font-size:var(--nb-fs-meta);line-height:1.4;margin:0;
   white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0;max-width:100%}
 .nb-hero-side{display:flex;align-items:center;gap:var(--nb-sp-2);flex:0 0 auto}
@@ -482,7 +497,14 @@ const CSS = `
 .nb-askbox textarea{width:100%;min-height:44px;max-height:150px;resize:none;border:0;outline:0;
   background:transparent;color:${T.text};font-size:15px;line-height:1.5;font-family:inherit}
 .nb-askbox textarea::placeholder{color:${T.text3}}
-.nb-askfoot{display:flex;align-items:center;gap:8px}
+.nb-askfoot{display:flex;align-items:center;gap:8px;min-width:0}
+/* the keyboard hint yields before the Send button does: it was pushing the
+   button out of the column at 1330px, so the primary action sat half-clipped
+   at the panel edge */
+.nb-thrchip{min-width:0;max-width:min(210px,38%);overflow:hidden;flex:0 1 auto;min-height:32px}
+.nb-thrchip > span{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.nb-askfoot > .nb-hint{min-width:0;flex:1 1 0;overflow:hidden;text-overflow:ellipsis;
+  white-space:nowrap}
 .nb-sendbtn{width:38px;height:38px;flex:0 0 auto;border-radius:var(--nb-r-pill);border:0;cursor:pointer;
   background:${T.accent};color:#0d0e15;display:grid;place-items:center;padding:0;
   transition:opacity var(--nb-dur-fast) var(--nb-ease),transform var(--nb-dur-fast) var(--nb-ease)}
@@ -535,7 +557,16 @@ const CSS = `
 .nb-studio-head{gap:var(--nb-sp-3)}
 .nb-studio-body{flex:1;min-height:0;display:flex;flex-direction:column;gap:var(--nb-sp-4);
   overflow:auto;overscroll-behavior:contain;
-  padding:var(--nb-sp-4) var(--nb-sp-4) 0;
+  /* The last card used to end flush against the status bar: a cut card at the
+     panel edge reads as a rendering fault, not as "scroll for more". A real
+     bottom gutter gives the bench a visible end. */
+  padding:var(--nb-sp-4) var(--nb-sp-4) var(--nb-sp-6);
+  /* A card sliced by the panel's bottom edge reads as a rendering fault. The
+     fade says "there is more below" while the panel is scrolled, and because
+     the bottom gutter is deeper than the fade, it disappears at the end of the
+     list instead of dimming the last card. */
+  -webkit-mask-image:linear-gradient(to bottom,#000 calc(100% - 18px),transparent);
+  mask-image:linear-gradient(to bottom,#000 calc(100% - 18px),transparent);
   scrollbar-width:thin;
   scrollbar-color:color-mix(in srgb,${T.text} 22%,transparent) transparent}
 .nb-studio-sec{display:flex;flex-direction:column;gap:var(--nb-sp-2)}
@@ -561,12 +592,16 @@ const CSS = `
   transition:transform var(--nb-dur-fast) var(--nb-ease)}
 .nb-group-head[aria-expanded=false] .nb-group-chev{transform:rotate(-90deg)}
 
-/* the output pills: two per row inside a family, each tinted by its kind */
-.nb-gen-grid{display:grid;grid-template-columns:1fr 1fr;gap:var(--nb-sp-3);padding:0 0 var(--nb-sp-2)}
+/* The output list: ONE per row, tinted by its kind.
+   Two-up cards in a 320–420px drawer left ~190px per card, so every blurb
+   wrapped to three lines, the timestamp dotted beside it, and the whole bench
+   read as a wall of equal-weight boxes. One row per output gives the name room,
+   keeps the state on the same line, and reads like a studio list should. */
+.nb-gen-grid{display:grid;grid-template-columns:minmax(0,1fr);gap:5px;padding:0 0 var(--nb-sp-2)}
 
 .nb-card{--kc:${T.accent};
-  display:flex;align-items:flex-start;gap:var(--nb-sp-3);width:100%;
-  min-height:78px;padding:var(--nb-sp-3) var(--nb-sp-3);
+  display:flex;align-items:center;gap:var(--nb-sp-3);width:100%;min-width:0;
+  min-height:52px;padding:8px 10px;
   border:1px solid var(--nb-hair-soft);border-radius:var(--nb-r-el);
   background:var(--nb-card);cursor:pointer;text-align:left;color:${T.text};
   transition:background var(--nb-dur-fast) var(--nb-ease),border-color var(--nb-dur-fast) var(--nb-ease),
@@ -599,9 +634,11 @@ const CSS = `
   overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .nb-card-name svg{color:var(--kc);flex:0 0 auto}
 /* the blurb is what the output actually is — the pill is not just a label */
-.nb-card-blurb{display:-webkit-box;font-size:var(--nb-fs-meta);line-height:1.4;color:${T.text3};
-  -webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
-.nb-card-foot{display:flex;align-items:center;gap:var(--nb-sp-2);margin-top:auto;padding-top:4px}
+.nb-card-blurb{font-size:var(--nb-fs-meta);line-height:1.4;color:${T.text3};min-width:0;
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.nb-card .nb-card-state{flex:0 0 auto}
+.nb-card{position:relative}
+.nb-card-bar{position:absolute;left:8px;right:8px;bottom:3px}
 .nb-card-state{display:inline-flex;align-items:center;gap:5px;white-space:nowrap;
   font-size:var(--nb-fs-meta);font-weight:600;color:${T.text3};
   padding:2px 7px;border-radius:var(--nb-r-pill)}
@@ -1155,8 +1192,10 @@ const CSS = `
 .nb-frow:hover{border-color:color-mix(in srgb,${T.text} 20%, transparent);box-shadow:var(--nb-shadow)}
 .nb-frow[aria-current=true]{border-color:color-mix(in srgb,${T.accent} 55%, transparent);
   background:color-mix(in srgb,${T.accent} 9%, var(--nb-card))}
-.nb-fname{font-size:14px;font-weight:600;line-height:1.25}
-.nb-frole{font-size:10.5px;color:${T.text3};text-transform:uppercase;letter-spacing:.06em;font-weight:600}
+.nb-fname{font-size:14px;font-weight:600;line-height:1.25;min-width:0;
+  overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.nb-frole{font-size:10.5px;color:${T.text3};text-transform:uppercase;letter-spacing:.06em;font-weight:600;
+  overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .nb-term{font-family:var(--ui-font-mono,ui-monospace,monospace);font-size:13px;line-height:1.55;flex:1 1 auto;
   background:#101320;color:#c9cede;border-radius:var(--nb-r-box);padding:16px;min-height:130px;max-height:none;overflow:auto;
   white-space:pre-wrap;word-break:break-word;border:1px solid rgba(255,255,255,.09);
@@ -1266,9 +1305,14 @@ const CSS = `
 
 /* generator options popover + citation hover card + data table */
 .nb-gen{position:relative}
-.nb-gen-cfg{position:absolute;top:4px;right:4px;width:32px;height:32px;opacity:0;
-  transition:opacity var(--nb-dur-fast) var(--nb-ease)}
-.nb-gen:hover .nb-gen-cfg,.nb-gen-cfg[data-active="true"]{opacity:1}
+/* The options button is a CONTROL, not a hover decoration: it was opacity:0
+   until the pointer was already over the card, so on a touch screen, on a
+   trackpad with the pointer elsewhere, or on first glance at the page the
+   settings looked like they did not exist. Quiet when idle, bright on hover. */
+.nb-gen-cfg{position:absolute;top:3px;right:3px;width:32px;height:32px;
+  opacity:.42;transition:opacity var(--nb-dur-fast) var(--nb-ease)}
+.nb-gen:hover .nb-gen-cfg,.nb-gen-cfg[data-active="true"],.nb-gen-cfg:focus-visible{opacity:1}
+@media (hover:none){.nb-gen-cfg{opacity:.8}}
 .nb-genpop{position:absolute;top:calc(100% + 6px);left:0;right:0;z-index:30;
   background:${T.card};border:1px solid ${T.line};border-radius:var(--nb-r-box);
   box-shadow:var(--nb-shadow-lift);padding:12px;display:grid;gap:12px}
@@ -1320,20 +1364,47 @@ const CSS = `
 .nb-dt tbody tr:last-child td{border-bottom:0}
 .nb-dt tbody tr:hover td{background:color-mix(in srgb,${T.accent} 4%,transparent)}
 
+/* Density is measured on the ROOT (see appendChild's ResizeObserver in
+   30-shell.js), because the viewport is not the space this page gets: the host
+   app's own rail takes 260px of it. These rules replace the viewport queries
+   that shipped before, which fired at the wrong widths and left the main pane
+   332px wide on a 1280px screen. */
+.nb-root[data-density=compact]{--nb-rail:200px; --nb-studio:320px}
+.nb-root[data-density=compact] .nb-body{padding:10px;gap:10px}
+.nb-root[data-density=compact] .nb-h1{font-size:22px}
+/* the output list is one column at every density: a 2-up grid in a 300–420px
+   drawer forces a min-content floor wider than the panel, which is exactly how
+   rows ended up clipped by the drawer's edge */
+/* Below 900 root pixels the three-column workbench is three slivers. The RAIL
+   folds away (its content is reachable from Home and the source dialog), and
+   the drawer keeps its width because the artifacts are the product. Hiding both
+   — which is what the old max-width:1100 query did — left a chat pane and
+   nothing to make anything with. */
+.nb-root[data-density=tight]{--nb-rail:0px; --nb-studio:300px}
+.nb-root[data-density=tight] .nb-rail{display:none}
+
+/* ================= the old viewport queries, for a host that renders the page
+   full-bleed (the preview harness and a fullscreen window do) ================
+   EVERY rule here is scoped to the root's own density attribute; without that
+   scope they applied to EVERY host. They used to be unscoped,
+   and that was the bug that made the workbench look broken: with the shell's own
+   sidebar taking ~260px, a 1024–1280px window gives this page ~760–1020px, the
+   root-measured tier said "tight — keep the Make drawer", and then
+   the old max-width:1100 query hid it anyway. Rail
+   folded by density, drawer folded by viewport, and the page was a lone chat
+   column with nothing to make anything with. */
 @media (max-width:1280px){
-  .nb-root{--nb-rail:250px; --nb-studio:320px}
-  .nb-body{padding:10px;gap:10px}
-  .nb-h1{font-size:22px}
+  .nb-root:not([data-density]){--nb-rail:240px; --nb-studio:340px}
 }
 @media (max-width:1100px){
-  .nb-studio{display:none}
+  .nb-root:not([data-density]) .nb-studio{display:none}
   .nb-thread{padding:22px 20px 12px}
   .nb-main-head{padding:0 var(--nb-sp-4)}
   .nb-composer{padding:12px 20px 16px}
   .nb-home-scroll{padding:20px 18px 24px}
 }
 @media (max-width:820px){
-  .nb-rail{display:none}
+  .nb-root:not([data-density]) .nb-rail{display:none}
   .nb-h1{font-size:22px}
   .nb-body{padding:8px;gap:8px}
   .nb-suggest-grid{grid-template-columns:1fr}
@@ -2012,6 +2083,46 @@ function Dialog({ open, onClose, title, children, width = 520 }) {
     jsx(IconBtn, { icon: 'close', label: 'Close dialog', onClick: onClose })
   ),
   children))
+}
+
+/* Copying is an ACTION, so it reports.
+ *
+ * Every call site used to wrap `navigator.clipboard.writeText(...)` in
+ * try/catch. writeText returns a PROMISE, so a denied permission sailed past
+ * the catch as an unhandled rejection, and the button said nothing either
+ * way — the click looked broken in exactly the window where copying matters
+ * most (the app's renderer, where the async clipboard can be refused).
+ *
+ * One helper, three outcomes with a sentence for each, and a selection-copy
+ * fallback that works where the async API is refused. */
+async function copyText(text, say) {
+  const value = String(text == null ? '' : text)
+  if (!value.trim()) { if (say) say('there is nothing to copy here'); return false }
+  let told = false
+  try {
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      await navigator.clipboard.writeText(value)
+      if (say) say('copied to the clipboard')
+      return true
+    }
+  } catch { told = true /* refused — fall through to the legacy path */ }
+  try {
+    const ta = document.createElement('textarea')
+    ta.value = value
+    ta.setAttribute('readonly', 'true')
+    ta.style.cssText = 'position:fixed;top:-1000px;left:-1000px;opacity:0'
+    document.body.appendChild(ta)
+    ta.select()
+    const done = document.execCommand ? document.execCommand('copy') : false
+    ta.remove()
+    if (say) say(done ? 'copied to the clipboard'
+      : 'this window will not let the page copy — select the text and press Ctrl+C')
+    return !!done
+  } catch {
+    if (say) say(told ? 'this window will not let the page copy — select the text and press Ctrl+C'
+      : 'could not reach the clipboard')
+    return false
+  }
 }
 
 /* ----------------------------------------------------------------- markdown
@@ -2873,6 +2984,32 @@ function App() {
     setNb(id); viewSend({ type: 'RESET_VIEW' }); setMode('studio')
   }, [])
 
+  // Measure the ROOT, not the viewport. The plugin lives inside the host's
+  // window, so `@media (max-width:…)` measures the wrong thing: at a 1600px
+  // window this root is 1340px, and at 1280px it is 1020px — where two fixed
+  // panels (268 + 420) left the main pane 332px wide.
+  const rootRef = useRef(null)
+  const [density, setDensity] = useState('wide')
+  useEffect(() => {
+    const node = rootRef.current
+    if (!node || typeof ResizeObserver === 'undefined') return undefined
+    // Thresholds are chosen from the MAIN column this leaves, not from a round
+    // number, and they are measured on the ROOT because the host shell's own
+    // sidebar is not ours: a 1440 window hands this page ~1180, a 1280 window
+    // ~1020. The old 1320/1100 pair therefore almost never picked "wide" — on a
+    // 1440 laptop you got the 200px rail, and on a 1280 you got a rail-less
+    // "tight" tier. Now: wide 268+420 needs 1250 to keep main >= 520; compact
+    // 200+320 needs 1060 for the same; below that the rail folds and the Make
+    // drawer keeps 300, because the artifacts are the product.
+    const measure = (w) => setDensity(w >= 1250 ? 'wide' : w >= 1060 ? 'compact' : 'tight')
+    measure(node.getBoundingClientRect().width)
+    const ro = new ResizeObserver((entries) => {
+      for (const e of entries) measure(e.contentRect.width)
+    })
+    ro.observe(node)
+    return () => ro.disconnect()
+  }, [])
+
   const ops = mode === 'ops'
   const home = mode === 'home'
   const discoverMode = mode === 'discover'
@@ -2882,7 +3019,8 @@ function App() {
   const studyMode = mode === 'study'
 
   return el('div', {
-    className: 'nb-root', 'data-mode': mode, 'data-plugin': ID,
+    ref: rootRef,
+    className: 'nb-root', 'data-mode': mode, 'data-plugin': ID, 'data-density': density,
     // the room takes on the notebook's colour: its sigil hue becomes the ambient
     // field behind every panel, and home keeps a fixed violet
     style: { '--nb-hue': sigHue(notebook ? notebook.id : 'hermes-home') }
@@ -2927,7 +3065,12 @@ function App() {
           if (v === 'studio' && !notebook) { setMode('home'); return }
           setMode(v)
         },
-        options: (notebook && mode !== 'home'
+        // The gate is `notebook`, NOT the current mode. Gating on
+        // `mode !== 'home'` meant that from Home the switcher offered only
+        // Home / Discover / Lab Ops — so once you landed on Home with a
+        // notebook open you could not get back to Studio at all, and the tab
+        // row silently changed shape under the pointer.
+        options: (notebook
           ? [
               { id: 'home', label: 'Home', icon: 'grid' },
               { id: 'studio', label: 'Studio', icon: 'notebook' },
@@ -3645,6 +3788,16 @@ function Main({ notebook, kinds, tab, setTab, picked, setPicked, busy, generate,
             children: notebook.description
               ? notebook.description
               : `${sources.length} source${sources.length === 1 ? '' : 's'} · ${stats.labels || 0} topics · updated ${ago(notebook.updated_at) || 'recently'}` })),
+        el('div', { className: 'nb-hero-side' },
+          el('span', {
+            className: 'nb-chip', 'data-tone': modelReady ? 'ok' : 'warn',
+            children: modelReady ? 'grounded' : 'model offline'
+          }))),
+      // The view switcher gets its own row: sharing one line with the sigil, the
+      // title and the meta block meant the h1 was truncated even at 1330px
+      // ("Commercial Fusion Energy in 2…") and the active tab competed with the
+      // grounded chip for the same corner.
+      el('div', { className: 'nb-tabs-row' },
         el('div', { className: 'nb-tabs', role: 'tablist', 'aria-label': 'Notebook views' },
           el('button', {
             type: 'button', role: 'tab', className: 'nb-tab', 'aria-selected': tab === 'chat',
@@ -3670,20 +3823,14 @@ function Main({ notebook, kinds, tab, setTab, picked, setPicked, busy, generate,
             children: [jsx(Glyph, { name: 'book', size: 14 }),
                        el('span', { children: `S${peek.n} · ${peek.title}` })]
           }) : null
-        ),
-        el('div', { className: 'nb-hero-side' },
-          el('span', {
-            className: 'nb-chip', 'data-tone': modelReady ? 'ok' : 'warn',
-            children: modelReady ? 'grounded' : 'model offline'
-          }))
-      )
+        ))
     ),
 
     tab === 'peek' && peek
       ? (() => {
           const pi = sources.findIndex((s) => s.id === peek.id)
           return jsx(SourcePeek, {
-            source: peek, notebook,
+            source: peek, notebook, onSay,
             onClose: () => { setPeek(null); setTab('chat') },
             onAskAbout: (s) => { setAskScope({ ids: [s.id], title: s.title }); setTab('chat') },
             onRefresh: onRefreshSource ? () => onRefreshSource(peek) : null,
@@ -3707,7 +3854,7 @@ function Main({ notebook, kinds, tab, setTab, picked, setPicked, busy, generate,
               .slice().sort((a, b) => String(a.modified).localeCompare(String(b.modified)))
             const si = sibs.findIndex((a) => a.key === picked.key)
             return jsx(Viewer, {
-              artifact: picked, notebook,
+              artifact: picked, notebook, onSay,
               regenerating: !!(busy && busy[picked.kind]),
               onRegenerate: () => generate(picked.kind, picked.opts || {}),
               onChanged: refreshArtifact || (() => reload && reload(true)),
@@ -3875,14 +4022,7 @@ function Chat({ notebook, kinds, askOpen, onSay, modelReady, onCite, onOpenSourc
     } catch (e) { if (onSay) onSay(`could not save note: ${e.message || e}`) }
   }
 
-  const copyOv = () => {
-    try {
-      if (navigator.clipboard && navigator.clipboard.writeText) {
-        navigator.clipboard.writeText(ov)
-        if (onSay) onSay('overview copied')
-      }
-    } catch { /* clipboard is a nicety */ }
-  }
+  const copyOv = () => copyText(ov, onSay)
 
   useEffect(() => { if (askOpen) { const n = boxRef.current; if (n) n.focus() } }, [askOpen])
 
@@ -4117,11 +4257,15 @@ function Chat({ notebook, kinds, askOpen, onSay, modelReady, onCite, onOpenSourc
           rows: 2
         }),
         el('div', { className: 'nb-askfoot' },
-          jsx(Chip, {
+          // The conversation title is a QUESTION ("What does the sources say about
+          // funding?"), so this chip is as wide as the question. Unshrunk it
+          // pushed the Send button 21px past the column edge at 1330px; capped
+          // and ellipsized it stays a chip and the primary action keeps its slot.
+          el('button', {
+            type: 'button', className: 'nb-chip nb-thrchip',
             title: 'Conversations — switch or start a new chat',
-            onClick: () => setThrOpen(true),
-            children: `💬 ${thrLabel}`
-          }),
+            onClick: () => setThrOpen(true)
+          }, el('span', { children: `💬 ${thrLabel}` })),
           jsx(Chip, {
             title: `${activeCount} of ${stats.sources || 0} sources are in context`,
             children: `${activeCount} source${activeCount === 1 ? '' : 's'}`
@@ -4510,9 +4654,7 @@ function Msg({ msg, onCite, notebook, canRetry, onRetry }) {
               msg.meta ? el('span', { style: { marginLeft: '8px', color: T.text4, fontWeight: 500, textTransform: 'none', letterSpacing: 0 }, children: `· ${msg.meta}` }) : null,
               jsx(IconBtn, {
                 icon: 'copy', size: 13, label: 'Copy answer',
-                onClick: () => {
-                  try { if (navigator.clipboard) navigator.clipboard.writeText(msg.content) } catch { /* clipboard unavailable */ }
-                }
+                onClick: () => copyText(msg.content, onSay)
               }),
               canRetry
                 ? jsx(IconBtn, { icon: 'refresh', size: 13, label: 'Regenerate this answer', onClick: onRetry })
@@ -4527,7 +4669,9 @@ function Msg({ msg, onCite, notebook, canRetry, onRetry }) {
                       body: { notebook: notebook.id, text: msg.content, title: first.slice(0, 90) },
                       timeoutMs: 30000
                     })
-                  } catch { /* note save is best-effort */ }
+                    if (onSay) onSay('saved as a note — it is a source now')
+                    if (reload) await reload(true)
+                  } catch (e) { if (onSay) onSay(`could not save the note: ${e.message || e}`) }
                 }
               }) : null),
             el('div', { className: 'nb-bubble' },
@@ -4566,7 +4710,7 @@ function Msg({ msg, onCite, notebook, canRetry, onRetry }) {
 
 /* ---------------------------------------------------------------- peek */
 
-function SourcePeek({ source, notebook, onClose, onAskAbout, onRefresh, onPrev, onNext }) {
+function SourcePeek({ source, notebook, onClose, onAskAbout, onRefresh, onPrev, onNext, onSay }) {
   const [text, setText] = useState('')
   const [err, setErr] = useState('')
   const [refreshing, setRefreshing] = useState(false)
@@ -4634,7 +4778,7 @@ function SourcePeek({ source, notebook, onClose, onAskAbout, onRefresh, onPrev, 
       text
         ? jsx(IconBtn, {
             icon: 'copy', label: 'Copy source text',
-            onClick: () => { try { if (navigator.clipboard) navigator.clipboard.writeText(text) } catch { /* clipboard unavailable */ } }
+            onClick: () => copyText(text, onSay)
           })
         : null,
       onRefresh && !['note', 'text'].includes(source.kind)
@@ -4769,7 +4913,7 @@ function StudioPanel({ kinds, notebook, busy, generate, filter, setFilter, onOpe
         className: 'nb-chip',
         'data-tone': readyCount ? 'ok' : undefined,
         title: `${readyCount} of ${kinds.length} outputs have a latest run`,
-        children: `${readyCount}/${kinds.length} ready`
+        children: `${readyCount} of ${kinds.length} made`
       }),
       runningCount ? el('span', { className: 'nb-chip', 'data-tone': 'accent',
         children: `${runningCount} writing` }) : null,
@@ -4778,11 +4922,13 @@ function StudioPanel({ kinds, notebook, busy, generate, filter, setFilter, onOpe
 
     el('div', { className: 'nb-studio-body nb-scroll', ref: scrollRef,
       'data-scrollable': canScroll ? 'true' : 'false' },
-      el('div', { className: 'nb-studio-sec' },
-        el('div', { className: 'nb-studio-sec-head' },
-          el('span', { className: 'nb-meta', children: 'Make something' }),
-          el('span', { style: { flex: 1 } }),
-          el('span', { className: 'nb-hint', children: 'from these sources' }))),
+      // the pane already says "Make · n of m"; this row only earns its space
+      // when there is nothing to open yet
+      readyCount
+        ? null
+        : el('div', { className: 'nb-studio-sec' },
+            el('div', { className: 'nb-studio-sec-head' },
+              el('span', { className: 'nb-hint', children: 'Nothing made yet — pick an output below.' }))),
       groupBlocks,
       el('div', { className: 'nb-studio-sec-head nb-studio-runs' },
         el('span', { className: 'nb-meta', children: 'Every run' }),
@@ -4877,23 +5023,24 @@ function GenPill({ kind, art, started, nbId, onOpen, onGenerate }) {
           el('span', { className: 'nb-card-name', children: kind.label }),
           kind.blurb
             ? el('span', { className: 'nb-card-blurb', children: kind.blurb })
-            : null,
-          el('span', { className: 'nb-card-foot' },
-            el('span', { className: 'nb-card-state', 'data-kind': started ? 'busy' : art ? 'ready' : 'idle' },
+            : null),
+        // the state sits at the END of the row, where a list puts its status —
+        // under the blurb it read as a second paragraph
+        el('span', { className: 'nb-card-state', 'data-kind': started ? 'busy' : art ? 'ready' : 'idle' },
+          el('span', {
+            className: 'nb-dot',
+            style: { background: started ? 'var(--kc)' : art ? T.ok : undefined }
+          }),
+          started ? `writing · ${secs}s`
+            : art ? `made ${ago(art.modified)}`
+              : `~${kind.secs || 15}s`),
+        started
+          ? el('span', { className: 'nb-bar-track nb-card-bar' },
               el('span', {
-                className: 'nb-dot',
-                style: { background: started ? 'var(--kc)' : art ? T.ok : undefined }
-              }),
-              started ? `writing · ${secs}s`
-                : art ? ago(art.modified)
-                  : `~${kind.secs || 15}s to make`)),
-          started
-            ? el('span', { className: 'nb-bar-track' },
-                el('span', {
-                  className: 'nb-bar-fill',
-                  style: { width: `${Math.min(96, 12 + secs * 2.2)}%`, opacity: 0.9 }
-                }))
-            : null)
+                className: 'nb-bar-fill',
+                style: { width: `${Math.min(96, 12 + secs * 2.2)}%`, opacity: 0.9 }
+              }))
+          : null
       ]
     }),
     optSpecs.length
@@ -5063,7 +5210,13 @@ function StatusBar({ mode, notebook, data, note, opsStats }) {
           children: `${notebook.stats.unlabeled} source${notebook.stats.unlabeled === 1 ? '' : 's'} unlabeled — press “label” on the rail`
         })
       : null,
-    note ? jsx('span', { style: { color: T.accent }, children: note }) : null,
+    // Every action's outcome ("copied", "downloaded", "could not rename") lands
+    // here. It was a visual-only sentence: a screen-reader user pressed Copy and
+    // heard nothing at all. role=status + aria-live makes the reply audible
+    // without stealing focus.
+    note
+      ? jsx('span', { role: 'status', 'aria-live': 'polite', style: { color: T.accent }, children: note })
+      : null,
     el('span', { style: { flex: 1 } }),
     jsx('span', { className: 'nb-mono', style: { fontSize: '11.5px' },
       children: ops ? 'ssh · audited transport' : (notebook ? notebook.id : 'no notebook') }),
@@ -5927,22 +6080,30 @@ function StudyPanel({ notebook, onSay, onOpenSource }) {
   }, [nbId, m.state])
 
   const counts = stats.counts || {}
+  const plural = (n, one, many) => `${n} ${n === 1 ? one : many}`
   const chip = (label, value, tone) => el('span', {
-    className: 'nb-chip', 'data-tone': tone || undefined,
+    key: label, className: 'nb-chip', 'data-tone': tone || undefined,
     children: `${value} ${label}`
   })
+
+  // The phases are the four buckets a card can sit in, and they must add up to
+  // the notebook's cards. `young` was missing from this row, so a deck of 3
+  // showed "3 due · 2 new · 0 learning · 0 mastered" — the numbers did not
+  // reconcile and the reader had no way to know one bucket was hidden. Zero
+  // buckets are noise, so only non-zero ones are shown.
+  const phases = [['new', counts.new], ['learning', counts.learning],
+                  ['scheduled', counts.young], ['mastered', counts.mastered]]
+    .filter(([, v]) => Number(v) > 0)
 
   const header = el('div', { className: 'nb-study-head' },
     el('div', null,
       el('div', { className: 'nb-study-title', children: 'Study' }),
       el('div', { className: 'nb-hint', children: stats.cards
-        ? `${stats.cards} cards in this notebook · ${stats.due || 0} due · ${stats.mastered_pct || 0}% mastered`
+        ? `${plural(stats.cards, 'card', 'cards')} in this notebook · ${stats.due || 0} due · ${stats.mastered_pct || 0}% mastered`
         : 'No flashcards or quiz in this notebook yet — generate one, then come back.' }),
       el('div', { className: 'nb-study-chips' },
         chip('due', stats.due || 0, stats.due ? 'accent' : undefined),
-        chip('new', counts.new || 0),
-        chip('learning', counts.learning || 0),
-        chip('mastered', counts.mastered || 0, 'ok'),
+        phases.map(([label, value]) => chip(label, value, label === 'mastered' ? 'ok' : undefined)),
         stats.streak ? chip('day streak', stats.streak) : null,
         stats.reviews_today ? chip('today', stats.reviews_today) : null)),
     el('div', { className: 'nb-spacer' }),
@@ -6266,7 +6427,7 @@ function useFile(notebookId, name) {
   return st
 }
 
-function Viewer({ artifact, notebook, onCite, onRegenerate, regenerating, onChanged, onPrevRun, onNextRun, runPos, onClose }) {
+function Viewer({ artifact, notebook, onCite, onRegenerate, regenerating, onChanged, onPrevRun, onNextRun, runPos, onClose, onSay }) {
   const [renOpen, setRenOpen] = useState(false)
   const [renVal, setRenVal] = useState('')
   const [renBusy, setRenBusy] = useState(false)
@@ -6280,8 +6441,14 @@ function Viewer({ artifact, notebook, onCite, onRegenerate, regenerating, onChan
         timeoutMs: 30000
       })
       setRenOpen(false)
+      if (onSay) onSay('renamed')
       if (onChanged) onChanged()
-    } catch { /* rename is best-effort */ } finally { setRenBusy(false) }
+    } catch (e) {
+      // A rename that fails must NOT close the dialog: the old code swallowed
+      // the error, closed the panel and left the title unchanged, which reads
+      // as "the app ignored me" rather than "that did not save".
+      if (onSay) onSay(`could not rename: ${e.message || e}`)
+    } finally { setRenBusy(false) }
   }
   const jsonName = (files.find((f) => f.ext === 'json') || {}).name || ''
   const txtName = (files.find((f) => f.ext === 'txt') || {}).name || ''
@@ -6311,14 +6478,15 @@ function Viewer({ artifact, notebook, onCite, onRegenerate, regenerating, onChan
   } else if (artifact.kind === 'quiz') {
     body = jsx(QuizView, { data: asJson.json, text: primary.text, deckId: artifact.key })
   } else if (artifact.kind === 'slides') {
-    body = jsx(SlidesView, { data: asJson.json, text: primary.text, notebook, jsonName, onCite,
+    body = jsx(SlidesView, { data: asJson.json, text: primary.text, notebook, jsonName, onCite, onSay,
                              htmlUrl: primary.url && artifact.ext === 'html' ? primary.url : '' })
   } else if (artifact.kind === 'infographic' || artifact.kind === 'blueprint_evolution') {
     // The blueprint is an SVG poster like an infographic: same stage, same
     // zoom, same style chip. A separate viewer would be the same code twice.
     body = jsx(InfographicView, { src: primary.url, data: asJson.json })
   } else if (artifact.kind === 'data_table') {
-    body = jsx(DataTableView, { text: primary.text, name: artifact.primary, data: asJson.json })
+    body = jsx(DataTableView, { text: primary.text, name: artifact.primary, data: asJson.json,
+                                notebookId: notebook && notebook.id, onSay })
   } else if (artifact.kind === 'summary' || artifact.kind === 'briefing_doc') {
     // A document, not a chat reply: BLUF banner, KPI strip, then sections.
     body = jsx(DocView, { text: primary.text, kind: artifact.kind, onCite })
@@ -6351,7 +6519,7 @@ function Viewer({ artifact, notebook, onCite, onRegenerate, regenerating, onChan
         primary.text
           ? jsx(IconBtn, {
               icon: 'copy', label: 'Copy artifact text',
-              onClick: () => { try { navigator.clipboard.writeText(primary.text) } catch { /* clipboard may be unavailable */ } }
+              onClick: () => copyText(primary.text, onSay || (host.say ? (m) => host.say(m) : null))
             })
           : null,
         jsx(IconBtn, {
@@ -7438,7 +7606,7 @@ const normAnswer = (s) => String(s == null ? '' : s).trim().toLowerCase()
 
 /* ---------------------------------------------------------------- slides */
 
-function SlidesView({ data, htmlUrl, notebook, jsonName, onCite }) {
+function SlidesView({ data, htmlUrl, notebook, jsonName, onCite, onSay }) {
   const deck = data || {}
   const slides = deck.slides || []
   const [i, setI] = useState(0)
@@ -7487,8 +7655,12 @@ function SlidesView({ data, htmlUrl, notebook, jsonName, onCite }) {
       a.download = out.name || 'deck.pptx'
       document.body.appendChild(a); a.click(); a.remove()
       setTimeout(() => URL.revokeObjectURL(url), 2000)
+      // a download that says nothing looks like a button that did nothing
+      const said = `downloaded ${out.name || 'deck.pptx'}`
+      if (onSay) onSay(said); else if (host.say) host.say(said)
     } catch (e) {
-      if (host.say) host.say(`pptx export failed: ${e.message || e}`)
+      const said = `pptx export failed: ${e.message || e}`
+      if (onSay) onSay(said); else if (host.say) host.say(said)
     } finally {
       setPptxBusy(false)
     }
@@ -7633,10 +7805,16 @@ function parseCsv(text) {
   return rows
 }
 
-/** One download control with three targets: CSV (the artifact itself), XLSX
- *  (a real workbook with a frozen header and an auto-filter) and the clipboard
- *  as tab-separated text, which is what "copy for Sheets" actually pastes well. */
-function DownloadMenu({ csvText, name, onCsv }) {
+/* One download control with three targets: CSV (the artifact itself), XLSX
+ * (a real workbook with a frozen header and an auto-filter) and the clipboard
+ * as tab-separated text, which is what "copy for Sheets" actually pastes well.
+ *
+ * ``notebookId`` is REQUIRED by the route (``/artifact/xlsx`` resolves the
+ * notebook before it can find the JSON), and this menu used to omit it: every
+ * Excel download came back 422 and the toast said "xlsx export failed". The
+ * path is built from the same three values the viewer was handed, so it cannot
+ * drift from the table on screen. */
+function DownloadMenu({ csvText, name, notebookId, onCsv, onSay }) {
   const [open, setOpen] = useState(false)
   const [busy, setBusy] = useState(false)
   const ref = useRef(null)
@@ -7657,12 +7835,10 @@ function DownloadMenu({ csvText, name, onCsv }) {
     // cell while a tab-separated block splits into columns
     const rows = parseCsv(csvText || '')
     const tsv = rows.map((r) => r.join('\t')).join('\n')
-    try {
-      await navigator.clipboard.writeText(tsv)
-      if (host.say) host.say('copied as tab-separated text — paste into a sheet')
-    } catch {
-      if (host.say) host.say('clipboard is unavailable in this window')
-    }
+    await copyText(tsv, (m) => {
+      const out = m === 'copied to the clipboard' ? 'copied as tab-separated text — paste into a sheet' : m
+      if (onSay) onSay(out); else if (host.say) host.say(out)
+    })
     setOpen(false)
   }
 
@@ -7671,7 +7847,7 @@ function DownloadMenu({ csvText, name, onCsv }) {
     setBusy(true)
     try {
       const stem = String(name || '').replace(/\.(csv|json|md)$/i, '')
-      const out = await api(`/artifact/xlsx?${qs({ name: `${stem}.json`, b64: 1 })}`, { timeoutMs: 60000 })
+      const out = await api(`/artifact/xlsx?${qs({ notebook: notebookId || '', name: `${stem}.json`, b64: 1 })}`, { timeoutMs: 60000 })
       const bytes = Uint8Array.from(atob(out.b64), (ch) => ch.charCodeAt(0))
       const url = URL.createObjectURL(new Blob([bytes], { type: out.mime }))
       const a = document.createElement('a')
@@ -7679,9 +7855,13 @@ function DownloadMenu({ csvText, name, onCsv }) {
       a.download = out.name || `${stem}.xlsx`
       document.body.appendChild(a); a.click(); a.remove()
       setTimeout(() => URL.revokeObjectURL(url), 2000)
+      const said = `downloaded ${out.name || `${stem}.xlsx`}`
+      if (onSay) onSay(said); else if (host.say) host.say(said)
     } catch (e) {
-      // the xlsx route needs table JSON; say what happened rather than nothing
-      if (host.say) host.say(`xlsx export failed: ${e.message || e}`)
+      // the xlsx route resolves the notebook BEFORE it can find the table JSON,
+      // so a missing notebook was a 422 that read as "broken export"
+      const said = `xlsx export failed: ${e.message || e}`
+      if (onSay) onSay(said); else if (host.say) host.say(said)
     } finally {
       setBusy(false); setOpen(false)
     }
@@ -7710,7 +7890,7 @@ function DownloadMenu({ csvText, name, onCsv }) {
   ])
 }
 
-function DataTableView({ text, name, data }) {
+function DataTableView({ text, name, data, notebookId, onSay }) {
   const rows = useMemo(() => parseCsv(text), [text])
   const [sort, setSort] = useState({ col: -1, dir: 1 })
   const [q, setQ] = useState('')
@@ -7748,7 +7928,7 @@ function DataTableView({ text, name, data }) {
       el('span', { className: 'nb-meta', children: q.trim() ? `${filtered.length} of ${body.length} rows × ${head.length} columns` : `${body.length} rows × ${head.length} columns` }),
       el('span', { style: { flex: 1 } }),
       body.length > 8 ? jsx(SearchField, { value: q, onChange: setQ, placeholder: 'Filter rows', label: 'Filter table rows' }) : null,
-      jsx(DownloadMenu, { csvText: text, name, onCsv: exportCsv })),
+      jsx(DownloadMenu, { csvText: text, name, notebookId, onCsv: exportCsv, onSay })),
     // the aggregates the prompt computed are not in the CSV (it is rectangular);
     // they belong beside the table, not only inside the workbook
     (data && (data.summary || []).length)
@@ -8778,21 +8958,27 @@ function OpsDeck({ onSay, onStats }) {
             margin: 0
           }
         }),
+        // Name on its own line; the role leads the metadata line. Sharing one
+        // line meant a fixed role column ate the hostname ("Decrux-L…"), and
+        // inline roles left the column ragged. Role-first on line two fixes
+        // both: every role starts at the same x, and the name gets the width.
         el('span', { style: { minWidth: 0, display: 'flex', flexDirection: 'column', gap: '2px' } },
+          jsx('span', { className: 'nb-fname', children: h.name }),
           el('span', { style: { display: 'flex', alignItems: 'baseline', gap: '7px', minWidth: 0 } },
-            jsx('span', { className: 'nb-fname', children: h.name }),
-            jsx('span', { className: 'nb-frole', children: h.role })),
-          jsx('span', {
-            className: 'nb-mono',
-            style: { fontSize: '11.5px', color: T.text4, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' },
-            children: h.reachable
-              ? `${(h.kernel || '').replace(/-generic$/, '')} · ${Math.round((h.mem || {}).pct || 0)}% mem`
-              : (h.error || 'no route').replace(/^ssh: /, '')
-          })),
+            jsx('span', { className: 'nb-frole', children: h.role }),
+            jsx('span', {
+              className: 'nb-mono',
+              style: { fontSize: '11.5px', color: T.text4, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', minWidth: 0 },
+              children: h.reachable
+                ? `${(h.kernel || '').replace(/-generic$/, '')} · ${Math.round((h.mem || {}).pct || 0)}% mem`
+                : (h.error || 'no route').replace(/^ssh: /, '')
+            }))),
         jsx('span', {
           className: 'nb-chip',
           'data-tone': h.reachable ? (h.patch_state === 'patched' ? 'ok' : 'warn') : 'danger',
-          children: h.reachable ? (h.patch_state === 'patched' ? 'patched' : 'fix avail') : 'no route'
+          // the same words as the summary above: it said "2 fix available" there
+          // and "fix avail" here, and "unreachable" vs "no route" for one state
+          children: h.reachable ? (h.patch_state === 'patched' ? 'patched' : 'fix available') : 'unreachable'
         })
         )),
         !hosts.length && !state.loading
@@ -8945,6 +9131,13 @@ function ServicesTab({ host, onSay }) {
                 children: u.active }),
               jsx(Btn, {
                 size: 'sm', variant: 'ghost', disabled: busy === u.unit,
+                // 120 rows of a button all called "Restart" is one accessible
+                // name 120 times: a screen reader hears "Restart, Restart,
+                // Restart…" with no way to tell which unit it is about to
+                // bounce. The visible word stays short; the name says what and
+                // where.
+                'aria-label': `Restart ${u.unit}${u.description ? ` — ${u.description}` : ''}`,
+                title: `Restart ${u.unit}`,
                 onClick: () => op(u.unit, 'restart'),
                 children: busy === u.unit ? '…' : 'Restart'
               })))

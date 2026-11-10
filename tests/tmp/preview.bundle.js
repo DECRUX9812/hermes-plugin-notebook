@@ -12841,7 +12841,7 @@ var CSS = `
    ========================================================================== */
 
 .nb-root{
-  --nb-rail: 280px; --nb-studio: 380px;
+  --nb-rail: 268px; --nb-studio: 420px;
   --nb-hair: color-mix(in srgb, ${T.text} 10%, transparent);
   --nb-hair-soft: color-mix(in srgb, ${T.text} 6%, transparent);
   --nb-wash: color-mix(in srgb, ${T.text} 4%, transparent);
@@ -13044,9 +13044,17 @@ var CSS = `
   font-size:10.5px;font-weight:700;
   box-shadow:0 1px 4px rgba(8,10,18,.4)}
 .nb-src-body{min-width:0;flex:1;display:flex;flex-direction:column;gap:1px}
-.nb-src-title{font-size:var(--nb-fs-label);font-weight:600;line-height:1.35;color:${T.text};
-  overflow:hidden;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical}
-.nb-src-meta{display:flex;align-items:center;gap:5px;flex-wrap:wrap;row-gap:3px}
+/* Two lines, always: at 162px of text width a single line identifies nothing
+   ("US roadmap targets fusion deployment by mid 203\u2026"). The clamp is stated on
+   the row's own title so the select-all label (a plain sentence) keeps its box. */
+.nb-src .nb-src-title{font-size:var(--nb-fs-label);font-weight:600;line-height:1.35;color:${T.text};
+  overflow:hidden;display:-webkit-box !important;-webkit-line-clamp:2;-webkit-box-orient:vertical;
+  overflow-wrap:anywhere}
+.nb-src-meta{display:flex;align-items:center;gap:5px;flex-wrap:nowrap;min-width:0;
+  overflow:hidden}
+.nb-src-meta .nb-chip{flex:0 0 auto}
+/* the first chip may shrink; the "+n" stays whole, so rows keep one line */
+.nb-src-meta .nb-chip:first-child{flex:0 1 auto;min-width:0;overflow:hidden;text-overflow:ellipsis}
 /* NotebookLM's per-source checkbox: a rounded box on the row's left edge */
 .nb-srccheck{width:32px;height:32px;flex:0 0 auto;border-radius:var(--nb-r-in);cursor:pointer;
   border:1.5px solid var(--nb-hair-soft);background:transparent;color:#0d0e15;
@@ -13056,7 +13064,11 @@ var CSS = `
 /* "all included" is a filter row over the list, not a checkbox above a tree */
 .nb-selall{display:flex;align-items:center;gap:var(--nb-sp-2);padding:0 2px var(--nb-sp-2);
   border-bottom:1px solid var(--nb-hair-soft);margin-bottom:var(--nb-sp-1)}
-.nb-selall .nb-src-title{font-size:var(--nb-fs-label);font-weight:600}
+.nb-selall .nb-src-title{font-size:var(--nb-fs-label);font-weight:600;color:${T.text2}}
+/* The master control keeps the row's 32px target and the semantic radius (the
+   a11y and design gates both refuse anything else); it is separated from the
+   list by its hairline and by a quieter label, not by a different shape. */
+
 .nb-src-flat{display:flex;flex-direction:column;gap:1px}
 .nb-src-del{position:absolute;right:var(--nb-sp-1);top:50%;transform:translateY(-50%);
   opacity:0;transition:opacity var(--nb-dur-fast) var(--nb-ease);background:var(--nb-card)}
@@ -13138,12 +13150,15 @@ var CSS = `
   flex:0 0 auto;position:relative;display:flex;flex-direction:column;min-width:0}
 .nb-head-top{display:flex;align-items:center;gap:var(--nb-sp-3);min-height:52px;padding:var(--nb-sp-2) 0 0;
   min-width:0}
+/* the view switcher's own row \u2014 the title keeps the width it needs */
+.nb-tabs-row{display:flex;align-items:center;gap:var(--nb-sp-3);padding:var(--nb-sp-2) 0 8px;min-width:0}
 .nb-head-sigil{width:34px;height:34px;flex:0 0 auto;display:grid;place-items:center;font-size:20px;
   border-radius:var(--nb-r-in);background:var(--nb-wash-2);border:1px solid var(--nb-hair-soft);
   overflow:hidden}
 .nb-head-main{min-width:0;flex:1;display:flex;flex-direction:column;gap:1px}
 .nb-h1{font-size:var(--nb-fs-title);font-weight:650;letter-spacing:-.015em;line-height:1.25;margin:0;
-  white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0}
+  overflow:hidden;min-width:0;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;
+  overflow-wrap:anywhere}
 .nb-sub{color:${T.text3};font-size:var(--nb-fs-meta);line-height:1.4;margin:0;
   white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0;max-width:100%}
 .nb-hero-side{display:flex;align-items:center;gap:var(--nb-sp-2);flex:0 0 auto}
@@ -13238,7 +13253,14 @@ var CSS = `
 .nb-askbox textarea{width:100%;min-height:44px;max-height:150px;resize:none;border:0;outline:0;
   background:transparent;color:${T.text};font-size:15px;line-height:1.5;font-family:inherit}
 .nb-askbox textarea::placeholder{color:${T.text3}}
-.nb-askfoot{display:flex;align-items:center;gap:8px}
+.nb-askfoot{display:flex;align-items:center;gap:8px;min-width:0}
+/* the keyboard hint yields before the Send button does: it was pushing the
+   button out of the column at 1330px, so the primary action sat half-clipped
+   at the panel edge */
+.nb-thrchip{min-width:0;max-width:min(210px,38%);overflow:hidden;flex:0 1 auto;min-height:32px}
+.nb-thrchip > span{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.nb-askfoot > .nb-hint{min-width:0;flex:1 1 0;overflow:hidden;text-overflow:ellipsis;
+  white-space:nowrap}
 .nb-sendbtn{width:38px;height:38px;flex:0 0 auto;border-radius:var(--nb-r-pill);border:0;cursor:pointer;
   background:${T.accent};color:#0d0e15;display:grid;place-items:center;padding:0;
   transition:opacity var(--nb-dur-fast) var(--nb-ease),transform var(--nb-dur-fast) var(--nb-ease)}
@@ -13291,7 +13313,16 @@ var CSS = `
 .nb-studio-head{gap:var(--nb-sp-3)}
 .nb-studio-body{flex:1;min-height:0;display:flex;flex-direction:column;gap:var(--nb-sp-4);
   overflow:auto;overscroll-behavior:contain;
-  padding:var(--nb-sp-4) var(--nb-sp-4) 0;
+  /* The last card used to end flush against the status bar: a cut card at the
+     panel edge reads as a rendering fault, not as "scroll for more". A real
+     bottom gutter gives the bench a visible end. */
+  padding:var(--nb-sp-4) var(--nb-sp-4) var(--nb-sp-6);
+  /* A card sliced by the panel's bottom edge reads as a rendering fault. The
+     fade says "there is more below" while the panel is scrolled, and because
+     the bottom gutter is deeper than the fade, it disappears at the end of the
+     list instead of dimming the last card. */
+  -webkit-mask-image:linear-gradient(to bottom,#000 calc(100% - 18px),transparent);
+  mask-image:linear-gradient(to bottom,#000 calc(100% - 18px),transparent);
   scrollbar-width:thin;
   scrollbar-color:color-mix(in srgb,${T.text} 22%,transparent) transparent}
 .nb-studio-sec{display:flex;flex-direction:column;gap:var(--nb-sp-2)}
@@ -13317,12 +13348,16 @@ var CSS = `
   transition:transform var(--nb-dur-fast) var(--nb-ease)}
 .nb-group-head[aria-expanded=false] .nb-group-chev{transform:rotate(-90deg)}
 
-/* the output pills: two per row inside a family, each tinted by its kind */
-.nb-gen-grid{display:grid;grid-template-columns:1fr 1fr;gap:var(--nb-sp-3);padding:0 0 var(--nb-sp-2)}
+/* The output list: ONE per row, tinted by its kind.
+   Two-up cards in a 320\u2013420px drawer left ~190px per card, so every blurb
+   wrapped to three lines, the timestamp dotted beside it, and the whole bench
+   read as a wall of equal-weight boxes. One row per output gives the name room,
+   keeps the state on the same line, and reads like a studio list should. */
+.nb-gen-grid{display:grid;grid-template-columns:minmax(0,1fr);gap:5px;padding:0 0 var(--nb-sp-2)}
 
 .nb-card{--kc:${T.accent};
-  display:flex;align-items:flex-start;gap:var(--nb-sp-3);width:100%;
-  min-height:78px;padding:var(--nb-sp-3) var(--nb-sp-3);
+  display:flex;align-items:center;gap:var(--nb-sp-3);width:100%;min-width:0;
+  min-height:52px;padding:8px 10px;
   border:1px solid var(--nb-hair-soft);border-radius:var(--nb-r-el);
   background:var(--nb-card);cursor:pointer;text-align:left;color:${T.text};
   transition:background var(--nb-dur-fast) var(--nb-ease),border-color var(--nb-dur-fast) var(--nb-ease),
@@ -13355,9 +13390,11 @@ var CSS = `
   overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .nb-card-name svg{color:var(--kc);flex:0 0 auto}
 /* the blurb is what the output actually is \u2014 the pill is not just a label */
-.nb-card-blurb{display:-webkit-box;font-size:var(--nb-fs-meta);line-height:1.4;color:${T.text3};
-  -webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
-.nb-card-foot{display:flex;align-items:center;gap:var(--nb-sp-2);margin-top:auto;padding-top:4px}
+.nb-card-blurb{font-size:var(--nb-fs-meta);line-height:1.4;color:${T.text3};min-width:0;
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.nb-card .nb-card-state{flex:0 0 auto}
+.nb-card{position:relative}
+.nb-card-bar{position:absolute;left:8px;right:8px;bottom:3px}
 .nb-card-state{display:inline-flex;align-items:center;gap:5px;white-space:nowrap;
   font-size:var(--nb-fs-meta);font-weight:600;color:${T.text3};
   padding:2px 7px;border-radius:var(--nb-r-pill)}
@@ -13911,8 +13948,10 @@ var CSS = `
 .nb-frow:hover{border-color:color-mix(in srgb,${T.text} 20%, transparent);box-shadow:var(--nb-shadow)}
 .nb-frow[aria-current=true]{border-color:color-mix(in srgb,${T.accent} 55%, transparent);
   background:color-mix(in srgb,${T.accent} 9%, var(--nb-card))}
-.nb-fname{font-size:14px;font-weight:600;line-height:1.25}
-.nb-frole{font-size:10.5px;color:${T.text3};text-transform:uppercase;letter-spacing:.06em;font-weight:600}
+.nb-fname{font-size:14px;font-weight:600;line-height:1.25;min-width:0;
+  overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.nb-frole{font-size:10.5px;color:${T.text3};text-transform:uppercase;letter-spacing:.06em;font-weight:600;
+  overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .nb-term{font-family:var(--ui-font-mono,ui-monospace,monospace);font-size:13px;line-height:1.55;flex:1 1 auto;
   background:#101320;color:#c9cede;border-radius:var(--nb-r-box);padding:16px;min-height:130px;max-height:none;overflow:auto;
   white-space:pre-wrap;word-break:break-word;border:1px solid rgba(255,255,255,.09);
@@ -14022,9 +14061,14 @@ var CSS = `
 
 /* generator options popover + citation hover card + data table */
 .nb-gen{position:relative}
-.nb-gen-cfg{position:absolute;top:4px;right:4px;width:32px;height:32px;opacity:0;
-  transition:opacity var(--nb-dur-fast) var(--nb-ease)}
-.nb-gen:hover .nb-gen-cfg,.nb-gen-cfg[data-active="true"]{opacity:1}
+/* The options button is a CONTROL, not a hover decoration: it was opacity:0
+   until the pointer was already over the card, so on a touch screen, on a
+   trackpad with the pointer elsewhere, or on first glance at the page the
+   settings looked like they did not exist. Quiet when idle, bright on hover. */
+.nb-gen-cfg{position:absolute;top:3px;right:3px;width:32px;height:32px;
+  opacity:.42;transition:opacity var(--nb-dur-fast) var(--nb-ease)}
+.nb-gen:hover .nb-gen-cfg,.nb-gen-cfg[data-active="true"],.nb-gen-cfg:focus-visible{opacity:1}
+@media (hover:none){.nb-gen-cfg{opacity:.8}}
 .nb-genpop{position:absolute;top:calc(100% + 6px);left:0;right:0;z-index:30;
   background:${T.card};border:1px solid ${T.line};border-radius:var(--nb-r-box);
   box-shadow:var(--nb-shadow-lift);padding:12px;display:grid;gap:12px}
@@ -14076,20 +14120,47 @@ var CSS = `
 .nb-dt tbody tr:last-child td{border-bottom:0}
 .nb-dt tbody tr:hover td{background:color-mix(in srgb,${T.accent} 4%,transparent)}
 
+/* Density is measured on the ROOT (see appendChild's ResizeObserver in
+   30-shell.js), because the viewport is not the space this page gets: the host
+   app's own rail takes 260px of it. These rules replace the viewport queries
+   that shipped before, which fired at the wrong widths and left the main pane
+   332px wide on a 1280px screen. */
+.nb-root[data-density=compact]{--nb-rail:200px; --nb-studio:320px}
+.nb-root[data-density=compact] .nb-body{padding:10px;gap:10px}
+.nb-root[data-density=compact] .nb-h1{font-size:22px}
+/* the output list is one column at every density: a 2-up grid in a 300\u2013420px
+   drawer forces a min-content floor wider than the panel, which is exactly how
+   rows ended up clipped by the drawer's edge */
+/* Below 900 root pixels the three-column workbench is three slivers. The RAIL
+   folds away (its content is reachable from Home and the source dialog), and
+   the drawer keeps its width because the artifacts are the product. Hiding both
+   \u2014 which is what the old max-width:1100 query did \u2014 left a chat pane and
+   nothing to make anything with. */
+.nb-root[data-density=tight]{--nb-rail:0px; --nb-studio:300px}
+.nb-root[data-density=tight] .nb-rail{display:none}
+
+/* ================= the old viewport queries, for a host that renders the page
+   full-bleed (the preview harness and a fullscreen window do) ================
+   EVERY rule here is scoped to the root's own density attribute; without that
+   scope they applied to EVERY host. They used to be unscoped,
+   and that was the bug that made the workbench look broken: with the shell's own
+   sidebar taking ~260px, a 1024\u20131280px window gives this page ~760\u20131020px, the
+   root-measured tier said "tight \u2014 keep the Make drawer", and then
+   the old max-width:1100 query hid it anyway. Rail
+   folded by density, drawer folded by viewport, and the page was a lone chat
+   column with nothing to make anything with. */
 @media (max-width:1280px){
-  .nb-root{--nb-rail:250px; --nb-studio:320px}
-  .nb-body{padding:10px;gap:10px}
-  .nb-h1{font-size:22px}
+  .nb-root:not([data-density]){--nb-rail:240px; --nb-studio:340px}
 }
 @media (max-width:1100px){
-  .nb-studio{display:none}
+  .nb-root:not([data-density]) .nb-studio{display:none}
   .nb-thread{padding:22px 20px 12px}
   .nb-main-head{padding:0 var(--nb-sp-4)}
   .nb-composer{padding:12px 20px 16px}
   .nb-home-scroll{padding:20px 18px 24px}
 }
 @media (max-width:820px){
-  .nb-rail{display:none}
+  .nb-root:not([data-density]) .nb-rail{display:none}
   .nb-h1{font-size:22px}
   .nb-body{padding:8px;gap:8px}
   .nb-suggest-grid{grid-template-columns:1fr}
@@ -14795,6 +14866,38 @@ function Dialog({ open, onClose, title, children, width = 520 }) {
       children
     )
   );
+}
+async function copyText(text, say) {
+  const value = String(text == null ? "" : text);
+  if (!value.trim()) {
+    if (say) say("there is nothing to copy here");
+    return false;
+  }
+  let told = false;
+  try {
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      await navigator.clipboard.writeText(value);
+      if (say) say("copied to the clipboard");
+      return true;
+    }
+  } catch {
+    told = true;
+  }
+  try {
+    const ta = document.createElement("textarea");
+    ta.value = value;
+    ta.setAttribute("readonly", "true");
+    ta.style.cssText = "position:fixed;top:-1000px;left:-1000px;opacity:0";
+    document.body.appendChild(ta);
+    ta.select();
+    const done = document.execCommand ? document.execCommand("copy") : false;
+    ta.remove();
+    if (say) say(done ? "copied to the clipboard" : "this window will not let the page copy \u2014 select the text and press Ctrl+C");
+    return !!done;
+  } catch {
+    if (say) say(told ? "this window will not let the page copy \u2014 select the text and press Ctrl+C" : "could not reach the clipboard");
+    return false;
+  }
 }
 var INLINE = /(\*\*[^*]+\*\*|__[^_\n]+__|~~[^~\n]+~~|`[^`]+`|\*[^*\n]+\*|_[^_\n]+_|\[S\d+\]|\[[^\]]+\]\([^)]+\))/g;
 function inlineNodes(text, keyBase, onCite) {
@@ -15670,6 +15773,19 @@ function App() {
     viewSend({ type: "RESET_VIEW" });
     setMode("studio");
   }, []);
+  const rootRef = (0, import_react.useRef)(null);
+  const [density, setDensity] = (0, import_react.useState)("wide");
+  (0, import_react.useEffect)(() => {
+    const node = rootRef.current;
+    if (!node || typeof ResizeObserver === "undefined") return void 0;
+    const measure = (w) => setDensity(w >= 1250 ? "wide" : w >= 1060 ? "compact" : "tight");
+    measure(node.getBoundingClientRect().width);
+    const ro = new ResizeObserver((entries) => {
+      for (const e of entries) measure(e.contentRect.width);
+    });
+    ro.observe(node);
+    return () => ro.disconnect();
+  }, []);
   const ops = mode2 === "ops";
   const home = mode2 === "home";
   const discoverMode = mode2 === "discover";
@@ -15677,9 +15793,11 @@ function App() {
   return el(
     "div",
     {
+      ref: rootRef,
       className: "nb-root",
       "data-mode": mode2,
       "data-plugin": ID,
+      "data-density": density,
       // the room takes on the notebook's colour: its sigil hue becomes the ambient
       // field behind every panel, and home keeps a fixed violet
       style: { "--nb-hue": sigHue(notebook ? notebook.id : "hermes-home") }
@@ -15729,7 +15847,12 @@ function App() {
           }
           setMode(v);
         },
-        options: notebook && mode2 !== "home" ? [
+        // The gate is `notebook`, NOT the current mode. Gating on
+        // `mode !== 'home'` meant that from Home the switcher offered only
+        // Home / Discover / Lab Ops — so once you landed on Home with a
+        // notebook open you could not get back to Studio at all, and the tab
+        // row silently changed shape under the pointer.
+        options: notebook ? [
           { id: "home", label: "Home", icon: "grid" },
           { id: "studio", label: "Studio", icon: "notebook" },
           { id: "study", label: "Study", icon: "cards" },
@@ -16213,11 +16336,11 @@ function Rail({
   onDeleteSource,
   onLabel,
   onCollapse,
-  onSay,
+  onSay: onSay2,
   onDropFiles,
   loading,
   error,
-  reload
+  reload: reload2
 }) {
   const sources = notebook && notebook.sources || [];
   const labels = notebook && notebook.labels || [];
@@ -16355,7 +16478,7 @@ function Rail({
           onClick: onLabel,
           disabled: !(notebook && notebook.stats && notebook.stats.unlabeled)
         }),
-        (0, import_jsx_runtime.jsx)(IconBtn, { icon: "refresh", label: "Refresh sources", onClick: () => reload(true) }),
+        (0, import_jsx_runtime.jsx)(IconBtn, { icon: "refresh", label: "Refresh sources", onClick: () => reload2(true) }),
         (0, import_jsx_runtime.jsx)(IconBtn, { icon: "arrowLeft", label: "Hide sources panel", onClick: onCollapse })
       )
     ),
@@ -16604,8 +16727,8 @@ function Main({
   generate,
   onAsk,
   askOpen,
-  onSay,
-  reload,
+  onSay: onSay2,
+  reload: reload2,
   modelReady,
   error,
   loading,
@@ -16651,7 +16774,7 @@ function Main({
           el(
             "div",
             { style: { marginTop: "14px" } },
-            (0, import_jsx_runtime.jsx)(Btn, { icon: "refresh", onClick: () => reload(false), children: "Try again" })
+            (0, import_jsx_runtime.jsx)(Btn, { icon: "refresh", onClick: () => reload2(false), children: "Try again" })
           )
         )
       )
@@ -16748,6 +16871,23 @@ function Main({
         ),
         el(
           "div",
+          { className: "nb-hero-side" },
+          el("span", {
+            className: "nb-chip",
+            "data-tone": modelReady ? "ok" : "warn",
+            children: modelReady ? "grounded" : "model offline"
+          })
+        )
+      ),
+      // The view switcher gets its own row: sharing one line with the sigil, the
+      // title and the meta block meant the h1 was truncated even at 1330px
+      // ("Commercial Fusion Energy in 2…") and the active tab competed with the
+      // grounded chip for the same corner.
+      el(
+        "div",
+        { className: "nb-tabs-row" },
+        el(
+          "div",
           { className: "nb-tabs", role: "tablist", "aria-label": "Notebook views" },
           el("button", {
             type: "button",
@@ -16792,15 +16932,6 @@ function Main({
               el("span", { children: `S${peek.n} \xB7 ${peek.title}` })
             ]
           }) : null
-        ),
-        el(
-          "div",
-          { className: "nb-hero-side" },
-          el("span", {
-            className: "nb-chip",
-            "data-tone": modelReady ? "ok" : "warn",
-            children: modelReady ? "grounded" : "model offline"
-          })
         )
       )
     ),
@@ -16809,6 +16940,7 @@ function Main({
       return (0, import_jsx_runtime.jsx)(SourcePeek, {
         source: peek,
         notebook,
+        onSay: onSay2,
         onClose: () => {
           setPeek(null);
           setTab("chat");
@@ -16823,7 +16955,7 @@ function Main({
       });
     })() : tab === "tensions" ? (0, import_jsx_runtime.jsx)(TensionsPanel, {
       notebook,
-      onSay,
+      onSay: onSay2,
       modelReady,
       onOpenSource,
       onCite: (n, cite) => {
@@ -16839,9 +16971,10 @@ function Main({
       return (0, import_jsx_runtime.jsx)(Viewer, {
         artifact: picked,
         notebook,
+        onSay: onSay2,
         regenerating: !!(busy && busy[picked.kind]),
         onRegenerate: () => generate(picked.kind, picked.opts || {}),
-        onChanged: refreshArtifact || (() => reload && reload(true)),
+        onChanged: refreshArtifact || (() => reload2 && reload2(true)),
         onPrevRun: si > 0 ? () => setPicked(sibs[si - 1]) : null,
         onNextRun: si >= 0 && si < sibs.length - 1 ? () => setPicked(sibs[si + 1]) : null,
         runPos: sibs.length > 1 ? `${si + 1} of ${sibs.length}` : "",
@@ -16861,9 +16994,9 @@ function Main({
       notebook,
       kinds,
       askOpen,
-      onSay,
+      onSay: onSay2,
       modelReady,
-      reload,
+      reload: reload2,
       askScope,
       setAskScope,
       generate,
@@ -16886,7 +17019,7 @@ var SUGGEST = [
 ];
 var ovCache = /* @__PURE__ */ new Map();
 var threadCache = /* @__PURE__ */ new Map();
-function Chat({ notebook, kinds, askOpen, onSay, modelReady, onCite, onOpenSource, onFindSources, reload, askScope, setAskScope, generate }) {
+function Chat({ notebook, kinds, askOpen, onSay: onSay2, modelReady, onCite, onOpenSource, onFindSources, reload: reload2, askScope, setAskScope, generate }) {
   const nbKey = `${notebook.id}:default`;
   const [thread, setThread] = (0, import_react.useState)("default");
   const [threads, setThreads] = (0, import_react.useState)(() => notebook.threads || []);
@@ -16955,7 +17088,7 @@ function Chat({ notebook, kinds, askOpen, onSay, modelReady, onCite, onOpenSourc
       cacheMsgs(key, mapped);
       setMsgs(mapped);
     }).catch(() => {
-      if (live && onSay) onSay("could not load that conversation \u2014 try again");
+      if (live && onSay2) onSay2("could not load that conversation \u2014 try again");
     });
     return () => {
       live = false;
@@ -17005,21 +17138,13 @@ function Chat({ notebook, kinds, askOpen, onSay, modelReady, onCite, onOpenSourc
         body: { notebook: notebook.id, text: ov, title: `Overview \u2014 ${notebook.title}` },
         timeoutMs: 6e4
       });
-      if (onSay) onSay("overview saved as a note \u2014 it is searchable now");
-      if (reload) await reload(true);
+      if (onSay2) onSay2("overview saved as a note \u2014 it is searchable now");
+      if (reload2) await reload2(true);
     } catch (e) {
-      if (onSay) onSay(`could not save note: ${e.message || e}`);
+      if (onSay2) onSay2(`could not save note: ${e.message || e}`);
     }
   };
-  const copyOv = () => {
-    try {
-      if (navigator.clipboard && navigator.clipboard.writeText) {
-        navigator.clipboard.writeText(ov);
-        if (onSay) onSay("overview copied");
-      }
-    } catch {
-    }
-  };
+  const copyOv = () => copyText(ov, onSay2);
   (0, import_react.useEffect)(() => {
     if (askOpen) {
       const n = boxRef.current;
@@ -17091,7 +17216,7 @@ function Chat({ notebook, kinds, askOpen, onSay, modelReady, onCite, onOpenSourc
       const prev = threadCache.get(key) || [];
       const next = cacheMsgs(key, [...prev, answer]);
       if (curThread.current === t) setMsgs(next);
-      if (reload) reload(true);
+      if (reload2) reload2(true);
     } catch (e) {
       const errMsg = {
         role: "assistant",
@@ -17104,7 +17229,7 @@ ${e.message || e}`,
       const prev = threadCache.get(key) || [];
       const next = cacheMsgs(key, [...prev, errMsg]);
       if (curThread.current === t) setMsgs(next);
-      if (onSay) onSay(e.message || "ask failed");
+      if (onSay2) onSay2(e.message || "ask failed");
       TURN.send("FAIL");
     } finally {
       TURN.send("ANSWER");
@@ -17288,7 +17413,7 @@ ${e.message || e}`,
                 "aria-label": "Stop waiting for the answer",
                 onClick: () => {
                   TURN.send("CANCEL");
-                  if (onSay) onSay("stopped waiting \u2014 the answer may still arrive on the server");
+                  if (onSay2) onSay2("stopped waiting \u2014 the answer may still arrive on the server");
                 },
                 style: {
                   marginLeft: "4px",
@@ -17350,11 +17475,16 @@ ${e.message || e}`,
         el(
           "div",
           { className: "nb-askfoot" },
-          (0, import_jsx_runtime.jsx)(Chip, {
+          // The conversation title is a QUESTION ("What does the sources say about
+          // funding?"), so this chip is as wide as the question. Unshrunk it
+          // pushed the Send button 21px past the column edge at 1330px; capped
+          // and ellipsized it stays a chip and the primary action keeps its slot.
+          el("button", {
+            type: "button",
+            className: "nb-chip nb-thrchip",
             title: "Conversations \u2014 switch or start a new chat",
-            onClick: () => setThrOpen(true),
-            children: `\u{1F4AC} ${thrLabel}`
-          }),
+            onClick: () => setThrOpen(true)
+          }, el("span", { children: `\u{1F4AC} ${thrLabel}` })),
           (0, import_jsx_runtime.jsx)(Chip, {
             title: `${activeCount} of ${stats.sources || 0} sources are in context`,
             children: `${activeCount} source${activeCount === 1 ? "" : "s"}`
@@ -17500,9 +17630,9 @@ ${e.message || e}`,
                     timeoutMs: 3e4
                   });
                   setCfgOpen(false);
-                  if (reload) reload();
+                  if (reload2) reload2();
                 } catch (e) {
-                  onSay && onSay(`could not save chat options: ${e.message || e}`);
+                  onSay2 && onSay2(`could not save chat options: ${e.message || e}`);
                 } finally {
                   setCfgBusy(false);
                 }
@@ -17548,7 +17678,7 @@ ${e.message || e}`,
             setThread(name);
             setThrOpen(false);
           } catch (e) {
-            onSay && onSay(`could not start a chat: ${e.message || e}`);
+            onSay2 && onSay2(`could not start a chat: ${e.message || e}`);
           }
         },
         onRename: async (name, title) => {
@@ -17560,9 +17690,9 @@ ${e.message || e}`,
             });
             const fresh = out && out.thread || {};
             setThreads((ts) => ts.map((t) => t.name === name ? { ...t, title: fresh.title || title } : t));
-            if (reload) reload(true);
+            if (reload2) reload2(true);
           } catch (e) {
-            onSay && onSay(`could not rename: ${e.message || e}`);
+            onSay2 && onSay2(`could not rename: ${e.message || e}`);
           }
         },
         onDelete: async (name) => {
@@ -17581,10 +17711,10 @@ ${e.message || e}`,
                 setMsgs([]);
               } else setThread("default");
             }
-            if (reload) reload(true);
-            if (onSay) onSay("conversation deleted");
+            if (reload2) reload2(true);
+            if (onSay2) onSay2("conversation deleted");
           } catch (e) {
-            onSay && onSay(`could not delete chat: ${e.message || e}`);
+            onSay2 && onSay2(`could not delete chat: ${e.message || e}`);
           }
         }
       }) : null
@@ -17859,12 +17989,7 @@ function Msg({ msg, onCite, notebook, canRetry, onRetry }) {
             icon: "copy",
             size: 13,
             label: "Copy answer",
-            onClick: () => {
-              try {
-                if (navigator.clipboard) navigator.clipboard.writeText(msg.content);
-              } catch {
-              }
-            }
+            onClick: () => copyText(msg.content, onSay)
           }),
           canRetry ? (0, import_jsx_runtime.jsx)(IconBtn, { icon: "refresh", size: 13, label: "Regenerate this answer", onClick: onRetry }) : null,
           notebook ? (0, import_jsx_runtime.jsx)(IconBtn, {
@@ -17879,7 +18004,10 @@ function Msg({ msg, onCite, notebook, canRetry, onRetry }) {
                   body: { notebook: notebook.id, text: msg.content, title: first.slice(0, 90) },
                   timeoutMs: 3e4
                 });
-              } catch {
+                if (onSay) onSay("saved as a note \u2014 it is a source now");
+                if (reload) await reload(true);
+              } catch (e) {
+                if (onSay) onSay(`could not save the note: ${e.message || e}`);
               }
             }
           }) : null
@@ -17925,7 +18053,7 @@ function Msg({ msg, onCite, notebook, canRetry, onRetry }) {
     }) : null
   );
 }
-function SourcePeek({ source, notebook, onClose, onAskAbout, onRefresh, onPrev, onNext }) {
+function SourcePeek({ source, notebook, onClose, onAskAbout, onRefresh, onPrev, onNext, onSay: onSay2 }) {
   const [text, setText] = (0, import_react.useState)("");
   const [err, setErr] = (0, import_react.useState)("");
   const [refreshing, setRefreshing] = (0, import_react.useState)(false);
@@ -18008,12 +18136,7 @@ function SourcePeek({ source, notebook, onClose, onAskAbout, onRefresh, onPrev, 
         text ? (0, import_jsx_runtime.jsx)(IconBtn, {
           icon: "copy",
           label: "Copy source text",
-          onClick: () => {
-            try {
-              if (navigator.clipboard) navigator.clipboard.writeText(text);
-            } catch {
-            }
-          }
+          onClick: () => copyText(text, onSay2)
         }) : null,
         onRefresh && !["note", "text"].includes(source.kind) ? (0, import_jsx_runtime.jsx)(IconBtn, {
           icon: "refresh",
@@ -18157,7 +18280,7 @@ function StudioPanel({ kinds, notebook, busy, generate, filter, setFilter, onOpe
         className: "nb-chip",
         "data-tone": readyCount ? "ok" : void 0,
         title: `${readyCount} of ${kinds.length} outputs have a latest run`,
-        children: `${readyCount}/${kinds.length} ready`
+        children: `${readyCount} of ${kinds.length} made`
       }),
       runningCount ? el("span", {
         className: "nb-chip",
@@ -18173,15 +18296,15 @@ function StudioPanel({ kinds, notebook, busy, generate, filter, setFilter, onOpe
         ref: scrollRef,
         "data-scrollable": canScroll ? "true" : "false"
       },
-      el(
+      // the pane already says "Make · n of m"; this row only earns its space
+      // when there is nothing to open yet
+      readyCount ? null : el(
         "div",
         { className: "nb-studio-sec" },
         el(
           "div",
           { className: "nb-studio-sec-head" },
-          el("span", { className: "nb-meta", children: "Make something" }),
-          el("span", { style: { flex: 1 } }),
-          el("span", { className: "nb-hint", children: "from these sources" })
+          el("span", { className: "nb-hint", children: "Nothing made yet \u2014 pick an output below." })
         )
       ),
       groupBlocks,
@@ -18304,29 +18427,27 @@ function GenPill({ kind, art, started, nbId, onOpen, onGenerate }) {
           "span",
           { className: "nb-card-main" },
           el("span", { className: "nb-card-name", children: kind.label }),
-          kind.blurb ? el("span", { className: "nb-card-blurb", children: kind.blurb }) : null,
-          el(
-            "span",
-            { className: "nb-card-foot" },
-            el(
-              "span",
-              { className: "nb-card-state", "data-kind": started ? "busy" : art ? "ready" : "idle" },
-              el("span", {
-                className: "nb-dot",
-                style: { background: started ? "var(--kc)" : art ? T.ok : void 0 }
-              }),
-              started ? `writing \xB7 ${secs}s` : art ? ago(art.modified) : `~${kind.secs || 15}s to make`
-            )
-          ),
-          started ? el(
-            "span",
-            { className: "nb-bar-track" },
-            el("span", {
-              className: "nb-bar-fill",
-              style: { width: `${Math.min(96, 12 + secs * 2.2)}%`, opacity: 0.9 }
-            })
-          ) : null
-        )
+          kind.blurb ? el("span", { className: "nb-card-blurb", children: kind.blurb }) : null
+        ),
+        // the state sits at the END of the row, where a list puts its status —
+        // under the blurb it read as a second paragraph
+        el(
+          "span",
+          { className: "nb-card-state", "data-kind": started ? "busy" : art ? "ready" : "idle" },
+          el("span", {
+            className: "nb-dot",
+            style: { background: started ? "var(--kc)" : art ? T.ok : void 0 }
+          }),
+          started ? `writing \xB7 ${secs}s` : art ? `made ${ago(art.modified)}` : `~${kind.secs || 15}s`
+        ),
+        started ? el(
+          "span",
+          { className: "nb-bar-track nb-card-bar" },
+          el("span", {
+            className: "nb-bar-fill",
+            style: { width: `${Math.min(96, 12 + secs * 2.2)}%`, opacity: 0.9 }
+          })
+        ) : null
       ]
     }),
     optSpecs.length ? (0, import_jsx_runtime.jsx)(IconBtn, {
@@ -18515,7 +18636,11 @@ function StatusBar({ mode: mode2, notebook, data, note, opsStats }) {
       style: { color: T.warn },
       children: `${notebook.stats.unlabeled} source${notebook.stats.unlabeled === 1 ? "" : "s"} unlabeled \u2014 press \u201Clabel\u201D on the rail`
     }) : null,
-    note ? (0, import_jsx_runtime.jsx)("span", { style: { color: T.accent }, children: note }) : null,
+    // Every action's outcome ("copied", "downloaded", "could not rename") lands
+    // here. It was a visual-only sentence: a screen-reader user pressed Copy and
+    // heard nothing at all. role=status + aria-live makes the reply audible
+    // without stealing focus.
+    note ? (0, import_jsx_runtime.jsx)("span", { role: "status", "aria-live": "polite", style: { color: T.accent }, children: note }) : null,
     el("span", { style: { flex: 1 } }),
     (0, import_jsx_runtime.jsx)("span", {
       className: "nb-mono",
@@ -19276,7 +19401,7 @@ var INGEST = Machine("ingest", {
     failed: { on: { ADD: "adding", DISMISS: { target: "idle", action: () => ({ error: "" }) } } }
   }
 });
-function DiscoverPanel({ notebook, onSay, reload }) {
+function DiscoverPanel({ notebook, onSay: onSay2, reload: reload2 }) {
   const scout = useMachine(SCOUT);
   const ingest = useMachine(INGEST);
   const [q2, setQ] = (0, import_react.useState)("");
@@ -19306,7 +19431,7 @@ function DiscoverPanel({ notebook, onSay, reload }) {
       SCOUT.send("RESULTS", { result: out });
     } catch (e) {
       SCOUT.send("FAIL", { message: String(e.message || e) });
-      if (onSay) onSay(`discover failed: ${e.message || e}`);
+      if (onSay2) onSay2(`discover failed: ${e.message || e}`);
     }
   };
   const addChosen = async () => {
@@ -19319,14 +19444,14 @@ function DiscoverPanel({ notebook, onSay, reload }) {
         timeoutMs: 3e5
       });
       const landed = (out && out.results || []).filter((r) => r.ok).length;
-      if (onSay) onSay(`${landed} of ${chosen.length} sources added`);
+      if (onSay2) onSay2(`${landed} of ${chosen.length} sources added`);
       setPicked({});
       INGEST.send("DONE", { landed, asked: chosen.length });
-      if (reload) await reload();
+      if (reload2) await reload2();
       await run(res && res.query);
     } catch (e) {
       INGEST.send("FAIL", { message: String(e.message || e) });
-      if (onSay) onSay(`adding failed: ${e.message || e}`);
+      if (onSay2) onSay2(`adding failed: ${e.message || e}`);
     }
   };
   const emptyState = () => {
@@ -19542,7 +19667,7 @@ var RATING_HINT = {
   good: "as scheduled",
   easy: "much later"
 };
-function StudyPanel({ notebook, onSay, onOpenSource }) {
+function StudyPanel({ notebook, onSay: onSay2, onOpenSource }) {
   const m = useMachine(STUDY);
   const nbId = notebook && notebook.id;
   const card = m.ctx.queue[m.ctx.idx] || null;
@@ -19577,11 +19702,19 @@ function StudyPanel({ notebook, onSay, onOpenSource }) {
     return () => document.removeEventListener("keydown", onKey);
   }, [nbId, m.state]);
   const counts = stats.counts || {};
+  const plural = (n, one, many) => `${n} ${n === 1 ? one : many}`;
   const chip = (label, value, tone) => el("span", {
+    key: label,
     className: "nb-chip",
     "data-tone": tone || void 0,
     children: `${value} ${label}`
   });
+  const phases = [
+    ["new", counts.new],
+    ["learning", counts.learning],
+    ["scheduled", counts.young],
+    ["mastered", counts.mastered]
+  ].filter(([, v]) => Number(v) > 0);
   const header = el(
     "div",
     { className: "nb-study-head" },
@@ -19589,14 +19722,12 @@ function StudyPanel({ notebook, onSay, onOpenSource }) {
       "div",
       null,
       el("div", { className: "nb-study-title", children: "Study" }),
-      el("div", { className: "nb-hint", children: stats.cards ? `${stats.cards} cards in this notebook \xB7 ${stats.due || 0} due \xB7 ${stats.mastered_pct || 0}% mastered` : "No flashcards or quiz in this notebook yet \u2014 generate one, then come back." }),
+      el("div", { className: "nb-hint", children: stats.cards ? `${plural(stats.cards, "card", "cards")} in this notebook \xB7 ${stats.due || 0} due \xB7 ${stats.mastered_pct || 0}% mastered` : "No flashcards or quiz in this notebook yet \u2014 generate one, then come back." }),
       el(
         "div",
         { className: "nb-study-chips" },
         chip("due", stats.due || 0, stats.due ? "accent" : void 0),
-        chip("new", counts.new || 0),
-        chip("learning", counts.learning || 0),
-        chip("mastered", counts.mastered || 0, "ok"),
+        phases.map(([label, value]) => chip(label, value, label === "mastered" ? "ok" : void 0)),
         stats.streak ? chip("day streak", stats.streak) : null,
         stats.reviews_today ? chip("today", stats.reviews_today) : null
       )
@@ -19783,7 +19914,7 @@ function SidePill({ side }) {
     )
   );
 }
-function TensionsPanel({ notebook, onSay, onOpenSource, modelReady, onCite }) {
+function TensionsPanel({ notebook, onSay: onSay2, onOpenSource, modelReady, onCite }) {
   const audit = useMachine(TENSION_AUDIT);
   const [reported, setReported] = (0, import_react.useState)(null);
   const nbId = notebook && notebook.id;
@@ -19803,10 +19934,10 @@ function TensionsPanel({ notebook, onSay, onOpenSource, modelReady, onCite }) {
       });
       setReported(out);
       TENSION_AUDIT.send("DONE", { report: out });
-      if (out && out.degraded && onSay) onSay(`audit limited: ${out.degraded}`);
+      if (out && out.degraded && onSay2) onSay2(`audit limited: ${out.degraded}`);
     } catch (e) {
       TENSION_AUDIT.send("FAIL", { message: String(e.message || e) });
-      if (onSay) onSay(`tension audit failed: ${e.message || e}`);
+      if (onSay2) onSay2(`tension audit failed: ${e.message || e}`);
     }
   };
   const verdict = (() => {
@@ -19986,7 +20117,7 @@ function useFile(notebookId, name) {
   }, [notebookId, name]);
   return st;
 }
-function Viewer({ artifact, notebook, onCite, onRegenerate, regenerating, onChanged, onPrevRun, onNextRun, runPos, onClose }) {
+function Viewer({ artifact, notebook, onCite, onRegenerate, regenerating, onChanged, onPrevRun, onNextRun, runPos, onClose, onSay: onSay2 }) {
   const [renOpen, setRenOpen] = (0, import_react.useState)(false);
   const [renVal, setRenVal] = (0, import_react.useState)("");
   const [renBusy, setRenBusy] = (0, import_react.useState)(false);
@@ -20000,8 +20131,10 @@ function Viewer({ artifact, notebook, onCite, onRegenerate, regenerating, onChan
         timeoutMs: 3e4
       });
       setRenOpen(false);
+      if (onSay2) onSay2("renamed");
       if (onChanged) onChanged();
-    } catch {
+    } catch (e) {
+      if (onSay2) onSay2(`could not rename: ${e.message || e}`);
     } finally {
       setRenBusy(false);
     }
@@ -20040,12 +20173,19 @@ function Viewer({ artifact, notebook, onCite, onRegenerate, regenerating, onChan
       notebook,
       jsonName,
       onCite,
+      onSay: onSay2,
       htmlUrl: primary.url && artifact.ext === "html" ? primary.url : ""
     });
   } else if (artifact.kind === "infographic" || artifact.kind === "blueprint_evolution") {
     body = (0, import_jsx_runtime.jsx)(InfographicView, { src: primary.url, data: asJson.json });
   } else if (artifact.kind === "data_table") {
-    body = (0, import_jsx_runtime.jsx)(DataTableView, { text: primary.text, name: artifact.primary, data: asJson.json });
+    body = (0, import_jsx_runtime.jsx)(DataTableView, {
+      text: primary.text,
+      name: artifact.primary,
+      data: asJson.json,
+      notebookId: notebook && notebook.id,
+      onSay: onSay2
+    });
   } else if (artifact.kind === "summary" || artifact.kind === "briefing_doc") {
     body = (0, import_jsx_runtime.jsx)(DocView, { text: primary.text, kind: artifact.kind, onCite });
   } else if (artifact.kind === "faq") {
@@ -20092,12 +20232,7 @@ function Viewer({ artifact, notebook, onCite, onRegenerate, regenerating, onChan
         primary.text ? (0, import_jsx_runtime.jsx)(IconBtn, {
           icon: "copy",
           label: "Copy artifact text",
-          onClick: () => {
-            try {
-              navigator.clipboard.writeText(primary.text);
-            } catch {
-            }
-          }
+          onClick: () => copyText(primary.text, onSay2 || (host2.say ? (m) => host2.say(m) : null))
         }) : null,
         (0, import_jsx_runtime.jsx)(IconBtn, {
           icon: "download",
@@ -21408,7 +21543,7 @@ function QuizView({ data, text, deckId }) {
   );
 }
 var normAnswer = (s) => String(s == null ? "" : s).trim().toLowerCase().replace(/^[a-d][).]\s*/, "").replace(/[^a-z0-9 ]/g, "").trim();
-function SlidesView({ data, htmlUrl, notebook, jsonName, onCite }) {
+function SlidesView({ data, htmlUrl, notebook, jsonName, onCite, onSay: onSay2 }) {
   const deck = data || {};
   const slides = deck.slides || [];
   const [i, setI] = (0, import_react.useState)(0);
@@ -21455,8 +21590,13 @@ function SlidesView({ data, htmlUrl, notebook, jsonName, onCite }) {
       a.click();
       a.remove();
       setTimeout(() => URL.revokeObjectURL(url), 2e3);
+      const said = `downloaded ${out.name || "deck.pptx"}`;
+      if (onSay2) onSay2(said);
+      else if (host2.say) host2.say(said);
     } catch (e) {
-      if (host2.say) host2.say(`pptx export failed: ${e.message || e}`);
+      const said = `pptx export failed: ${e.message || e}`;
+      if (onSay2) onSay2(said);
+      else if (host2.say) host2.say(said);
     } finally {
       setPptxBusy(false);
     }
@@ -21676,7 +21816,7 @@ function parseCsv(text) {
   }
   return rows;
 }
-function DownloadMenu({ csvText, name, onCsv }) {
+function DownloadMenu({ csvText, name, notebookId, onCsv, onSay: onSay2 }) {
   const [open, setOpen] = (0, import_react.useState)(false);
   const [busy, setBusy] = (0, import_react.useState)(false);
   const ref = (0, import_react.useRef)(null);
@@ -21698,12 +21838,11 @@ function DownloadMenu({ csvText, name, onCsv }) {
   const copyForSheets = async () => {
     const rows = parseCsv(csvText || "");
     const tsv = rows.map((r) => r.join("	")).join("\n");
-    try {
-      await navigator.clipboard.writeText(tsv);
-      if (host2.say) host2.say("copied as tab-separated text \u2014 paste into a sheet");
-    } catch {
-      if (host2.say) host2.say("clipboard is unavailable in this window");
-    }
+    await copyText(tsv, (m) => {
+      const out = m === "copied to the clipboard" ? "copied as tab-separated text \u2014 paste into a sheet" : m;
+      if (onSay2) onSay2(out);
+      else if (host2.say) host2.say(out);
+    });
     setOpen(false);
   };
   const saveXlsx = async () => {
@@ -21711,7 +21850,7 @@ function DownloadMenu({ csvText, name, onCsv }) {
     setBusy(true);
     try {
       const stem = String(name || "").replace(/\.(csv|json|md)$/i, "");
-      const out = await api(`/artifact/xlsx?${qs({ name: `${stem}.json`, b64: 1 })}`, { timeoutMs: 6e4 });
+      const out = await api(`/artifact/xlsx?${qs({ notebook: notebookId || "", name: `${stem}.json`, b64: 1 })}`, { timeoutMs: 6e4 });
       const bytes = Uint8Array.from(atob(out.b64), (ch) => ch.charCodeAt(0));
       const url = URL.createObjectURL(new Blob([bytes], { type: out.mime }));
       const a = document.createElement("a");
@@ -21721,8 +21860,13 @@ function DownloadMenu({ csvText, name, onCsv }) {
       a.click();
       a.remove();
       setTimeout(() => URL.revokeObjectURL(url), 2e3);
+      const said = `downloaded ${out.name || `${stem}.xlsx`}`;
+      if (onSay2) onSay2(said);
+      else if (host2.say) host2.say(said);
     } catch (e) {
-      if (host2.say) host2.say(`xlsx export failed: ${e.message || e}`);
+      const said = `xlsx export failed: ${e.message || e}`;
+      if (onSay2) onSay2(said);
+      else if (host2.say) host2.say(said);
     } finally {
       setBusy(false);
       setOpen(false);
@@ -21760,7 +21904,7 @@ function DownloadMenu({ csvText, name, onCsv }) {
     ]) : null
   ]);
 }
-function DataTableView({ text, name, data }) {
+function DataTableView({ text, name, data, notebookId, onSay: onSay2 }) {
   const rows = (0, import_react.useMemo)(() => parseCsv(text), [text]);
   const [sort, setSort] = (0, import_react.useState)({ col: -1, dir: 1 });
   const [q2, setQ] = (0, import_react.useState)("");
@@ -21804,7 +21948,7 @@ function DataTableView({ text, name, data }) {
       el("span", { className: "nb-meta", children: q2.trim() ? `${filtered.length} of ${body.length} rows \xD7 ${head.length} columns` : `${body.length} rows \xD7 ${head.length} columns` }),
       el("span", { style: { flex: 1 } }),
       body.length > 8 ? (0, import_jsx_runtime.jsx)(SearchField, { value: q2, onChange: setQ, placeholder: "Filter rows", label: "Filter table rows" }) : null,
-      (0, import_jsx_runtime.jsx)(DownloadMenu, { csvText: text, name, onCsv: exportCsv })
+      (0, import_jsx_runtime.jsx)(DownloadMenu, { csvText: text, name, notebookId, onCsv: exportCsv, onSay: onSay2 })
     ),
     // the aggregates the prompt computed are not in the CSV (it is rectangular);
     // they belong beside the table, not only inside the workbook
@@ -22836,7 +22980,7 @@ var OPS_TABS = [
   { id: "snapshots", label: "Snapshots", icon: "camera" },
   { id: "audit", label: "Audit", icon: "shield" }
 ];
-function OpsDeck({ onSay, onStats }) {
+function OpsDeck({ onSay: onSay2, onStats }) {
   const [state, setState] = (0, import_react.useState)({ loading: true, hosts: [], error: "", measured_at: "" });
   const [sel, setSel] = (0, import_react.useState)("local");
   const [tab, setTab] = (0, import_react.useState)("services");
@@ -22924,25 +23068,31 @@ function OpsDeck({ onSay, onStats }) {
                 margin: 0
               }
             }),
+            // Name on its own line; the role leads the metadata line. Sharing one
+            // line meant a fixed role column ate the hostname ("Decrux-L…"), and
+            // inline roles left the column ragged. Role-first on line two fixes
+            // both: every role starts at the same x, and the name gets the width.
             el(
               "span",
               { style: { minWidth: 0, display: "flex", flexDirection: "column", gap: "2px" } },
+              (0, import_jsx_runtime.jsx)("span", { className: "nb-fname", children: h.name }),
               el(
                 "span",
                 { style: { display: "flex", alignItems: "baseline", gap: "7px", minWidth: 0 } },
-                (0, import_jsx_runtime.jsx)("span", { className: "nb-fname", children: h.name }),
-                (0, import_jsx_runtime.jsx)("span", { className: "nb-frole", children: h.role })
-              ),
-              (0, import_jsx_runtime.jsx)("span", {
-                className: "nb-mono",
-                style: { fontSize: "11.5px", color: T.text4, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" },
-                children: h.reachable ? `${(h.kernel || "").replace(/-generic$/, "")} \xB7 ${Math.round((h.mem || {}).pct || 0)}% mem` : (h.error || "no route").replace(/^ssh: /, "")
-              })
+                (0, import_jsx_runtime.jsx)("span", { className: "nb-frole", children: h.role }),
+                (0, import_jsx_runtime.jsx)("span", {
+                  className: "nb-mono",
+                  style: { fontSize: "11.5px", color: T.text4, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", minWidth: 0 },
+                  children: h.reachable ? `${(h.kernel || "").replace(/-generic$/, "")} \xB7 ${Math.round((h.mem || {}).pct || 0)}% mem` : (h.error || "no route").replace(/^ssh: /, "")
+                })
+              )
             ),
             (0, import_jsx_runtime.jsx)("span", {
               className: "nb-chip",
               "data-tone": h.reachable ? h.patch_state === "patched" ? "ok" : "warn" : "danger",
-              children: h.reachable ? h.patch_state === "patched" ? "patched" : "fix avail" : "no route"
+              // the same words as the summary above: it said "2 fix available" there
+              // and "fix avail" here, and "unreachable" vs "no route" for one state
+              children: h.reachable ? h.patch_state === "patched" ? "patched" : "fix available" : "unreachable"
             })
           )),
           !hosts.length && !state.loading ? el("div", { className: "nb-hint", style: { padding: "12px" }, children: "no hosts in the inventory" }) : null
@@ -22961,7 +23111,7 @@ function OpsDeck({ onSay, onStats }) {
     el(
       "section",
       { className: "nb-col nb-main-col", "aria-label": "Selected host" },
-      host3 ? (0, import_jsx_runtime.jsx)(HostView, { host: host3, tab, setTab, onSay, key: host3.id }) : el(
+      host3 ? (0, import_jsx_runtime.jsx)(HostView, { host: host3, tab, setTab, onSay: onSay2, key: host3.id }) : el(
         "div",
         { className: "nb-void" },
         el(
@@ -22974,7 +23124,7 @@ function OpsDeck({ onSay, onStats }) {
     )
   );
 }
-function HostView({ host: host3, tab, setTab, onSay }) {
+function HostView({ host: host3, tab, setTab, onSay: onSay2 }) {
   const ok = host3.reachable;
   return el(
     "div",
@@ -23020,7 +23170,7 @@ function HostView({ host: host3, tab, setTab, onSay }) {
         }, t.id))
       )
     ),
-    ok ? tab === "services" ? (0, import_jsx_runtime.jsx)(ServicesTab, { host: host3, onSay }) : tab === "terminal" ? (0, import_jsx_runtime.jsx)(TerminalTab, { host: host3, onSay }) : tab === "files" ? (0, import_jsx_runtime.jsx)(FilesTab, { host: host3 }) : tab === "snapshots" ? (0, import_jsx_runtime.jsx)(SnapshotsTab, { host: host3, onSay }) : (0, import_jsx_runtime.jsx)(AuditTab, { onSay }) : el(
+    ok ? tab === "services" ? (0, import_jsx_runtime.jsx)(ServicesTab, { host: host3, onSay: onSay2 }) : tab === "terminal" ? (0, import_jsx_runtime.jsx)(TerminalTab, { host: host3, onSay: onSay2 }) : tab === "files" ? (0, import_jsx_runtime.jsx)(FilesTab, { host: host3 }) : tab === "snapshots" ? (0, import_jsx_runtime.jsx)(SnapshotsTab, { host: host3, onSay: onSay2 }) : (0, import_jsx_runtime.jsx)(AuditTab, { onSay: onSay2 }) : el(
       "div",
       { className: "nb-void" },
       el(
@@ -23039,7 +23189,7 @@ var fmtUptime = (s) => {
   if (d) return `${d}d ${h}h`;
   return `${h}h ${Math.floor(v % 3600 / 60)}m`;
 };
-function ServicesTab({ host: host3, onSay }) {
+function ServicesTab({ host: host3, onSay: onSay2 }) {
   const [state, setState] = (0, import_react.useState)({ loading: true, units: [], failed: 0, error: "" });
   const [q2, setQ] = (0, import_react.useState)("");
   const [busy, setBusy] = (0, import_react.useState)("");
@@ -23069,7 +23219,7 @@ function ServicesTab({ host: host3, onSay }) {
       await load();
     } catch (e) {
       setResult({ unit, verb, ok: false, err: e.message || String(e) });
-      if (onSay) onSay(`${verb} ${unit}: ${e.message || e}`);
+      if (onSay2) onSay2(`${verb} ${unit}: ${e.message || e}`);
     } finally {
       setBusy("");
     }
@@ -23137,6 +23287,13 @@ ${(result.out || result.err || "").trim().slice(0, 400)}`
             size: "sm",
             variant: "ghost",
             disabled: busy === u.unit,
+            // 120 rows of a button all called "Restart" is one accessible
+            // name 120 times: a screen reader hears "Restart, Restart,
+            // Restart…" with no way to tell which unit it is about to
+            // bounce. The visible word stays short; the name says what and
+            // where.
+            "aria-label": `Restart ${u.unit}${u.description ? ` \u2014 ${u.description}` : ""}`,
+            title: `Restart ${u.unit}`,
             onClick: () => op(u.unit, "restart"),
             children: busy === u.unit ? "\u2026" : "Restart"
           })
@@ -23145,7 +23302,7 @@ ${(result.out || result.err || "").trim().slice(0, 400)}`
     )
   );
 }
-function TerminalTab({ host: host3, onSay }) {
+function TerminalTab({ host: host3, onSay: onSay2 }) {
   const [lines, setLines] = (0, import_react.useState)([]);
   const [cmd, setCmd] = (0, import_react.useState)("");
   const [busy, setBusy] = (0, import_react.useState)(false);
@@ -23178,7 +23335,7 @@ ${r.err}` : ""),
       }]);
     } catch (e) {
       setLines((l) => [...l, { kind: "out", ok: false, text: e.message || String(e), at: Date.now() }]);
-      if (onSay) onSay(e.message || "exec failed");
+      if (onSay2) onSay2(e.message || "exec failed");
     } finally {
       setBusy(false);
     }
@@ -23348,7 +23505,7 @@ function FilesTab({ host: host3 }) {
     ) : null
   );
 }
-function SnapshotsTab({ host: host3, onSay }) {
+function SnapshotsTab({ host: host3, onSay: onSay2 }) {
   const [vmid, setVmid] = (0, import_react.useState)("100");
   const [state, setState] = (0, import_react.useState)({ loading: false, list: [], raw: "", error: "" });
   const [name, setName] = (0, import_react.useState)("");
@@ -23366,10 +23523,10 @@ function SnapshotsTab({ host: host3, onSay }) {
     setBusy(true);
     try {
       const out = await api("/ops/snapshot", { method: "POST", body: { host: host3.id, vmid, name }, timeoutMs: 2e5 });
-      if (onSay) onSay(`snapshot ${out.label} ${out.ok ? "created" : "failed"}`);
+      if (onSay2) onSay2(`snapshot ${out.label} ${out.ok ? "created" : "failed"}`);
       await load();
     } catch (e) {
-      if (onSay) onSay(e.message || "snapshot failed");
+      if (onSay2) onSay2(e.message || "snapshot failed");
       setState((s) => ({ ...s, error: e.message || String(e) }));
     } finally {
       setBusy(false);
@@ -23429,7 +23586,7 @@ function SnapshotsTab({ host: host3, onSay }) {
     )
   );
 }
-function AuditTab({ onSay }) {
+function AuditTab({ onSay: onSay2 }) {
   const [state, setState] = (0, import_react.useState)({ loading: true, entries: [], error: "" });
   const load = (0, import_react.useCallback)(async () => {
     try {
@@ -25969,6 +26126,7 @@ var rest = async (path, opts) => {
   const clean = String(path).replace(/^\/+/, "");
   const [route, query] = clean.split("?");
   const params = new URLSearchParams(query || "");
+  (window.__NB_REQ__ = window.__NB_REQ__ || []).push(clean);
   if (route === "state") return { ...STATE, model_ready: true };
   if (route === "infographic_styles") return { ...STYLES, ok: true };
   if (route === "health") return { ok: true, model_ready: true, data_root: STATE.notebook ? "/home/decrux/.hermes/plugin-data/hermes-notebook" : "", kinds: (STATE.kinds || []).map((k) => k.id) };
@@ -25976,6 +26134,16 @@ var rest = async (path, opts) => {
     const name = params.get("name");
     if (params.get("b64") === "1") return b64(name);
     return (await fetch("/artifacts/" + encodeURIComponent(name))).text();
+  }
+  if (route === "artifact/xlsx" || route === "artifact/pptx") {
+    if (!params.get("notebook")) return { ok: false, error: "notebook: Field required" };
+    const name = params.get("name") || "file.json";
+    return {
+      ok: true,
+      name: name.replace(/.json$/i, route.endsWith("xlsx") ? ".xlsx" : ".pptx"),
+      mime: route.endsWith("xlsx") ? "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" : "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+      b64: "UEsDBAo="
+    };
   }
   if (route === "source_text") {
     const src = (STATE.notebook?.sources || []).find((s) => s.id === params.get("id"));

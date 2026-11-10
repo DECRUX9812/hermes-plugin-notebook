@@ -165,6 +165,16 @@ function Main({ notebook, kinds, tab, setTab, picked, setPicked, busy, generate,
             children: notebook.description
               ? notebook.description
               : `${sources.length} source${sources.length === 1 ? '' : 's'} · ${stats.labels || 0} topics · updated ${ago(notebook.updated_at) || 'recently'}` })),
+        el('div', { className: 'nb-hero-side' },
+          el('span', {
+            className: 'nb-chip', 'data-tone': modelReady ? 'ok' : 'warn',
+            children: modelReady ? 'grounded' : 'model offline'
+          }))),
+      // The view switcher gets its own row: sharing one line with the sigil, the
+      // title and the meta block meant the h1 was truncated even at 1330px
+      // ("Commercial Fusion Energy in 2…") and the active tab competed with the
+      // grounded chip for the same corner.
+      el('div', { className: 'nb-tabs-row' },
         el('div', { className: 'nb-tabs', role: 'tablist', 'aria-label': 'Notebook views' },
           el('button', {
             type: 'button', role: 'tab', className: 'nb-tab', 'aria-selected': tab === 'chat',
@@ -190,13 +200,7 @@ function Main({ notebook, kinds, tab, setTab, picked, setPicked, busy, generate,
             children: [jsx(Glyph, { name: 'book', size: 14 }),
                        el('span', { children: `S${peek.n} · ${peek.title}` })]
           }) : null
-        ),
-        el('div', { className: 'nb-hero-side' },
-          el('span', {
-            className: 'nb-chip', 'data-tone': modelReady ? 'ok' : 'warn',
-            children: modelReady ? 'grounded' : 'model offline'
-          }))
-      )
+        ))
     ),
 
     tab === 'peek' && peek
@@ -630,11 +634,15 @@ function Chat({ notebook, kinds, askOpen, onSay, modelReady, onCite, onOpenSourc
           rows: 2
         }),
         el('div', { className: 'nb-askfoot' },
-          jsx(Chip, {
+          // The conversation title is a QUESTION ("What does the sources say about
+          // funding?"), so this chip is as wide as the question. Unshrunk it
+          // pushed the Send button 21px past the column edge at 1330px; capped
+          // and ellipsized it stays a chip and the primary action keeps its slot.
+          el('button', {
+            type: 'button', className: 'nb-chip nb-thrchip',
             title: 'Conversations — switch or start a new chat',
-            onClick: () => setThrOpen(true),
-            children: `💬 ${thrLabel}`
-          }),
+            onClick: () => setThrOpen(true)
+          }, el('span', { children: `💬 ${thrLabel}` })),
           jsx(Chip, {
             title: `${activeCount} of ${stats.sources || 0} sources are in context`,
             children: `${activeCount} source${activeCount === 1 ? '' : 's'}`
@@ -1282,7 +1290,7 @@ function StudioPanel({ kinds, notebook, busy, generate, filter, setFilter, onOpe
         className: 'nb-chip',
         'data-tone': readyCount ? 'ok' : undefined,
         title: `${readyCount} of ${kinds.length} outputs have a latest run`,
-        children: `${readyCount}/${kinds.length} ready`
+        children: `${readyCount} of ${kinds.length} made`
       }),
       runningCount ? el('span', { className: 'nb-chip', 'data-tone': 'accent',
         children: `${runningCount} writing` }) : null,
@@ -1291,11 +1299,13 @@ function StudioPanel({ kinds, notebook, busy, generate, filter, setFilter, onOpe
 
     el('div', { className: 'nb-studio-body nb-scroll', ref: scrollRef,
       'data-scrollable': canScroll ? 'true' : 'false' },
-      el('div', { className: 'nb-studio-sec' },
-        el('div', { className: 'nb-studio-sec-head' },
-          el('span', { className: 'nb-meta', children: 'Make something' }),
-          el('span', { style: { flex: 1 } }),
-          el('span', { className: 'nb-hint', children: 'from these sources' }))),
+      // the pane already says "Make · n of m"; this row only earns its space
+      // when there is nothing to open yet
+      readyCount
+        ? null
+        : el('div', { className: 'nb-studio-sec' },
+            el('div', { className: 'nb-studio-sec-head' },
+              el('span', { className: 'nb-hint', children: 'Nothing made yet — pick an output below.' }))),
       groupBlocks,
       el('div', { className: 'nb-studio-sec-head nb-studio-runs' },
         el('span', { className: 'nb-meta', children: 'Every run' }),
@@ -1390,23 +1400,24 @@ function GenPill({ kind, art, started, nbId, onOpen, onGenerate }) {
           el('span', { className: 'nb-card-name', children: kind.label }),
           kind.blurb
             ? el('span', { className: 'nb-card-blurb', children: kind.blurb })
-            : null,
-          el('span', { className: 'nb-card-foot' },
-            el('span', { className: 'nb-card-state', 'data-kind': started ? 'busy' : art ? 'ready' : 'idle' },
+            : null),
+        // the state sits at the END of the row, where a list puts its status —
+        // under the blurb it read as a second paragraph
+        el('span', { className: 'nb-card-state', 'data-kind': started ? 'busy' : art ? 'ready' : 'idle' },
+          el('span', {
+            className: 'nb-dot',
+            style: { background: started ? 'var(--kc)' : art ? T.ok : undefined }
+          }),
+          started ? `writing · ${secs}s`
+            : art ? `made ${ago(art.modified)}`
+              : `~${kind.secs || 15}s`),
+        started
+          ? el('span', { className: 'nb-bar-track nb-card-bar' },
               el('span', {
-                className: 'nb-dot',
-                style: { background: started ? 'var(--kc)' : art ? T.ok : undefined }
-              }),
-              started ? `writing · ${secs}s`
-                : art ? ago(art.modified)
-                  : `~${kind.secs || 15}s to make`)),
-          started
-            ? el('span', { className: 'nb-bar-track' },
-                el('span', {
-                  className: 'nb-bar-fill',
-                  style: { width: `${Math.min(96, 12 + secs * 2.2)}%`, opacity: 0.9 }
-                }))
-            : null)
+                className: 'nb-bar-fill',
+                style: { width: `${Math.min(96, 12 + secs * 2.2)}%`, opacity: 0.9 }
+              }))
+          : null
       ]
     }),
     optSpecs.length
