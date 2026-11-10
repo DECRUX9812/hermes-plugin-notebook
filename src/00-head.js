@@ -1338,6 +1338,39 @@ const CSS = `
 .nb-nbcard-del:focus-visible,.nb-nbcard-ren:focus-visible{opacity:1}
 @media (hover:none){ .nb-nbcard-del,.nb-nbcard-ren{opacity:1} }
 
+/* ------------------------------------------------ infographic (live render)
+   The artifact is JSON first and a poster second: this renders the JSON, so the
+   numbers are selectable text, each one carries its source, and the layout
+   follows the theme instead of being baked into a PNG. */
+.nb-ig{display:flex;flex-direction:column;gap:16px;padding-bottom:8px}
+.nb-ig-head{display:flex;align-items:baseline;gap:10px;flex-wrap:wrap}
+.nb-ig-title{font-size:22px;font-weight:650;letter-spacing:-.015em;line-height:1.25;margin:0;color:${T.text}}
+.nb-ig-switch{display:flex;justify-content:flex-end;margin-bottom:10px}
+.nb-ig-kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:10px}
+.nb-ig-kpi{background:var(--nb-tile);border:1px solid var(--nb-edge);border-radius:var(--nb-r-el);
+  padding:14px 14px 12px;display:flex;flex-direction:column;gap:4px;min-width:0}
+.nb-ig-kpi-value{font-size:28px;font-weight:750;letter-spacing:-.02em;line-height:1.1;color:${T.text}}
+.nb-ig-kpi-label{font-size:var(--nb-fs-label);font-weight:650;color:${T.text2}}
+.nb-ig-kpi-detail{font-size:var(--nb-fs-meta);line-height:1.45;color:${T.text2}}
+.nb-ig-src{margin-top:2px;max-width:100%;overflow:hidden;text-overflow:ellipsis;
+  white-space:nowrap;display:block;text-align:left}
+.nb-ig-quotes{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:10px}
+.nb-ig-quote{display:flex;flex-direction:column;gap:6px;text-align:left;cursor:pointer;
+  background:var(--nb-tile);border:1px solid var(--nb-edge);border-radius:var(--nb-r-el);
+  padding:13px 14px;font-family:inherit;color:${T.text}}
+.nb-ig-quote[data-open=true]{border-color:color-mix(in srgb,${T.accent} 45%, var(--nb-edge))}
+.nb-ig-quote blockquote{margin:0;font-size:14px;line-height:1.55;color:${T.text2};
+  border-left:2px solid color-mix(in srgb,${T.accent} 45%, transparent);padding-left:10px}
+.nb-ig-quote-src{font-size:var(--nb-fs-meta);font-weight:650;color:${T.text3};
+  overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.nb-ig-cites{display:flex;gap:4px;flex-wrap:wrap}
+.nb-ig-take{background:color-mix(in srgb,${T.accent} 8%, var(--nb-tile));
+  border:1px solid color-mix(in srgb,${T.accent} 26%, var(--nb-edge));
+  border-radius:var(--nb-r-box);padding:14px 16px}
+.nb-ig-take-label{font-size:var(--nb-fs-meta);font-weight:700;letter-spacing:.06em;
+  text-transform:uppercase;color:color-mix(in srgb,${T.accent} 55%, ${T.text})}
+.nb-ig-take p{margin:6px 0 0;font-size:var(--nb-fs-read);line-height:1.55;color:${T.text}}
+
 /* generator options popover + citation hover card + data table */
 .nb-gen{position:relative}
 /* The options button is a CONTROL, not a hover decoration: it was opacity:0

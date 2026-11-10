@@ -462,7 +462,10 @@ function App() {
   // Which skin is this? The host never sets `color-scheme`, so `light-dark()`
   // would always resolve light even in a dark app. Read the host's own canvas
   // colour instead and publish a data attribute the stylesheet can branch on.
-  const [skin, setSkin] = useState('dark')
+  const [themePref, setThemePref] = useState(() => persist.get('skin', 'auto'))
+  const [detected, setDetected] = useState('dark')
+  // "auto" follows the app's own canvas; the toggle pins one and remembers it.
+  const skin = themePref === 'auto' ? detected : themePref
   useEffect(() => {
     const lum = (css) => {
       const m = String(css || '').match(/rgba?\(([^)]+)\)/)
@@ -481,7 +484,7 @@ function App() {
       const cs = getComputedStyle(document.documentElement)
       const bg = cs.getPropertyValue('--ui-bg-primary') || cs.getPropertyValue('--background') || ''
       const l = lum(bg) ?? lum(getComputedStyle(document.body).backgroundColor)
-      if (l !== null) setSkin(l > 0.35 ? 'light' : 'dark')
+      if (l !== null) setDetected(l > 0.35 ? 'light' : 'dark')
     }
     read()
     // React to the host swapping theme instead of polling for it: a class on
@@ -610,7 +613,17 @@ function App() {
         }) : null,
         mode === 'studio' && notebook ? jsx(IconBtn, {
           icon: 'download', label: 'Export notebook (.zip)', onClick: exportNotebook
-        }) : null)
+        }) : null,
+        // one control, three states: follow the app, or pin a skin
+        jsx(IconBtn, {
+          icon: skin === 'dark' ? 'moon' : 'sun',
+          label: `Theme: ${themePref === 'auto' ? 'follow the app' : themePref}. Click to change.`,
+          onClick: () => {
+            const next = themePref === 'auto' ? (skin === 'dark' ? 'light' : 'dark') : (themePref === 'light' ? 'dark' : 'auto')
+            setThemePref(next)
+            persist.set('skin', next)
+          }
+        }))
     ),
 
     ops

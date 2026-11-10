@@ -1,16 +1,25 @@
 {
  "ok": true,
- "generated_at": "2026-11-09T20:51:00Z",
+ "generated_at": "2026-11-10T17:52:50Z",
  "model_ready": false,
  "notebooks": [
   {
    "id": "commercial-fusion-2026",
    "title": "Commercial Fusion Energy in 2026",
    "description": "Six sources on the state of commercial fusion: the CRS briefing for Congress, the DOE deployment roadmap, two ITER releases, the IAEA outlook and the reference article.",
-   "updated_at": "2026-11-09T20:50:39+00:00",
+   "updated_at": "2026-11-09T22:38:13+00:00",
    "sources": 6,
-   "artifacts": 37,
+   "artifacts": 34,
    "chars": 157369
+  },
+  {
+   "id": "smoke-test-notebook",
+   "title": "Scratchpad",
+   "description": "Short sources used to smoke-test labels and artifacts.",
+   "updated_at": "2026-11-09T22:04:17+00:00",
+   "sources": 3,
+   "artifacts": 10,
+   "chars": 24919
   },
   {
    "id": "business-analyst-job-interview-you-know-thanks",
@@ -20,15 +29,6 @@
    "sources": 1,
    "artifacts": 1,
    "chars": 120057
-  },
-  {
-   "id": "smoke-test-notebook",
-   "title": "Scratchpad",
-   "description": "Short sources used to smoke-test labels and artifacts.",
-   "updated_at": "2026-11-07T17:38:11+00:00",
-   "sources": 3,
-   "artifacts": 9,
-   "chars": 24919
   }
  ],
  "notebook": {
@@ -37,7 +37,7 @@
   "description": "Six sources on the state of commercial fusion: the CRS briefing for Congress, the DOE deployment roadmap, two ITER releases, the IAEA outlook and the reference article.",
   "emoji": "",
   "created_at": "2026-11-07T16:36:51+00:00",
-  "updated_at": "2026-11-09T20:50:39+00:00",
+  "updated_at": "2026-11-09T22:38:13+00:00",
   "sources": [
    {
     "n": 1,
@@ -108,7 +108,7 @@
     "summary": "ITER's own release: sixth of nine sector modules installed on 28 July 2026, ~30 hours of lifting, a 1,100-tonne module, two-thirds of the torus in place, final module due 2027.",
     "added_at": "2026-11-07T16:36:51+00:00",
     "refreshed_at": "2026-11-07T17:00:41+00:00",
-    "active": true
+    "active": false
    },
    {
     "n": 5,
@@ -385,20 +385,22 @@
     "modified": "2026-11-09T18:55:14+00:00"
    },
    {
-    "key": "20261109-184905-blueprint_evolution",
+    "key": "20261109-184900-blueprint_evolution",
     "kind": "blueprint_evolution",
     "title": "",
-    "opts": {
-     "style": "carbon",
-     "engine": "imagen_blueprint"
-    },
+    "opts": {},
     "label": "Architecture Blueprint",
     "group": "visual",
     "primary": "20261109-184905-blueprint_evolution.png",
     "ext": "png",
     "media": true,
-    "bytes": 624612,
+    "bytes": 630536,
     "files": [
+     {
+      "name": "20261109-184900-blueprint_evolution.json",
+      "ext": "json",
+      "size": 5924
+     },
      {
       "name": "20261109-184905-blueprint_evolution.png",
       "ext": "png",
@@ -406,26 +408,6 @@
      }
     ],
     "modified": "2026-11-09T18:49:06+00:00"
-   },
-   {
-    "key": "20261109-184900-blueprint_evolution",
-    "kind": "blueprint_evolution",
-    "title": "",
-    "opts": {},
-    "label": "Architecture Blueprint",
-    "group": "visual",
-    "primary": "20261109-184900-blueprint_evolution.json",
-    "ext": "json",
-    "media": false,
-    "bytes": 5924,
-    "files": [
-     {
-      "name": "20261109-184900-blueprint_evolution.json",
-      "ext": "json",
-      "size": 5924
-     }
-    ],
-    "modified": "2026-11-09T18:49:00+00:00"
    },
    {
     "key": "20261109-184133-blueprint_evolution",
@@ -502,21 +484,22 @@
     "modified": "2026-11-09T18:28:18+00:00"
    },
    {
-    "key": "20261109-173412-infographic",
+    "key": "20261109-173411-infographic",
     "kind": "infographic",
     "title": "",
-    "opts": {
-     "style": "editorial",
-     "template": "process",
-     "detail": "detailed"
-    },
+    "opts": {},
     "label": "Infographic",
     "group": "visual",
     "primary": "20261109-173412-infographic.svg",
     "ext": "svg",
     "media": true,
-    "bytes": 4130,
+    "bytes": 6719,
     "files": [
+     {
+      "name": "20261109-173411-infographic.json",
+      "ext": "json",
+      "size": 2589
+     },
      {
       "name": "20261109-173412-infographic.svg",
       "ext": "svg",
@@ -524,26 +507,6 @@
      }
     ],
     "modified": "2026-11-09T17:34:12+00:00"
-   },
-   {
-    "key": "20261109-173411-infographic",
-    "kind": "infographic",
-    "title": "",
-    "opts": {},
-    "label": "Infographic",
-    "group": "visual",
-    "primary": "20261109-173411-infographic.json",
-    "ext": "json",
-    "media": false,
-    "bytes": 2589,
-    "files": [
-     {
-      "name": "20261109-173411-infographic.json",
-      "ext": "json",
-      "size": 2589
-     }
-    ],
-    "modified": "2026-11-09T17:34:11+00:00"
    },
    {
     "key": "20261109-173355-infographic",
@@ -804,26 +767,6 @@
     "modified": "2026-11-07T17:08:31+00:00"
    },
    {
-    "key": "20261107-170050-faq",
-    "kind": "faq",
-    "title": "",
-    "opts": {},
-    "label": "FAQ",
-    "group": "docs",
-    "primary": "20261107-170050-faq.md",
-    "ext": "md",
-    "media": false,
-    "bytes": 1647,
-    "files": [
-     {
-      "name": "20261107-170050-faq.md",
-      "ext": "md",
-      "size": 1647
-     }
-    ],
-    "modified": "2026-11-07T17:00:50+00:00"
-   },
-   {
     "key": "20261107-170050-study_guide",
     "kind": "study_guide",
     "title": "",
@@ -864,6 +807,26 @@
     "modified": "2026-11-07T17:00:50+00:00"
    },
    {
+    "key": "20261107-170050-faq",
+    "kind": "faq",
+    "title": "",
+    "opts": {},
+    "label": "FAQ",
+    "group": "docs",
+    "primary": "20261107-170050-faq.md",
+    "ext": "md",
+    "media": false,
+    "bytes": 1647,
+    "files": [
+     {
+      "name": "20261107-170050-faq.md",
+      "ext": "md",
+      "size": 1647
+     }
+    ],
+    "modified": "2026-11-07T17:00:50+00:00"
+   },
+   {
     "key": "20261107-170042-timeline",
     "kind": "timeline",
     "title": "",
@@ -884,7 +847,7 @@
     "modified": "2026-11-07T17:00:42+00:00"
    },
    {
-    "key": "20261107-170042-infographic",
+    "key": "20261107-170041-infographic",
     "kind": "infographic",
     "title": "",
     "opts": {},
@@ -893,8 +856,13 @@
     "primary": "20261107-170042-infographic.png",
     "ext": "png",
     "media": true,
-    "bytes": 86310,
+    "bytes": 87390,
     "files": [
+     {
+      "name": "20261107-170041-infographic.json",
+      "ext": "json",
+      "size": 1080
+     },
      {
       "name": "20261107-170042-infographic.png",
       "ext": "png",
@@ -902,26 +870,6 @@
      }
     ],
     "modified": "2026-11-07T17:00:42+00:00"
-   },
-   {
-    "key": "20261107-170041-infographic",
-    "kind": "infographic",
-    "title": "",
-    "opts": {},
-    "label": "Infographic",
-    "group": "visual",
-    "primary": "20261107-170041-infographic.json",
-    "ext": "json",
-    "media": false,
-    "bytes": 1080,
-    "files": [
-     {
-      "name": "20261107-170041-infographic.json",
-      "ext": "json",
-      "size": 1080
-     }
-    ],
-    "modified": "2026-11-07T17:00:41+00:00"
    },
    {
     "key": "20261107-170041-slides",
@@ -949,31 +897,6 @@
     "modified": "2026-11-07T17:00:41+00:00"
    },
    {
-    "key": "20261107-170041-quiz",
-    "kind": "quiz",
-    "title": "",
-    "opts": {},
-    "label": "Quiz",
-    "group": "study",
-    "primary": "20261107-170041-quiz.md",
-    "ext": "md",
-    "media": false,
-    "bytes": 3469,
-    "files": [
-     {
-      "name": "20261107-170041-quiz.md",
-      "ext": "md",
-      "size": 1498
-     },
-     {
-      "name": "20261107-170041-quiz.json",
-      "ext": "json",
-      "size": 1971
-     }
-    ],
-    "modified": "2026-11-07T17:00:41+00:00"
-   },
-   {
     "key": "20261107-170041-flashcards",
     "kind": "flashcards",
     "title": "",
@@ -994,6 +917,31 @@
       "name": "20261107-170041-flashcards.json",
       "ext": "json",
       "size": 1936
+     }
+    ],
+    "modified": "2026-11-07T17:00:41+00:00"
+   },
+   {
+    "key": "20261107-170041-quiz",
+    "kind": "quiz",
+    "title": "",
+    "opts": {},
+    "label": "Quiz",
+    "group": "study",
+    "primary": "20261107-170041-quiz.md",
+    "ext": "md",
+    "media": false,
+    "bytes": 3469,
+    "files": [
+     {
+      "name": "20261107-170041-quiz.md",
+      "ext": "md",
+      "size": 1498
+     },
+     {
+      "name": "20261107-170041-quiz.json",
+      "ext": "json",
+      "size": 1971
      }
     ],
     "modified": "2026-11-07T17:00:41+00:00"
@@ -1173,15 +1121,23 @@
    }
   ],
   "thread_name": "default",
-  "thread_title": "Where does ITER's machine assembly actually stand?",
+  "thread_title": "Conversation",
   "threads": [
    {
     "name": "default",
-    "title": "Where does ITER's machine assembly actually stand?",
+    "title": "Conversation",
     "created": "2026-11-09T15:35:38+00:00",
-    "updated": "2026-11-09T15:35:38+00:00",
+    "updated": "2026-11-09T22:38:13+00:00",
     "messages": 6,
     "preview": "**Short answer:** Reuters [S1] frames the roadmap as an ambitious federal strategy to catalyse early-stage fusion power plants by the mid-2030s \u2014 but reports th"
+   },
+   {
+    "name": "chat",
+    "title": "probe thread",
+    "created": "2026-11-09T22:38:13+00:00",
+    "updated": "2026-11-09T22:38:13+00:00",
+    "messages": 0,
+    "preview": ""
    }
   ],
   "stats": {
@@ -1189,8 +1145,8 @@
    "chars": 157369,
    "labels": 21,
    "unlabeled": 0,
-   "active": 6,
-   "artifacts": 37,
+   "active": 5,
+   "artifacts": 34,
    "kinds": [
     "audio_overview",
     "blueprint_evolution",

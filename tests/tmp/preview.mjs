@@ -1338,6 +1338,39 @@ const CSS = `
 .nb-nbcard-del:focus-visible,.nb-nbcard-ren:focus-visible{opacity:1}
 @media (hover:none){ .nb-nbcard-del,.nb-nbcard-ren{opacity:1} }
 
+/* ------------------------------------------------ infographic (live render)
+   The artifact is JSON first and a poster second: this renders the JSON, so the
+   numbers are selectable text, each one carries its source, and the layout
+   follows the theme instead of being baked into a PNG. */
+.nb-ig{display:flex;flex-direction:column;gap:16px;padding-bottom:8px}
+.nb-ig-head{display:flex;align-items:baseline;gap:10px;flex-wrap:wrap}
+.nb-ig-title{font-size:22px;font-weight:650;letter-spacing:-.015em;line-height:1.25;margin:0;color:${T.text}}
+.nb-ig-switch{display:flex;justify-content:flex-end;margin-bottom:10px}
+.nb-ig-kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:10px}
+.nb-ig-kpi{background:var(--nb-tile);border:1px solid var(--nb-edge);border-radius:var(--nb-r-el);
+  padding:14px 14px 12px;display:flex;flex-direction:column;gap:4px;min-width:0}
+.nb-ig-kpi-value{font-size:28px;font-weight:750;letter-spacing:-.02em;line-height:1.1;color:${T.text}}
+.nb-ig-kpi-label{font-size:var(--nb-fs-label);font-weight:650;color:${T.text2}}
+.nb-ig-kpi-detail{font-size:var(--nb-fs-meta);line-height:1.45;color:${T.text2}}
+.nb-ig-src{margin-top:2px;max-width:100%;overflow:hidden;text-overflow:ellipsis;
+  white-space:nowrap;display:block;text-align:left}
+.nb-ig-quotes{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:10px}
+.nb-ig-quote{display:flex;flex-direction:column;gap:6px;text-align:left;cursor:pointer;
+  background:var(--nb-tile);border:1px solid var(--nb-edge);border-radius:var(--nb-r-el);
+  padding:13px 14px;font-family:inherit;color:${T.text}}
+.nb-ig-quote[data-open=true]{border-color:color-mix(in srgb,${T.accent} 45%, var(--nb-edge))}
+.nb-ig-quote blockquote{margin:0;font-size:14px;line-height:1.55;color:${T.text2};
+  border-left:2px solid color-mix(in srgb,${T.accent} 45%, transparent);padding-left:10px}
+.nb-ig-quote-src{font-size:var(--nb-fs-meta);font-weight:650;color:${T.text3};
+  overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.nb-ig-cites{display:flex;gap:4px;flex-wrap:wrap}
+.nb-ig-take{background:color-mix(in srgb,${T.accent} 8%, var(--nb-tile));
+  border:1px solid color-mix(in srgb,${T.accent} 26%, var(--nb-edge));
+  border-radius:var(--nb-r-box);padding:14px 16px}
+.nb-ig-take-label{font-size:var(--nb-fs-meta);font-weight:700;letter-spacing:.06em;
+  text-transform:uppercase;color:color-mix(in srgb,${T.accent} 55%, ${T.text})}
+.nb-ig-take p{margin:6px 0 0;font-size:var(--nb-fs-read);line-height:1.55;color:${T.text}}
+
 /* generator options popover + citation hover card + data table */
 .nb-gen{position:relative}
 /* The options button is a CONTROL, not a hover decoration: it was opacity:0
@@ -1895,6 +1928,8 @@ const P = {
   camera: 'M4 8h3l1.5-2h7L17 8h3v11H4V8Zm8 8.5a3.5 3.5 0 1 0 0-7 3.5 3.5 0 0 0 0 7Z',
   shield: 'M12 3l8 3v6c0 4.5-3.2 7.6-8 9-4.8-1.4-8-4.5-8-9V6l8-3Zm-3 9 2 2 4-4',
   copy: 'M9 9h10v10H9V9Zm-4 6H4V4h11v1',
+  sun: 'M12 4v2M12 18v2M4 12h2M18 12h2M6.3 6.3l1.4 1.4M16.3 16.3l1.4 1.4M17.7 6.3l-1.4 1.4M7.7 16.3l-1.4 1.4M12 8.5a3.5 3.5 0 1 0 0 7 3.5 3.5 0 0 0 0-7Z',
+  moon: 'M20 14.5A8.5 8.5 0 0 1 9.5 4a8.5 8.5 0 1 0 10.5 10.5Z',
   check: 'M5 13l4.5 4.5L19 7',
   download: 'M12 4v10M8 11l4 4 4-4M5 19h14',
   bolt: 'M13 3L5 14h6l-1 7 8-11h-6l1-7Z',
@@ -3040,7 +3075,10 @@ function App() {
   // Which skin is this? The host never sets `color-scheme`, so `light-dark()`
   // would always resolve light even in a dark app. Read the host's own canvas
   // colour instead and publish a data attribute the stylesheet can branch on.
-  const [skin, setSkin] = useState('dark')
+  const [themePref, setThemePref] = useState(() => persist.get('skin', 'auto'))
+  const [detected, setDetected] = useState('dark')
+  // "auto" follows the app's own canvas; the toggle pins one and remembers it.
+  const skin = themePref === 'auto' ? detected : themePref
   useEffect(() => {
     const lum = (css) => {
       const m = String(css || '').match(/rgba?\(([^)]+)\)/)
@@ -3059,7 +3097,7 @@ function App() {
       const cs = getComputedStyle(document.documentElement)
       const bg = cs.getPropertyValue('--ui-bg-primary') || cs.getPropertyValue('--background') || ''
       const l = lum(bg) ?? lum(getComputedStyle(document.body).backgroundColor)
-      if (l !== null) setSkin(l > 0.35 ? 'light' : 'dark')
+      if (l !== null) setDetected(l > 0.35 ? 'light' : 'dark')
     }
     read()
     // React to the host swapping theme instead of polling for it: a class on
@@ -3188,7 +3226,17 @@ function App() {
         }) : null,
         mode === 'studio' && notebook ? jsx(IconBtn, {
           icon: 'download', label: 'Export notebook (.zip)', onClick: exportNotebook
-        }) : null)
+        }) : null,
+        // one control, three states: follow the app, or pin a skin
+        jsx(IconBtn, {
+          icon: skin === 'dark' ? 'moon' : 'sun',
+          label: `Theme: ${themePref === 'auto' ? 'follow the app' : themePref}. Click to change.`,
+          onClick: () => {
+            const next = themePref === 'auto' ? (skin === 'dark' ? 'light' : 'dark') : (themePref === 'light' ? 'dark' : 'auto')
+            setThemePref(next)
+            persist.set('skin', next)
+          }
+        }))
     ),
 
     ops
@@ -7875,30 +7923,78 @@ function SlidesView({ data, htmlUrl, notebook, jsonName, onCite, onSay }) {
 
 function InfographicView({ src, data }) {
   const [zoom, setZoom] = useState(1)
+  const stats = (data && data.stats) || []
+  const quotes = (data && data.quotes) || []
+  const cards = stats.filter((x) => x && (x.value || x.label))
+  // The poster is a rendered PNG; the JSON beside it is the SOURCE of that
+  // poster. Rendering the JSON as components means the page can show crisp,
+  // selectable type at any width, put a citation on every number, and stay
+  // readable when the artifact is older than the current theme.
+  // The JSON arrives a tick after the component mounts (the viewer fetches it),
+  // so the mode cannot be decided in a useState initialiser: it would latch on
+  // "poster" before the first file landed and never show the live view.
+  const [chosen, setChosen] = useState(null)
+  const mode = chosen || (cards.length ? 'live' : 'poster')
+  const [openQuote, setOpenQuote] = useState(-1)
+
+  const poster = el('div', null,
+    el('div', {
+      style: {
+        border: `1px solid ${T.line}`, borderRadius: '18px', overflow: 'auto',
+        background: '#0d1017', maxHeight: '62vh'
+      }
+    },
+    src
+      ? el('img', {
+          src, alt: (data && data.title) || 'infographic',
+          style: { display: 'block', width: `${Math.round(zoom * 100)}%`, height: 'auto' }
+        })
+      : el('div', { className: 'nb-hint', style: { padding: '20px' }, children: 'the image did not load' })),
+    el('div', { style: { display: 'flex', gap: '8px', alignItems: 'center', marginTop: '10px' } },
+      jsx(Btn, { size: 'sm', onClick: () => setZoom((z) => Math.max(0.5, z - 0.15)), children: '−' }),
+      jsx(Btn, { size: 'sm', onClick: () => setZoom((z) => Math.min(2, z + 0.15)), children: '+' }),
+      el('span', { className: 'nb-hint', children: `${Math.round(zoom * 100)}%` })))
+
+  const live = el('div', { className: 'nb-ig' },
+    el('div', { className: 'nb-ig-head' },
+      el('h2', { className: 'nb-ig-title', children: (data && data.title) || 'Infographic' }),
+      data && data._style && data._style.label
+        ? el('span', { className: 'nb-chip', children: data._style.label }) : null),
+    cards.length
+      ? el('div', { className: 'nb-ig-kpis' }, cards.slice(0, 6).map((st, i) => el('div', {
+          key: i, className: 'nb-ig-kpi'
+        },
+        el('div', { className: 'nb-ig-kpi-value', children: st.value }),
+        el('div', { className: 'nb-ig-kpi-label', children: st.label }),
+        st.detail ? el('div', { className: 'nb-ig-kpi-detail', children: st.detail }) : null,
+        st.source ? el('span', { className: 'nb-chip nb-ig-src', title: st.source, children: st.source }) : null)))
+      : null,
+    quotes.length
+      ? el('div', { className: 'nb-ig-quotes' }, quotes.slice(0, 4).map((q, i) => el('button', {
+          key: i, type: 'button', className: 'nb-ig-quote',
+          'data-open': openQuote === i ? 'true' : 'false',
+          onClick: () => setOpenQuote((n) => (n === i ? -1 : i)),
+          'aria-expanded': openQuote === i
+        },
+        el('blockquote', { children: `“${openQuote === i ? q.text : String(q.text || '').slice(0, 150) + (String(q.text || '').length > 150 ? '…' : '')}”` }),
+        el('span', { className: 'nb-ig-quote-src', children: q.source || 'source' }),
+        (q.citations || []).length
+          ? el('span', { className: 'nb-ig-cites', children: q.citations.map((c, k) => el('span', {
+              key: k, className: 'nb-chip', children: `S${c}` })) }) : null)))
+      : null,
+    data && data.takeaway
+      ? el('div', { className: 'nb-ig-take' },
+          el('span', { className: 'nb-ig-take-label', children: 'Bottom line' }),
+          el('p', { children: data.takeaway }))
+      : null)
+
   return el('div', { className: 'nb-view-body' },
-    el('div', { className: 'nb-stage' },
-      el('div', {
-        style: {
-          border: `1px solid ${T.line}`, borderRadius: '18px', overflow: 'auto',
-          background: '#0d1017', maxHeight: '62vh'
-        }
-      },
-      src
-        ? el('img', {
-            src, alt: (data && data.title) || 'infographic',
-            style: { display: 'block', width: `${Math.round(zoom * 100)}%`, height: 'auto' }
-          })
-        : el('div', { className: 'nb-hint', style: { padding: '20px' }, children: 'the image did not load' })),
-      el('div', { style: { display: 'flex', gap: '8px', alignItems: 'center' } },
-        jsx(Btn, { size: 'sm', onClick: () => setZoom((z) => Math.max(0.5, z - 0.15)), children: '−' }),
-        jsx(Btn, { size: 'sm', onClick: () => setZoom((z) => Math.min(2, z + 0.15)), children: '+' }),
-        el('span', { className: 'nb-hint', children: `${Math.round(zoom * 100)}%` }),
-        el('span', { style: { flex: 1 } }),
-        data && data._style
-          ? el('span', { className: 'nb-chip', title: 'Infographic style',
-                         children: data._style.label }) : null,
-        data && data.takeaway ? el('span', { className: 'nb-chip', 'data-tone': 'accent', children: data.takeaway }) : null))
-  )
+    cards.length
+      ? el('div', { className: 'nb-ig-switch' },
+          jsx(Seg, { label: 'View', value: mode, onChange: setChosen,
+            options: [{ id: 'live', label: 'Live' }, { id: 'poster', label: 'Poster' }] }))
+      : null,
+    mode === 'live' && cards.length ? live : poster)
 }
 
 /* ----------------------------------------------------------- data table */

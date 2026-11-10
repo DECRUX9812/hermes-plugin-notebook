@@ -275,6 +275,18 @@ def _artifact_stamp(name: str) -> str:
     return "-".join(parts[:2]) if len(parts) >= 3 else ""
 
 
+def _fold_run(runs: Dict[str, Dict[str, Any]], kind: str, items: List[Dict[str, Any]]) -> None:
+    """Append one cluster of same-kind files to the run it belongs to."""
+    key = f"{_artifact_stamp(items[0]['name'])}-{kind}"
+    run = runs.setdefault(key, {"key": key, "kind": kind, "files": [], "modified": ""})
+    for item in items:
+        name = item["name"]
+        run["files"].append({"name": name, "ext": name.rsplit(".", 1)[-1].lower(),
+                             "size": item.get("size", 0)})
+        if item.get("modified", "") > run["modified"]:
+            run["modified"] = item["modified"]
+
+
 def _collect_artifacts(notebook_id: str) -> List[Dict[str, Any]]:
     """One row per *generation*, not per file: a single audio run writes .mp3 +
     .txt + .json, and a panel that lists all three reads as a mess."""
@@ -282,16 +294,39 @@ def _collect_artifacts(notebook_id: str) -> List[Dict[str, Any]]:
     titles = (store.get_meta(notebook_id).get("artifact_titles") or {})
     gen_opts = (store.get_meta(notebook_id).get("artifact_opts") or {})
     runs: Dict[str, Dict[str, Any]] = {}
+
+    # A run's files are stamped when each one is WRITTEN, so a poster that takes
+    # a second to render lands a second after its own JSON:
+    #   20261109-173411-infographic.json + 20261109-173412-infographic.svg
+    # Keying on the exact stamp split that into two artifacts — one with only the
+    # image, one with only the data — and the viewer, which needs both, showed a
+    # poster and no numbers. Files of one kind whose stamps are within ten
+    # seconds of each other are one run (a render writes its JSON and its poster
+    # a second or two apart; separate generations of the same kind are minutes
+    # apart, and this notebook's bulk smoke runs are >=16s apart).
+    def _stamp_dt(name: str):
+        try:
+            return time.mktime(time.strptime(_artifact_stamp(name), "%Y%m%d-%H%M%S"))
+        except Exception:
+            return None
+
+    by_kind: Dict[str, List[Dict[str, Any]]] = {}
     for item in raw:
-        name = item["name"]
-        kind = _artifact_kind_of(name)
-        ext = name.rsplit(".", 1)[-1].lower()
-        key = f"{_artifact_stamp(name)}-{kind}"
-        run = runs.setdefault(key, {"key": key, "kind": kind, "files": [],
-                                    "modified": item.get("modified", "")})
-        run["files"].append({"name": name, "ext": ext, "size": item.get("size", 0)})
-        if item.get("modified", "") > run["modified"]:
-            run["modified"] = item["modified"]
+        by_kind.setdefault(_artifact_kind_of(item["name"]), []).append(item)
+
+    for kind, items in by_kind.items():
+        items.sort(key=lambda it: (_stamp_dt(it["name"]) or 0))
+        cluster: List[Dict[str, Any]] = []
+        last = None
+        for item in items:
+            at = _stamp_dt(item["name"])
+            if cluster and at is not None and last is not None and at - last > 10:
+                _fold_run(runs, kind, cluster)
+                cluster = []
+            cluster.append(item)
+            last = at if at is not None else last
+        if cluster:
+            _fold_run(runs, kind, cluster)
     out = []
     legacy_used = set()
     for run in runs.values():

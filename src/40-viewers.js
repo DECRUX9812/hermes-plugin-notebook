@@ -1360,30 +1360,78 @@ function SlidesView({ data, htmlUrl, notebook, jsonName, onCite, onSay }) {
 
 function InfographicView({ src, data }) {
   const [zoom, setZoom] = useState(1)
+  const stats = (data && data.stats) || []
+  const quotes = (data && data.quotes) || []
+  const cards = stats.filter((x) => x && (x.value || x.label))
+  // The poster is a rendered PNG; the JSON beside it is the SOURCE of that
+  // poster. Rendering the JSON as components means the page can show crisp,
+  // selectable type at any width, put a citation on every number, and stay
+  // readable when the artifact is older than the current theme.
+  // The JSON arrives a tick after the component mounts (the viewer fetches it),
+  // so the mode cannot be decided in a useState initialiser: it would latch on
+  // "poster" before the first file landed and never show the live view.
+  const [chosen, setChosen] = useState(null)
+  const mode = chosen || (cards.length ? 'live' : 'poster')
+  const [openQuote, setOpenQuote] = useState(-1)
+
+  const poster = el('div', null,
+    el('div', {
+      style: {
+        border: `1px solid ${T.line}`, borderRadius: '18px', overflow: 'auto',
+        background: '#0d1017', maxHeight: '62vh'
+      }
+    },
+    src
+      ? el('img', {
+          src, alt: (data && data.title) || 'infographic',
+          style: { display: 'block', width: `${Math.round(zoom * 100)}%`, height: 'auto' }
+        })
+      : el('div', { className: 'nb-hint', style: { padding: '20px' }, children: 'the image did not load' })),
+    el('div', { style: { display: 'flex', gap: '8px', alignItems: 'center', marginTop: '10px' } },
+      jsx(Btn, { size: 'sm', onClick: () => setZoom((z) => Math.max(0.5, z - 0.15)), children: '−' }),
+      jsx(Btn, { size: 'sm', onClick: () => setZoom((z) => Math.min(2, z + 0.15)), children: '+' }),
+      el('span', { className: 'nb-hint', children: `${Math.round(zoom * 100)}%` })))
+
+  const live = el('div', { className: 'nb-ig' },
+    el('div', { className: 'nb-ig-head' },
+      el('h2', { className: 'nb-ig-title', children: (data && data.title) || 'Infographic' }),
+      data && data._style && data._style.label
+        ? el('span', { className: 'nb-chip', children: data._style.label }) : null),
+    cards.length
+      ? el('div', { className: 'nb-ig-kpis' }, cards.slice(0, 6).map((st, i) => el('div', {
+          key: i, className: 'nb-ig-kpi'
+        },
+        el('div', { className: 'nb-ig-kpi-value', children: st.value }),
+        el('div', { className: 'nb-ig-kpi-label', children: st.label }),
+        st.detail ? el('div', { className: 'nb-ig-kpi-detail', children: st.detail }) : null,
+        st.source ? el('span', { className: 'nb-chip nb-ig-src', title: st.source, children: st.source }) : null)))
+      : null,
+    quotes.length
+      ? el('div', { className: 'nb-ig-quotes' }, quotes.slice(0, 4).map((q, i) => el('button', {
+          key: i, type: 'button', className: 'nb-ig-quote',
+          'data-open': openQuote === i ? 'true' : 'false',
+          onClick: () => setOpenQuote((n) => (n === i ? -1 : i)),
+          'aria-expanded': openQuote === i
+        },
+        el('blockquote', { children: `“${openQuote === i ? q.text : String(q.text || '').slice(0, 150) + (String(q.text || '').length > 150 ? '…' : '')}”` }),
+        el('span', { className: 'nb-ig-quote-src', children: q.source || 'source' }),
+        (q.citations || []).length
+          ? el('span', { className: 'nb-ig-cites', children: q.citations.map((c, k) => el('span', {
+              key: k, className: 'nb-chip', children: `S${c}` })) }) : null)))
+      : null,
+    data && data.takeaway
+      ? el('div', { className: 'nb-ig-take' },
+          el('span', { className: 'nb-ig-take-label', children: 'Bottom line' }),
+          el('p', { children: data.takeaway }))
+      : null)
+
   return el('div', { className: 'nb-view-body' },
-    el('div', { className: 'nb-stage' },
-      el('div', {
-        style: {
-          border: `1px solid ${T.line}`, borderRadius: '18px', overflow: 'auto',
-          background: '#0d1017', maxHeight: '62vh'
-        }
-      },
-      src
-        ? el('img', {
-            src, alt: (data && data.title) || 'infographic',
-            style: { display: 'block', width: `${Math.round(zoom * 100)}%`, height: 'auto' }
-          })
-        : el('div', { className: 'nb-hint', style: { padding: '20px' }, children: 'the image did not load' })),
-      el('div', { style: { display: 'flex', gap: '8px', alignItems: 'center' } },
-        jsx(Btn, { size: 'sm', onClick: () => setZoom((z) => Math.max(0.5, z - 0.15)), children: '−' }),
-        jsx(Btn, { size: 'sm', onClick: () => setZoom((z) => Math.min(2, z + 0.15)), children: '+' }),
-        el('span', { className: 'nb-hint', children: `${Math.round(zoom * 100)}%` }),
-        el('span', { style: { flex: 1 } }),
-        data && data._style
-          ? el('span', { className: 'nb-chip', title: 'Infographic style',
-                         children: data._style.label }) : null,
-        data && data.takeaway ? el('span', { className: 'nb-chip', 'data-tone': 'accent', children: data.takeaway }) : null))
-  )
+    cards.length
+      ? el('div', { className: 'nb-ig-switch' },
+          jsx(Seg, { label: 'View', value: mode, onChange: setChosen,
+            options: [{ id: 'live', label: 'Live' }, { id: 'poster', label: 'Poster' }] }))
+      : null,
+    mode === 'live' && cards.length ? live : poster)
 }
 
 /* ----------------------------------------------------------- data table */
