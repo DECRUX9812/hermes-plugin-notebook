@@ -1290,7 +1290,7 @@ function StudioPanel({ kinds, notebook, busy, generate, filter, setFilter, onOpe
         className: 'nb-chip',
         'data-tone': readyCount ? 'ok' : undefined,
         title: `${readyCount} of ${kinds.length} outputs have a latest run`,
-        children: `${readyCount} of ${kinds.length} made`
+        children: readyCount === kinds.length ? 'All ready' : `${readyCount} of ${kinds.length} ready`
       }),
       runningCount ? el('span', { className: 'nb-chip', 'data-tone': 'accent',
         children: `${runningCount} writing` }) : null,
@@ -1392,7 +1392,7 @@ function GenPill({ kind, art, started, nbId, onOpen, onGenerate }) {
       'data-ready': art ? 'true' : 'false', 'data-busy': started ? 'true' : 'false',
       onClick: started ? undefined : (art ? onOpen : () => onGenerate(opts)),
       'aria-label': `${kind.label} — ${state}. ${art ? 'Open it' : 'Generate it'}`,
-      title: art ? `${kind.label} · ${art.primary}` : `Generate ${kind.label}`,
+      title: `${kind.label} — ${kind.blurb || 'generate it'}${art ? ` · ${art.primary}` : ''}`,
       children: [
         el('span', { className: 'nb-card-ico', 'aria-hidden': 'true' },
           jsx(Glyph, { name: KIND_ICON[kind.id] || 'doc', size: 16 })),
@@ -1400,17 +1400,15 @@ function GenPill({ kind, art, started, nbId, onOpen, onGenerate }) {
           el('span', { className: 'nb-card-name', children: kind.label }),
           kind.blurb
             ? el('span', { className: 'nb-card-blurb', children: kind.blurb })
-            : null),
-        // the state sits at the END of the row, where a list puts its status —
-        // under the blurb it read as a second paragraph
-        el('span', { className: 'nb-card-state', 'data-kind': started ? 'busy' : art ? 'ready' : 'idle' },
-          el('span', {
-            className: 'nb-dot',
-            style: { background: started ? 'var(--kc)' : art ? T.ok : undefined }
-          }),
-          started ? `writing · ${secs}s`
-            : art ? `made ${ago(art.modified)}`
-              : `~${kind.secs || 15}s`),
+            : null,
+          el('span', { className: 'nb-card-state', 'data-kind': started ? 'busy' : art ? 'ready' : 'idle' },
+            el('span', {
+              className: 'nb-dot',
+              style: { background: started ? 'var(--kc)' : art ? T.ok : undefined }
+            }),
+            started ? `writing · ${secs}s`
+              : art ? ago(art.modified)
+                : `~${kind.secs || 15}s`)),
         started
           ? el('span', { className: 'nb-bar-track nb-card-bar' },
               el('span', {
@@ -1427,8 +1425,15 @@ function GenPill({ kind, art, started, nbId, onOpen, onGenerate }) {
           onClick: () => setCfgOpen((o) => !o)
         })
       : null,
+    // Options live in a DIALOG, not in an absolutely-positioned popover.
+    // The popover measured 394x354 inside a card and covered six cards below it —
+    // "form fields rendering on top of the artifact tiles", which is exactly what
+    // it was. A modal has its own layer, its own scroll and a close button.
     cfgOpen && optSpecs.length
-      ? el('div', { className: 'nb-genpop', role: 'dialog', 'aria-label': `${kind.label} options` },
+      ? jsx(Dialog, {
+          open: true, title: `${kind.label} options`,
+          onClose: () => setCfgOpen(false), width: 460,
+          children: el('div', { style: { display: 'grid', gap: '14px' } },
           optSpecs.map((spec) => el('div', { key: spec.id, className: 'nb-genopt' },
             el('div', { className: 'nb-genopt-label', children: spec.label }),
             spec.kind === 'text'
@@ -1479,7 +1484,16 @@ function GenPill({ kind, art, started, nbId, onOpen, onGenerate }) {
                       children: `Render with these notes (${(notes.beats || []).length} beats)`
                     })
                   : null)
-            : null)
+            : null,
+          // one obvious way out that also does the thing
+          el('div', { style: { display: 'flex', justifyContent: 'flex-end', gap: '8px' } },
+            jsx(Btn, { onClick: () => setCfgOpen(false), children: 'Cancel' }),
+            jsx(Btn, {
+              variant: 'primary', disabled: started,
+              onClick: () => { setCfgOpen(false); onGenerate(opts) },
+              children: started ? 'Making…' : `Make ${kind.label}`
+            })))
+        })
       : null,
     notes
       ? jsx(Dialog, {

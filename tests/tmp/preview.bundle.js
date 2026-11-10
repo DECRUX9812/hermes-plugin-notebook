@@ -12814,10 +12814,10 @@ var TRANSCRIPT_DIRECTIVE_AREA2 = TRANSCRIPT_DIRECTIVE_AREA || "transcript.direct
 var ID = "hermes-notebook";
 var ROUTE = "/notebook";
 var T = {
-  text: "var(--ui-text-primary, #e9e9ef)",
-  text2: "var(--ui-text-secondary, #b6b6c2)",
-  text3: "color-mix(in srgb, var(--ui-text-primary, #e9e9ef) 72%, transparent)",
-  text4: "color-mix(in srgb, var(--ui-text-primary, #e9e9ef) 68%, transparent)",
+  text: "var(--nb-ink, #F1F3F4)",
+  text2: "var(--nb-ink2, #9AA0A6)",
+  text3: "color-mix(in srgb, var(--nb-ink, #F1F3F4) 74%, transparent)",
+  text4: "color-mix(in srgb, var(--nb-ink, #F1F3F4) 66%, transparent)",
   accent: "var(--ui-accent, #8b93ff)",
   line: "var(--ui-stroke-secondary, rgba(233,233,239,0.11))",
   lineSoft: "var(--ui-stroke-tertiary, rgba(233,233,239,0.07))",
@@ -12842,6 +12842,12 @@ var CSS = `
 
 .nb-root{
   --nb-rail: 268px; --nb-studio: 420px;
+  /* NotebookLM's palette, per skin. The host never sets a color-scheme, so the
+     page publishes data-skin (measured from the host's own canvas) and these
+     two blocks are the only place a colour is decided. */
+  --nb-canvas:#0C0D0E; --nb-panel:#16171A; --nb-edge:rgba(255,255,255,.08);
+  --nb-tile:#202124; --nb-tile-hi:#2A2B2E; --nb-ink:#F1F3F4; --nb-ink2:#9AA0A6;
+  --nb-inset:#0F1012;
   --nb-hair: color-mix(in srgb, ${T.text} 10%, transparent);
   --nb-hair-soft: color-mix(in srgb, ${T.text} 6%, transparent);
   --nb-wash: color-mix(in srgb, ${T.text} 4%, transparent);
@@ -12873,9 +12879,14 @@ var CSS = `
   --nb-sp-5: 16px; --nb-sp-6: 20px; --nb-sp-7: 24px; --nb-sp-8: 32px;
   --nb-media: linear-gradient(155deg,#20243a 0%,#12151f 100%);
   display:flex; flex-direction:column; height:100%; min-height:0;
-  color:${T.text}; font-size:16px; line-height:1.5;
+  background:var(--nb-canvas); color:${T.text}; font-size:16px; line-height:1.5;
   font-variant-numeric: tabular-nums;
   position:relative;
+}
+.nb-root[data-skin=light]{
+  --nb-canvas:#F8F5EE; --nb-panel:#FFFFFF; --nb-edge:#E8E2D8;
+  --nb-tile:#F3EEE4; --nb-tile-hi:#EBE4D8; --nb-ink:#1F1F1F; --nb-ink2:#5F6368;
+  --nb-inset:#FBF8F2;
 }
 /* ambient generative field \u2014 each notebook's sigil hue bleeds into the room */
 .nb-aurora{position:absolute;inset:0;z-index:0;overflow:hidden;pointer-events:none}
@@ -12970,7 +12981,7 @@ var CSS = `
 .nb-body{flex:1 1 auto;display:flex;gap:12px;min-height:0;overflow:hidden;
   padding:12px}
 .nb-col{min-width:0;min-height:0;display:flex;flex-direction:column;position:relative}
-.nb-body > .nb-col{background:var(--nb-card);border:1px solid var(--nb-hair-soft);
+.nb-body > .nb-col{background:var(--nb-panel);border:1px solid var(--nb-edge);
   border-radius:var(--nb-r-panel);overflow:hidden}
 .nb-rail{flex:0 0 var(--nb-rail)}
 .nb-rail[data-drop="true"]{outline:2px dashed ${T.accent};outline-offset:-6px;border-radius:var(--nb-r-panel)}
@@ -13247,10 +13258,11 @@ var CSS = `
 .nb-md blockquote{margin:12px 0;padding:10px 16px;border-radius:var(--nb-r-el);color:${T.text2};
   background:var(--nb-wash);border-left:3px solid color-mix(in srgb,${T.accent} 55%, transparent)}
 /* inline citations are quiet accent pills with the source number */
-.nb-inline-cite{display:inline-flex;align-items:center;min-height:20px;padding:0 8px;margin:0 2px;
-  border-radius:var(--nb-r-pill);border:1px solid color-mix(in srgb,${T.accent} 30%, transparent);
-  background:color-mix(in srgb,${T.accent} 10%, transparent);
-  font-size:11.5px;font-weight:700;letter-spacing:.01em;
+.nb-inline-cite{display:inline-flex;align-items:center;min-height:22px;padding:0 9px;margin:0 3px;
+  border-radius:var(--nb-r-pill);border:1px solid color-mix(in srgb,${T.accent} 45%, transparent);
+  background:color-mix(in srgb,${T.accent} 16%, transparent);
+  font-size:var(--nb-fs-meta);font-weight:700;letter-spacing:.01em;
+  color:color-mix(in srgb,${T.accent} 55%, ${T.text});
   color:color-mix(in srgb,${T.accent} 70%, ${T.text});cursor:pointer;vertical-align:1px;line-height:1}
 .nb-inline-cite:hover{background:color-mix(in srgb,${T.accent} 20%, transparent)}
 .nb-composer{flex:0 0 auto;padding:14px 30px 20px}
@@ -13319,7 +13331,9 @@ var CSS = `
    thirteen equals. Each family folds (a crowded bench is unworkable), each pill
    says what it produces and what state its last run is in, and the run list
    underneath is the record of what was actually produced. */
-.nb-studio-head{gap:var(--nb-sp-3)}
+.nb-studio-head{gap:10px;padding-bottom:10px}
+.nb-studio-head .nb-chip{margin-left:2px}
+.nb-studio-head .nb-icon:last-child{margin-left:auto}
 .nb-studio-body{flex:1;min-height:0;display:flex;flex-direction:column;gap:var(--nb-sp-4);
   overflow:auto;overscroll-behavior:contain;
   /* The last card used to end flush against the status bar: a cut card at the
@@ -13362,24 +13376,36 @@ var CSS = `
    wrapped to three lines, the timestamp dotted beside it, and the whole bench
    read as a wall of equal-weight boxes. One row per output gives the name room,
    keeps the state on the same line, and reads like a studio list should. */
-.nb-gen-grid{display:grid;grid-template-columns:minmax(0,1fr);gap:5px;padding:0 0 var(--nb-sp-2)}
+/* The Studio bench, 2-up like NotebookLM's: a 40px pastel badge, the name, a
+   one-line promise, and the state of the last run. Two columns of ~150px tiles
+   fit a 320-420px drawer; below 300px of drawer the container query drops to a
+   single column instead of squeezing. */
+.nb-studio{container-type:inline-size}
+.nb-gen-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;
+  padding:0 0 var(--nb-sp-2)}
+@container (max-width: 300px){ .nb-gen-grid{grid-template-columns:minmax(0,1fr)} }
+/* a family with an odd count leaves its last tile at half width, like every
+   other grid: spanning the row made that one output look like a special case */
 
 .nb-card{--kc:${T.accent};
-  display:flex;align-items:center;gap:var(--nb-sp-3);width:100%;min-width:0;
-  min-height:52px;padding:8px 10px;
-  border:1px solid var(--nb-hair-soft);border-radius:var(--nb-r-el);
-  background:var(--nb-card);cursor:pointer;text-align:left;color:${T.text};
+  display:flex;align-items:flex-start;gap:10px;width:100%;min-width:0;
+  min-height:92px;padding:13px 13px 12px;
+  border:1px solid var(--nb-edge);border-radius:var(--nb-r-el);
+  background:var(--nb-tile);cursor:pointer;text-align:left;color:${T.text};
   transition:background var(--nb-dur-fast) var(--nb-ease),border-color var(--nb-dur-fast) var(--nb-ease),
     transform var(--nb-dur-fast) var(--nb-ease),box-shadow var(--nb-dur-fast) var(--nb-ease)}
-.nb-card:hover{background:var(--nb-wash-2);border-color:color-mix(in srgb,var(--kc) 40%, var(--nb-hair));
+.nb-card:hover{background:var(--nb-tile-hi);border-color:color-mix(in srgb,var(--kc) 40%, var(--nb-hair));
   transform:translateY(-1px);
   box-shadow:0 8px 26px -12px color-mix(in srgb,var(--kc) 42%, transparent)}
 .nb-card:focus-visible{outline:2px solid ${T.accent};outline-offset:2px}
 .nb-card[data-ready=true]{border-color:color-mix(in srgb,var(--kc) 26%, var(--nb-hair-soft))}
 .nb-card[data-busy=true]{border-color:color-mix(in srgb,var(--kc) 48%, transparent);
   background:color-mix(in srgb,var(--kc) 6%, var(--nb-card))}
-.nb-card-ico{width:28px;height:28px;flex:0 0 auto;border-radius:var(--nb-r-in);display:grid;place-items:center;
-  background:color-mix(in srgb,var(--kc) 14%, transparent);color:var(--kc)}
+/* a 40px pastel badge carries the kind \u2014 the colour is the only thing that has
+   to be learned, the words stay in ink */
+.nb-card-ico{width:40px;height:40px;flex:0 0 auto;border-radius:var(--nb-r-el);display:grid;place-items:center;
+  background:color-mix(in srgb,var(--kc) 16%, transparent);color:var(--kc)}
+.nb-card-ico svg{width:19px;height:19px}
 .nb-card[data-kind=video_overview],.nb-art[data-kind=video_overview]{--kc:#81c995}
 .nb-card[data-kind=audio_overview],.nb-art[data-kind=audio_overview]{--kc:#a8c7fa}
 .nb-card[data-kind=summary],.nb-art[data-kind=summary]{--kc:#aecbfa}
@@ -13393,15 +13419,15 @@ var CSS = `
 .nb-card[data-kind=slides],.nb-art[data-kind=slides]{--kc:#f28b82}
 .nb-card[data-kind=infographic],.nb-art[data-kind=infographic]{--kc:#fde293}
 .nb-card[data-kind=data_table],.nb-art[data-kind=data_table]{--kc:#a8c7fa}
-.nb-card-main{min-width:0;flex:1;display:flex;flex-direction:column;gap:1px}
-.nb-card-name{display:flex;align-items:center;gap:5px;font-size:var(--nb-fs-label);font-weight:650;
-  letter-spacing:-.005em;line-height:1.3;color:${T.text};
-  overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.nb-card-main{min-width:0;flex:1;display:flex;flex-direction:column;gap:3px;padding-right:18px}
+.nb-card-name{display:-webkit-box;font-size:var(--nb-fs-label);font-weight:650;
+  letter-spacing:-.005em;line-height:1.25;color:${T.text};
+  -webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
 .nb-card-name svg{color:var(--kc);flex:0 0 auto}
 /* the blurb is what the output actually is \u2014 the pill is not just a label */
-.nb-card-blurb{font-size:var(--nb-fs-meta);line-height:1.4;color:${T.text3};min-width:0;
-  white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.nb-card .nb-card-state{flex:0 0 auto}
+.nb-card-blurb{display:none}
+.nb-card .nb-card-state{flex:0 0 auto;align-self:flex-start;margin-top:3px;padding:0;
+  background:transparent !important}
 .nb-card{position:relative}
 .nb-card-bar{position:absolute;left:8px;right:8px;bottom:3px}
 .nb-card-state{display:inline-flex;align-items:center;gap:5px;white-space:nowrap;
@@ -14075,12 +14101,13 @@ var CSS = `
    trackpad with the pointer elsewhere, or on first glance at the page the
    settings looked like they did not exist. Quiet when idle, bright on hover. */
 .nb-gen-cfg{position:absolute;top:3px;right:3px;width:32px;height:32px;
-  opacity:.42;transition:opacity var(--nb-dur-fast) var(--nb-ease)}
+  border-radius:var(--nb-r-in);background:var(--nb-wash-2);opacity:.42;
+  transition:opacity var(--nb-dur-fast) var(--nb-ease)}
+.nb-gen:hover .nb-gen-cfg,.nb-gen:focus-within .nb-gen-cfg,
+.nb-gen-cfg:focus-visible,.nb-gen-cfg[data-active=true]{opacity:1}
+@media (hover:none){.nb-gen-cfg{opacity:.75}}
 .nb-gen:hover .nb-gen-cfg,.nb-gen-cfg[data-active="true"],.nb-gen-cfg:focus-visible{opacity:1}
 @media (hover:none){.nb-gen-cfg{opacity:.8}}
-.nb-genpop{position:absolute;top:calc(100% + 6px);left:0;right:0;z-index:30;
-  background:${T.card};border:1px solid ${T.line};border-radius:var(--nb-r-box);
-  box-shadow:var(--nb-shadow-lift);padding:12px;display:grid;gap:12px}
 .nb-genopt-label{font-size:11.5px;font-weight:600;color:${T.text3};margin-bottom:6px;
   text-transform:uppercase;letter-spacing:.06em}
 .nb-genopt .nb-seg{width:100%}
@@ -15792,6 +15819,44 @@ function App() {
     viewSend({ type: "RESET_VIEW" });
     setMode("studio");
   }, []);
+  const [skin, setSkin] = (0, import_react.useState)("dark");
+  (0, import_react.useEffect)(() => {
+    const lum = (css) => {
+      const m = String(css || "").match(/rgba?\(([^)]+)\)/);
+      let r, g, b;
+      if (m) {
+        const p = m[1].split(/[,\s\/]+/).filter(Boolean).map(Number);
+        [r, g, b] = p;
+      } else {
+        const hex = String(css || "").trim().replace("#", "");
+        if (hex.length < 6) return null;
+        r = parseInt(hex.slice(0, 2), 16);
+        g = parseInt(hex.slice(2, 4), 16);
+        b = parseInt(hex.slice(4, 6), 16);
+      }
+      if ([r, g, b].some((v) => Number.isNaN(v))) return null;
+      const f = (v) => {
+        v /= 255;
+        return v <= 0.03928 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4;
+      };
+      return 0.2126 * f(r) + 0.7152 * f(g) + 0.0722 * f(b);
+    };
+    const read = () => {
+      const cs = getComputedStyle(document.documentElement);
+      const bg = cs.getPropertyValue("--ui-bg-primary") || cs.getPropertyValue("--background") || "";
+      const l = lum(bg) ?? lum(getComputedStyle(document.body).backgroundColor);
+      if (l !== null) setSkin(l > 0.35 ? "light" : "dark");
+    };
+    read();
+    const mo = new MutationObserver(() => read());
+    mo.observe(document.documentElement, { attributes: true, attributeFilter: ["class", "style", "data-theme"] });
+    if (document.head) mo.observe(document.head, { childList: true, subtree: true });
+    const id = setInterval(read, 1500);
+    return () => {
+      mo.disconnect();
+      clearInterval(id);
+    };
+  }, []);
   const rootRef = (0, import_react.useRef)(null);
   const [density, setDensity] = (0, import_react.useState)("wide");
   (0, import_react.useEffect)(() => {
@@ -15822,6 +15887,7 @@ function App() {
       "data-mode": mode2,
       "data-plugin": ID,
       "data-density": density,
+      "data-skin": skin,
       // the room takes on the notebook's colour: its sigil hue becomes the ambient
       // field behind every panel, and home keeps a fixed violet
       style: { "--nb-hue": sigHue(notebook ? notebook.id : "hermes-home") }
@@ -18331,7 +18397,7 @@ function StudioPanel({ kinds, notebook, busy, generate, filter, setFilter, onOpe
         className: "nb-chip",
         "data-tone": readyCount ? "ok" : void 0,
         title: `${readyCount} of ${kinds.length} outputs have a latest run`,
-        children: `${readyCount} of ${kinds.length} made`
+        children: readyCount === kinds.length ? "All ready" : `${readyCount} of ${kinds.length} ready`
       }),
       runningCount ? el("span", {
         className: "nb-chip",
@@ -18467,7 +18533,7 @@ function GenPill({ kind, art, started, nbId, onOpen, onGenerate }) {
       "data-busy": started ? "true" : "false",
       onClick: started ? void 0 : art ? onOpen : () => onGenerate(opts),
       "aria-label": `${kind.label} \u2014 ${state}. ${art ? "Open it" : "Generate it"}`,
-      title: art ? `${kind.label} \xB7 ${art.primary}` : `Generate ${kind.label}`,
+      title: `${kind.label} \u2014 ${kind.blurb || "generate it"}${art ? ` \xB7 ${art.primary}` : ""}`,
       children: [
         el(
           "span",
@@ -18478,18 +18544,16 @@ function GenPill({ kind, art, started, nbId, onOpen, onGenerate }) {
           "span",
           { className: "nb-card-main" },
           el("span", { className: "nb-card-name", children: kind.label }),
-          kind.blurb ? el("span", { className: "nb-card-blurb", children: kind.blurb }) : null
-        ),
-        // the state sits at the END of the row, where a list puts its status —
-        // under the blurb it read as a second paragraph
-        el(
-          "span",
-          { className: "nb-card-state", "data-kind": started ? "busy" : art ? "ready" : "idle" },
-          el("span", {
-            className: "nb-dot",
-            style: { background: started ? "var(--kc)" : art ? T.ok : void 0 }
-          }),
-          started ? `writing \xB7 ${secs}s` : art ? `made ${ago(art.modified)}` : `~${kind.secs || 15}s`
+          kind.blurb ? el("span", { className: "nb-card-blurb", children: kind.blurb }) : null,
+          el(
+            "span",
+            { className: "nb-card-state", "data-kind": started ? "busy" : art ? "ready" : "idle" },
+            el("span", {
+              className: "nb-dot",
+              style: { background: started ? "var(--kc)" : art ? T.ok : void 0 }
+            }),
+            started ? `writing \xB7 ${secs}s` : art ? ago(art.modified) : `~${kind.secs || 15}s`
+          )
         ),
         started ? el(
           "span",
@@ -18508,68 +18572,93 @@ function GenPill({ kind, art, started, nbId, onOpen, onGenerate }) {
       active: cfgOpen,
       onClick: () => setCfgOpen((o) => !o)
     }) : null,
-    cfgOpen && optSpecs.length ? el(
-      "div",
-      { className: "nb-genpop", role: "dialog", "aria-label": `${kind.label} options` },
-      optSpecs.map((spec) => el(
+    // Options live in a DIALOG, not in an absolutely-positioned popover.
+    // The popover measured 394x354 inside a card and covered six cards below it —
+    // "form fields rendering on top of the artifact tiles", which is exactly what
+    // it was. A modal has its own layer, its own scroll and a close button.
+    cfgOpen && optSpecs.length ? (0, import_jsx_runtime.jsx)(Dialog, {
+      open: true,
+      title: `${kind.label} options`,
+      onClose: () => setCfgOpen(false),
+      width: 460,
+      children: el(
         "div",
-        { key: spec.id, className: "nb-genopt" },
-        el("div", { className: "nb-genopt-label", children: spec.label }),
-        spec.kind === "text" ? el("input", {
-          className: "nb-genopt-text",
-          type: "text",
-          placeholder: spec.placeholder || "",
-          value: opts[spec.id] || "",
-          onChange: (e) => pick(spec.id, e.target.value)
-        }) : el(Seg, {
-          // The backend may name a choice ('Vector · exact'). Title-casing
-          // the id is the fallback, not the rule: an engine called
-          // 'imagen_blueprint' should not read as 'Imagen Blueprint' to
-          // someone deciding whether to spend money on a render.
-          value: opts[spec.id] || spec.default || spec.choices[0],
-          onChange: (v) => pick(spec.id, v),
-          options: spec.choices.map((c) => ({
-            id: c,
-            label: spec.labels && spec.labels[c] || c.replace(/_/g, " ").replace(/\b\w/g, (ch) => ch.toUpperCase())
-          }))
-        })
-      )),
-      kind.id === "video_overview" && nbId ? el(
-        "div",
-        { style: { borderTop: `1px solid ${T.lineSoft}`, paddingTop: "10px", display: "grid", gap: "8px" } },
-        (0, import_jsx_runtime.jsx)(Btn, {
-          size: "sm",
-          icon: "doc",
-          disabled: notesBusy || started,
-          onClick: async () => {
-            setNotesBusy(true);
-            try {
-              const out = await api("/video_notes", {
-                method: "POST",
-                body: { notebook: nbId, style: opts.style || "cinematic", length: opts.length || "short", language: opts.language || "", focus: opts.focus || "" },
-                timeoutMs: 18e4
-              });
-              setNotes(out);
-            } catch (e) {
-              setNotes({ error: e.message || String(e) });
-            } finally {
-              setNotesBusy(false);
-            }
-          },
-          children: notesBusy ? "Writing script\u2026" : "Review script first"
-        }),
-        notes && !notes.error ? (0, import_jsx_runtime.jsx)(Btn, {
-          size: "sm",
-          variant: "primary",
-          disabled: started,
-          onClick: () => {
-            setCfgOpen(false);
-            onGenerate({ ...opts, notes });
-          },
-          children: `Render with these notes (${(notes.beats || []).length} beats)`
-        }) : null
-      ) : null
-    ) : null,
+        { style: { display: "grid", gap: "14px" } },
+        optSpecs.map((spec) => el(
+          "div",
+          { key: spec.id, className: "nb-genopt" },
+          el("div", { className: "nb-genopt-label", children: spec.label }),
+          spec.kind === "text" ? el("input", {
+            className: "nb-genopt-text",
+            type: "text",
+            placeholder: spec.placeholder || "",
+            value: opts[spec.id] || "",
+            onChange: (e) => pick(spec.id, e.target.value)
+          }) : el(Seg, {
+            // The backend may name a choice ('Vector · exact'). Title-casing
+            // the id is the fallback, not the rule: an engine called
+            // 'imagen_blueprint' should not read as 'Imagen Blueprint' to
+            // someone deciding whether to spend money on a render.
+            value: opts[spec.id] || spec.default || spec.choices[0],
+            onChange: (v) => pick(spec.id, v),
+            options: spec.choices.map((c) => ({
+              id: c,
+              label: spec.labels && spec.labels[c] || c.replace(/_/g, " ").replace(/\b\w/g, (ch) => ch.toUpperCase())
+            }))
+          })
+        )),
+        kind.id === "video_overview" && nbId ? el(
+          "div",
+          { style: { borderTop: `1px solid ${T.lineSoft}`, paddingTop: "10px", display: "grid", gap: "8px" } },
+          (0, import_jsx_runtime.jsx)(Btn, {
+            size: "sm",
+            icon: "doc",
+            disabled: notesBusy || started,
+            onClick: async () => {
+              setNotesBusy(true);
+              try {
+                const out = await api("/video_notes", {
+                  method: "POST",
+                  body: { notebook: nbId, style: opts.style || "cinematic", length: opts.length || "short", language: opts.language || "", focus: opts.focus || "" },
+                  timeoutMs: 18e4
+                });
+                setNotes(out);
+              } catch (e) {
+                setNotes({ error: e.message || String(e) });
+              } finally {
+                setNotesBusy(false);
+              }
+            },
+            children: notesBusy ? "Writing script\u2026" : "Review script first"
+          }),
+          notes && !notes.error ? (0, import_jsx_runtime.jsx)(Btn, {
+            size: "sm",
+            variant: "primary",
+            disabled: started,
+            onClick: () => {
+              setCfgOpen(false);
+              onGenerate({ ...opts, notes });
+            },
+            children: `Render with these notes (${(notes.beats || []).length} beats)`
+          }) : null
+        ) : null,
+        // one obvious way out that also does the thing
+        el(
+          "div",
+          { style: { display: "flex", justifyContent: "flex-end", gap: "8px" } },
+          (0, import_jsx_runtime.jsx)(Btn, { onClick: () => setCfgOpen(false), children: "Cancel" }),
+          (0, import_jsx_runtime.jsx)(Btn, {
+            variant: "primary",
+            disabled: started,
+            onClick: () => {
+              setCfgOpen(false);
+              onGenerate(opts);
+            },
+            children: started ? "Making\u2026" : `Make ${kind.label}`
+          })
+        )
+      )
+    }) : null,
     notes ? (0, import_jsx_runtime.jsx)(Dialog, {
       open: true,
       title: notes.title || "Video producer notes",

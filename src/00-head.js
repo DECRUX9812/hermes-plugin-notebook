@@ -57,10 +57,10 @@ const ROUTE = '/notebook'
  * --ui-text-tertiary remains available where a surface needs its exact value.
  */
 const T = {
-  text: 'var(--ui-text-primary, #e9e9ef)',
-  text2: 'var(--ui-text-secondary, #b6b6c2)',
-  text3: 'color-mix(in srgb, var(--ui-text-primary, #e9e9ef) 72%, transparent)',
-  text4: 'color-mix(in srgb, var(--ui-text-primary, #e9e9ef) 68%, transparent)',
+  text: 'var(--nb-ink, #F1F3F4)',
+  text2: 'var(--nb-ink2, #9AA0A6)',
+  text3: 'color-mix(in srgb, var(--nb-ink, #F1F3F4) 74%, transparent)',
+  text4: 'color-mix(in srgb, var(--nb-ink, #F1F3F4) 66%, transparent)',
   accent: 'var(--ui-accent, #8b93ff)',
   line: 'var(--ui-stroke-secondary, rgba(233,233,239,0.11))',
   lineSoft: 'var(--ui-stroke-tertiary, rgba(233,233,239,0.07))',
@@ -86,6 +86,12 @@ const CSS = `
 
 .nb-root{
   --nb-rail: 268px; --nb-studio: 420px;
+  /* NotebookLM's palette, per skin. The host never sets a color-scheme, so the
+     page publishes data-skin (measured from the host's own canvas) and these
+     two blocks are the only place a colour is decided. */
+  --nb-canvas:#0C0D0E; --nb-panel:#16171A; --nb-edge:rgba(255,255,255,.08);
+  --nb-tile:#202124; --nb-tile-hi:#2A2B2E; --nb-ink:#F1F3F4; --nb-ink2:#9AA0A6;
+  --nb-inset:#0F1012;
   --nb-hair: color-mix(in srgb, ${T.text} 10%, transparent);
   --nb-hair-soft: color-mix(in srgb, ${T.text} 6%, transparent);
   --nb-wash: color-mix(in srgb, ${T.text} 4%, transparent);
@@ -117,9 +123,14 @@ const CSS = `
   --nb-sp-5: 16px; --nb-sp-6: 20px; --nb-sp-7: 24px; --nb-sp-8: 32px;
   --nb-media: linear-gradient(155deg,#20243a 0%,#12151f 100%);
   display:flex; flex-direction:column; height:100%; min-height:0;
-  color:${T.text}; font-size:16px; line-height:1.5;
+  background:var(--nb-canvas); color:${T.text}; font-size:16px; line-height:1.5;
   font-variant-numeric: tabular-nums;
   position:relative;
+}
+.nb-root[data-skin=light]{
+  --nb-canvas:#F8F5EE; --nb-panel:#FFFFFF; --nb-edge:#E8E2D8;
+  --nb-tile:#F3EEE4; --nb-tile-hi:#EBE4D8; --nb-ink:#1F1F1F; --nb-ink2:#5F6368;
+  --nb-inset:#FBF8F2;
 }
 /* ambient generative field — each notebook's sigil hue bleeds into the room */
 .nb-aurora{position:absolute;inset:0;z-index:0;overflow:hidden;pointer-events:none}
@@ -214,7 +225,7 @@ const CSS = `
 .nb-body{flex:1 1 auto;display:flex;gap:12px;min-height:0;overflow:hidden;
   padding:12px}
 .nb-col{min-width:0;min-height:0;display:flex;flex-direction:column;position:relative}
-.nb-body > .nb-col{background:var(--nb-card);border:1px solid var(--nb-hair-soft);
+.nb-body > .nb-col{background:var(--nb-panel);border:1px solid var(--nb-edge);
   border-radius:var(--nb-r-panel);overflow:hidden}
 .nb-rail{flex:0 0 var(--nb-rail)}
 .nb-rail[data-drop="true"]{outline:2px dashed ${T.accent};outline-offset:-6px;border-radius:var(--nb-r-panel)}
@@ -491,10 +502,11 @@ const CSS = `
 .nb-md blockquote{margin:12px 0;padding:10px 16px;border-radius:var(--nb-r-el);color:${T.text2};
   background:var(--nb-wash);border-left:3px solid color-mix(in srgb,${T.accent} 55%, transparent)}
 /* inline citations are quiet accent pills with the source number */
-.nb-inline-cite{display:inline-flex;align-items:center;min-height:20px;padding:0 8px;margin:0 2px;
-  border-radius:var(--nb-r-pill);border:1px solid color-mix(in srgb,${T.accent} 30%, transparent);
-  background:color-mix(in srgb,${T.accent} 10%, transparent);
-  font-size:11.5px;font-weight:700;letter-spacing:.01em;
+.nb-inline-cite{display:inline-flex;align-items:center;min-height:22px;padding:0 9px;margin:0 3px;
+  border-radius:var(--nb-r-pill);border:1px solid color-mix(in srgb,${T.accent} 45%, transparent);
+  background:color-mix(in srgb,${T.accent} 16%, transparent);
+  font-size:var(--nb-fs-meta);font-weight:700;letter-spacing:.01em;
+  color:color-mix(in srgb,${T.accent} 55%, ${T.text});
   color:color-mix(in srgb,${T.accent} 70%, ${T.text});cursor:pointer;vertical-align:1px;line-height:1}
 .nb-inline-cite:hover{background:color-mix(in srgb,${T.accent} 20%, transparent)}
 .nb-composer{flex:0 0 auto;padding:14px 30px 20px}
@@ -563,7 +575,9 @@ const CSS = `
    thirteen equals. Each family folds (a crowded bench is unworkable), each pill
    says what it produces and what state its last run is in, and the run list
    underneath is the record of what was actually produced. */
-.nb-studio-head{gap:var(--nb-sp-3)}
+.nb-studio-head{gap:10px;padding-bottom:10px}
+.nb-studio-head .nb-chip{margin-left:2px}
+.nb-studio-head .nb-icon:last-child{margin-left:auto}
 .nb-studio-body{flex:1;min-height:0;display:flex;flex-direction:column;gap:var(--nb-sp-4);
   overflow:auto;overscroll-behavior:contain;
   /* The last card used to end flush against the status bar: a cut card at the
@@ -606,24 +620,36 @@ const CSS = `
    wrapped to three lines, the timestamp dotted beside it, and the whole bench
    read as a wall of equal-weight boxes. One row per output gives the name room,
    keeps the state on the same line, and reads like a studio list should. */
-.nb-gen-grid{display:grid;grid-template-columns:minmax(0,1fr);gap:5px;padding:0 0 var(--nb-sp-2)}
+/* The Studio bench, 2-up like NotebookLM's: a 40px pastel badge, the name, a
+   one-line promise, and the state of the last run. Two columns of ~150px tiles
+   fit a 320-420px drawer; below 300px of drawer the container query drops to a
+   single column instead of squeezing. */
+.nb-studio{container-type:inline-size}
+.nb-gen-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;
+  padding:0 0 var(--nb-sp-2)}
+@container (max-width: 300px){ .nb-gen-grid{grid-template-columns:minmax(0,1fr)} }
+/* a family with an odd count leaves its last tile at half width, like every
+   other grid: spanning the row made that one output look like a special case */
 
 .nb-card{--kc:${T.accent};
-  display:flex;align-items:center;gap:var(--nb-sp-3);width:100%;min-width:0;
-  min-height:52px;padding:8px 10px;
-  border:1px solid var(--nb-hair-soft);border-radius:var(--nb-r-el);
-  background:var(--nb-card);cursor:pointer;text-align:left;color:${T.text};
+  display:flex;align-items:flex-start;gap:10px;width:100%;min-width:0;
+  min-height:92px;padding:13px 13px 12px;
+  border:1px solid var(--nb-edge);border-radius:var(--nb-r-el);
+  background:var(--nb-tile);cursor:pointer;text-align:left;color:${T.text};
   transition:background var(--nb-dur-fast) var(--nb-ease),border-color var(--nb-dur-fast) var(--nb-ease),
     transform var(--nb-dur-fast) var(--nb-ease),box-shadow var(--nb-dur-fast) var(--nb-ease)}
-.nb-card:hover{background:var(--nb-wash-2);border-color:color-mix(in srgb,var(--kc) 40%, var(--nb-hair));
+.nb-card:hover{background:var(--nb-tile-hi);border-color:color-mix(in srgb,var(--kc) 40%, var(--nb-hair));
   transform:translateY(-1px);
   box-shadow:0 8px 26px -12px color-mix(in srgb,var(--kc) 42%, transparent)}
 .nb-card:focus-visible{outline:2px solid ${T.accent};outline-offset:2px}
 .nb-card[data-ready=true]{border-color:color-mix(in srgb,var(--kc) 26%, var(--nb-hair-soft))}
 .nb-card[data-busy=true]{border-color:color-mix(in srgb,var(--kc) 48%, transparent);
   background:color-mix(in srgb,var(--kc) 6%, var(--nb-card))}
-.nb-card-ico{width:28px;height:28px;flex:0 0 auto;border-radius:var(--nb-r-in);display:grid;place-items:center;
-  background:color-mix(in srgb,var(--kc) 14%, transparent);color:var(--kc)}
+/* a 40px pastel badge carries the kind — the colour is the only thing that has
+   to be learned, the words stay in ink */
+.nb-card-ico{width:40px;height:40px;flex:0 0 auto;border-radius:var(--nb-r-el);display:grid;place-items:center;
+  background:color-mix(in srgb,var(--kc) 16%, transparent);color:var(--kc)}
+.nb-card-ico svg{width:19px;height:19px}
 .nb-card[data-kind=video_overview],.nb-art[data-kind=video_overview]{--kc:#81c995}
 .nb-card[data-kind=audio_overview],.nb-art[data-kind=audio_overview]{--kc:#a8c7fa}
 .nb-card[data-kind=summary],.nb-art[data-kind=summary]{--kc:#aecbfa}
@@ -637,15 +663,15 @@ const CSS = `
 .nb-card[data-kind=slides],.nb-art[data-kind=slides]{--kc:#f28b82}
 .nb-card[data-kind=infographic],.nb-art[data-kind=infographic]{--kc:#fde293}
 .nb-card[data-kind=data_table],.nb-art[data-kind=data_table]{--kc:#a8c7fa}
-.nb-card-main{min-width:0;flex:1;display:flex;flex-direction:column;gap:1px}
-.nb-card-name{display:flex;align-items:center;gap:5px;font-size:var(--nb-fs-label);font-weight:650;
-  letter-spacing:-.005em;line-height:1.3;color:${T.text};
-  overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.nb-card-main{min-width:0;flex:1;display:flex;flex-direction:column;gap:3px;padding-right:18px}
+.nb-card-name{display:-webkit-box;font-size:var(--nb-fs-label);font-weight:650;
+  letter-spacing:-.005em;line-height:1.25;color:${T.text};
+  -webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
 .nb-card-name svg{color:var(--kc);flex:0 0 auto}
 /* the blurb is what the output actually is — the pill is not just a label */
-.nb-card-blurb{font-size:var(--nb-fs-meta);line-height:1.4;color:${T.text3};min-width:0;
-  white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.nb-card .nb-card-state{flex:0 0 auto}
+.nb-card-blurb{display:none}
+.nb-card .nb-card-state{flex:0 0 auto;align-self:flex-start;margin-top:3px;padding:0;
+  background:transparent !important}
 .nb-card{position:relative}
 .nb-card-bar{position:absolute;left:8px;right:8px;bottom:3px}
 .nb-card-state{display:inline-flex;align-items:center;gap:5px;white-space:nowrap;
@@ -1319,12 +1345,13 @@ const CSS = `
    trackpad with the pointer elsewhere, or on first glance at the page the
    settings looked like they did not exist. Quiet when idle, bright on hover. */
 .nb-gen-cfg{position:absolute;top:3px;right:3px;width:32px;height:32px;
-  opacity:.42;transition:opacity var(--nb-dur-fast) var(--nb-ease)}
+  border-radius:var(--nb-r-in);background:var(--nb-wash-2);opacity:.42;
+  transition:opacity var(--nb-dur-fast) var(--nb-ease)}
+.nb-gen:hover .nb-gen-cfg,.nb-gen:focus-within .nb-gen-cfg,
+.nb-gen-cfg:focus-visible,.nb-gen-cfg[data-active=true]{opacity:1}
+@media (hover:none){.nb-gen-cfg{opacity:.75}}
 .nb-gen:hover .nb-gen-cfg,.nb-gen-cfg[data-active="true"],.nb-gen-cfg:focus-visible{opacity:1}
 @media (hover:none){.nb-gen-cfg{opacity:.8}}
-.nb-genpop{position:absolute;top:calc(100% + 6px);left:0;right:0;z-index:30;
-  background:${T.card};border:1px solid ${T.line};border-radius:var(--nb-r-box);
-  box-shadow:var(--nb-shadow-lift);padding:12px;display:grid;gap:12px}
 .nb-genopt-label{font-size:11.5px;font-weight:600;color:${T.text3};margin-bottom:6px;
   text-transform:uppercase;letter-spacing:.06em}
 .nb-genopt .nb-seg{width:100%}

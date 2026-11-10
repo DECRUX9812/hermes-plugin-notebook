@@ -459,6 +459,42 @@ function App() {
   // window, so `@media (max-width:…)` measures the wrong thing: at a 1600px
   // window this root is 1340px, and at 1280px it is 1020px — where two fixed
   // panels (268 + 420) left the main pane 332px wide.
+  // Which skin is this? The host never sets `color-scheme`, so `light-dark()`
+  // would always resolve light even in a dark app. Read the host's own canvas
+  // colour instead and publish a data attribute the stylesheet can branch on.
+  const [skin, setSkin] = useState('dark')
+  useEffect(() => {
+    const lum = (css) => {
+      const m = String(css || '').match(/rgba?\(([^)]+)\)/)
+      let r, g, b
+      if (m) { const p = m[1].split(/[,\s\/]+/).filter(Boolean).map(Number); [r, g, b] = p }
+      else {
+        const hex = String(css || '').trim().replace('#', '')
+        if (hex.length < 6) return null
+        r = parseInt(hex.slice(0, 2), 16); g = parseInt(hex.slice(2, 4), 16); b = parseInt(hex.slice(4, 6), 16)
+      }
+      if ([r, g, b].some((v) => Number.isNaN(v))) return null
+      const f = (v) => { v /= 255; return v <= 0.03928 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4 }
+      return 0.2126 * f(r) + 0.7152 * f(g) + 0.0722 * f(b)
+    }
+    const read = () => {
+      const cs = getComputedStyle(document.documentElement)
+      const bg = cs.getPropertyValue('--ui-bg-primary') || cs.getPropertyValue('--background') || ''
+      const l = lum(bg) ?? lum(getComputedStyle(document.body).backgroundColor)
+      if (l !== null) setSkin(l > 0.35 ? 'light' : 'dark')
+    }
+    read()
+    // React to the host swapping theme instead of polling for it: a class on
+    // <html>, an injected stylesheet, or a style attribute are the three ways a
+    // skin changes, and all three land here immediately. The interval is only a
+    // backstop for a theme applied by canvas or by a CSS var set elsewhere.
+    const mo = new MutationObserver(() => read())
+    mo.observe(document.documentElement, { attributes: true, attributeFilter: ['class', 'style', 'data-theme'] })
+    if (document.head) mo.observe(document.head, { childList: true, subtree: true })
+    const id = setInterval(read, 1500)
+    return () => { mo.disconnect(); clearInterval(id) }
+  }, [])
+
   const rootRef = useRef(null)
   const [density, setDensity] = useState('wide')
   useEffect(() => {
@@ -502,6 +538,7 @@ function App() {
   return el('div', {
     ref: rootRef,
     className: 'nb-root', 'data-mode': mode, 'data-plugin': ID, 'data-density': density,
+    'data-skin': skin,
     // the room takes on the notebook's colour: its sigil hue becomes the ambient
     // field behind every panel, and home keeps a fixed violet
     style: { '--nb-hue': sigHue(notebook ? notebook.id : 'hermes-home') }
