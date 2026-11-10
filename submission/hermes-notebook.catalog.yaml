@@ -10,7 +10,7 @@
 
 name: hermes-notebook
 repo: https://github.com/DECRUX9812/hermes-plugin-notebook
-sha: "9fbdc907faebd9fbf59130dcb005e69519d42f66"
+sha: "7d83a99a29b315aca1c7e347cec4f083bf6438e0"
 version: "1.7.0"
 title: Hermes Notebook
 category: desktop
