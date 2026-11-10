@@ -640,6 +640,7 @@ async function layout() {
         rail: box('.nb-rail'), studio: box('.nb-studio'), main: box('main'),
         strips: strips.filter((s) => s.sw > s.cw + 1),
         outside, sliced,
+        toggles: document.querySelectorAll('.nb-paneltog').length,
         cardFits: insideOf('.nb-card', '.nb-studio'),
         sendFits: insideOf('.nb-sendbtn', '.nb-main-col'),
         footFits: (() => { const f = document.querySelector('.nb-askfoot'); return !f || f.scrollWidth <= f.clientWidth + 1 })()
@@ -652,14 +653,15 @@ async function layout() {
     ok(`a Make row keeps inside the drawer at ${w}`, r.cardFits === true, String(r.cardFits))
     ok(`Send keeps its slot in the composer at ${w}`, r.sendFits === true && r.footFits === true,
       `button=${r.sendFits} foot=${r.footFits}`)
-    // The Make drawer NEVER folds: hiding it was the bug (with the shell's own
-    // sidebar, a 1024–1280px window hands this page ~760–1020px, and the old
-    // viewport query then hid the one panel that makes artifacts). The rail is
-    // the panel that gives way, and it gives way below 1060 root pixels.
-    ok(`the Make drawer survives at ${w}`, r.studio !== null && r.studio.w >= 260,
-      r.studio ? `${r.studio.w}px` : 'hidden')
-    if (w < 1060) ok(`rail folds below 1060 at ${w}`, r.rail === null, 'hidden')
+    // THE INVARIANT: a panel may be folded by width, but never made unreachable.
+    // The bug this replaces hid the Make drawer by CSS while the rail was still
+    // mounted — no drawer, no toggle, a chat column and nothing to make with.
+    ok(`the Make drawer is reachable at ${w}`, (r.studio !== null && r.studio.w >= 260) || r.toggles >= 1,
+      r.studio ? `${r.studio.w}px` : `folded, ${r.toggles} toggle(s)`)
+    ok(`the sources rail is reachable at ${w}`, r.rail !== null || r.toggles >= 1,
+      r.rail ? `${r.rail.w}px` : `folded, ${r.toggles} toggle(s)`)
     if (w >= 1180) ok(`main column keeps >=520px at ${w}`, r.main.w >= 520, `${r.main.w}px`)
+    ok(`the chat keeps >=520px at ${w}`, r.main.w >= 520 || w < 900, `${r.main.w}px`)
     await page.close()
   }
   await b.close()

@@ -98,6 +98,12 @@ function App() {
   const [filter, setFilter] = useState('all')
   const [railOpen, setRailOpen] = useState(() => persist.get('rail', '1') !== '0')
   const [studioOpen, setStudioOpen] = useState(() => persist.get('studio', '1') !== '0')
+  // A panel may be folded by DENSITY only if the reader can unfold it, otherwise
+  // the choice is a dead end. These two flags record "the user has an opinion",
+  // and from then on the density heuristic stops overriding it.
+  const [railTouched, setRailTouched] = useState(false)
+  const [studioTouched, setStudioTouched] = useState(false)
+  const [size, setSize] = useState(0)
   const [opsStats, setOpsStats] = useState(null)
   const setSearchOpen = useCallback((v) => (v ? openSurface('search') : closeSurface('search')), [openSurface, closeSurface])
   const searchOpen = surface === 'search' 
@@ -466,7 +472,10 @@ function App() {
     // "tight" tier. Now: wide 268+420 needs 1250 to keep main >= 520; compact
     // 200+320 needs 1060 for the same; below that the rail folds and the Make
     // drawer keeps 300, because the artifacts are the product.
-    const measure = (w) => setDensity(w >= 1250 ? 'wide' : w >= 1060 ? 'compact' : 'tight')
+    const measure = (w) => {
+      setSize(w)
+      setDensity(w >= 1250 ? 'wide' : w >= 1060 ? 'compact' : 'tight')
+    }
     measure(node.getBoundingClientRect().width)
     const ro = new ResizeObserver((entries) => {
       for (const e of entries) measure(e.contentRect.width)
@@ -474,6 +483,13 @@ function App() {
     ro.observe(node)
     return () => ro.disconnect()
   }, [])
+
+  // Below 1060px of root the rail is a 216px sliver that holds ~70px of title,
+  // and below 860 the Make drawer leaves the chat 224px. In those bands a panel
+  // starts folded on the strength of the measurement alone — but only until the
+  // reader touches it, at which point their choice is the one that stands.
+  const railVisible = railOpen && (density !== 'tight' || railTouched)
+  const studioVisible = studioOpen && (size >= 860 || studioTouched)
 
   const ops = mode === 'ops'
   const home = mode === 'home'
@@ -583,18 +599,20 @@ function App() {
                 }
               })
           : el('div', { className: 'nb-body' },
-            railOpen
+            railVisible
               ? jsx(Rail, {
                   data, notebook,
                   onAddSource: () => openAddSource(), onOpenSource: openSource,
                   onToggleSource: toggleSource, onToggleAll: toggleAllSources,
                   onToggleGroup: toggleGroupSources,
                   onDeleteSource: deleteSource,
-                  onLabel: labelSources, onCollapse: () => setRailOpen(false),
+                  onLabel: labelSources,
+                  onCollapse: () => { setRailTouched(true); setRailOpen(false) },
                   onGoHome: () => setMode('home'), onSay: say, onDropFiles: dropSources,
                   loading: studio.loading, error: studio.error, reload: studio.reload
                 })
-              : jsx(PanelToggles, { side: 'left', onShow: () => setRailOpen(true) }),
+              : jsx(PanelToggles, { side: 'left',
+                  onShow: () => { setRailTouched(true); setRailOpen(true) } }),
             jsx(Main, {
               notebook, kinds, tab, setTab, picked, setPicked, busy, generate,
               onAsk: () => setAskOpen((n) => n + 1), askOpen, onSay: say,
@@ -606,15 +624,16 @@ function App() {
               onFindSources: (seed) => openAddSource({ mode: 'find', seed: seed || '' }),
               threads
             }),
-            studioOpen
+            studioVisible
               ? jsx(StudioPanel, {
                   kinds, notebook, busy, generate, filter, setFilter,
                   onOpen: (art) => { setPicked(art); setTab('view') },
                   onDelete: deleteArtifact,
-                  onCollapse: () => setStudioOpen(false),
+                  onCollapse: () => { setStudioTouched(true); setStudioOpen(false) },
                   onAddNote: () => openAddSource({ mode: 'note' })
                 })
-              : jsx(PanelToggles, { side: 'right', onShow: () => setStudioOpen(true) })
+              : jsx(PanelToggles, { side: 'right',
+                  onShow: () => { setStudioTouched(true); setStudioOpen(true) } })
           ),
 
     jsx(StatusBar, { mode, notebook, data, note, opsStats }),
@@ -841,12 +860,20 @@ function RenameDialog({ notebook, onClose, onDone, onDuplicate }) {
 /* --------------------------------------------------------------- panel tog */
 
 function PanelToggles({ side, onShow }) {
+  // A folded panel has to advertise itself. One 36px chevron on an empty 44px
+  // gutter read as decoration; the icon it opens plus a two-word label makes the
+  // affordance unmistakable at a glance.
+  const left = side === 'left'
   return el('div', { className: 'nb-paneltog' },
-    jsx(IconBtn, {
-      icon: side === 'left' ? 'arrowRight' : 'arrowLeft',
-      label: side === 'left' ? 'Show sources panel' : 'Show studio panel',
-      onClick: onShow
-    })
+    el('button', {
+      type: 'button', className: 'nb-paneltog-btn',
+      onClick: onShow,
+      'aria-label': left ? 'Show the sources panel' : 'Show the Make panel',
+      title: left ? 'Show the sources panel' : 'Show the Make panel'
+    },
+    jsx(Glyph, { name: left ? 'arrowRight' : 'arrowLeft', size: 14 }),
+    jsx(Glyph, { name: left ? 'book' : 'sparkle', size: 16 }),
+    el('span', { children: left ? 'Sources' : 'Make' }))
   )
 }
 

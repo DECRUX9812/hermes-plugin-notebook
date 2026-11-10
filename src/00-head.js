@@ -334,8 +334,17 @@ const CSS = `
   font-size:var(--nb-fs-label);font-weight:650;box-shadow:none;gap:5px}
 .nb-addsrc:hover{background:color-mix(in srgb,${T.accent} 88%, ${T.text});border-color:transparent;
   color:#0d0e15}
-.nb-paneltog{flex:0 0 44px;display:flex;flex-direction:column;align-items:center;
-  gap:10px;padding-top:16px}
+.nb-paneltog{flex:0 0 48px;display:flex;flex-direction:column;align-items:center;
+  gap:10px;padding-top:12px}
+.nb-paneltog-btn{display:flex;flex-direction:column;align-items:center;gap:6px;width:44px;
+  padding:10px 0 12px;border-radius:var(--nb-r-el);cursor:pointer;font-family:inherit;
+  border:1px solid var(--nb-hair-soft);background:var(--nb-wash);color:${T.text3};
+  font-size:var(--nb-fs-meta);font-weight:650;letter-spacing:.02em;
+  transition:background var(--nb-dur-fast) var(--nb-ease),color var(--nb-dur-fast) var(--nb-ease)}
+.nb-paneltog-btn span{writing-mode:vertical-rl;text-orientation:mixed;letter-spacing:.08em;
+  text-transform:uppercase}
+.nb-paneltog-btn:hover{background:var(--nb-wash-2);color:${T.text}}
+.nb-paneltog-btn:focus-visible{outline:2px solid ${T.accent};outline-offset:2px}
 /* chips are soft pills; clickable ones are full 32px targets */
 .nb-chip{display:inline-flex;align-items:center;gap:5px;height:22px;padding:0 9px;border-radius:var(--nb-r-pill);
   font-size:11.5px;font-weight:600;letter-spacing:.01em;color:${T.text3};
@@ -1369,7 +1378,7 @@ const CSS = `
    app's own rail takes 260px of it. These rules replace the viewport queries
    that shipped before, which fired at the wrong widths and left the main pane
    332px wide on a 1280px screen. */
-.nb-root[data-density=compact]{--nb-rail:200px; --nb-studio:320px}
+.nb-root[data-density=compact]{--nb-rail:236px; --nb-studio:320px}
 .nb-root[data-density=compact] .nb-body{padding:10px;gap:10px}
 .nb-root[data-density=compact] .nb-h1{font-size:22px}
 /* the output list is one column at every density: a 2-up grid in a 300–420px
@@ -1380,8 +1389,15 @@ const CSS = `
    the drawer keeps its width because the artifacts are the product. Hiding both
    — which is what the old max-width:1100 query did — left a chat pane and
    nothing to make anything with. */
-.nb-root[data-density=tight]{--nb-rail:0px; --nb-studio:300px}
-.nb-root[data-density=tight] .nb-rail{display:none}
+/* TIGHT: widths only — nothing is hidden by CSS.
+   A display:none rule here was a dead end: below 1060 root px (every 1280px
+   window once the app's own sidebar is counted) the sources rail vanished, and
+   because the rail was still mounted there was no toggle to bring it back. A
+   panel may only disappear when the USER closes it, and PanelToggles then keeps
+   it one click away. */
+.nb-root[data-density=tight]{--nb-rail:216px; --nb-studio:288px}
+.nb-root[data-density=tight] .nb-body{padding:8px;gap:8px}
+.nb-root[data-density=tight] .nb-h1{font-size:20px}
 
 /* ================= the old viewport queries, for a host that renders the page
    full-bleed (the preview harness and a fullscreen window do) ================

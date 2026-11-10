@@ -334,8 +334,17 @@ const CSS = `
   font-size:var(--nb-fs-label);font-weight:650;box-shadow:none;gap:5px}
 .nb-addsrc:hover{background:color-mix(in srgb,${T.accent} 88%, ${T.text});border-color:transparent;
   color:#0d0e15}
-.nb-paneltog{flex:0 0 44px;display:flex;flex-direction:column;align-items:center;
-  gap:10px;padding-top:16px}
+.nb-paneltog{flex:0 0 48px;display:flex;flex-direction:column;align-items:center;
+  gap:10px;padding-top:12px}
+.nb-paneltog-btn{display:flex;flex-direction:column;align-items:center;gap:6px;width:44px;
+  padding:10px 0 12px;border-radius:var(--nb-r-el);cursor:pointer;font-family:inherit;
+  border:1px solid var(--nb-hair-soft);background:var(--nb-wash);color:${T.text3};
+  font-size:var(--nb-fs-meta);font-weight:650;letter-spacing:.02em;
+  transition:background var(--nb-dur-fast) var(--nb-ease),color var(--nb-dur-fast) var(--nb-ease)}
+.nb-paneltog-btn span{writing-mode:vertical-rl;text-orientation:mixed;letter-spacing:.08em;
+  text-transform:uppercase}
+.nb-paneltog-btn:hover{background:var(--nb-wash-2);color:${T.text}}
+.nb-paneltog-btn:focus-visible{outline:2px solid ${T.accent};outline-offset:2px}
 /* chips are soft pills; clickable ones are full 32px targets */
 .nb-chip{display:inline-flex;align-items:center;gap:5px;height:22px;padding:0 9px;border-radius:var(--nb-r-pill);
   font-size:11.5px;font-weight:600;letter-spacing:.01em;color:${T.text3};
@@ -1369,7 +1378,7 @@ const CSS = `
    app's own rail takes 260px of it. These rules replace the viewport queries
    that shipped before, which fired at the wrong widths and left the main pane
    332px wide on a 1280px screen. */
-.nb-root[data-density=compact]{--nb-rail:200px; --nb-studio:320px}
+.nb-root[data-density=compact]{--nb-rail:236px; --nb-studio:320px}
 .nb-root[data-density=compact] .nb-body{padding:10px;gap:10px}
 .nb-root[data-density=compact] .nb-h1{font-size:22px}
 /* the output list is one column at every density: a 2-up grid in a 300–420px
@@ -1380,8 +1389,15 @@ const CSS = `
    the drawer keeps its width because the artifacts are the product. Hiding both
    — which is what the old max-width:1100 query did — left a chat pane and
    nothing to make anything with. */
-.nb-root[data-density=tight]{--nb-rail:0px; --nb-studio:300px}
-.nb-root[data-density=tight] .nb-rail{display:none}
+/* TIGHT: widths only — nothing is hidden by CSS.
+   A display:none rule here was a dead end: below 1060 root px (every 1280px
+   window once the app's own sidebar is counted) the sources rail vanished, and
+   because the rail was still mounted there was no toggle to bring it back. A
+   panel may only disappear when the USER closes it, and PanelToggles then keeps
+   it one click away. */
+.nb-root[data-density=tight]{--nb-rail:216px; --nb-studio:288px}
+.nb-root[data-density=tight] .nb-body{padding:8px;gap:8px}
+.nb-root[data-density=tight] .nb-h1{font-size:20px}
 
 /* ================= the old viewport queries, for a host that renders the page
    full-bleed (the preview harness and a fullscreen window do) ================
@@ -2633,6 +2649,12 @@ function App() {
   const [filter, setFilter] = useState('all')
   const [railOpen, setRailOpen] = useState(() => persist.get('rail', '1') !== '0')
   const [studioOpen, setStudioOpen] = useState(() => persist.get('studio', '1') !== '0')
+  // A panel may be folded by DENSITY only if the reader can unfold it, otherwise
+  // the choice is a dead end. These two flags record "the user has an opinion",
+  // and from then on the density heuristic stops overriding it.
+  const [railTouched, setRailTouched] = useState(false)
+  const [studioTouched, setStudioTouched] = useState(false)
+  const [size, setSize] = useState(0)
   const [opsStats, setOpsStats] = useState(null)
   const setSearchOpen = useCallback((v) => (v ? openSurface('search') : closeSurface('search')), [openSurface, closeSurface])
   const searchOpen = surface === 'search' 
@@ -3001,7 +3023,10 @@ function App() {
     // "tight" tier. Now: wide 268+420 needs 1250 to keep main >= 520; compact
     // 200+320 needs 1060 for the same; below that the rail folds and the Make
     // drawer keeps 300, because the artifacts are the product.
-    const measure = (w) => setDensity(w >= 1250 ? 'wide' : w >= 1060 ? 'compact' : 'tight')
+    const measure = (w) => {
+      setSize(w)
+      setDensity(w >= 1250 ? 'wide' : w >= 1060 ? 'compact' : 'tight')
+    }
     measure(node.getBoundingClientRect().width)
     const ro = new ResizeObserver((entries) => {
       for (const e of entries) measure(e.contentRect.width)
@@ -3009,6 +3034,13 @@ function App() {
     ro.observe(node)
     return () => ro.disconnect()
   }, [])
+
+  // Below 1060px of root the rail is a 216px sliver that holds ~70px of title,
+  // and below 860 the Make drawer leaves the chat 224px. In those bands a panel
+  // starts folded on the strength of the measurement alone — but only until the
+  // reader touches it, at which point their choice is the one that stands.
+  const railVisible = railOpen && (density !== 'tight' || railTouched)
+  const studioVisible = studioOpen && (size >= 860 || studioTouched)
 
   const ops = mode === 'ops'
   const home = mode === 'home'
@@ -3118,18 +3150,20 @@ function App() {
                 }
               })
           : el('div', { className: 'nb-body' },
-            railOpen
+            railVisible
               ? jsx(Rail, {
                   data, notebook,
                   onAddSource: () => openAddSource(), onOpenSource: openSource,
                   onToggleSource: toggleSource, onToggleAll: toggleAllSources,
                   onToggleGroup: toggleGroupSources,
                   onDeleteSource: deleteSource,
-                  onLabel: labelSources, onCollapse: () => setRailOpen(false),
+                  onLabel: labelSources,
+                  onCollapse: () => { setRailTouched(true); setRailOpen(false) },
                   onGoHome: () => setMode('home'), onSay: say, onDropFiles: dropSources,
                   loading: studio.loading, error: studio.error, reload: studio.reload
                 })
-              : jsx(PanelToggles, { side: 'left', onShow: () => setRailOpen(true) }),
+              : jsx(PanelToggles, { side: 'left',
+                  onShow: () => { setRailTouched(true); setRailOpen(true) } }),
             jsx(Main, {
               notebook, kinds, tab, setTab, picked, setPicked, busy, generate,
               onAsk: () => setAskOpen((n) => n + 1), askOpen, onSay: say,
@@ -3141,15 +3175,16 @@ function App() {
               onFindSources: (seed) => openAddSource({ mode: 'find', seed: seed || '' }),
               threads
             }),
-            studioOpen
+            studioVisible
               ? jsx(StudioPanel, {
                   kinds, notebook, busy, generate, filter, setFilter,
                   onOpen: (art) => { setPicked(art); setTab('view') },
                   onDelete: deleteArtifact,
-                  onCollapse: () => setStudioOpen(false),
+                  onCollapse: () => { setStudioTouched(true); setStudioOpen(false) },
                   onAddNote: () => openAddSource({ mode: 'note' })
                 })
-              : jsx(PanelToggles, { side: 'right', onShow: () => setStudioOpen(true) })
+              : jsx(PanelToggles, { side: 'right',
+                  onShow: () => { setStudioTouched(true); setStudioOpen(true) } })
           ),
 
     jsx(StatusBar, { mode, notebook, data, note, opsStats }),
@@ -3376,12 +3411,20 @@ function RenameDialog({ notebook, onClose, onDone, onDuplicate }) {
 /* --------------------------------------------------------------- panel tog */
 
 function PanelToggles({ side, onShow }) {
+  // A folded panel has to advertise itself. One 36px chevron on an empty 44px
+  // gutter read as decoration; the icon it opens plus a two-word label makes the
+  // affordance unmistakable at a glance.
+  const left = side === 'left'
   return el('div', { className: 'nb-paneltog' },
-    jsx(IconBtn, {
-      icon: side === 'left' ? 'arrowRight' : 'arrowLeft',
-      label: side === 'left' ? 'Show sources panel' : 'Show studio panel',
-      onClick: onShow
-    })
+    el('button', {
+      type: 'button', className: 'nb-paneltog-btn',
+      onClick: onShow,
+      'aria-label': left ? 'Show the sources panel' : 'Show the Make panel',
+      title: left ? 'Show the sources panel' : 'Show the Make panel'
+    },
+    jsx(Glyph, { name: left ? 'arrowRight' : 'arrowLeft', size: 14 }),
+    jsx(Glyph, { name: left ? 'book' : 'sparkle', size: 16 }),
+    el('span', { children: left ? 'Sources' : 'Make' }))
   )
 }
 
