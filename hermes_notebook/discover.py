@@ -167,10 +167,6 @@ class _WebSearchUnavailable(RuntimeError):
     agent loop imports model_tools)."""
 
 
-#: Set by search_all when the host lacks web_search; read once per discover().
-_web_search_unavailable = False
-
-
 def search_web(query: str, limit: int = 6) -> List[Dict[str, Any]]:
     """The host's own search backend — works with no extra key."""
     raw = runtime.dispatch("web_search", {"query": query, "limit": limit})
@@ -238,15 +234,22 @@ def providers() -> List[str]:
     return out
 
 
-def search_all(queries: List[str], per_query: int = 6) -> List[Dict[str, Any]]:
-    global _web_search_unavailable
+def search_all(queries: List[str], per_query: int = 6,
+               state: Optional[Dict[str, Any]] = None) -> List[Dict[str, Any]]:
+    """Fan the queries out across every configured provider.
+
+    `state` is the caller's own bag: when the host lacks web_search the call
+    records `state["web_unavailable"] = True` on it, so concurrent discovers
+    cannot read each other's flag the way a module global let them.
+    """
     rows: List[Dict[str, Any]] = []
     for q in queries:
         for fn in (search_web, search_exa, search_tavily):
             try:
                 rows.extend(fn(q, per_query))
             except _WebSearchUnavailable:
-                _web_search_unavailable = True
+                if state is not None:
+                    state["web_unavailable"] = True
             except Exception:
                 continue
     return rows
@@ -365,8 +368,7 @@ def discover(notebook: str, *, query: str = "", max_results: int = 12,
     merges the new rows into the same ranked list. Nothing is added to the
     notebook either way: the page shows candidates and the person picks.
     """
-    global _web_search_unavailable
-    _web_search_unavailable = False
+    search_state: Dict[str, Any] = {}
     nb_id = store.resolve_notebook(notebook)
     meta = store.get_meta(nb_id)
     sources = store.list_sources(nb_id)
@@ -392,7 +394,7 @@ def discover(notebook: str, *, query: str = "", max_results: int = 12,
         queries = [focus_text.strip() or " ".join(meta.get("title", "").split())]
     queries = [q for q in queries if q][:5]
 
-    rows = search_all(queries, per_query=max(4, max_results))
+    rows = search_all(queries, per_query=max(4, max_results), state=search_state)
     for row in rows:
         if isinstance(row, dict):
             row.setdefault("round", 1)
@@ -413,7 +415,7 @@ def discover(notebook: str, *, query: str = "", max_results: int = 12,
         if not new_queries:
             break
         all_queries.extend(new_queries)
-        more = search_all(new_queries, per_query=max(4, max_results))
+        more = search_all(new_queries, per_query=max(4, max_results), state=search_state)
         for row in more:
             if isinstance(row, dict):
                 row["round"] = rounds_run
@@ -423,7 +425,7 @@ def discover(notebook: str, *, query: str = "", max_results: int = 12,
             focus_terms=focus_terms + plan_info["gaps"],
             per_domain=per_domain, limit=max_results)
 
-    if _web_search_unavailable:
+    if search_state.get("web_unavailable"):
         if providers() == ["web"]:
             # nothing else can search — an empty page would read as "no
             # sources exist", which is a lie
