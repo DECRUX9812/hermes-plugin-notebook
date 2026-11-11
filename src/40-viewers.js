@@ -749,22 +749,53 @@ function layoutGraph(graph) {
       })
     })
   }
+  // Collision avoidance on load: walk each column top to bottom and push a
+  // node down whenever its box would touch the one above it. ROW_H already
+  // leaves a gap, so this only bites on hand-made or densely packed maps —
+  // but it means no two node labels ever sit on each other.
+  const byX = new Map()
+  for (const n of nodes) {
+    const k = Math.round(n.x)
+    if (!byX.has(k)) byX.set(k, [])
+    byX.get(k).push(n)
+  }
+  for (const list of byX.values()) {
+    list.sort((a, b) => a.y - b.y)
+    for (let i = 1; i < list.length; i += 1) {
+      const need = (list[i - 1].h + list[i].h) / 2 + 12
+      if (list[i].y - list[i - 1].y < need) list[i].y = list[i - 1].y + need
+    }
+  }
   const at = new Map(nodes.map((n) => [n.id, n]))
   const edges = []
+  let edgeIdx = 0
   for (const e of graph.edges || []) {
     const a = at.get(e.source)
     const b = at.get(e.target)
     if (!a || !b) continue
+    // a link between two nodes of the same column must bow sideways — drawn
+    // straight it runs down the column through every sibling between them
+    const sameCol = Math.abs(a.x - b.x) < 1
+    const bow = sameCol
+      ? (edgeIdx % 2 === 0 ? 1 : -1) * Math.min(140, Math.max(70, Math.abs(a.y - b.y) * 0.4))
+      : 0
     edges.push({
       a, b,
       relation: String(e.relation || '').trim(),
-      style: String(e.style || 'solid').trim()
+      style: String(e.style || 'solid').trim(),
+      bow
     })
+    edgeIdx += 1
   }
   return { nodes, edges, width, height, columns: maxDepth + 1 }
 }
 
-function curve(a, b) {
+function curve(a, b, bow = 0) {
+  if (bow) {
+    // bowed same-column link: the apex sits ~3/4 of the bow offset out, which
+    // is where the edge label's candidates anchor too
+    return `M${a.x},${a.y} C${a.x + bow},${a.y} ${b.x + bow},${b.y} ${b.x},${b.y}`
+  }
   const mx = (a.x + b.x) / 2
   return `M${a.x},${a.y} C${mx},${a.y} ${mx},${b.y} ${b.x},${b.y}`
 }
@@ -898,6 +929,9 @@ function MindMapView({ data, text, onCite }) {
   // hover/focus carries the node AND its screen box so the detail popover can
   // anchor to it — there is no fixed inspector column anymore
   const [hover, setHover] = useState(null)
+  // an edge label that lost its collision check stays hidden until its link —
+  // or one of its endpoint nodes — is hovered or focused
+  const [hotEdge, setHotEdge] = useState(null)
   const drag = useRef(null)
   const stageRef = useRef(null)
   const [stage, setStage] = useState({ w: 0, h: 0, left: 0, top: 0 })
@@ -918,7 +952,7 @@ function MindMapView({ data, text, onCite }) {
 
   // a different artifact is a different map — always open fitted, never
   // remembering the last one's zoom
-  useEffect(() => { setZoom(1); setPan({ x: 0, y: 0 }); setHover(null) }, [data])
+  useEffect(() => { setZoom(1); setPan({ x: 0, y: 0 }); setHover(null); setHotEdge(null) }, [data])
 
   if (!nodes.length) {
     return el('div', { className: 'nb-view-body' },
@@ -948,29 +982,92 @@ function MindMapView({ data, text, onCite }) {
   }
   const clearHover = (id) => setHover((h) => (h && h.id === id ? null : h))
 
+  /* Edge-label placement. Every label claims a box at the floored font size;
+   * the box must stay on the canvas and may touch neither a node nor a label
+   * already placed. The midpoint between two columns is exactly where the
+   * parallel links fan through — unguarded, a dense map stacked half its
+   * labels on the same spot. A label that finds no free candidate is not
+   * dropped: it stays hidden until its link (or an endpoint node) is
+   * hovered/focused, then draws on top with a halo. */
+  const lbox = (cx, cy, w, h) => ({ x0: cx - w / 2, y0: cy - h / 2, x1: cx + w / 2, y1: cy + h / 2 })
+  const boxesHit = (a, b) => a.x0 < b.x1 && a.x1 > b.x0 && a.y0 < b.y1 && a.y1 > b.y0
+  const solid = nodes.map((n) => lbox(n.x, n.y, n.w + 18, n.h + 14))
+  const placed = []
+  const edgeSpots = new Map()
+  edges.forEach((e, i) => {
+    if (!e.relation) return
+    const w = Math.min(230, e.relation.length * charW(fsEdge) + 18)
+    const h = fsEdge * 1.5
+    const mid = { x: (e.a.x + e.b.x) / 2, y: (e.a.y + e.b.y) / 2 }
+    const cands = e.bow
+      ? [{ x: mid.x + e.bow * 0.78, y: mid.y },
+         { x: mid.x + e.bow * 0.78, y: mid.y - h - 8 },
+         { x: mid.x + e.bow * 0.78, y: mid.y + h + 8 },
+         { x: mid.x + e.bow * 0.45, y: mid.y - h - 8 },
+         { x: mid.x + e.bow * 0.45, y: mid.y + h + 8 }]
+      : [{ x: mid.x, y: mid.y - h * 0.7 - 4 },
+         { x: mid.x, y: mid.y + h * 0.7 + 4 },
+         { x: mid.x + w / 2 + 20, y: mid.y - h * 0.5 },
+         { x: mid.x - w / 2 - 20, y: mid.y - h * 0.5 },
+         { x: mid.x, y: mid.y - h * 1.8 - 4 },
+         { x: mid.x, y: mid.y + h * 1.8 + 4 }]
+    const spot = cands.find((c) => {
+      const b2 = lbox(c.x, c.y, w, h)
+      if (b2.x0 < 2 || b2.x1 > width - 2 || b2.y0 < 2 || b2.y1 > height - 2) return false
+      return !solid.some((s) => boxesHit(b2, s)) && !placed.some((p) => boxesHit(b2, p))
+    })
+    if (spot) placed.push(lbox(spot.x, spot.y, w, h))
+    edgeSpots.set(i, spot
+      ? { x: spot.x, y: spot.y, w, hidden: false }
+      : { x: mid.x, y: mid.y - h * 0.7, w, hidden: true })
+  })
+  const hiddenCount = [...edgeSpots.values()].filter((s) => s.hidden).length
+
   const edgeEl = (e, i) => {
     const tension = e.style === 'dashed_tension' || /contradict/i.test(e.relation)
     const thick = e.style === 'thick_flow' || /produces|depends/i.test(e.relation)
     const stroke = tension ? T.danger : thick
       ? `color-mix(in srgb, ${T.accent} 62%, transparent)`
       : `color-mix(in srgb, ${T.accent} 34%, transparent)`
-    const mid = { x: (e.a.x + e.b.x) / 2, y: (e.a.y + e.b.y) / 2 }
-    const label = e.relation
-      ? jsx('text', {
-          x: mid.x, y: mid.y - 5, textAnchor: 'middle', fontSize: fsEdge,
-          fill: tension ? `color-mix(in srgb, ${T.danger} 72%, ${T.text})` : T.text3,
-          children: e.relation
-        })
-      : null
-    return jsx('g', { key: `e${i}`, children: [
-      jsx('path', {
-        d: curve(e.a, e.b), fill: 'none', stroke,
-        strokeWidth: thick ? 2.4 : 1.5,
-        strokeDasharray: tension ? '5 4' : undefined,
-        opacity: 0.9
-      }),
-      label
-    ].filter(Boolean) })
+    const d = curve(e.a, e.b, e.bow || 0)
+    const spot = edgeSpots.get(i)
+    // a hidden label also surfaces when either endpoint node is inspected —
+    // hovering a node answers "what does it link with" without a hunt
+    const reveal = hotEdge === i || (hover && (hover.id === e.a.id || hover.id === e.b.id))
+    const shown = spot && (!spot.hidden || reveal)
+    const labelFit = e.relation ? fitText(e.relation, (spot ? spot.w : 230) + 18, fsEdge) : null
+    return jsx('g', {
+      key: `e${i}`,
+      'data-edge': i,
+      tabIndex: 0,
+      role: 'img',
+      'aria-label': e.relation ? `${e.a.label} ${e.relation} ${e.b.label}` : `${e.a.label} → ${e.b.label}`,
+      onMouseEnter: () => setHotEdge(i),
+      onMouseLeave: () => setHotEdge((h) => (h === i ? null : h)),
+      onFocus: () => setHotEdge(i),
+      onBlur: () => setHotEdge((h) => (h === i ? null : h)),
+      children: [
+        jsx('title', { children: e.relation ? `${e.a.label} — ${e.relation} — ${e.b.label}` : `${e.a.label} → ${e.b.label}` }),
+        // a fat invisible twin of the visible path, so a 1.5px line is still a
+        // hover/focus target you can actually hit
+        e.relation ? jsx('path', { d, fill: 'none', stroke: 'rgba(0,0,0,0)', strokeWidth: 20, pointerEvents: 'stroke' }) : null,
+        jsx('path', {
+          d, fill: 'none', stroke,
+          strokeWidth: thick ? 2.4 : 1.5,
+          strokeDasharray: tension ? '5 4' : undefined,
+          opacity: hotEdge === i ? 1 : 0.9,
+          pointerEvents: 'none'
+        }),
+        shown && labelFit ? jsx('text', {
+          x: spot.x, y: spot.y, textAnchor: 'middle', fontSize: fsEdge,
+          fill: tension ? `color-mix(in srgb, ${T.danger} 72%, ${T.text})`
+            : spot.hidden ? T.text : T.text3,
+          fontWeight: spot.hidden ? 650 : 500,
+          stroke: 'var(--nb-card)', strokeWidth: fsEdge * 0.3, strokeLinejoin: 'round',
+          paintOrder: 'stroke', pointerEvents: 'none',
+          children: labelFit.text
+        }) : null
+      ].filter(Boolean) })
   }
 
   const nodeEl = (n, i) => {
@@ -981,8 +1078,16 @@ function MindMapView({ data, text, onCite }) {
     const fs = isRoot ? fsRoot : fsLabel
     const labelFit = fitText(n.label, n.w, fs)
     const statFit = n.stat ? fitText(n.stat, n.w, fsStat) : null
+    // the stat is a second line only when the two lines genuinely fit inside
+    // the box at the floored size — past that zoom it lives in the <title>
+    // and the popover, not printed on top of the label
+    const statShown = statFit && fs + fsStat + 4 <= n.h
+    const labelY = statShown
+      ? n.y - (fs + fsStat + 4) / 2 + fs * 0.78
+      : n.y + fs * 0.36
+    const statY = statShown ? n.y + (fs + fsStat + 4) / 2 - fsStat * 0.24 : 0
     const kids = [
-      jsx('title', { children: labelFit.full }),
+      jsx('title', { children: n.stat ? `${labelFit.full} — ${n.stat}` : labelFit.full }),
       jsx('rect', {
         x: n.x - n.w / 2, y: n.y - n.h / 2, width: n.w, height: n.h, rx: isRoot ? 14 : 10,
         fill: isRoot ? `color-mix(in srgb, ${ink} 26%, transparent)`
@@ -991,21 +1096,22 @@ function MindMapView({ data, text, onCite }) {
         strokeWidth: isRoot || hot ? 2 : 1.2
       }),
       jsx('text', {
-        x: n.x, y: n.y + (n.stat ? -1 : 5), textAnchor: 'middle',
+        x: n.x, y: labelY, textAnchor: 'middle',
         fill: isRoot ? '#f2f3f8' : T.text,
         fontSize: fs, fontWeight: isRoot ? 680 : 600,
         children: labelFit.text
       })
     ]
-    if (statFit) {
+    if (statShown) {
       kids.push(jsx('text', {
-        x: n.x, y: n.y + Math.max(13, fsStat * 0.9), textAnchor: 'middle', fontSize: fsStat,
+        x: n.x, y: statY, textAnchor: 'middle', fontSize: fsStat,
         fill: `color-mix(in srgb, ${ink} 78%, ${T.text})`, fontWeight: 700,
         children: statFit.text
       }))
     }
     return jsx('g', {
       key: `n${i}`,
+      'data-node': n.id,
       tabIndex: 0,
       role: 'button',
       'aria-label': `${n.label}${n.nodeType ? ` — ${n.nodeType.replace(/_/g, ' ')}` : ''}`,
@@ -1055,7 +1161,7 @@ function MindMapView({ data, text, onCite }) {
 
   const toolbar = el('div', { className: 'nb-map-bar' },
     el('span', { className: 'nb-hint',
-      children: `${nodes.length} nodes · ${edges.length} links · drag to pan · scroll to zoom` }),
+      children: `${nodes.length} nodes · ${edges.length} links${hiddenCount ? ` · ${hiddenCount} link labels on hover` : ''} · drag to pan · scroll to zoom` }),
     el('span', { style: { flex: 1 } }),
     legend,
     jsx(Btn, { size: 'sm', icon: 'grid', children: 'Reset',
