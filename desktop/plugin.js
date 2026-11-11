@@ -477,6 +477,10 @@ const CSS = `
 .nb-thr-menuitem[data-active=true]{color:${T.text};font-weight:650}
 .nb-thr-menuitem[data-danger=true]{color:${T.danger}}
 .nb-thr-menuitem[data-danger=true]:hover{background:color-mix(in srgb,${T.danger} 12%, transparent)}
+.nb-tabcount{display:inline-grid;place-items:center;min-width:20px;height:20px;
+  padding:0 6px;border-radius:var(--nb-r-pill);margin-left:2px;
+  background:color-mix(in srgb,${T.accent} 18%, transparent);color:${T.text};
+  font-size:var(--nb-fs-meta);font-weight:700;font-variant-numeric:tabular-nums}
 .nb-thr-scrim{position:fixed;inset:0;z-index:55;background:transparent}
 @media (max-width:900px){.nb-thrtabs{padding:10px 20px 0}}
 .nb-chatscroll{flex:1;min-height:0;display:flex;flex-direction:column;position:relative}
@@ -679,8 +683,8 @@ const CSS = `
    other grid: spanning the row made that one output look like a special case */
 
 .nb-card{--kc:${T.accent};
-  display:flex;align-items:flex-start;gap:10px;width:100%;min-width:0;
-  min-height:92px;padding:13px 13px 12px;
+  display:flex;align-items:center;gap:10px;width:100%;min-width:0;
+  min-height:56px;padding:8px 10px;
   border:1px solid var(--nb-edge);border-radius:var(--nb-r-el);
   background:var(--nb-tile);cursor:pointer;text-align:left;color:${T.text};
   transition:background var(--nb-dur-fast) var(--nb-ease),border-color var(--nb-dur-fast) var(--nb-ease),
@@ -694,9 +698,9 @@ const CSS = `
   background:color-mix(in srgb,var(--kc) 6%, var(--nb-card))}
 /* a 40px pastel badge carries the kind — the colour is the only thing that has
    to be learned, the words stay in ink */
-.nb-card-ico{width:40px;height:40px;flex:0 0 auto;border-radius:var(--nb-r-el);display:grid;place-items:center;
+.nb-card-ico{width:34px;height:34px;flex:0 0 auto;border-radius:var(--nb-r-in);display:grid;place-items:center;
   background:color-mix(in srgb,var(--kc) 16%, transparent);color:var(--kc)}
-.nb-card-ico svg{width:19px;height:19px}
+.nb-card-ico svg{width:17px;height:17px}
 .nb-card[data-kind=video_overview],.nb-art[data-kind=video_overview]{--kc:#81c995}
 .nb-card[data-kind=audio_overview],.nb-art[data-kind=audio_overview]{--kc:#a8c7fa}
 .nb-card[data-kind=summary],.nb-art[data-kind=summary]{--kc:#aecbfa}
@@ -710,25 +714,23 @@ const CSS = `
 .nb-card[data-kind=slides],.nb-art[data-kind=slides]{--kc:#f28b82}
 .nb-card[data-kind=infographic],.nb-art[data-kind=infographic]{--kc:#fde293}
 .nb-card[data-kind=data_table],.nb-art[data-kind=data_table]{--kc:#a8c7fa}
-.nb-card-main{min-width:0;flex:1;display:flex;flex-direction:column;gap:3px;padding-right:18px}
-.nb-card-name{display:-webkit-box;font-size:var(--nb-fs-label);font-weight:650;
-  letter-spacing:-.005em;line-height:1.25;color:${T.text};
-  -webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+.nb-card-main{min-width:0;flex:1;display:flex;flex-direction:column;gap:1px;padding-right:36px}
+.nb-card-name{display:block;font-size:var(--nb-fs-label);font-weight:650;
+  letter-spacing:-.005em;line-height:1.3;color:${T.text};
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .nb-card-name svg{color:var(--kc);flex:0 0 auto}
 /* the blurb is what the output actually is — the pill is not just a label */
 .nb-card-blurb{display:none}
-.nb-card .nb-card-state{flex:0 0 auto;align-self:flex-start;margin-top:3px;padding:0;
-  background:transparent !important}
+.nb-card .nb-card-state{flex:0 0 auto;align-self:auto;margin:0;padding:0;
+  background:transparent !important;font-size:var(--nb-fs-meta);font-weight:550}
 .nb-card{position:relative}
-.nb-card-bar{position:absolute;left:8px;right:8px;bottom:3px}
+.nb-card-bar{position:absolute;left:10px;right:10px;bottom:4px}
 .nb-card-state{display:inline-flex;align-items:center;gap:5px;white-space:nowrap;
   font-size:var(--nb-fs-meta);font-weight:600;color:${T.text3};
-  padding:2px 7px;border-radius:var(--nb-r-pill)}
-.nb-card[data-ready=true] .nb-card-state{color:color-mix(in srgb,${T.ok} 62%, ${T.text});
-  background:color-mix(in srgb,${T.ok} 14%, transparent)}
-.nb-card[data-busy=true] .nb-card-state{color:color-mix(in srgb,var(--kc) 58%, ${T.text});
-  background:color-mix(in srgb,var(--kc) 14%, transparent)}
-.nb-dot{width:6px;height:6px;border-radius:50%;background:${T.text4};display:inline-block;flex:0 0 auto}
+  padding:0;border-radius:var(--nb-r-pill)}
+.nb-card[data-ready=true] .nb-card-state{color:color-mix(in srgb,${T.ok} 62%, ${T.text})}
+.nb-card[data-busy=true] .nb-card-state{color:color-mix(in srgb,var(--kc) 58%, ${T.text})}
+.nb-dot{width:5px;height:5px;border-radius:50%;background:${T.text4};display:inline-block;flex:0 0 auto}
 .nb-card[data-ready=true] .nb-dot{background:${T.ok}}
 .nb-card[data-busy=true] .nb-dot{background:var(--kc);animation:nb-pulse 1.2s ease-in-out infinite}
 .nb-bar-track{height:3px;margin-top:3px;background:var(--nb-wash-2);border-radius:var(--nb-r-pill);
@@ -1478,7 +1480,7 @@ const CSS = `
    until the pointer was already over the card, so on a touch screen, on a
    trackpad with the pointer elsewhere, or on first glance at the page the
    settings looked like they did not exist. Quiet when idle, bright on hover. */
-.nb-gen-cfg{position:absolute;top:3px;right:3px;width:32px;height:32px;
+.nb-gen-cfg{position:absolute;top:12px;right:6px;width:32px;height:32px;
   border-radius:var(--nb-r-in);background:var(--nb-wash-2);opacity:.42;
   transition:opacity var(--nb-dur-fast) var(--nb-ease)}
 .nb-gen:hover .nb-gen-cfg,.nb-gen:focus-within .nb-gen-cfg,
@@ -2885,6 +2887,21 @@ function App() {
   const notebook = data && data.notebook
   const kinds = (data && data.kinds) || []
 
+  // measured independence (text overlap, no model) — feeds the status bar's
+  // "N sources · M independent". Refetches when the source count changes.
+  const srcCount = notebook && notebook.stats ? notebook.stats.sources : 0
+  const [indep, setIndep] = useState(null)
+  useEffect(() => {
+    setIndep(null)
+    if (!nb) return undefined
+    let live = true
+    api(`/independence?${qs({ notebook: nb })}`, { timeoutMs: 30000 })
+      .then((out) => { if (live && out && out.ok !== false) setIndep(out) })
+      .catch(() => {})
+    return () => { live = false }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [nb, srcCount])
+
   // Ctrl/Cmd+K → notebook search (NotebookLM's global find)
   // Ctrl/Cmd+\\ → fold the make drawer (reading a timeline or a slide wants the
   //   canvas, and a 380px panel that cannot be dismissed from the keyboard is a
@@ -3435,7 +3452,7 @@ function App() {
                   onShow: () => { setStudioTouched(true); setStudioOpen(true) } })
           ),
 
-    jsx(StatusBar, { mode, notebook, data, note }),
+    jsx(StatusBar, { mode, notebook, data, note, indep }),
 
     jsx(AddSourceDialog, {
       open: !!srcDialog, onClose: () => setSrcDialog(null), notebook,
@@ -4028,6 +4045,8 @@ function Main({ notebook, kinds, tab, setTab, picked, setPicked, busy, generate,
                 refreshArtifact }) {
   const sources = (notebook && notebook.sources) || []
   const [askScope, setAskScope] = useState(null)   // chat scoped to one source
+  // the Tensions tab's count badge — null until an audit has answered
+  const [tensionCount, setTensionCount] = useState(null)
 
   if (loading && !notebook) {
     return el('main', { className: 'nb-col nb-main-col' },
@@ -4127,7 +4146,11 @@ function Main({ notebook, kinds, tab, setTab, picked, setPicked, busy, generate,
             type: 'button', role: 'tab', className: 'nb-tab', 'aria-selected': tab === 'tensions',
             onClick: () => setTab('tensions'), disabled: !sources.length,
             title: 'Where the sources disagree, and whether they corroborate each other',
-            children: [jsx(Glyph, { name: 'shield', size: 14 }), el('span', { children: 'Tensions' })]
+            children: [jsx(Glyph, { name: 'shield', size: 14 }),
+                       el('span', { children: 'Tensions' }),
+                       tensionCount
+                         ? el('span', { className: 'nb-tabcount', children: String(tensionCount) })
+                         : null]
           }),
           // the viewer tab exists only while an artifact is open — a disabled
           // placeholder tab is a promise the pane cannot keep
@@ -4162,7 +4185,7 @@ function Main({ notebook, kinds, tab, setTab, picked, setPicked, busy, generate,
       : tab === 'tensions'
         ? jsx(TensionsPanel, {
             notebook, onSay, modelReady,
-            onOpenSource,
+            onOpenSource, onCount: setTensionCount,
             onCite: (n, cite) => {
               const src = sources.find((s) => (cite && cite.id && s.id === cite.id) || s.n === n)
               if (src) { setPeek({ ...src, citeSnippet: (cite && cite.snippet) || '' }); setTab('peek') }
@@ -5301,13 +5324,20 @@ function StudioPanel({ kinds, notebook, busy, generate, filter, setFilter, onOpe
    * "Video Overview" and "Data Table" sat at the same weight even though one
    * is a 60-second render and the other is a spreadsheet. */
   const groups = useMemo(() => {
-    const order = ['media', 'docs', 'study', 'visual', 'other']
-    const label = { media: 'Listen & watch', docs: 'Read', study: 'Study', visual: 'Visualise', other: 'More' }
+    // Work order, not alphabetical: listen first, then the picture outputs,
+    // then the reading set, then study. Visual leads with the three the panel
+    // names — map, poster, deck — blueprint last.
+    const order = ['media', 'visual', 'docs', 'study', 'other']
+    const label = { media: 'Listen & watch', visual: 'Visual', docs: 'Read', study: 'Study', other: 'More' }
+    const visualRank = { mind_map: 0, infographic: 1, slides: 2, blueprint_evolution: 3 }
     const map = {}
     for (const k of kinds) {
       const g = k.group || 'other'
       if (!map[g]) map[g] = []
       map[g].push(k)
+    }
+    for (const g of Object.keys(map)) {
+      if (g === 'visual') map[g].sort((a, b) => (visualRank[a.id] ?? 9) - (visualRank[b.id] ?? 9))
     }
     return order.filter((g) => map[g] && map[g].length)
       .map((g) => ({ id: g, label: label[g] || 'More', kinds: map[g] }))
@@ -5327,8 +5357,6 @@ function StudioPanel({ kinds, notebook, busy, generate, filter, setFilter, onOpe
       children: [
         jsx(Glyph, { name: GROUP_ICON[g.id] || 'grid', size: 13 }),
         el('span', { className: 'nb-group-name', children: g.label }),
-        el('span', { className: 'nb-group-count',
-          children: `${g.kinds.filter((k) => ready[k.id]).length} of ${g.kinds.length}` }),
         el('span', { className: 'nb-group-chev', 'aria-hidden': 'true',
           children: jsx(Glyph, { name: 'chevron', size: 13 }) })
       ]
@@ -5347,12 +5375,6 @@ function StudioPanel({ kinds, notebook, busy, generate, filter, setFilter, onOpe
   return el('aside', { className: 'nb-col nb-studio', 'aria-label': 'Studio' },
     el('div', { className: 'nb-pane-head nb-studio-head' },
       el('span', { className: 'nb-pane-title', children: 'Make' }),
-      el('span', {
-        className: 'nb-chip',
-        'data-tone': readyCount ? 'ok' : undefined,
-        title: `${readyCount} of ${kinds.length} outputs have a latest run`,
-        children: readyCount === kinds.length ? 'All ready' : `${readyCount} of ${kinds.length} ready`
-      }),
       runningCount ? el('span', { className: 'nb-chip', 'data-tone': 'accent',
         children: `${runningCount} writing` }) : null,
       jsx(IconBtn, { icon: 'arrowRight', label: 'Hide the make panel (Ctrl+\\)', onClick: onCollapse })
@@ -5439,13 +5461,12 @@ function GenPill({ kind, art, started, nbId, onOpen, onGenerate }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [art && art.key])
   const secs = started ? Math.max(0, Math.round((Date.now() - started) / 1000)) : 0
+  // one honest status line: what the last run left behind, or what a run costs
   const state = started ? `writing · ${secs}s` : art ? `ready · ${ago(art.modified)}` : 'Generate'
   const pick = (id, v) => setOpts((o) => ({ ...o, [id]: v }))
-  /* The pill answers three questions in the order a person asks them: what is
-   * this, what does it make, and is there one already. The name is the label,
-   * the blurb is the promise (it comes from the backend, so it is true), and the
-   * footer is the state of the last run — with the run's own timestamp rather
-   * than the word "ready", because "ready" alone does not say how stale it is. */
+  /* Compact tile: icon, name, one status line. The tune knob only exists on
+   * hover/focus (CSS) — twelve tiles at 56px have to read as a list, not a
+   * dashboard of buttons. */
   return el('div', { className: 'nb-gen', 'data-kind': kind.id },
     el('button', {
       type: 'button', className: 'nb-card',
@@ -5459,17 +5480,12 @@ function GenPill({ kind, art, started, nbId, onOpen, onGenerate }) {
           jsx(Glyph, { name: KIND_ICON[kind.id] || 'doc', size: 16 })),
         el('span', { className: 'nb-card-main' },
           el('span', { className: 'nb-card-name', children: kind.label }),
-          kind.blurb
-            ? el('span', { className: 'nb-card-blurb', children: kind.blurb })
-            : null,
           el('span', { className: 'nb-card-state', 'data-kind': started ? 'busy' : art ? 'ready' : 'idle' },
             el('span', {
               className: 'nb-dot',
               style: { background: started ? 'var(--kc)' : art ? T.ok : undefined }
             }),
-            started ? `writing · ${secs}s`
-              : art ? ago(art.modified)
-                : `~${kind.secs || 15}s`)),
+            state)),
         started
           ? el('span', { className: 'nb-bar-track nb-card-bar' },
               el('span', {
@@ -5481,7 +5497,7 @@ function GenPill({ kind, art, started, nbId, onOpen, onGenerate }) {
     }),
     optSpecs.length
       ? jsx(IconBtn, {
-          icon: 'sliders', label: `${kind.label} options`,
+          icon: 'sliders', label: `Options for ${kind.label}`,
           className: 'nb-gen-cfg', active: cfgOpen,
           onClick: () => setCfgOpen((o) => !o)
         })
@@ -5628,7 +5644,7 @@ function WaveThumb({ seed }) {
 
 /* -------------------------------------------------------------- status bar */
 
-function StatusBar({ mode, notebook, data, note }) {
+function StatusBar({ mode, notebook, data, note, indep }) {
   const ready = data && data.model_ready
   const home = mode === 'home'
   const notebooks = (data && data.notebooks) || []
@@ -5642,8 +5658,11 @@ function StatusBar({ mode, notebook, data, note }) {
           jsx('span', { className: 'nb-sdot', style: { background: ready ? T.ok : T.warn } }),
           ready ? 'model ready · answering only from your sources' : 'model offline — enable the plugin'),
     !home && notebook
-      ? el('span', null, jsx('b', { children: notebook.stats.sources }), ' sources · ',
-          jsx('b', { children: nfmt(notebook.stats.chars) }), ' chars · ',
+      ? el('span', null, jsx('b', { children: notebook.stats.sources }), ' sources',
+          indep && indep.measured && indep.independent !== undefined
+            ? ` · ${indep.independent} independent`
+            : '',
+          ' · ', jsx('b', { children: nfmt(notebook.stats.chars) }), ' chars · ',
           jsx('b', { children: notebook.stats.labels }), ' labels')
       : null,
     !home && notebook && notebook.stats.unlabeled
@@ -6679,23 +6698,18 @@ const TENSION_AUDIT = Machine('tensions:audit', {
   }
 })
 
-function SidePill({ side }) {
+function SidePill({ side, onCite }) {
   return el('div', { className: 'nb-tension-side' },
     el('div', { className: 'nb-tension-claim', children: side.claim }),
     side.quote
       ? el('blockquote', { className: 'nb-tension-quote', children: side.quote })
       : null,
     el('div', { className: 'nb-tension-src' },
-      (side.sources || []).map((n, i) => jsx(Chip, {
-        key: `s${n}`,
-        tone: 'accent',
-        title: (side.titles || [])[i] || `Source ${n}`,
-        children: `S${n}`
-      })))
+      (side.sources || []).map((n, i) => citeBtn(n, onCite, `s${n}-${i}`)))
   )
 }
 
-function TensionsPanel({ notebook, onSay, onOpenSource, modelReady, onCite }) {
+function TensionsPanel({ notebook, onSay, onOpenSource, modelReady, onCite, onCount }) {
   const audit = useMachine(TENSION_AUDIT)
   const [reported, setReported] = useState(null)
   const nbId = notebook && notebook.id
@@ -6704,6 +6718,13 @@ function TensionsPanel({ notebook, onSay, onOpenSource, modelReady, onCite }) {
   const err = audit.ctx.error
   const indep = report && report.independence
   const items = (report && report.items) || []
+
+  // the tab badge reads the count the moment an audit lands — 'when known'
+  // means exactly this: nothing is claimed before the model has answered
+  useEffect(() => {
+    if (onCount) onCount(report ? items.length : null)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [report, items.length])
 
   const run = async () => {
     if (!nbId || !TENSION_AUDIT.can('RUN')) return
@@ -6775,7 +6796,7 @@ function TensionsPanel({ notebook, onSay, onOpenSource, modelReady, onCite }) {
           el('span', { className: 'nb-tension-agree-claim', children: a.claim }),
           el('span', {
             className: 'nb-tension-agree-src',
-            children: (a.sources || []).map((n) => `S${n}`).join(' · ')
+            children: (a.sources || []).map((n, i) => citeBtn(n, onCite, `a${i}-${n}`))
           })))
       )
     : null
@@ -6815,7 +6836,7 @@ function TensionsPanel({ notebook, onSay, onOpenSource, modelReady, onCite }) {
               el('span', { className: 'nb-tension-n', children: String(i + 1) }),
               el('h3', { className: 'nb-tension-topic', children: it.topic || 'disagreement' })),
             el('div', { className: 'nb-tension-sides' },
-              it.sides.map((side, j) => jsx(SidePill, { key: `t${i}s${j}`, side }, `t${i}s${j}`))),
+              it.sides.map((side, j) => jsx(SidePill, { key: `t${i}s${j}`, side, onCite }, `t${i}s${j}`))),
             it.why ? el('div', { className: 'nb-tension-why', children: it.why }) : null,
             it.resolution
               ? el('div', { className: 'nb-tension-res', children: [

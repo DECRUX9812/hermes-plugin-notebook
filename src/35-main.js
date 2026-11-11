@@ -86,6 +86,8 @@ function Main({ notebook, kinds, tab, setTab, picked, setPicked, busy, generate,
                 refreshArtifact }) {
   const sources = (notebook && notebook.sources) || []
   const [askScope, setAskScope] = useState(null)   // chat scoped to one source
+  // the Tensions tab's count badge — null until an audit has answered
+  const [tensionCount, setTensionCount] = useState(null)
 
   if (loading && !notebook) {
     return el('main', { className: 'nb-col nb-main-col' },
@@ -185,7 +187,11 @@ function Main({ notebook, kinds, tab, setTab, picked, setPicked, busy, generate,
             type: 'button', role: 'tab', className: 'nb-tab', 'aria-selected': tab === 'tensions',
             onClick: () => setTab('tensions'), disabled: !sources.length,
             title: 'Where the sources disagree, and whether they corroborate each other',
-            children: [jsx(Glyph, { name: 'shield', size: 14 }), el('span', { children: 'Tensions' })]
+            children: [jsx(Glyph, { name: 'shield', size: 14 }),
+                       el('span', { children: 'Tensions' }),
+                       tensionCount
+                         ? el('span', { className: 'nb-tabcount', children: String(tensionCount) })
+                         : null]
           }),
           // the viewer tab exists only while an artifact is open — a disabled
           // placeholder tab is a promise the pane cannot keep
@@ -220,7 +226,7 @@ function Main({ notebook, kinds, tab, setTab, picked, setPicked, busy, generate,
       : tab === 'tensions'
         ? jsx(TensionsPanel, {
             notebook, onSay, modelReady,
-            onOpenSource,
+            onOpenSource, onCount: setTensionCount,
             onCite: (n, cite) => {
               const src = sources.find((s) => (cite && cite.id && s.id === cite.id) || s.n === n)
               if (src) { setPeek({ ...src, citeSnippet: (cite && cite.snippet) || '' }); setTab('peek') }
@@ -1359,13 +1365,20 @@ function StudioPanel({ kinds, notebook, busy, generate, filter, setFilter, onOpe
    * "Video Overview" and "Data Table" sat at the same weight even though one
    * is a 60-second render and the other is a spreadsheet. */
   const groups = useMemo(() => {
-    const order = ['media', 'docs', 'study', 'visual', 'other']
-    const label = { media: 'Listen & watch', docs: 'Read', study: 'Study', visual: 'Visualise', other: 'More' }
+    // Work order, not alphabetical: listen first, then the picture outputs,
+    // then the reading set, then study. Visual leads with the three the panel
+    // names — map, poster, deck — blueprint last.
+    const order = ['media', 'visual', 'docs', 'study', 'other']
+    const label = { media: 'Listen & watch', visual: 'Visual', docs: 'Read', study: 'Study', other: 'More' }
+    const visualRank = { mind_map: 0, infographic: 1, slides: 2, blueprint_evolution: 3 }
     const map = {}
     for (const k of kinds) {
       const g = k.group || 'other'
       if (!map[g]) map[g] = []
       map[g].push(k)
+    }
+    for (const g of Object.keys(map)) {
+      if (g === 'visual') map[g].sort((a, b) => (visualRank[a.id] ?? 9) - (visualRank[b.id] ?? 9))
     }
     return order.filter((g) => map[g] && map[g].length)
       .map((g) => ({ id: g, label: label[g] || 'More', kinds: map[g] }))
@@ -1385,8 +1398,6 @@ function StudioPanel({ kinds, notebook, busy, generate, filter, setFilter, onOpe
       children: [
         jsx(Glyph, { name: GROUP_ICON[g.id] || 'grid', size: 13 }),
         el('span', { className: 'nb-group-name', children: g.label }),
-        el('span', { className: 'nb-group-count',
-          children: `${g.kinds.filter((k) => ready[k.id]).length} of ${g.kinds.length}` }),
         el('span', { className: 'nb-group-chev', 'aria-hidden': 'true',
           children: jsx(Glyph, { name: 'chevron', size: 13 }) })
       ]
@@ -1405,12 +1416,6 @@ function StudioPanel({ kinds, notebook, busy, generate, filter, setFilter, onOpe
   return el('aside', { className: 'nb-col nb-studio', 'aria-label': 'Studio' },
     el('div', { className: 'nb-pane-head nb-studio-head' },
       el('span', { className: 'nb-pane-title', children: 'Make' }),
-      el('span', {
-        className: 'nb-chip',
-        'data-tone': readyCount ? 'ok' : undefined,
-        title: `${readyCount} of ${kinds.length} outputs have a latest run`,
-        children: readyCount === kinds.length ? 'All ready' : `${readyCount} of ${kinds.length} ready`
-      }),
       runningCount ? el('span', { className: 'nb-chip', 'data-tone': 'accent',
         children: `${runningCount} writing` }) : null,
       jsx(IconBtn, { icon: 'arrowRight', label: 'Hide the make panel (Ctrl+\\)', onClick: onCollapse })
@@ -1497,13 +1502,12 @@ function GenPill({ kind, art, started, nbId, onOpen, onGenerate }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [art && art.key])
   const secs = started ? Math.max(0, Math.round((Date.now() - started) / 1000)) : 0
+  // one honest status line: what the last run left behind, or what a run costs
   const state = started ? `writing · ${secs}s` : art ? `ready · ${ago(art.modified)}` : 'Generate'
   const pick = (id, v) => setOpts((o) => ({ ...o, [id]: v }))
-  /* The pill answers three questions in the order a person asks them: what is
-   * this, what does it make, and is there one already. The name is the label,
-   * the blurb is the promise (it comes from the backend, so it is true), and the
-   * footer is the state of the last run — with the run's own timestamp rather
-   * than the word "ready", because "ready" alone does not say how stale it is. */
+  /* Compact tile: icon, name, one status line. The tune knob only exists on
+   * hover/focus (CSS) — twelve tiles at 56px have to read as a list, not a
+   * dashboard of buttons. */
   return el('div', { className: 'nb-gen', 'data-kind': kind.id },
     el('button', {
       type: 'button', className: 'nb-card',
@@ -1517,17 +1521,12 @@ function GenPill({ kind, art, started, nbId, onOpen, onGenerate }) {
           jsx(Glyph, { name: KIND_ICON[kind.id] || 'doc', size: 16 })),
         el('span', { className: 'nb-card-main' },
           el('span', { className: 'nb-card-name', children: kind.label }),
-          kind.blurb
-            ? el('span', { className: 'nb-card-blurb', children: kind.blurb })
-            : null,
           el('span', { className: 'nb-card-state', 'data-kind': started ? 'busy' : art ? 'ready' : 'idle' },
             el('span', {
               className: 'nb-dot',
               style: { background: started ? 'var(--kc)' : art ? T.ok : undefined }
             }),
-            started ? `writing · ${secs}s`
-              : art ? ago(art.modified)
-                : `~${kind.secs || 15}s`)),
+            state)),
         started
           ? el('span', { className: 'nb-bar-track nb-card-bar' },
               el('span', {
@@ -1539,7 +1538,7 @@ function GenPill({ kind, art, started, nbId, onOpen, onGenerate }) {
     }),
     optSpecs.length
       ? jsx(IconBtn, {
-          icon: 'sliders', label: `${kind.label} options`,
+          icon: 'sliders', label: `Options for ${kind.label}`,
           className: 'nb-gen-cfg', active: cfgOpen,
           onClick: () => setCfgOpen((o) => !o)
         })
@@ -1686,7 +1685,7 @@ function WaveThumb({ seed }) {
 
 /* -------------------------------------------------------------- status bar */
 
-function StatusBar({ mode, notebook, data, note }) {
+function StatusBar({ mode, notebook, data, note, indep }) {
   const ready = data && data.model_ready
   const home = mode === 'home'
   const notebooks = (data && data.notebooks) || []
@@ -1700,8 +1699,11 @@ function StatusBar({ mode, notebook, data, note }) {
           jsx('span', { className: 'nb-sdot', style: { background: ready ? T.ok : T.warn } }),
           ready ? 'model ready · answering only from your sources' : 'model offline — enable the plugin'),
     !home && notebook
-      ? el('span', null, jsx('b', { children: notebook.stats.sources }), ' sources · ',
-          jsx('b', { children: nfmt(notebook.stats.chars) }), ' chars · ',
+      ? el('span', null, jsx('b', { children: notebook.stats.sources }), ' sources',
+          indep && indep.measured && indep.independent !== undefined
+            ? ` · ${indep.independent} independent`
+            : '',
+          ' · ', jsx('b', { children: nfmt(notebook.stats.chars) }), ' chars · ',
           jsx('b', { children: notebook.stats.labels }), ' labels')
       : null,
     !home && notebook && notebook.stats.unlabeled

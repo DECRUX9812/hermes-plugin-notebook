@@ -477,6 +477,10 @@ const CSS = `
 .nb-thr-menuitem[data-active=true]{color:${T.text};font-weight:650}
 .nb-thr-menuitem[data-danger=true]{color:${T.danger}}
 .nb-thr-menuitem[data-danger=true]:hover{background:color-mix(in srgb,${T.danger} 12%, transparent)}
+.nb-tabcount{display:inline-grid;place-items:center;min-width:20px;height:20px;
+  padding:0 6px;border-radius:var(--nb-r-pill);margin-left:2px;
+  background:color-mix(in srgb,${T.accent} 18%, transparent);color:${T.text};
+  font-size:var(--nb-fs-meta);font-weight:700;font-variant-numeric:tabular-nums}
 .nb-thr-scrim{position:fixed;inset:0;z-index:55;background:transparent}
 @media (max-width:900px){.nb-thrtabs{padding:10px 20px 0}}
 .nb-chatscroll{flex:1;min-height:0;display:flex;flex-direction:column;position:relative}
@@ -679,8 +683,8 @@ const CSS = `
    other grid: spanning the row made that one output look like a special case */
 
 .nb-card{--kc:${T.accent};
-  display:flex;align-items:flex-start;gap:10px;width:100%;min-width:0;
-  min-height:92px;padding:13px 13px 12px;
+  display:flex;align-items:center;gap:10px;width:100%;min-width:0;
+  min-height:56px;padding:8px 10px;
   border:1px solid var(--nb-edge);border-radius:var(--nb-r-el);
   background:var(--nb-tile);cursor:pointer;text-align:left;color:${T.text};
   transition:background var(--nb-dur-fast) var(--nb-ease),border-color var(--nb-dur-fast) var(--nb-ease),
@@ -694,9 +698,9 @@ const CSS = `
   background:color-mix(in srgb,var(--kc) 6%, var(--nb-card))}
 /* a 40px pastel badge carries the kind — the colour is the only thing that has
    to be learned, the words stay in ink */
-.nb-card-ico{width:40px;height:40px;flex:0 0 auto;border-radius:var(--nb-r-el);display:grid;place-items:center;
+.nb-card-ico{width:34px;height:34px;flex:0 0 auto;border-radius:var(--nb-r-in);display:grid;place-items:center;
   background:color-mix(in srgb,var(--kc) 16%, transparent);color:var(--kc)}
-.nb-card-ico svg{width:19px;height:19px}
+.nb-card-ico svg{width:17px;height:17px}
 .nb-card[data-kind=video_overview],.nb-art[data-kind=video_overview]{--kc:#81c995}
 .nb-card[data-kind=audio_overview],.nb-art[data-kind=audio_overview]{--kc:#a8c7fa}
 .nb-card[data-kind=summary],.nb-art[data-kind=summary]{--kc:#aecbfa}
@@ -710,25 +714,23 @@ const CSS = `
 .nb-card[data-kind=slides],.nb-art[data-kind=slides]{--kc:#f28b82}
 .nb-card[data-kind=infographic],.nb-art[data-kind=infographic]{--kc:#fde293}
 .nb-card[data-kind=data_table],.nb-art[data-kind=data_table]{--kc:#a8c7fa}
-.nb-card-main{min-width:0;flex:1;display:flex;flex-direction:column;gap:3px;padding-right:18px}
-.nb-card-name{display:-webkit-box;font-size:var(--nb-fs-label);font-weight:650;
-  letter-spacing:-.005em;line-height:1.25;color:${T.text};
-  -webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+.nb-card-main{min-width:0;flex:1;display:flex;flex-direction:column;gap:1px;padding-right:36px}
+.nb-card-name{display:block;font-size:var(--nb-fs-label);font-weight:650;
+  letter-spacing:-.005em;line-height:1.3;color:${T.text};
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .nb-card-name svg{color:var(--kc);flex:0 0 auto}
 /* the blurb is what the output actually is — the pill is not just a label */
 .nb-card-blurb{display:none}
-.nb-card .nb-card-state{flex:0 0 auto;align-self:flex-start;margin-top:3px;padding:0;
-  background:transparent !important}
+.nb-card .nb-card-state{flex:0 0 auto;align-self:auto;margin:0;padding:0;
+  background:transparent !important;font-size:var(--nb-fs-meta);font-weight:550}
 .nb-card{position:relative}
-.nb-card-bar{position:absolute;left:8px;right:8px;bottom:3px}
+.nb-card-bar{position:absolute;left:10px;right:10px;bottom:4px}
 .nb-card-state{display:inline-flex;align-items:center;gap:5px;white-space:nowrap;
   font-size:var(--nb-fs-meta);font-weight:600;color:${T.text3};
-  padding:2px 7px;border-radius:var(--nb-r-pill)}
-.nb-card[data-ready=true] .nb-card-state{color:color-mix(in srgb,${T.ok} 62%, ${T.text});
-  background:color-mix(in srgb,${T.ok} 14%, transparent)}
-.nb-card[data-busy=true] .nb-card-state{color:color-mix(in srgb,var(--kc) 58%, ${T.text});
-  background:color-mix(in srgb,var(--kc) 14%, transparent)}
-.nb-dot{width:6px;height:6px;border-radius:50%;background:${T.text4};display:inline-block;flex:0 0 auto}
+  padding:0;border-radius:var(--nb-r-pill)}
+.nb-card[data-ready=true] .nb-card-state{color:color-mix(in srgb,${T.ok} 62%, ${T.text})}
+.nb-card[data-busy=true] .nb-card-state{color:color-mix(in srgb,var(--kc) 58%, ${T.text})}
+.nb-dot{width:5px;height:5px;border-radius:50%;background:${T.text4};display:inline-block;flex:0 0 auto}
 .nb-card[data-ready=true] .nb-dot{background:${T.ok}}
 .nb-card[data-busy=true] .nb-dot{background:var(--kc);animation:nb-pulse 1.2s ease-in-out infinite}
 .nb-bar-track{height:3px;margin-top:3px;background:var(--nb-wash-2);border-radius:var(--nb-r-pill);
@@ -1478,7 +1480,7 @@ const CSS = `
    until the pointer was already over the card, so on a touch screen, on a
    trackpad with the pointer elsewhere, or on first glance at the page the
    settings looked like they did not exist. Quiet when idle, bright on hover. */
-.nb-gen-cfg{position:absolute;top:3px;right:3px;width:32px;height:32px;
+.nb-gen-cfg{position:absolute;top:12px;right:6px;width:32px;height:32px;
   border-radius:var(--nb-r-in);background:var(--nb-wash-2);opacity:.42;
   transition:opacity var(--nb-dur-fast) var(--nb-ease)}
 .nb-gen:hover .nb-gen-cfg,.nb-gen:focus-within .nb-gen-cfg,

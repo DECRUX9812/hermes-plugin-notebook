@@ -133,6 +133,21 @@ function App() {
   const notebook = data && data.notebook
   const kinds = (data && data.kinds) || []
 
+  // measured independence (text overlap, no model) — feeds the status bar's
+  // "N sources · M independent". Refetches when the source count changes.
+  const srcCount = notebook && notebook.stats ? notebook.stats.sources : 0
+  const [indep, setIndep] = useState(null)
+  useEffect(() => {
+    setIndep(null)
+    if (!nb) return undefined
+    let live = true
+    api(`/independence?${qs({ notebook: nb })}`, { timeoutMs: 30000 })
+      .then((out) => { if (live && out && out.ok !== false) setIndep(out) })
+      .catch(() => {})
+    return () => { live = false }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [nb, srcCount])
+
   // Ctrl/Cmd+K → notebook search (NotebookLM's global find)
   // Ctrl/Cmd+\\ → fold the make drawer (reading a timeline or a slide wants the
   //   canvas, and a 380px panel that cannot be dismissed from the keyboard is a
@@ -683,7 +698,7 @@ function App() {
                   onShow: () => { setStudioTouched(true); setStudioOpen(true) } })
           ),
 
-    jsx(StatusBar, { mode, notebook, data, note }),
+    jsx(StatusBar, { mode, notebook, data, note, indep }),
 
     jsx(AddSourceDialog, {
       open: !!srcDialog, onClose: () => setSrcDialog(null), notebook,

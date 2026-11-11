@@ -34,23 +34,18 @@ const TENSION_AUDIT = Machine('tensions:audit', {
   }
 })
 
-function SidePill({ side }) {
+function SidePill({ side, onCite }) {
   return el('div', { className: 'nb-tension-side' },
     el('div', { className: 'nb-tension-claim', children: side.claim }),
     side.quote
       ? el('blockquote', { className: 'nb-tension-quote', children: side.quote })
       : null,
     el('div', { className: 'nb-tension-src' },
-      (side.sources || []).map((n, i) => jsx(Chip, {
-        key: `s${n}`,
-        tone: 'accent',
-        title: (side.titles || [])[i] || `Source ${n}`,
-        children: `S${n}`
-      })))
+      (side.sources || []).map((n, i) => citeBtn(n, onCite, `s${n}-${i}`)))
   )
 }
 
-function TensionsPanel({ notebook, onSay, onOpenSource, modelReady, onCite }) {
+function TensionsPanel({ notebook, onSay, onOpenSource, modelReady, onCite, onCount }) {
   const audit = useMachine(TENSION_AUDIT)
   const [reported, setReported] = useState(null)
   const nbId = notebook && notebook.id
@@ -59,6 +54,13 @@ function TensionsPanel({ notebook, onSay, onOpenSource, modelReady, onCite }) {
   const err = audit.ctx.error
   const indep = report && report.independence
   const items = (report && report.items) || []
+
+  // the tab badge reads the count the moment an audit lands — 'when known'
+  // means exactly this: nothing is claimed before the model has answered
+  useEffect(() => {
+    if (onCount) onCount(report ? items.length : null)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [report, items.length])
 
   const run = async () => {
     if (!nbId || !TENSION_AUDIT.can('RUN')) return
@@ -130,7 +132,7 @@ function TensionsPanel({ notebook, onSay, onOpenSource, modelReady, onCite }) {
           el('span', { className: 'nb-tension-agree-claim', children: a.claim }),
           el('span', {
             className: 'nb-tension-agree-src',
-            children: (a.sources || []).map((n) => `S${n}`).join(' · ')
+            children: (a.sources || []).map((n, i) => citeBtn(n, onCite, `a${i}-${n}`))
           })))
       )
     : null
@@ -170,7 +172,7 @@ function TensionsPanel({ notebook, onSay, onOpenSource, modelReady, onCite }) {
               el('span', { className: 'nb-tension-n', children: String(i + 1) }),
               el('h3', { className: 'nb-tension-topic', children: it.topic || 'disagreement' })),
             el('div', { className: 'nb-tension-sides' },
-              it.sides.map((side, j) => jsx(SidePill, { key: `t${i}s${j}`, side }, `t${i}s${j}`))),
+              it.sides.map((side, j) => jsx(SidePill, { key: `t${i}s${j}`, side, onCite }, `t${i}s${j}`))),
             it.why ? el('div', { className: 'nb-tension-why', children: it.why }) : null,
             it.resolution
               ? el('div', { className: 'nb-tension-res', children: [

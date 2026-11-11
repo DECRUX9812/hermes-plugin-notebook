@@ -842,6 +842,19 @@ def suggest(payload: Dict[str, Any] = Body(...)) -> Any:
 
 
 
+@router.get("/independence")
+def independence(notebook: str = Query("", description="Notebook id or title")) -> Any:
+    """The measured half of the tensions audit — deterministic text overlap,
+    no model call. The status bar and the Tensions tab badge read this so the
+    'N sources · M independent' line is honest before anyone runs an audit."""
+    from hermes_notebook import tensions as tensions_mod
+    try:
+        nb_id = store.resolve_notebook(_q(notebook))
+    except Exception as exc:
+        return _fail(_why(exc), 404)
+    return {"ok": True, "notebook": nb_id, **tensions_mod.independence(nb_id)}
+
+
 @router.post("/tensions")
 def tensions(payload: Dict[str, Any] = Body(...)) -> Any:
     """Where the sources disagree, plus how independent they really are.
