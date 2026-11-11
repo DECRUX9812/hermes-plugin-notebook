@@ -161,9 +161,21 @@ def _parse_web_payload(raw: Any) -> List[Dict[str, Any]]:
     return [r for r in rows if isinstance(r, dict)] if isinstance(rows, list) else []
 
 
+class _WebSearchUnavailable(RuntimeError):
+    """The host answered 'Unknown tool: web_search' — the builtin is not
+    registered on this surface (a plugin CLI subcommand can run before the
+    agent loop imports model_tools)."""
+
+
+#: Set by search_all when the host lacks web_search; read once per discover().
+_web_search_unavailable = False
+
+
 def search_web(query: str, limit: int = 6) -> List[Dict[str, Any]]:
     """The host's own search backend — works with no extra key."""
     raw = runtime.dispatch("web_search", {"query": query, "limit": limit})
+    if runtime.unknown_tool(raw, "web_search"):
+        raise _WebSearchUnavailable("the host's web_search tool is not registered in this session")
     return _parse_web_payload(raw)
 
 
@@ -227,11 +239,14 @@ def providers() -> List[str]:
 
 
 def search_all(queries: List[str], per_query: int = 6) -> List[Dict[str, Any]]:
+    global _web_search_unavailable
     rows: List[Dict[str, Any]] = []
     for q in queries:
         for fn in (search_web, search_exa, search_tavily):
             try:
                 rows.extend(fn(q, per_query))
+            except _WebSearchUnavailable:
+                _web_search_unavailable = True
             except Exception:
                 continue
     return rows
@@ -350,6 +365,8 @@ def discover(notebook: str, *, query: str = "", max_results: int = 12,
     merges the new rows into the same ranked list. Nothing is added to the
     notebook either way: the page shows candidates and the person picks.
     """
+    global _web_search_unavailable
+    _web_search_unavailable = False
     nb_id = store.resolve_notebook(notebook)
     meta = store.get_meta(nb_id)
     sources = store.list_sources(nb_id)
@@ -406,7 +423,19 @@ def discover(notebook: str, *, query: str = "", max_results: int = 12,
             focus_terms=focus_terms + plan_info["gaps"],
             per_domain=per_domain, limit=max_results)
 
-    return {
+    if _web_search_unavailable:
+        if providers() == ["web"]:
+            # nothing else can search — an empty page would read as "no
+            # sources exist", which is a lie
+            raise RuntimeError(
+                "the host's web_search tool is not registered in this session, "
+                "and no EXA_API_KEY or TAVILY_API_KEY is configured — nothing could be searched")
+        candidates_note = ("the host's web_search tool is not registered in this "
+                           "session — results come only from the configured search providers")
+    else:
+        candidates_note = ""
+
+    out = {
         "ok": True,
         "notebook": nb_id,
         "query": base_query or (queries[0] if queries else ""),
@@ -419,3 +448,6 @@ def discover(notebook: str, *, query: str = "", max_results: int = 12,
         "rounds": rounds_run,
         "hint": "Nothing was added — POST /sources with the urls you keep.",
     }
+    if candidates_note:
+        out["warning"] = candidates_note
+    return out

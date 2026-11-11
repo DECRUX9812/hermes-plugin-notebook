@@ -95,6 +95,22 @@ def dispatch(tool: str, args: dict, **kw) -> str:
     return ctx().dispatch_tool(tool, args, **kw)
 
 
+def unknown_tool(raw: Any, tool: str) -> bool:
+    """True when the host answered ``{"error": "Unknown tool: <name>"}``.
+
+    Builtin tools register only once ``model_tools`` has been imported, which a
+    plugin CLI subcommand can run before — so ``web_search``/``web_extract``
+    are absent there even though the same call works inside a chat turn.
+    Callers turn this into a sentence a person can act on instead of parsing
+    an empty result as "nothing found"."""
+    try:
+        data = json.loads(raw) if isinstance(raw, str) else raw
+    except Exception:
+        return False
+    err = data.get("error") if isinstance(data, dict) else None
+    return isinstance(err, str) and err.strip() == f"Unknown tool: {tool}"
+
+
 def ok(**data: Any) -> str:
     media = [p for p in data.pop("media", []) if p]
     if media:

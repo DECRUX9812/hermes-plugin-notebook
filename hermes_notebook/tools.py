@@ -171,12 +171,14 @@ def notebook_discover(args: dict, **kw) -> str:
             deep=True,
             rounds=int(args["rounds"]) if str(args.get("rounds") or "").isdigit() else None,
         )
-        return runtime.ok(
+        payload = dict(
             notebook=nb_id, query=out["query"], candidates=out["candidates"],
             gaps=out["gaps"], queries=out["queries"], rounds=out["rounds"],
             searched=out["searched"],
-            hint="Add one with notebook_add_source url=<url> — nothing was added automatically.",
-        )
+            hint="Add one with notebook_add_source url=<url> — nothing was added automatically.")
+        if out.get("warning"):
+            payload["warning"] = out["warning"]
+        return runtime.ok(**payload)
     nb_id = store.resolve_notebook(args.get("notebook") or "")
     meta = store.get_meta(nb_id)
     query = (args.get("query") or "").strip() or (
@@ -185,6 +187,10 @@ def notebook_discover(args: dict, **kw) -> str:
         raise ValueError("no query and notebook has no title/description")
     limit = max(1, min(10, int(args.get("max_results") or 6)))
     raw = runtime.dispatch("web_search", {"query": query, "limit": limit})
+    if runtime.unknown_tool(raw, "web_search"):
+        raise RuntimeError(
+            "web search is unavailable in this session: the host's web_search "
+            "tool is not registered — run discover from a chat turn or the desktop page")
     try:
         data = json.loads(raw) if isinstance(raw, str) else raw
     except (ValueError, TypeError):
