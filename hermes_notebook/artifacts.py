@@ -11,7 +11,7 @@ import json
 from pathlib import Path
 from typing import Any, Optional
 
-from . import llmio, retrieve, runtime, store
+from . import jobs, llmio, retrieve, runtime, store
 
 MD_KINDS = ("summary", "briefing_doc", "study_guide", "faq", "timeline")
 STRUCT_KINDS = ("mind_map", "flashcards", "quiz", "slides", "infographic", "data_table",
@@ -288,12 +288,30 @@ MAX_CONVERSATION_CHARS = 9000
 
 def generate(notebook: str, kind: str, *, focus: str = "", count_hint: str = "",
              fmt: str = "md", style: str = "", options: Optional[dict] = None,
-             conversation: str = "", language: str = "") -> dict:
+             conversation: str = "", language: str = "",
+             on_step=None, job: str = "") -> dict:
     """Generate one artifact; returns {path, kind, preview} or raises.
     fmt='csv' switches flashcards to an Anki-importable CSV.
     style picks the look of the visual kinds — see `hermes_notebook.igstyles`
-    for the bundled infographic pack (16 styles, four layout families)."""
+    for the bundled infographic pack (16 styles, four layout families).
+
+    `on_step(phase, detail)` feeds the dashboard's progress line and `job`
+    (a jobs.begin id) is the cancel gate + partial-file tracker: every
+    artifact this run writes is remembered so a cancelled run deletes it."""
     options = options if isinstance(options, dict) else {}
+
+    def _emit(phase: str, detail: str = "") -> None:
+        if on_step:
+            on_step(phase, detail)
+        if job:
+            jobs.check(job)
+
+    def _save(ext: str, content: str) -> Path:
+        _emit("saving", KIND_LABEL.get(kind, kind))
+        p = _write_artifact(nb_id, kind, ext, content)
+        if job:
+            jobs.track_file(job, p)
+        return p
     kind = (kind or "").strip().lower().replace("-", "_").replace(" ", "_")
     style = (style or "").strip().lower()
     if kind not in ALL_KINDS:
@@ -306,6 +324,7 @@ def generate(notebook: str, kind: str, *, focus: str = "", count_hint: str = "",
     if not sources:
         raise ValueError(f"notebook {nb_id!r} has no sources — add some first")
 
+    _emit("reading", f"{len(sources)} sources")
     digest = _digest(nb_id)
     src_lines = "\n".join(
         f"- {s.get('title')} ({s.get('kind')})" + (f" — {s.get('origin')}" if s.get('origin') and s.get('kind') in {'url', 'youtube'} else "")
@@ -332,6 +351,7 @@ def generate(notebook: str, kind: str, *, focus: str = "", count_hint: str = "",
 
     # One audit for every artifact in this notebook, cached per source-state —
     # a ten-output run pays for one tension pass, not ten.
+    _emit("analysing", "where the sources disagree")
     ledger = _ledger_for(nb_id, language)
 
     if kind in MD_KINDS:
@@ -352,6 +372,7 @@ def generate(notebook: str, kind: str, *, focus: str = "", count_hint: str = "",
              f"Sources (cite these numbers as [S<n>]):\n{src_lines}\n\n"
              f"Task: {task}\n\nSources content:\n{digest}"},
         ]
+        _emit("writing", KIND_LABEL.get(kind, kind))
         text = llmio.complete(
             messages, purpose=f"hermes-notebook.generate.{kind}",
             max_tokens=6000, temperature=0.4,
@@ -362,7 +383,7 @@ def generate(notebook: str, kind: str, *, focus: str = "", count_hint: str = "",
         if meta.get("description"):
             header += f"_{meta['description']}_\n\n"
         header += f"_Generated {runtime.utc_stamp()} · {len(sources)} sources_\n\n---\n\n"
-        path = _write_artifact(nb_id, kind, "md", header + text)
+        path = _save("md", header + text)
         return {"path": str(path), "kind": kind, "preview": text[:1200]}
 
     # structured kinds — same registry, same ledger, JSON shape instead of prose
@@ -393,6 +414,7 @@ def generate(notebook: str, kind: str, *, focus: str = "", count_hint: str = "",
         # the blueprint's zones are gaps; when the model half of the audit was
         # unavailable, the measured independence still goes in
         extra = _tension_brief(nb_id)
+    _emit("writing", KIND_LABEL.get(kind, kind))
     parsed = llmio.structured(
         instructions=instructions,
         input=[{"type": "text", "text":
@@ -408,13 +430,14 @@ def generate(notebook: str, kind: str, *, focus: str = "", count_hint: str = "",
     if parsed is None:
         raise RuntimeError("model did not return valid JSON for this artifact")
 
-    json_path = _write_artifact(nb_id, kind, "json", json.dumps(parsed, indent=2, ensure_ascii=False))
+    json_path = _save("json", json.dumps(parsed, indent=2, ensure_ascii=False))
     header = f"# {meta.get('title')} — {KIND_LABEL[kind]}\n\n"
     header += f"_Generated {runtime.utc_stamp()} · {len(sources)} sources_\n\n---\n\n"
 
     if kind == "slides":
+        _emit("rendering", "slide deck")
         html = _render_slides_html(parsed, meta.get("title") or nb_id)
-        path = _write_artifact(nb_id, kind, "html", html)
+        path = _save("html", html)
         return {"path": str(path), "kind": kind, "preview": html[:1200]}
 
     if kind == "blueprint_evolution":
@@ -423,8 +446,8 @@ def generate(notebook: str, kind: str, *, focus: str = "", count_hint: str = "",
         parsed["_style"] = {"id": style_spec.id, "label": style_spec.label,
                             "family": style_spec.family}
         engine = str(options.get("engine") or "gfx").strip().lower()
-        json_path = _write_artifact(nb_id, kind, "json",
-                                    json.dumps(parsed, indent=2, ensure_ascii=False))
+        json_path = _save("json",
+                          json.dumps(parsed, indent=2, ensure_ascii=False))
 
         # Opt-in only. The vector engine is the default because it is exact: the
         # text is the text, it is crisp at any size, and it is a few KB. A painted
@@ -440,10 +463,11 @@ def generate(notebook: str, kind: str, *, focus: str = "", count_hint: str = "",
                         "engine": "imagen_blueprint",
                         "preview": json.dumps(parsed, ensure_ascii=False)[:1200]}
 
+        _emit("rendering", "blueprint poster")
         svg = gfx.render(parsed, template="blueprint_evolution", preset=style_spec.id,
                          orientation=str(options.get("orientation") or "landscape").lower(),
                          detail=str(options.get("detail") or "standard").lower())
-        path = _write_artifact(nb_id, kind, "svg", svg)
+        path = _save("svg", svg)
         result = {"path": str(path), "json": str(json_path), "kind": kind,
                   "style": style_spec.id, "style_label": style_spec.label,
                   "template": "blueprint_evolution", "format": "svg",
@@ -468,11 +492,12 @@ def generate(notebook: str, kind: str, *, focus: str = "", count_hint: str = "",
                             "family": style_spec.family}
         parsed["_graphic"] = {"template": template, "orientation": orientation,
                               "detail": detail}
-        json_path = _write_artifact(nb_id, kind, "json",
-                                    json.dumps(parsed, indent=2, ensure_ascii=False))
+        json_path = _save("json",
+                          json.dumps(parsed, indent=2, ensure_ascii=False))
+        _emit("rendering", "infographic poster")
         svg = gfx.render(parsed, template=template, preset=style_spec.id,
                          orientation=orientation, detail=detail)
-        path = _write_artifact(nb_id, kind, "svg", svg)
+        path = _save("svg", svg)
         return {"path": str(path), "json": str(json_path), "kind": kind,
                 "style": style_spec.id, "style_label": style_spec.label,
                 "template": template, "orientation": orientation, "detail": detail,
@@ -480,7 +505,7 @@ def generate(notebook: str, kind: str, *, focus: str = "", count_hint: str = "",
 
     if kind == "data_table":
         csv_text = _render_data_table_csv(parsed)
-        path = _write_artifact(nb_id, kind, "csv", csv_text)
+        path = _save("csv", csv_text)
         # the markdown twin keeps the artifact readable without a table parser
         cols = [str(c) for c in (parsed.get("columns") or [])]
         md_rows = ["| " + " | ".join(cols) + " |",
@@ -491,8 +516,8 @@ def generate(notebook: str, kind: str, *, focus: str = "", count_hint: str = "",
                 cells += [""] * (len(cols) - len(cells))
                 md_rows.append("| " + " | ".join(cells) + " |")
         md = "\n".join(md_rows) + "\n"
-        _write_artifact(nb_id, kind, "md",
-                        header + f"_{parsed.get('title') or 'Data table'}_\n\n" + md)
+        _save("md",
+              header + f"_{parsed.get('title') or 'Data table'}_\n\n" + md)
         return {"path": str(path), "json": str(json_path), "kind": kind,
                 "format": "csv", "preview": csv_text[:1200]}
 
@@ -500,14 +525,14 @@ def generate(notebook: str, kind: str, *, focus: str = "", count_hint: str = "",
         md = _render_mind_map(parsed)
     elif kind == "flashcards" and fmt == "csv":
         csv_text = _render_flashcards_csv(parsed)
-        path = _write_artifact(nb_id, kind, "csv", csv_text)
+        path = _save("csv", csv_text)
         return {"path": str(path), "json": str(json_path), "kind": kind,
                 "format": "csv", "preview": csv_text[:1200]}
     elif kind == "flashcards":
         md = _render_flashcards(parsed)
     else:
         md = _render_quiz(parsed)
-    path = _write_artifact(nb_id, kind, "md", header + md)
+    path = _save("md", header + md)
     return {"path": str(path), "json": str(json_path), "kind": kind, "preview": md[:1200]}
 
 

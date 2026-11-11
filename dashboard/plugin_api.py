@@ -62,6 +62,7 @@ import mimetypes
 import sys
 import time
 from pathlib import Path
+from urllib.parse import urlparse
 from typing import Any, Dict, List, Optional
 
 from fastapi import APIRouter, Body, HTTPException, Query
@@ -75,7 +76,7 @@ for _p in (_PLUGIN_ROOT, _HERE):
         sys.path.insert(0, _p)
 
 from hermes_notebook import runtime, store, artifacts as artifacts_mod  # noqa: E402
-from hermes_notebook import gfx  # noqa: E402
+from hermes_notebook import gfx, jobs  # noqa: E402
 from hermes_notebook.gfx import themes as gfx_themes  # noqa: E402
 
 router = APIRouter(tags=["hermes-notebook"])
@@ -592,6 +593,50 @@ def create_notebook(payload: Dict[str, Any] = Body(...)) -> Any:
 
 # ------------------------------------------------------------------ sources
 
+def _job_step(jid: str):
+    """The on_step callable long jobs get: report the phase, then honour a
+    cancel request before the next unit of work starts."""
+    def _step(phase: str, detail: str = "") -> None:
+        jobs.report(jid, phase, detail)
+        jobs.check(jid)
+    return _step
+
+
+def _cancelled(jid: str) -> Dict[str, Any]:
+    """Shared cancel exit: drop the partial files the run tracked, mark the
+    job, and answer in a shape the page can tell apart from a failure."""
+    removed = jobs.cleanup(jid)
+    jobs.finish(jid, "cancelled", "stopped by you")
+    return {"ok": False, "cancelled": True, "removed": len(removed),
+            "error": "stopped — partial output was removed"}
+
+
+@router.get("/progress")
+def progress(notebook: str = Query("", description="Notebook id or title")) -> Any:
+    """Live steps for this notebook's running jobs — the page polls this
+    while something long is in flight and renders the real phase instead of
+    a bare spinner."""
+    try:
+        nb_id = store.resolve_notebook(_q(notebook))
+    except Exception as exc:
+        return _fail(_why(exc), 404)
+    return jobs.snapshot(nb_id)
+
+
+@router.post("/cancel")
+def cancel_job(payload: Dict[str, Any] = Body(...)) -> Any:
+    """Ask the live job for (notebook, key) to stop at its next step."""
+    nb = str(payload.get("notebook") or "")
+    key = str(payload.get("key") or "")
+    try:
+        nb_id = store.resolve_notebook(nb)
+    except Exception as exc:
+        return _fail(_why(exc), 404)
+    if not key:
+        return _fail("give me a job key")
+    return {"ok": True, "cancelled": jobs.cancel(nb_id, key)}
+
+
 @router.post("/source")
 def add_source(payload: Dict[str, Any] = Body(...)) -> Any:
     from hermes_notebook import tools as tools_mod
@@ -604,11 +649,21 @@ def add_source(payload: Dict[str, Any] = Body(...)) -> Any:
         return _fail("give me a file path, a URL or some text")
     _ensure_model()
     try:
-        out = json.loads(tools_mod.notebook_add_source(args))
+        nb_id = store.resolve_notebook(nb)
     except Exception as exc:
+        return _fail(_why(exc), 404)
+    jid = jobs.begin(nb_id, "ingest", "adding a source")
+    try:
+        out = json.loads(tools_mod.notebook_add_source(args, on_step=_job_step(jid)))
+    except jobs.JobCancelled:
+        return _cancelled(jid)
+    except Exception as exc:
+        jobs.finish(jid, "error", _why(exc))
         return _fail(_why(exc), 500)
     if not out.get("ok"):
+        jobs.finish(jid, "error", out.get("error") or "ingest failed")
         return _fail(out.get("error") or "ingest failed", 422, detail=out)
+    jobs.finish(jid)
     return {"ok": True, "source": out, "state": _notebook_payload(store.resolve_notebook(nb))}
 
 
@@ -626,6 +681,7 @@ def discover(payload: Dict[str, Any] = Body(...)) -> Any:
     except Exception as exc:
         return _fail(_why(exc), 404)
     _ensure_model()
+    jid = jobs.begin(nb_id, "discover", "finding sources")
     try:
         out = discover_mod.discover(
             nb_id,
@@ -635,9 +691,14 @@ def discover(payload: Dict[str, Any] = Body(...)) -> Any:
             plan=bool(payload.get("plan", True)),
             deep=bool(payload.get("deep", False)),
             rounds=int(payload["rounds"]) if str(payload.get("rounds") or "").isdigit() else None,
+            job=jid,
         )
+    except jobs.JobCancelled:
+        return _cancelled(jid)
     except Exception as exc:
+        jobs.finish(jid, "error", _why(exc))
         return _fail(_why(exc), 500)
+    jobs.finish(jid)
     return out
 
 
@@ -657,10 +718,30 @@ def add_sources(payload: Dict[str, Any] = Body(...)) -> Any:
     if not urls:
         return _fail("no urls to add")
     _ensure_model()
+    try:
+        nb_id = store.resolve_notebook(nb)
+    except Exception as exc:
+        return _fail(_why(exc), 404)
+    jid = jobs.begin(nb_id, "ingest", f"adding {len(urls)} sources")
+    step = _job_step(jid)
     results = []
     for url in urls:
         try:
-            out = json.loads(tools_mod.notebook_add_source({"notebook": nb, "url": url}))
+            try:
+                host = urlparse(url).netloc or url
+            except Exception:
+                host = url
+            jobs.report(jid, "reading", host)
+            jobs.check(jid)
+            out = json.loads(tools_mod.notebook_add_source(
+                {"notebook": nb, "url": url}, on_step=step))
+        except jobs.JobCancelled:
+            jobs.finish(jid, "cancelled", "stopped by you")
+            added = sum(1 for r in results if r.get("ok") and not r.get("duplicate"))
+            return {"ok": False, "cancelled": True, "added": added,
+                    "duplicates": sum(1 for r in results if r.get("duplicate")),
+                    "results": results,
+                    "error": "stopped — sources already added were kept"}
         except Exception as exc:
             results.append({"url": url, "ok": False,
                             "error": f"{type(exc).__name__}: {exc}"})
@@ -678,6 +759,7 @@ def add_sources(payload: Dict[str, Any] = Body(...)) -> Any:
                             "error": out.get("error") or "ingest failed"})
     added = sum(1 for r in results if r.get("ok") and not r.get("duplicate"))
     dupes = sum(1 for r in results if r.get("duplicate"))
+    jobs.finish(jid)
     try:
         state = _notebook_payload(store.resolve_notebook(nb))
     except Exception:
@@ -1185,6 +1267,8 @@ async def generate(payload: Dict[str, Any] = Body(...)) -> Any:
     except Exception as exc:
         return _fail(_why(exc), 404)
     started = time.time()
+    jid = jobs.begin(nb_id, f"gen:{kind}", f"making {kind.replace('_', ' ')}")
+    step = _job_step(jid)
 
     try:
         if kind == "audio_overview":
@@ -1192,14 +1276,16 @@ async def generate(payload: Dict[str, Any] = Body(...)) -> Any:
             out = await audio.make_audio_overview(
                 nb_id, length=str(payload.get("length") or "short"),
                 fmt=str(payload.get("format") or "deep_dive"),
-                language=str(payload.get("language") or ""))
+                language=str(payload.get("language") or ""),
+                on_step=step, job=jid)
         elif kind == "video_overview":
             from hermes_notebook import video
             out = await video.make_video_overview(
                 nb_id, style=str(payload.get("style") or "cinematic"),
                 length=str(payload.get("length") or "short"),
                 language=str(payload.get("language") or ""),
-                notes=payload.get("notes") if isinstance(payload.get("notes"), dict) else None)
+                notes=payload.get("notes") if isinstance(payload.get("notes"), dict) else None,
+                on_step=step, job=jid)
         else:
             conversation = ""
             if str(payload.get("from_chat") or "") in ("chat", "conversation"):
@@ -1213,6 +1299,7 @@ async def generate(payload: Dict[str, Any] = Body(...)) -> Any:
                     fmt=str(payload.get("template") or ""),
                     conversation=conversation,
                     language=str(payload.get("language") or ""),
+                    on_step=step, job=jid,
                     options={"orientation": payload.get("orientation") or "landscape",
                              "detail": payload.get("detail") or "standard",
                              # `engine` decides vector vs painted for the blueprint.
@@ -1220,8 +1307,12 @@ async def generate(payload: Dict[str, Any] = Body(...)) -> Any:
                              # saved the choice and generated the default anyway.
                              "engine": (payload.get("options") or {}).get("engine")
                                        or payload.get("engine") or "gfx"}))
+    except jobs.JobCancelled:
+        return _cancelled(jid)
     except Exception as exc:
+        jobs.finish(jid, "error", _why(exc))
         return _fail(_why(exc), 500)
+    jobs.finish(jid)
     # remember the knobs this run used — regenerate reuses them and the row
     # can show the artifact was tailored
     opts_used = {k: str(payload.get(k) or "").strip()
@@ -1260,10 +1351,16 @@ async def audio_render(payload: Dict[str, Any] = Body(...)) -> Any:
     from hermes_notebook import audio
     script = payload.get("script") if isinstance(payload.get("script"), dict) else payload
     started = time.time()
+    jid = jobs.begin(nb_id, "audio_render", "re-voicing the script")
     try:
-        out = await audio.render_audio_script(nb_id, script)
+        out = await audio.render_audio_script(nb_id, script,
+                                              on_step=_job_step(jid), job=jid)
+    except jobs.JobCancelled:
+        return _cancelled(jid)
     except Exception as exc:
+        jobs.finish(jid, "error", _why(exc))
         return _fail(_why(exc), 500)
+    jobs.finish(jid)
     return {"ok": True, "result": out,
             "seconds": round(time.time() - started, 1)}
 

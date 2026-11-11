@@ -229,11 +229,27 @@ def _extract_any(*, path: str = "", url: str = "", text: Optional[str] = None,
 def ingest(notebook: str, *, path: Optional[str] = None, url: Optional[str] = None,
            text: Optional[str] = None, title: Optional[str] = None,
            kind_hint: Optional[str] = None,
-           allow_duplicate: bool = False) -> dict:
+           allow_duplicate: bool = False,
+           on_step=None) -> dict:
     """Ingest one source into the notebook. Returns the stored index record,
     or {"skipped": "duplicate", "duplicate_of": {...}} when the normalized
-    text already exists (unless allow_duplicate)."""
+    text already exists (unless allow_duplicate).
+
+    `on_step(phase, detail)` reports progress for the dashboard's job strip
+    and is also the cancel gate — a callback that raises stops the ingest
+    between phases (never mid-write)."""
+    step = on_step or (lambda _p, _d="": None)
     nb_id = store.resolve_notebook(notebook)
+    # name the thing being read before extraction knows its title — a url's
+    # host or a file's name is what the person recognises in the progress line
+    pending = (title or "").strip()
+    if not pending and url:
+        pending = urlparse(url).netloc or url
+    if not pending and path:
+        pending = Path(path).name
+    if not pending:
+        pending = "pasted text"
+    step("reading", pending)
     src_title, src_kind, origin, body = _extract_any(
         path=path or "", url=url or "", text=text, title=title, kind_hint=kind_hint)
 
@@ -243,6 +259,7 @@ def ingest(notebook: str, *, path: Optional[str] = None, url: Optional[str] = No
     if len(body) > MAX_TEXT_SOURCE_CHARS:
         body = body[:MAX_TEXT_SOURCE_CHARS] + "\n\n[... source truncated ...]"
 
+    step("checking", "already in the notebook?")
     digest = store.content_hash(body)
     if not allow_duplicate:
         dup = store.find_source_by_hash(nb_id, digest)
@@ -251,7 +268,9 @@ def ingest(notebook: str, *, path: Optional[str] = None, url: Optional[str] = No
                 "id": dup.get("id"), "title": dup.get("title"),
                 "kind": dup.get("kind"), "origin": dup.get("origin")}}
 
+    step("labelling", src_title or pending)
     labels, summary = _auto_label(src_title, src_kind, origin, body)
+    step("indexing", src_title or pending)
     locator = origin if (path or url) else None
     record = store.add_source(
         nb_id, title=src_title or src_kind, kind=src_kind, origin=origin,

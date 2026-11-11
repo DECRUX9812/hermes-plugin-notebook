@@ -23,7 +23,7 @@ import urllib.parse
 import urllib.request
 from typing import Any, Dict, Iterable, List, Optional
 
-from . import llmio, retrieve, runtime, store
+from . import jobs, llmio, retrieve, runtime, store
 
 #: Tracking params that make two links to the same page look different.
 _JUNK_PARAMS = {
@@ -360,14 +360,21 @@ def refine_queries(meta: Dict[str, Any], focus: str, found: List[Dict[str, Any]]
 
 def discover(notebook: str, *, query: str = "", max_results: int = 12,
              per_domain: int = 2, plan: bool = True, deep: bool = False,
-             rounds: Optional[int] = None) -> Dict[str, Any]:
+             rounds: Optional[int] = None, job: str = "") -> Dict[str, Any]:
     """One discovery pass — or a deep-research pass when `deep` is set.
 
     Round 1 is the plan/fanout/rank pass. In deep mode each further round reads
     what round 1 returned, asks the model for genuinely different queries, and
     merges the new rows into the same ranked list. Nothing is added to the
     notebook either way: the page shows candidates and the person picks.
-    """
+
+    `job` is a jobs.begin id: phases report into it and cancel is honoured
+    between rounds and provider fan-outs."""
+    def _emit(phase: str, detail: str = "") -> None:
+        if job:
+            jobs.report(job, phase, detail)
+            jobs.check(job)
+
     search_state: Dict[str, Any] = {}
     nb_id = store.resolve_notebook(notebook)
     meta = store.get_meta(nb_id)
@@ -380,6 +387,7 @@ def discover(notebook: str, *, query: str = "", max_results: int = 12,
 
     plan_info = {"gaps": [], "queries": []}
     if plan:
+        _emit("planning", "reading the notebook's gaps")
         try:
             src_lines = "\n".join(f"- {s.get('title')} ({s.get('kind')})" for s in sources[:40])
             digest_bits = retrieve.notebook_digest(nb_id, max_chars=6000)
@@ -394,10 +402,12 @@ def discover(notebook: str, *, query: str = "", max_results: int = 12,
         queries = [focus_text.strip() or " ".join(meta.get("title", "").split())]
     queries = [q for q in queries if q][:5]
 
+    _emit("searching", f"{len(queries)} quer{'y' if len(queries) == 1 else 'ies'} across {', '.join(providers()) or 'web'}")
     rows = search_all(queries, per_query=max(4, max_results), state=search_state)
     for row in rows:
         if isinstance(row, dict):
             row.setdefault("round", 1)
+    _emit("ranking", f"{len(rows)} results")
     candidates = rank_candidates(
         rows, existing=existing, focus_terms=focus_terms + plan_info["gaps"],
         per_domain=per_domain, limit=max_results)
@@ -407,6 +417,7 @@ def discover(notebook: str, *, query: str = "", max_results: int = 12,
     want_rounds = max(1, min(3, rounds)) if rounds else (can_read_rounds() if deep else 1)
     while deep and rounds_run < want_rounds:
         rounds_run += 1
+        _emit("searching", f"round {rounds_run} — following the gaps")
         try:
             new_queries = refine_queries(meta, focus_text, candidates,
                                          plan_info["gaps"], all_queries, rounds_run)

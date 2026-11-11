@@ -16,7 +16,7 @@ import subprocess
 from pathlib import Path
 from typing import Any, Optional
 
-from . import llmio, retrieve, runtime, store, voices
+from . import jobs, llmio, retrieve, runtime, store, voices
 
 LENGTHS = {
     "short": {"words": (550, 850), "label": "about 5 minutes"},
@@ -227,9 +227,18 @@ def _probe_duration(path: Path) -> Optional[float]:
 
 async def make_audio_overview(notebook: str, *, length: Optional[str] = None,
                               focus: str = "", fmt: str = "deep_dive",
-                              language: str = "") -> dict:
+                              language: str = "",
+                              on_step=None, job: str = "") -> dict:
     """Generate the audio overview. Async — runs under an event loop.
-    fmt: deep_dive | brief (one narrator, enforced) | critique | debate."""
+    fmt: deep_dive | brief (one narrator, enforced) | critique | debate.
+    `job` is a jobs.begin id: steps report into it and cancel is honoured
+    between segments."""
+    def _emit(phase: str, detail: str = "") -> None:
+        if on_step:
+            on_step(phase, detail)
+        if job:
+            jobs.check(job)
+
     nb_id = store.resolve_notebook(notebook)
     meta = store.get_meta(nb_id)
     sources = store.list_sources(nb_id)
@@ -251,7 +260,9 @@ async def make_audio_overview(notebook: str, *, length: Optional[str] = None,
             "dependency). Reinstall/re-enable the plugin so PM can fetch it."
         ) from exc
 
+    _emit("reading", f"{len(sources)} sources")
     digest = retrieve.notebook_digest(nb_id, max_chars=int(runtime.config("podcast_context_chars", default=42000)))
+    _emit("writing", "podcast script")
     parsed = llmio.structured(
         instructions="Write the full podcast script as JSON.",
         input=[{"type": "text", "text": _script_prompt(meta, digest, length, focus, fmt, language)}],
@@ -270,10 +281,12 @@ async def make_audio_overview(notebook: str, *, length: Optional[str] = None,
         raise RuntimeError("model did not return a valid podcast script JSON")
     segs, ep_title = _write_script(nb_id, parsed, single_narrator=(fmt == "brief"))
     return await _render_episode(nb_id, segs, ep_title, meta,
-                                 length=length, language=language)
+                                 length=length, language=language,
+                                 on_step=on_step, job=job)
 
 
-async def render_audio_script(notebook, script: dict) -> dict:
+async def render_audio_script(notebook, script: dict,
+                              on_step=None, job: str = "") -> dict:
     """Re-voice an edited podcast script — the Studio's editable script stage.
     Same pipeline as generation minus the model call: normalize → TTS →
     concat → sidecars, as a NEW timestamped run (version flip reaches it)."""
@@ -286,15 +299,22 @@ async def render_audio_script(notebook, script: dict) -> dict:
         nb_id, segs, ep_title, meta, length="custom",
         voice_a=str(voices.get("host_a") or "") or None,
         voice_b=str(voices.get("host_b") or "") or None,
+        on_step=on_step, job=job,
     )
 
 
 async def _render_episode(nb_id: str, segs: list[dict], ep_title: str, meta: dict, *,
                           length: str, language: str = "",
                           voice_a: Optional[str] = None,
-                          voice_b: Optional[str] = None) -> dict:
+                          voice_b: Optional[str] = None,
+                          on_step=None, job: str = "") -> dict:
     """TTS every segment, concat, and write the episode artifacts — shared by
     model-generated scripts and user-edited ones."""
+    def _emit(phase: str, detail: str = "") -> None:
+        if on_step:
+            on_step(phase, detail)
+        if job:
+            jobs.check(job)
     if voice_a is None:
         voice_a = str(runtime.config("audio_voice_host_a", default="en-US-AndrewNeural"))
     if voice_b is None:
@@ -308,21 +328,48 @@ async def _render_episode(nb_id: str, segs: list[dict], ep_title: str, meta: dic
         if voice_b == "en-US-EmmaNeural":
             voice_b = lang_pair[1]
 
-    # artifacts dir + per-episode workdir
+    # artifacts dir + per-episode workdir — the whole workdir is tracked so a
+    # cancelled run removes every segment it already paid to synthesise
     nb_dir = store._nb_dir(nb_id)
     stamp = runtime.utc_stamp()
     work = nb_dir / "artifacts" / f"_audio_{stamp}"
     work.mkdir(parents=True, exist_ok=True)
+    if job:
+        jobs.track_file(job, work)
 
     sem = asyncio.Semaphore(4)
-    tasks = []
+    total = len(segs)
+    _emit("synthesising", f"0 of {total} segments")
+    pending = set()
     for i, seg in enumerate(segs):
         voice = voice_a if seg["speaker"] == "host_a" else voice_b
         other = voice_b if seg["speaker"] == "host_a" else voice_a
         out = work / f"seg_{i:03d}.mp3"
-        tasks.append(_synth_segment(seg["text"], voice, out, sem, fallback_voice=other))
-    results = await asyncio.gather(*tasks, return_exceptions=True)
-    errors = [r for r in results if isinstance(r, BaseException)]
+        pending.add(asyncio.ensure_future(
+            _synth_segment(seg["text"], voice, out, sem, fallback_voice=other)))
+    errors: list = []
+    done_n = 0
+    try:
+        # asyncio.wait in slices so the cancel flag is honoured mid-render —
+        # gather() would run every queued segment to completion regardless
+        while pending:
+            if job:
+                jobs.check(job)
+            done, pending = await asyncio.wait(
+                pending, timeout=0.4, return_when=asyncio.FIRST_COMPLETED)
+            for t in done:
+                done_n += 1
+                try:
+                    t.result()
+                except BaseException as exc:  # noqa: BLE001 - collected below
+                    errors.append(exc)
+            _emit("synthesising", f"{done_n} of {total} segments")
+    except jobs.JobCancelled:
+        for t in pending:
+            t.cancel()
+        if pending:
+            await asyncio.gather(*pending, return_exceptions=True)
+        raise
     if errors:
         raise RuntimeError(f"TTS failed for {len(errors)}/{len(segs)} segments: {errors[0]}")
 
@@ -335,8 +382,11 @@ async def _render_episode(nb_id: str, segs: list[dict], ep_title: str, meta: dic
         d = _probe_duration(parts[i]) or 0.0
         timed.append({**seg, "start": round(cursor, 2), "end": round(cursor + d, 2)})
         cursor += d
+    _emit("assembling", "joining the episode")
     mp3_path = nb_dir / "artifacts" / f"{stamp}-audio_overview.mp3"
     _concat_mp3(parts, mp3_path)
+    if job:
+        jobs.track_file(job, mp3_path)
 
     speaker_name = {"host_a": "Host A", "host_b": "Host B"}
     transcript_lines = [f"# {ep_title}", "",
@@ -346,12 +396,16 @@ async def _render_episode(nb_id: str, segs: list[dict], ep_title: str, meta: dic
         transcript_lines += [f"**{speaker_name[seg['speaker']]}:** {seg['text']}", ""]
     txt_path = nb_dir / "artifacts" / f"{stamp}-audio_overview.txt"
     txt_path.write_text("\n".join(transcript_lines), encoding="utf-8")
+    if job:
+        jobs.track_file(job, txt_path)
 
     script_path = nb_dir / "artifacts" / f"{stamp}-audio_overview.json"
     script_path.write_text(json.dumps(
         {"title": ep_title, "notebook": meta.get("title"), "length": length,
          "voices": {"host_a": voice_a, "host_b": voice_b}, "segments": timed},
         indent=2, ensure_ascii=False), encoding="utf-8")
+    if job:
+        jobs.track_file(job, script_path)
 
     # tidy: drop segment files, keep the episode artifacts
     for p in parts:

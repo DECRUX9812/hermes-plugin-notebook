@@ -17,7 +17,7 @@ import subprocess
 from pathlib import Path
 from typing import Any, Optional
 
-from . import audio, llmio, retrieve, runtime, store, voices
+from . import audio, jobs, llmio, retrieve, runtime, store, voices
 
 try:
     from PIL import Image, ImageDraw, ImageFont
@@ -447,9 +447,17 @@ async def video_notes(notebook: str, *, length: Optional[str] = None,
 async def make_video_overview(notebook: str, *, length: Optional[str] = None,
                               focus: str = "", style: Optional[str] = None,
                               notes: Optional[dict] = None,
-                              language: str = "") -> dict:
+                              language: str = "",
+                              on_step=None, job: str = "") -> dict:
     """Generate the cinematic video overview. Async — runs under an event loop.
-    notes: approved producer notes from video_notes() — skips the script rewrite."""
+    notes: approved producer notes from video_notes() — skips the script rewrite.
+    `job` is a jobs.begin id: steps report into it and cancel is honoured
+    between narration segments and clip encodes."""
+    def _emit(phase: str, detail: str = "") -> None:
+        if on_step:
+            on_step(phase, detail)
+        if job:
+            jobs.check(job)
     if Image is None:
         raise RuntimeError(
             "video overviews need Pillow (a declared plugin dependency). "
@@ -476,6 +484,7 @@ async def make_video_overview(notebook: str, *, length: Optional[str] = None,
             "dependency). Reinstall/re-enable the plugin so PM can fetch it."
         ) from exc
 
+    _emit("reading", f"{len(sources)} sources")
     digest = retrieve.notebook_digest(nb_id, max_chars=int(runtime.config("podcast_context_chars", default=42000)))
     if notes and isinstance(notes.get("beats"), list) and notes["beats"]:
         # reviewed producer notes come back verbatim — no second model pass
@@ -491,6 +500,7 @@ async def make_video_overview(notebook: str, *, length: Optional[str] = None,
             for i, seg in enumerate(segs):
                 seg["palette"] = _EXPLAINER_PALETTES[i % len(_EXPLAINER_PALETTES)]
     else:
+        _emit("writing", "video script")
         segs, ep_title = await _video_script(nb_id, meta, digest, length, focus, style, language)
 
     voice = str(runtime.config("video_voice", default="en-US-AndrewNeural"))
@@ -505,6 +515,8 @@ async def make_video_overview(notebook: str, *, length: Optional[str] = None,
     stamp = runtime.utc_stamp()
     work = nb_dir / "artifacts" / f"_video_{stamp}"
     work.mkdir(parents=True, exist_ok=True)
+    if job:
+        jobs.track_file(job, work)
 
     # narration: single voice, slightly slower cinematic pace. edge-tts
     # intermittently returns NoAudioReceived (throttle or a text it can't
@@ -540,15 +552,40 @@ async def make_video_overview(notebook: str, *, length: Optional[str] = None,
         raise last or RuntimeError("TTS failed")
 
     sem = asyncio.Semaphore(int(runtime.config("audio_tts_concurrency", default=4)))
+    total = len(segs)
+    _emit("narrating", f"0 of {total} segments")
 
     async def _seg(i: int, seg: dict):
         out = work / f"seg_{i:03d}.mp3"
         async with sem:
             await _narrate(seg["text"], out)
 
-    results = await asyncio.gather(*[_seg(i, s) for i, s in enumerate(segs)],
-                                   return_exceptions=True)
-    errors = [(i, r) for i, r in enumerate(results) if isinstance(r, BaseException)]
+    tasks = [asyncio.ensure_future(_seg(i, s)) for i, s in enumerate(segs)]
+    seg_of = {t: i for i, t in enumerate(tasks)}
+    pending = set(tasks)
+    errors: list = []
+    done_n = 0
+    try:
+        # wait in slices so cancel lands between segments — gather() would
+        # voice every queued segment even after the user hit stop
+        while pending:
+            if job:
+                jobs.check(job)
+            done, pending = await asyncio.wait(
+                pending, timeout=0.4, return_when=asyncio.FIRST_COMPLETED)
+            for t in done:
+                done_n += 1
+                try:
+                    t.result()
+                except BaseException as exc:  # noqa: BLE001 - collected below
+                    errors.append((seg_of.get(t, -1), exc))
+            _emit("narrating", f"{done_n} of {total} segments")
+    except jobs.JobCancelled:
+        for t in pending:
+            t.cancel()
+        if pending:
+            await asyncio.gather(*pending, return_exceptions=True)
+        raise
     if errors:
         detail = "; ".join(f"seg {i} ({segs[i]['headline'][:30]!r}): {str(r)[:90]}"
                            for i, r in errors[:3])
@@ -568,6 +605,7 @@ async def make_video_overview(notebook: str, *, length: Optional[str] = None,
 
     clips = []
     for j, (card, seg_i, kind) in enumerate(cards):
+        _emit("rendering", f"clip {j + 1} of {len(cards)}")
         clip = work / f"clip_{j:03d}.mp4"
         if kind == "end":
             _encode_clip(card, None, 4.0, clip)
@@ -575,8 +613,11 @@ async def make_video_overview(notebook: str, *, length: Optional[str] = None,
             _encode_clip(card, parts[seg_i], durs[seg_i], clip)
         clips.append(clip)
 
+    _emit("assembling", "joining the video")
     mp4_path = nb_dir / "artifacts" / f"{stamp}-video_overview.mp4"
     _assemble_video(clips, mp4_path)
+    if job:
+        jobs.track_file(job, mp4_path)
 
     # transcript (reuse the podcast transcript shape, single narrator)
     txt_path = nb_dir / "artifacts" / f"{stamp}-video_overview.txt"
@@ -586,12 +627,16 @@ async def make_video_overview(notebook: str, *, length: Optional[str] = None,
     for seg in segs:
         tlines += [f"**Narrator:** {seg['text']}", ""]
     txt_path.write_text("\n".join(tlines), encoding="utf-8")
+    if job:
+        jobs.track_file(job, txt_path)
 
     script_path = nb_dir / "artifacts" / f"{stamp}-video_overview.json"
     script_path.write_text(json.dumps(
         {"title": ep_title, "notebook": meta.get("title"), "length": length,
          "voice": voice, "rate": rate, "segments": segs},
         indent=2, ensure_ascii=False), encoding="utf-8")
+    if job:
+        jobs.track_file(job, script_path)
 
     import shutil as _sh
     _sh.rmtree(work, ignore_errors=True)

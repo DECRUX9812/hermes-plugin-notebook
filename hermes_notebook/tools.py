@@ -52,7 +52,7 @@ def notebook_create(args: dict, **kw) -> str:
     )
 
 
-def notebook_add_source(args: dict, **kw) -> str:
+def notebook_add_source(args: dict, on_step=None, **kw) -> str:
     nb_id = store.resolve_notebook(args.get("notebook") or "")
     rec = ingest.ingest(
         nb_id,
@@ -60,6 +60,7 @@ def notebook_add_source(args: dict, **kw) -> str:
         url=args.get("url"),
         text=args.get("text"),
         title=args.get("title"),
+        on_step=on_step,
     )
     if isinstance(rec, dict) and rec.get("skipped") == "duplicate":
         dup = rec.get("duplicate_of") or {}
