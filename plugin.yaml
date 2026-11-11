@@ -45,7 +45,7 @@ config_schema:
     description: Notebook used when a tool call does not name one.
   ask_context_chars:
     type: int
-    default: 28000
+    default: 16000
     label: Chat context budget
     description: Max characters of source text sent to the model per notebook_ask call.
   podcast_context_chars:

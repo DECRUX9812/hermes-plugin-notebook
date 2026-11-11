@@ -384,6 +384,31 @@ def test_followup_expansion_rules(ctx):
     assert 0 < len(borrowed) <= 8
 
 
+# ------------------------------------------------------------- usage (P4)
+
+def test_ask_reports_usage(ctx):
+    """Every ask returns the cost in checkable units: what went into the
+    prompt, what of it was sources vs history, and the ~4-char token estimate.
+    Real tokens ride along when the host reports them."""
+    _mk()
+    out = _ask("threads-nb", "what stage is assembly at?")
+    usage = out["usage"]
+    assert usage["prompt_chars"] > 0
+    assert usage["context_chars"] > 0
+    assert usage["sources"] == 1
+    assert usage["approx_tokens"] == round(usage["prompt_chars"] / 4)
+    # the fake ctx reports total_tokens=1 → real usage preferred over approx
+    assert usage["tokens"] == 1
+    assert usage["prompt_chars"] >= usage["context_chars"] + usage["history_chars"]
+
+
+def test_ask_usage_history_grows_with_thread(ctx):
+    _mk()
+    _ask("threads-nb", "first question about assembly?")
+    out = _ask("threads-nb", "second question about assembly?")
+    assert out["usage"]["history_chars"] > 0
+
+
 def test_threads_tool_actions():
     _mk()
     made = json.loads(tools.notebook_threads({"notebook": "threads-nb", "action": "new",

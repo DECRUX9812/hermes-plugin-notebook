@@ -1147,6 +1147,7 @@ async def ask(payload: Dict[str, Any] = Body(...)) -> Any:
         "total_chunks": out.get("total_chunks"),
         "context_chars": out.get("context_chars"),
         "tokens": out.get("tokens"),
+        "usage": out.get("usage"),
         "seconds": round(time.time() - started, 1),
         "thread": out.get("thread"),
     }

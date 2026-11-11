@@ -4636,7 +4636,7 @@ function Chat({ notebook, kinds, askOpen, onSay, modelReady, onCite, onOpenSourc
       const answer = {
         role: 'assistant', content: out.answer, k: `a${Date.now()}`,
         citations: out.citations || [], seconds: out.seconds,
-        chars: out.context_chars, tokens: out.tokens,
+        chars: out.context_chars, tokens: out.tokens, usage: out.usage,
         actions: out.actions || [], council: out.council || null,
         meta: (out.actions || []).length
           ? `${out.actions.length} tool${out.actions.length === 1 ? '' : 's'} ran`
@@ -5313,15 +5313,19 @@ function Msg({ msg, onCite, notebook, canRetry, onRetry, onSay, reload }) {
             el('div', { className: 'nb-bubble' },
               jsx(Markdown, { text: msg.content, onCite: citeClick })),
             // what the answer cost, in the units a reader can check: how many
-            // sources fed it, how much text that was, how long it took — and
-            // tokens when the model reports them
+            // sources fed it, how much text that was, how long it took — real
+            // token usage when the host reports it, the ~4-chars-per-token
+            // estimate always
             (() => {
               const cites = msg.citations || []
               const bits = []
               if (cites.length) bits.push(`${cites.length} source${cites.length === 1 ? '' : 's'}`)
               if (msg.chars) bits.push(`${nfmt(msg.chars)} chars`)
               if (msg.seconds) bits.push(`${msg.seconds}s`)
-              if (msg.tokens) bits.push(`${nfmt(msg.tokens)} tokens`)
+              const toks = (msg.tokens || (msg.usage && msg.usage.tokens))
+              const approx = (msg.usage && msg.usage.approx_tokens)
+              if (toks) bits.push(`${nfmt(toks)} tokens`)
+              else if (approx) bits.push(`~${nfmt(approx)} tokens`)
               return bits.length
                 ? el('div', { className: 'nb-cost', children: bits.join(' · ') })
                 : null

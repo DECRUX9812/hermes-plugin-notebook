@@ -411,7 +411,7 @@ def notebook_ask(args: dict, **kw) -> str:
     question = (args.get("question") or "").strip()
     if not question:
         raise ValueError("question is required")
-    max_chars = int(args.get("max_chars") or runtime.config("ask_context_chars", default=28000))
+    max_chars = int(args.get("max_chars") or runtime.config("ask_context_chars", default=16000))
     only = args.get("source_ids") or None
     if only is not None and not isinstance(only, list):
         only = [str(only)]
@@ -439,16 +439,19 @@ def notebook_ask(args: dict, **kw) -> str:
     )
     system_prompt, max_tokens = _ask_system(nb_id)
     messages = [{"role": "system", "content": system_prompt}]
+    history_chars = 0
     summary = str(tdoc.get("summary") or "").strip() if thread_name else ""
     if summary:
-        messages.append({"role": "system", "content":
-                         f"Earlier in this conversation: {summary}"})
+        note = f"Earlier in this conversation: {summary}"
+        messages.append({"role": "system", "content": note})
+        history_chars += len(note)
     for m in history[-_HISTORY_EXCHANGES * 2:]:
         role = m.get("role")
         if role in {"user", "assistant"} and m.get("content"):
             content = _history_content(role, m["content"])
             if content:
                 messages.append({"role": role, "content": content})
+                history_chars += len(content)
     messages.append({"role": "user", "content": user})
     usage: list = []
     answer = llmio.complete(
@@ -474,6 +477,19 @@ def notebook_ask(args: dict, **kw) -> str:
     if u is not None:
         tokens = int(getattr(u, "total_tokens", 0) or 0) or int(
             getattr(u, "input_tokens", 0) or 0) + int(getattr(u, "output_tokens", 0) or 0)
+    # what this ask cost, in units the page can check and the logs can sum:
+    # real token usage when the host reports it, the ~4-chars-per-token
+    # estimate always
+    prompt_chars = sum(len(str(m.get("content") or "")) for m in messages)
+    usage_obj = {
+        "prompt_chars": prompt_chars,
+        "context_chars": len(result["context"]),
+        "history_chars": history_chars,
+        "sources": len(result["sources_used"]),
+        "approx_tokens": round(prompt_chars / 4),
+    }
+    if tokens:
+        usage_obj["tokens"] = tokens
     return runtime.ok(
         notebook=nb_id, question=question, answer=answer,
         thread=thread_name,
@@ -481,6 +497,7 @@ def notebook_ask(args: dict, **kw) -> str:
         chunks_used=result["chunks_used"], total_chunks=result["total_chunks"],
         context_chars=len(result["context"]),
         tokens=tokens or None,
+        usage=usage_obj,
     )
 
 

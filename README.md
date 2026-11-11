@@ -281,7 +281,7 @@ Under `plugins.entries.hermes-notebook.settings` (or `hermes plugins config`):
 | key | default | meaning |
 |---|---|---|
 | `default_notebook` | `""` | notebook used when a call doesn't name one |
-| `ask_context_chars` | `28000` | context budget per `notebook_ask` |
+| `ask_context_chars` | `16000` | context budget per `notebook_ask` |
 | `podcast_context_chars` | `42000` | context budget for scripts/artifacts |
 | `podcast_length` | `medium` | default audio length (short ≈5m, medium ≈10m, long ≈18m) |
 | `video_length` | `medium` | default video length (short ≈2m, medium ≈4m, long ≈7m) |
