@@ -18,7 +18,7 @@ const ACTION_LABEL = {
 
    One tokenizer for the three languages a card can hold. It runs over the
    string and returns React children — never HTML — so a query containing
-   `<script>` renders as text, which is what the reader typed. */
+   markup renders as text, which is what the reader typed. */
 
 const HL_KEYWORDS = {
   sql: 'select from where group by order having limit offset join left right inner outer full on using as and or not in is null like between distinct union all case when then else end with asc desc count sum avg min max cast round abs over partition row_number date_trunc strftime',
