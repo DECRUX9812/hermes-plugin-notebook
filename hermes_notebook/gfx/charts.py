@@ -604,4 +604,20 @@ def draw(block: Dict, x: float, y: float, w: float, h: float, f, p) -> List[str]
     return fn(block, x, y, w, h, f, p) if fn else []
 
 
-__all__ = ["FS_MIN", "measure", "draw", "cites_marks", "GROWABLE", "DROP_ORDER"]
+def render_block(block: Dict, p, width: int = 960, height: int = 420,
+                 inline: bool = True) -> str:
+    """A single block as a standalone SVG — the slide-deck reuse path."""
+    from .templates import Frame
+    f = Frame(int(width), int(height))
+    pad = 10
+    els = draw(block, pad, pad, width - 2 * pad, height - 2 * pad, f, p)
+    prolog = "" if inline else '<?xml version="1.0" encoding="UTF-8"?>'
+    return (f'{prolog}<svg xmlns="http://www.w3.org/2000/svg" '
+            f'width="{int(width)}" height="{int(height)}" '
+            f'viewBox="0 0 {int(width)} {int(height)}" role="img">'
+            f'{core.rect(0, 0, width, height, fill=p.paper)}'
+            f'{"".join(els)}</svg>')
+
+
+__all__ = ["FS_MIN", "measure", "draw", "render_block",
+           "cites_marks", "GROWABLE", "DROP_ORDER"]

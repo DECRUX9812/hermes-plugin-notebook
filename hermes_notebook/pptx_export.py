@@ -88,6 +88,7 @@ REL_THEME = _NS_R + "/theme"
 REL_CORE = ("http://schemas.openxmlformats.org/package/2006/relationships/"
             "metadata/core-properties")
 REL_APP = _NS_R + "/extended-properties"
+REL_IMAGE = _NS_R + "/image"
 
 _XML_DECL = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\n'
 _NS_DECL = f'xmlns:a="{_NS_A}" xmlns:r="{_NS_R}" xmlns:p="{_NS_P}"'
@@ -177,7 +178,8 @@ def _normalize_slide(raw: object, index: int) -> dict:
     bullets = bullets[:MAX_BULLETS]
     notes = _notes_text(raw.get("notes") or raw.get("note") or "")
     return {"title": _clip(title, MAX_TITLE_CHARS), "bullets": bullets,
-            "notes": notes}
+            "notes": notes,
+            "has_chart": isinstance(raw.get("chart"), dict)}
 
 
 def _closing_bullets(slides: list[dict]) -> list[str]:
@@ -236,6 +238,22 @@ def _shape(shape_id: int, name: str, ph: str, geom: tuple[int, int, int, int],
     )
 
 
+def _pic(shape_id: int, name: str, geom: tuple[int, int, int, int],
+         rid: str) -> str:
+    """A picture element bound to a rel id — how the slide deck embeds a chart."""
+    x, y, cx, cy = geom
+    return (
+        f'<p:pic><p:nvPicPr><p:cNvPr id="{shape_id}" name={_attr(name)}/>'
+        '<p:cNvPicPr><a:picLocks noChangeAspect="1"/></p:cNvPicPr>'
+        '<p:nvPr/></p:nvPicPr>'
+        f'<p:blipFill><a:blip r:embed="{rid}"/><a:stretch><a:fillRect/></a:stretch>'
+        '</p:blipFill>'
+        f'<p:spPr><a:xfrm><a:off x="{x}" y="{y}"/>'
+        f'<a:ext cx="{cx}" cy="{cy}"/></a:xfrm><a:prstGeom prst="rect">'
+        '<a:avLst/></a:prstGeom></p:spPr></p:pic>'
+    )
+
+
 def _body_size(bullet_count: int) -> int:
     if bullet_count <= 6:
         return 2000
@@ -268,7 +286,8 @@ def _title_slide_xml(title: str, subtitle: str) -> str:
     return _slide_xml(shapes)
 
 
-def _content_slide_xml(title: str, bullets: list[str]) -> str:
+def _content_slide_xml(title: str, bullets: list[str],
+                       pic_rid: str = "") -> str:
     title_geom = (838200, 365125, 10515600, 1181100)
     shapes = _shape(
         2, "Title 1", '<p:ph type="title"/>', title_geom,
@@ -284,6 +303,9 @@ def _content_slide_xml(title: str, bullets: list[str]) -> str:
             (838200, 1600200, 10515600, 4572000), body,
             '<a:bodyPr><a:normAutofit/></a:bodyPr>',
         )
+    if pic_rid:
+        # the chart sits in the lower-right quadrant, full-bleed box
+        shapes += _pic(4, "Chart", (6477000, 1905000, 5518160, 5029200), pic_rid)
     return _slide_xml(shapes)
 
 
@@ -483,7 +505,9 @@ def _app_xml(slide_count: int, notes_count: int) -> str:
 
 
 def _content_types_xml(overrides: dict[str, str]) -> str:
-    parts = "".join(
+    parts = ('<Default Extension="png" ContentType="image/png"/>'
+             if overrides.pop("__png__", False) else "")
+    parts += "".join(
         f'<Override PartName={_attr("/" + name.lstrip("/"))} '
         f'ContentType="{ctype}"/>'
         for name, ctype in sorted(overrides.items())
@@ -514,7 +538,8 @@ def _zip_bytes(parts: dict[str, tuple[bytes, str]]) -> bytes:
 
 # --------------------------------------------------------------------- public
 
-def build_pptx(deck_title: str, slides: list[dict], subtitle: str = "") -> bytes:
+def build_pptx(deck_title: str, slides: list[dict], subtitle: str = "",
+               images: "dict[int, bytes] | None" = None) -> bytes:
     """Render a slide deck (the artifact JSON shape) as a PPTX file.
 
     Parameters
@@ -560,8 +585,13 @@ def build_pptx(deck_title: str, slides: list[dict], subtitle: str = "") -> bytes
 
     parts: dict[str, tuple[bytes, str]] = {}
 
+    images = images or {}
+
     def add(name: str, xml: str, ctype: str) -> None:
         parts[name] = (xml.encode("utf-8"), ctype)
+
+    def addb(name: str, data: bytes, ctype: str) -> None:
+        parts[name] = (data, ctype)
 
     # rel ids for the presentation part: master, optional notes master, slides.
     output_slides = [None] + normalized  # None is the cover slide
@@ -638,10 +668,21 @@ def build_pptx(deck_title: str, slides: list[dict], subtitle: str = "") -> bytes
             "application/vnd.openxmlformats-package.relationships+xml")
 
     notes_index = 0
+    media_n = 0
     for index, slide in enumerate(output_slides, start=1):
         layout = 1 if slide is None else 2
         rels = [("rId1", REL_SLIDE_LAYOUT,
                  f"../slideLayouts/slideLayout{layout}.xml")]
+        pic_rid = ""
+        if slide is not None:
+            # images are keyed by the slide's position in `normalized`
+            img = images.get(index - 2)
+            if img:
+                media_n += 1
+                media_name = f"media/chart{media_n}.png"
+                addb(f"ppt/{media_name}", img, "image/png")
+                pic_rid = "rId" + str(len(rels) + (2 if slide["notes"] else 1))
+                rels.append((pic_rid, REL_IMAGE, f"../{media_name}"))
         notes = "" if slide is None else slide["notes"]
         if notes:
             notes_index += 1
@@ -663,7 +704,8 @@ def build_pptx(deck_title: str, slides: list[dict], subtitle: str = "") -> bytes
         if slide is None:
             xml = _title_slide_xml(title, subtitle_text)
         else:
-            xml = _content_slide_xml(slide["title"], slide["bullets"])
+            xml = _content_slide_xml(slide["title"], slide["bullets"],
+                                     pic_rid=pic_rid)
         add(f"ppt/slides/slide{index}.xml", xml, CT_SLIDE)
 
     stamp = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
@@ -673,8 +715,11 @@ def build_pptx(deck_title: str, slides: list[dict], subtitle: str = "") -> bytes
     overrides = {
         name: ctype for name, (_data, ctype) in parts.items()
         if not ctype.endswith("relationships+xml")
+           and not name.startswith("ppt/media/")
     }
     # The content-types part is never itself an override and always goes first.
+    if media_n:
+        overrides["__png__"] = "true"
     parts["[Content_Types].xml"] = (
         _content_types_xml(overrides).encode("utf-8"), "application/xml")
     add("_rels/.rels", _rels_xml([

@@ -1663,7 +1663,29 @@ def artifact_pptx(notebook: str = Query(...), name: str = Query(...),
     meta = store.get_meta(nb_id)
     title = str(deck.get("title") or meta.get("title") or nb_id)
     subtitle = str(deck.get("subtitle") or deck.get("framing") or meta.get("description") or "")
-    data = pptx_export.build_pptx(title, slides, subtitle=subtitle)
+    # slides may carry a verified infographic block — it lands in the deck as a
+    # PNG, drawn by the same chart code as the poster (skipped if no browser)
+    images = {}
+    try:
+        from hermes_notebook.gfx import charts as _charts
+        preset = gfx.resolve_preset("neon")
+        import tempfile
+        with tempfile.TemporaryDirectory() as tmp:
+            for idx, s in enumerate(slides):
+                ch = s.get("chart") if isinstance(s, dict) else None
+                if not isinstance(ch, dict):
+                    continue
+                try:
+                    svg = _charts.render_block(ch, preset, 1100, 460)
+                    target = Path(tmp) / f"chart{idx}.png"
+                    gfx.svg_to_png(svg, target, width=1100, height=460, scale=2)
+                    images[idx] = target.read_bytes()
+                except Exception:
+                    continue
+    except Exception:
+        images = {}
+    data = pptx_export.build_pptx(title, slides, subtitle=subtitle,
+                                  images=images or None)
     filename = runtime.slugify(title, limit=40) + ".pptx"
     mime = "application/vnd.openxmlformats-officedocument.presentationml.presentation"
     if b64:

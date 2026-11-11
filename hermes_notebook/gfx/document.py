@@ -371,6 +371,32 @@ def chrome_path() -> Optional[str]:
     return None
 
 
+def svg_to_png(svg: str, path: Any, *, width: int, height: int,
+               scale: float = 1.0) -> Path:
+    """Rasterise an SVG document (already rendered) through headless Chrome —
+    the single-block path (slide charts) that never went through render()."""
+    browser = chrome_path()
+    if not browser:
+        raise RuntimeError("no Chrome/Chromium available to rasterise the SVG")
+    out = Path(path)
+    out.parent.mkdir(parents=True, exist_ok=True)
+    with tempfile.TemporaryDirectory() as tmp:
+        html = Path(tmp) / "g.html"
+        html.write_text(
+            "<!doctype html><meta charset=utf-8>"
+            f"<style>html,body{{margin:0}}svg{{display:block}}</style>" + svg,
+            encoding="utf-8")
+        cmd = [browser, "--headless=new", "--no-sandbox", "--disable-gpu",
+               "--hide-scrollbars", "--virtual-time-budget=4000",
+               f"--force-device-scale-factor={scale}",
+               f"--window-size={int(width)},{int(height)}",
+               f"--screenshot={out}", html.as_uri()]
+        proc = subprocess.run(cmd, capture_output=True, timeout=120)
+        if proc.returncode != 0 or not out.exists():
+            raise RuntimeError(f"chrome failed to rasterise: {proc.stderr[-400:]!r}")
+    return out
+
+
 def to_png(graphic: Any, path: Any, *, scale: float = 1.0, **kwargs: Any) -> Path:
     """Rasterise a render through headless Chrome. Raises RuntimeError when no
     browser is installed — callers should catch that and use the Pillow path."""
@@ -379,30 +405,8 @@ def to_png(graphic: Any, path: Any, *, scale: float = 1.0, **kwargs: Any) -> Pat
         raise RuntimeError("no Chrome/Chromium available to rasterise the SVG")
     w, h = canvas_for(kwargs.get("orientation", "landscape"),
                       kwargs.get("width"), kwargs.get("height"))
-    out = Path(path)
-    out.parent.mkdir(parents=True, exist_ok=True)
-    with tempfile.TemporaryDirectory() as tmp:
-        html = Path(tmp) / "g.html"
-        html.write_text(
-            "<!doctype html><meta charset=utf-8>"
-            f"<style>html,body{{margin:0}}svg{{display:block}}</style>"
-            + render(graphic, inline=True, responsive=False, **kwargs),
-            encoding="utf-8")
-        # --window-size is in CSS pixels and --force-device-scale-factor multiplies
-        # it into device pixels. Multiplying BOTH (the old code did) asked Chrome
-        # for a 2400x1800 CSS viewport at 2x and photographed the 4800x3600
-        # result: the 1200x900 document painted only its top-left quarter, at
-        # exactly half size in each axis. scale=1 hid the bug because 1 is
-        # identity; every scale>1 request was broken.
-        cmd = [browser, "--headless=new", "--no-sandbox", "--disable-gpu",
-               "--hide-scrollbars", "--virtual-time-budget=4000",
-               f"--force-device-scale-factor={scale}",
-               f"--window-size={int(w)},{int(h)}",
-               f"--screenshot={out}", html.as_uri()]
-        proc = subprocess.run(cmd, capture_output=True, timeout=120)
-        if proc.returncode != 0 or not out.exists():
-            raise RuntimeError(f"chrome failed to rasterise: {proc.stderr[-400:]!r}")
-    return out
+    svg = render(graphic, inline=True, responsive=False, **kwargs)
+    return svg_to_png(svg, path, width=w, height=h, scale=scale)
 
 
 def to_png_pillow(graphic: Any, path: Any, preset: Optional[str] = None,

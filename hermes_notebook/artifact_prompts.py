@@ -625,6 +625,13 @@ SCHEMAS: Dict[str, Dict[str, Any]] = {
                                        "detail": {"type": "string"}},
                         "required": ["label"],
                     }},
+                    "chart": {"type": "object", "description":
+                        "optional infographic-style block (bar|share|trend|timeline|compare|steps) "
+                        "this slide is built around — same shape as infographic blocks",
+                        "properties": {
+                            "type": _enum(["bar", "share", "trend", "timeline",
+                                           "compare", "steps"], "chart kind")},
+                        "required": ["type"]},
                     "citations": _CITES,
                     "notes": {"type": "string", "description": "speaker notes with detail and [S#]"},
                     "note": {"type": "string", "description": "alias for notes"},

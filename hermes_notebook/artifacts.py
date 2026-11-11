@@ -444,6 +444,31 @@ def generate(notebook: str, kind: str, *, focus: str = "", count_hint: str = "",
     if parsed is None:
         raise RuntimeError("model did not return valid JSON for this artifact")
 
+    if kind == "slides":
+        # a slide's optional chart is a blocks-graphic block: normalise it and
+        # run the same verification the poster gets, so a number on a slide is
+        # held to the same bar as a number on an infographic — BEFORE the JSON
+        # is written, so the artifact keeps the verified shape
+        from .gfx import blocks as _blocks
+        from . import verify as _verify
+        pairs = store.all_source_texts(nb_id)
+        order = {s.get("id"): i + 1 for i, s in enumerate(sources)}
+        smap = {order.get(r.get("id")): t for r, t in pairs}
+        for s in parsed.get("slides") or []:
+            ch = s.get("chart")
+            if not isinstance(ch, dict):
+                continue
+            g = _blocks.normalise_graphic({"blocks": [ch]})
+            if g["blocks"]:
+                _verify.verify_graphic(g, smap)
+                if g["blocks"]:
+                    s["chart"] = g["blocks"][0]
+                    s["_chart_verify"] = g["_verify"]
+                else:
+                    s.pop("chart", None)
+            else:
+                s.pop("chart", None)
+
     json_path = _save("json", json.dumps(parsed, indent=2, ensure_ascii=False))
     header = f"# {meta.get('title')} — {KIND_LABEL[kind]}\n\n"
     header += f"_Generated {runtime.utc_stamp()} · {len(sources)} sources_\n\n---\n\n"
@@ -657,10 +682,24 @@ def _render_slides_html(data: dict, deck_title: str) -> str:
         title = _esc(str(s.get("title") or f"Slide {i + 1}"))
         note = _esc(str(s.get("note") or ""))
         lis = "".join(f"<li>{_esc(str(b))}</li>" for b in (s.get("bullets") or [])[:8])
+        chart_html = ""
+        if isinstance(s.get("chart"), dict):
+            # the composer draws the block — same chart code as the poster, so
+            # a chart on a slide renders exactly like the infographic's
+            try:
+                from .gfx import charts as _charts, resolve_preset
+                chart_html = ('<div class="chartbox">'
+                              + _charts.render_block(s["chart"],
+                                                     resolve_preset("neon"),
+                                                     1100, 460)
+                              + "</div>")
+            except Exception:
+                chart_html = ""
         cards.append(
             f'<section class="slide{" title-slide" if i == 0 else ""}">'
             f'<div class="num">{i + 1:02d} / {len(slides):02d}</div>'
             f'<h1>{title}</h1><ul>{lis}</ul>'
+            + chart_html
             + (f'<div class="note">{note}</div>' if note else "")
             + "</section>")
     title_esc = _esc(data.get("title") or deck_title)
@@ -677,6 +716,8 @@ li{{font-size:clamp(1.1rem,2vw,1.6rem);line-height:1.5;padding:.55em 0 .55em 1.6
 li::before{{content:"";position:absolute;left:0;top:.95em;width:.7em;height:.7em;border-radius:50%;background:#8b6cff}}
 .num{{position:absolute;top:3vh;right:4vw;font-size:.85rem;letter-spacing:.2em;color:#8b6cff;font-weight:600}}
 .note{{margin-top:5vh;font-size:.95rem;color:#8a8aa5;font-style:italic}}
+.chartbox{{margin-top:3.5vh;max-width:1100px}}
+.chartbox svg{{width:100%;height:auto;display:block;border-radius:14px}}
 .hint{{position:fixed;bottom:2.5vh;width:100%;text-align:center;font-size:.8rem;color:#55556e;letter-spacing:.15em}}
 .bar{{position:fixed;top:0;left:0;height:3px;background:linear-gradient(90deg,#8b6cff,#ec945c);transition:width .3s}}
 </style></head><body>
