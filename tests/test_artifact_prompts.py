@@ -374,6 +374,7 @@ def test_sheet_title_is_sanitised():
     """openpyxl refuses `[]:*?/\\` in a sheet title and caps it at 31 chars. A
     generated title like "Commercial Fusion 2026: state of play" raised
     ValueError on the first click of Export → XLSX."""
+    pytest.importorskip("openpyxl")
     from hermes_notebook import xlsx_export
 
     assert xlsx_export._sheet_name("Commercial Fusion 2026: state of play") == \

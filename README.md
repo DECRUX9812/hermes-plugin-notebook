@@ -316,7 +316,7 @@ must obey. Feed it to any model asked to design or generate surfaces here.
 
 ```bash
 python -m pytest tests/ -q          # agent half (no Hermes host needed)
-node build.mjs                      # src/*.js -> desktop/plugin.js + web/plugin.js
+node build.mjs                      # src/*.js -> desktop/plugin.js
 python3 tests/dump_state.py         # real payloads for the preview harness
 node tests/make-preview.mjs         # esbuild harness (SDK stubbed, React real)
 node tests/gates.mjs                # bundle-load + functional + a11y + layout
