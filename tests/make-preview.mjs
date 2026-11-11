@@ -56,7 +56,7 @@ export const host = {
 /* ---------------------------------------------------------------- bundle */
 const files = readdirSync(join(here, '../src')).filter((f) => f.endsWith('.js')).sort()
 let code = files.map((f) => readFileSync(join(here, '../src', f), 'utf8').trimEnd()).join('\n\n')
-code += `\nexport { App, StudioPanel, Viewer, OpsDeck, Rail, Markdown, KIND_ICON, CSS, plugin }\n`
+code += `\nexport { App, StudioPanel, Viewer, Rail, Markdown, KIND_ICON, CSS, plugin }\n`
 writeFileSync(join(tmp, 'preview.mjs'), code)
 
 /* --------------------------------------------------------------- payloads */
@@ -65,14 +65,14 @@ const state = JSON.parse(readFileSync(join(tmp, 'state.json'), 'utf8'))
 if (state.notebook) {
   state.notebook.threads = [
     { name: 'default', title: 'What do the sources say about funding?', count: 4, updated: '2025-11-02T10:00:00Z' },
-    { name: 'chat-abc123', title: 'Compare the two architectures', count: 6, updated: '2025-11-03T09:30:00Z' }
+    { name: 'chat-abc123', title: 'Compare the two architectures', count: 6, updated: '2025-11-03T09:30:00Z' },
+    { name: 'chat-def456', title: 'Tritium breeding options', count: 2, updated: '2025-11-03T08:00:00Z' },
+    { name: 'chat-ghi789', title: 'Cost projections across sources', count: 3, updated: '2025-11-02T15:00:00Z' },
+    { name: 'chat-jkl012', title: 'Regulatory filings roundup', count: 1, updated: '2025-11-01T12:00:00Z' },
+    { name: 'chat-mno345', title: 'Stellarator vs tokamak', count: 5, updated: '2025-10-31T18:00:00Z' }
   ]
 }
-const fleet = existsSync(join(tmp, 'ops-fleet.json')) ? readFileSync(join(tmp, 'ops-fleet.json'), 'utf8') : '{"hosts":[]}'
-const services = existsSync(join(tmp, 'ops-services.json')) ? readFileSync(join(tmp, 'ops-services.json'), 'utf8') : '{"units":[]}'
-const audit = existsSync(join(tmp, 'ops-audit.json')) ? readFileSync(join(tmp, 'ops-audit.json'), 'utf8') : '{"entries":[]}'
 const styles = existsSync(join(tmp, 'styles.json')) ? readFileSync(join(tmp, 'styles.json'), 'utf8') : '{"ok":true,"styles":[],"previews":{}}'
-const exec = existsSync(join(tmp, 'ops-exec.json')) ? readFileSync(join(tmp, 'ops-exec.json'), 'utf8') : '{"ok":false,"result":{"ok":false,"out":"","err":"no captured run"}}'
 writeFileSync(join(tmp, 'payloads.mjs'), `
 export const STUDY_CARDS = [
   { id: 'c-iter-six', kind: 'flash', phase: 'new', front: "What does ITER's 'six of nine' refer to?",
@@ -100,18 +100,14 @@ export const STUDY_STATS = () => {
 }
 
 export const STATE = ${JSON.stringify(state)}
-export const FLEET = ${fleet}
-export const SERVICES = ${services}
-export const AUDIT = ${audit}
-export const EXEC = ${exec}
 export const STYLES = ${styles}
 `)
 
 writeFileSync(join(tmp, 'preview-entry.mjs'), `
 import React from 'react'
 import { createRoot } from 'react-dom/client'
-import { App, OpsDeck, plugin } from './preview.mjs'
-import { STATE, FLEET, SERVICES, AUDIT, EXEC, STYLES, STUDY_CARDS, STUDY_DONE, STUDY_STATS } from './payloads.mjs'
+import { App, plugin } from './preview.mjs'
+import { STATE, STYLES, STUDY_CARDS, STUDY_DONE, STUDY_STATS } from './payloads.mjs'
 
 window.React = React
 
@@ -137,6 +133,11 @@ const rest = async (path, opts) => {
   const clean = String(path).replace(/^\\/+/, '')
   const [route, query] = clean.split('?')
   const params = new URLSearchParams(query || '')
+  // Every call the page makes is recorded, so a gate can assert the SHAPE of a
+  // request the harness cannot answer with real bytes — /artifact/xlsx is built
+  // by python, and the bug it guards against (the page forgetting to send the
+  // notebook the route resolves first) is visible in the URL, not the payload.
+  ;(window.__NB_REQ__ = window.__NB_REQ__ || []).push(clean)
   // the harness renders the page as it appears with the agent half registered;
   // the dumped payload comes from a process where it is not.
   if (route === 'state') return { ...STATE, model_ready: true }
@@ -147,15 +148,21 @@ const rest = async (path, opts) => {
     if (params.get('b64') === '1') return b64(name)
     return (await fetch('/artifacts/' + encodeURIComponent(name))).text()
   }
+  // The two export routes resolve the notebook BEFORE they read the artifact, so
+  // a request without one is a 422 — exactly what the real router returns.
+  if (route === 'artifact/xlsx' || route === 'artifact/pptx') {
+    if (!params.get('notebook')) return { ok: false, error: 'notebook: Field required' }
+    const name = params.get('name') || 'file.json'
+    return { ok: true, name: name.replace(/\.json$/i, route.endsWith('xlsx') ? '.xlsx' : '.pptx'),
+             mime: route.endsWith('xlsx')
+               ? 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+               : 'application/vnd.openxmlformats-officedocument.presentationml.presentation',
+             b64: 'UEsDBAo=' }
+  }
   if (route === 'source_text') {
     const src = (STATE.notebook?.sources || []).find((s) => s.id === params.get('id'))
     return { ok: true, text: 'Preview harness: the source text lives in the plugin store.\\n\\n' + (src ? src.summary || src.title : '') }
   }
-  if (route === 'ops/fleet') return { ...FLEET, ok: true }
-  if (route === 'ops/services') return { ...SERVICES, ok: true }
-  if (route === 'ops/audit') return { ...AUDIT, ok: true }
-  // one captured run, replayed verbatim — real exit code, real stdout
-  if (route === 'ops/exec') return { ...EXEC, ok: true }
   if (route === 'ask') {
     await new Promise((r) => setTimeout(r, 900))
     return {
@@ -176,6 +183,88 @@ const rest = async (path, opts) => {
         { n: 4, title: 'Two-thirds of ITER tokamak core now in place - ITER Organization', kind: 'url', origin: 'https://www.iter.org/two-thirds-iter-tokamak-core-now-place', id: 'iter-two-thirds-tokamak-core' }
       ].map((c) => ({ ...c, snippet: ((((STATE.notebook && STATE.notebook.sources) || []).find((s) => s.id === c.id) || {}).summary || '').slice(0, 160) })),
       chunks_used: 12, total_chunks: 96, seconds: 4.2
+    }
+  }
+  // ---- agent mode: one grounded tool run, replayed from a real shape
+  if (route === 'agent/catalog') {
+    return { ok: true, model_ready: true, engine: 'sqlite',
+      tools: [{ id: 'query_table', title: 'SQL', blurb: '', args: {} }],
+      tables: [{ table: 'data_table', source: 'data_table.csv', columns: ['entity', 'amount'], rows: 3, kind: 'csv' }],
+      mcp: [] }
+  }
+  if (route === 'agent/run') {
+    await new Promise((r) => setTimeout(r, 700))
+    // the pill decides the mode; the harness answers both shapes
+    const raw = (opts && (opts.body !== undefined ? opts.body : opts.json))
+    const body = typeof raw === 'string' ? raw : JSON.stringify(raw || {})
+    if (/"mode"\s*:\s*"council"/.test(body)) {
+      return {
+        ok: true, mode: 'council', seconds: 4.2,
+        answer: 'The sources put private fusion funding at **$6.37B** across the three lines named [S1].',
+        citations: [{ n: 1, title: 'FIA funding', kind: 'url', origin: 'fusionindustryassociation.org',
+                      id: 'fia-funding', snippet: 'FIA counts $4.48B in the year to July 2026.' }],
+        actions: [],
+        council: { ok: true, verdict: 'partly', model: 'same model, second pass',
+                   note: 'The total is right; the currency label is an inference.',
+                   unsupported: ['private fusion funding at $6.37B across the three lines named'] }
+      }
+    }
+    return {
+      ok: true, mode: 'agent', seconds: 3.1,
+      answer: 'Across the three funding lines the sources name, the total is **$6.37B**, and FIA accounts for the largest share at $4.48B [S4].',
+      citations: [
+        { n: 4, title: 'FIA funding', kind: 'url', origin: 'https://fusionindustryassociation.org', id: 'fia-funding' }
+      ].map((c) => ({ ...c, snippet: 'FIA counts $4.48B in the year to July 2026.' })),
+      actions: [{
+        tool: 'query_table', ok: true, engine: 'sqlite', ms: 12,
+        sql: 'SELECT entity, amount FROM data_table ORDER BY amount DESC',
+        columns: ['entity', 'amount'],
+        rows: [['FIA', 4.48], ['ITER', 1.1], ['DOE', 0.79]],
+        truncation: false
+      }]
+    }
+  }
+  if (route === 'agent/rerun') {
+    return { ok: true, action: { tool: 'query_table', ok: true, engine: 'sqlite', ms: 9,
+      sql: 'SELECT entity, amount FROM data_table ORDER BY amount DESC',
+      columns: ['entity', 'amount'], rows: [['FIA', 4.48], ['ITER', 1.1], ['DOE', 0.79]] } }
+  }
+  if (route === 'note') return { ok: true }
+
+  if (route === 'tensions') {
+    await new Promise((r) => setTimeout(r, 900))
+    return {
+      ok: true, notebook: STATE.notebook && STATE.notebook.id, title: 'Commercial Fusion Energy in 2026',
+      items: [
+        { topic: 'When commercial fusion power reaches the grid',
+          sides: [
+            { claim: 'US roadmap puts commercial deployment in the mid-2030s.', sources: [2, 4],
+              titles: ['US roadmap targets fusion deployment by mid 2030s - Reuters', 'Two-thirds of ITER tokamak core now in place - ITER Organization'],
+              quote: 'The roadmap targets deployment by the mid-2030s, contingent on federal support.' },
+            { claim: 'ITER assembly is a scientific milestone, not a grid date.', sources: [3],
+              titles: ['ITER reports \u201csubstantial progress\u201d in assembly and installation work'],
+              quote: 'assembly and installation, not first plasma, is what the milestone marks.' }
+          ],
+          why: 'A reader can mistake an assembly milestone for a deployment date.',
+          resolution: 'weighs to the roadmap figure — it is the only sourced deployment date; ITER explicitly dates nothing.' },
+        { topic: 'How much private capital fusion has actually raised',
+          sides: [
+            { claim: '$4.48B raised in the twelve months to July 2026.', sources: [5],
+              titles: ['FIA funding'], quote: 'FIA counts $4.48B in the year to July 2026.' },
+            { claim: 'Cumulative investment is $14.24B since 2021.', sources: [5],
+              titles: ['FIA funding'], quote: '$14.24B cumulative since 2021.' }
+          ],
+          why: 'Period vs cumulative figures are quoted interchangeably in press coverage.',
+          resolution: 'unresolved — both figures are the same association\u2019s, measured over different windows.' }
+      ],
+      agreements: [
+        { claim: 'No defensible levelised cost figure exists yet.', sources: [1, 2] },
+        { claim: 'Tritium breeding at plant flux remains unsolved.', sources: [1, 3] }
+      ],
+      independence: { sources: 6, independent: 4, measured: true, threshold: 0.62,
+        clusters: [{ members: [3, 4], title: 'ITER releases', titles: ['ITER assembly progress', 'Two-thirds core in place'],
+          reason: 'these sources repeat the same opening text — one story, not several' }] },
+      sources: 6, dropped: 0
     }
   }
   if (route === 'discover') {
@@ -201,10 +290,27 @@ const rest = async (path, opts) => {
     const urls = ((opts && opts.body && opts.body.urls) || []).slice(0, 10)
     return {
       ok: true, added: urls.length, duplicates: 0,
-      results: urls.map((u) => ({ url: u, ok: true, duplicate: false, title: u, kind: 'url', labels: ['fusion', 'energy'] })),
+      results: urls.map((u, i) => ({ url: u, ok: true, duplicate: false,
+        source_id: 'mock-src-' + Date.now() + '-' + i, title: u, kind: 'url', labels: ['fusion', 'energy'] })),
       state: STATE
     }
   }
+  if (route === 'source') {
+    await new Promise((r) => setTimeout(r, 900))
+    const body = (opts && opts.body) || {}
+    const title = body.title || body.url || body.path || 'pasted text'
+    const sid = 'mock-src-' + Date.now()
+    const rec = {
+      id: sid, title: String(title).slice(0, 80), kind: body.url ? 'url' : (body.path ? 'file' : 'text'),
+      origin: body.url || body.path || '', chars: 12000, active: true,
+      labels: ['mock'], summary: 'added by the preview mock'
+    }
+    if (STATE.notebook && STATE.notebook.sources) STATE.notebook.sources.push(rec)
+    if (STATE.notebook && STATE.notebook.stats) STATE.notebook.stats.sources = (STATE.notebook.stats.sources || 0) + 1
+    return { ok: true, source: { source_id: sid, title: rec.title, kind: rec.kind }, state: STATE.notebook }
+  }
+  if (route === 'progress') return { ok: true, jobs: {} }
+  if (route === 'cancel') return { ok: true, cancelled: false }
   if (route === 'search') {
     await new Promise((r) => setTimeout(r, 250))
     const q = String((opts && opts.body && opts.body.query) || '').toLowerCase()
@@ -386,7 +492,7 @@ store.set('mode', mode)
 if (q.get('open')) store.set('__open', q.get('open'))
 if (q.get('tab')) store.set('__tab', q.get('tab'))
 
-// always the real App: ?mode=ops seeds the stored surface, which is how the
+// always the real App: ?mode= seeds the stored surface, which is how the
 // app itself remembers the choice.
 createRoot(document.getElementById('root')).render(React.createElement(App, {}))
 `)

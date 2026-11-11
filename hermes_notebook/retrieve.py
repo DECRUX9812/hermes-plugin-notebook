@@ -90,19 +90,34 @@ def _bm25_scores(query_terms: list[str], docs: list[list[str]]) -> list[float]:
     return scores
 
 
+def source_numbers(notebook_id: str) -> dict:
+    """S<n> assignment: a source's number is its 1-based position in
+    ``store.list_sources`` — the rail order.
+
+    One numbering for the page, the prompt, the stored citations, and every
+    artifact. Disabled sources keep their number: an unchecked card leaves
+    a gap in the sequence rather than renumbering everything after it, so
+    ``[S3]`` in an old answer still means the same source.
+    """
+    return {s.get("id"): i for i, s in enumerate(store.list_sources(notebook_id), 1)}
+
+
 def _emit_sources(pairs: list[tuple[dict, str]], final_num: dict[str, int],
                   context_parts: list[str], used: int, max_chars: int,
+                  order: Optional[dict] = None,
                   head_chars: int = 1200) -> int:
     """Fallback path: emit the head of each source (no query signal)."""
     for rec, text in pairs:
         head = text[:head_chars].strip()
         if not head:
             continue
-        if rec["id"] not in final_num:
-            final_num[rec["id"]] = len(final_num) + 1
-        block = f"[S{final_num[rec['id']]} · {rec.get('title')} · {rec.get('kind')}]\n{head}"
+        n = (order or {}).get(rec["id"], len(final_num) + 1)
+        block = f"[S{n} · {rec.get('title')} · {rec.get('kind')}]\n{head}"
         if used + len(block) > max_chars and context_parts:
             break
+        # a source only earns its citation row once its text is in context —
+        # sources_used must never cite what the model could not see
+        final_num.setdefault(rec["id"], n)
         context_parts.append(block)
         used += len(block)
     return used
@@ -113,8 +128,11 @@ def retrieve(notebook_id: str, query: str, *, max_chars: int = 28000,
     """Score all chunks of all sources; return context + citation provenance.
 
     Returns {"context", "sources_used", "chunks_used", "total_chunks"}.
-    Citation numbers [S1], [S2]… are assigned in emission order.
+    Citation numbers [S1], [S2]… are the rail order — a source's position in
+    ``store.list_sources`` — on every path, so the chip the answer marks is
+    the card the user sees.
     """
+    rail = source_numbers(notebook_id)
     sources = store.list_sources(notebook_id)
     pairs = store.all_source_texts(notebook_id)
     if only_ids:
@@ -147,14 +165,16 @@ def retrieve(notebook_id: str, query: str, *, max_chars: int = 28000,
     if total_chars + overhead <= max_chars:
         parts = []
         for i, (rec, text) in enumerate(pairs):
+            n = rail.get(rec.get("id"), i + 1)
             title = _xml_attr(rec.get("title"))
             kind = _xml_attr(rec.get("kind"))
             parts.append(
-                f"[S{i + 1} · {rec.get('title')} · {rec.get('kind')}]\n"
-                f'<source id="S{i + 1}" title="{title}" kind="{kind}">\n'
+                f"[S{n} · {rec.get('title')} · {rec.get('kind')}]\n"
+                f'<source id="S{n}" title="{title}" kind="{kind}">\n'
                 f"{text}\n</source>")
         sources_used = [{
-            "n": i + 1, "id": rec["id"], "title": rec.get("title"),
+            "n": rail.get(rec.get("id"), i + 1), "id": rec["id"],
+            "title": rec.get("title"),
             "kind": rec.get("kind"), "origin": rec.get("origin"),
             "labels": rec.get("labels", []),
             # whole-source citations highlight the head, same as the
@@ -183,20 +203,21 @@ def retrieve(notebook_id: str, query: str, *, max_chars: int = 28000,
             if scores[i] <= 0:
                 break  # remaining chunks have no query overlap
             sid = rec["id"]
-            if sid not in final_num:
-                final_num[sid] = len(final_num) + 1
-            if sid not in best_chunk:
-                best_chunk[sid] = ch
-            block = f"[S{final_num[sid]} · {rec.get('title')} · {rec.get('kind')}]\n{ch}"
+            n = rail.get(sid, len(final_num) + 1)
+            block = f"[S{n} · {rec.get('title')} · {rec.get('kind')}]\n{ch}"
             if used + len(block) > max_chars and context_parts:
                 continue
+            final_num.setdefault(sid, n)
+            if sid not in best_chunk:
+                best_chunk[sid] = ch
             context_parts.append(block)
             used += len(block)
             if used >= max_chars:
                 break
 
     if not context_parts:
-        used = _emit_sources(pairs, final_num, context_parts, used, max_chars)
+        used = _emit_sources(pairs, final_num, context_parts, used, max_chars,
+                             order=rail)
 
     by_id = {s["id"]: s for s in sources}
     inv = {v: k for k, v in final_num.items()}
@@ -268,27 +289,51 @@ def notebook_digest(notebook_id: str, *, max_chars: int = 42000,
     """Broad-coverage digest for artifact/podcast prompts: head + tail slices of
     every source so generation sees the whole notebook, not just one query.
 
-    ``cited=True`` tags each excerpt ``[S<n> · …]`` where n is the source's
-    position in ``store.list_sources`` — the same numbering the page assigns —
-    so a model can cite claims inline and the UI can resolve them."""
+    ``cited=True`` tags each excerpt ``[S<n> · …]``; the uncited path labels
+    them ``[Source <n>: …]``. Either way n is the source's position in
+    ``store.list_sources`` — the same numbering the page assigns — so a
+    disabled source leaves a gap instead of renumbering its neighbours."""
     pairs = store.all_source_texts(notebook_id)
     off = store.disabled_sources(notebook_id)
     if off:
         pairs = [(r, t) for r, t in pairs if r.get("id") not in off]
     if not pairs:
         return ""
-    order = {s.get("id"): i for i, s in enumerate(store.list_sources(notebook_id))} if cited else {}
+    order = source_numbers(notebook_id)
+
+    # a digest over the same active set at the same budget is byte-identical —
+    # artifact generation asks for it on every run. Keep it under the
+    # notebook's cache dir, keyed by sorted active ids + content hashes +
+    # budget (and the cited flag): a re-extracted source, an unchecked card or
+    # a different budget produces a new key, so a stale digest can never be
+    # served by accident. cache/ is excluded from export.
+    import hashlib
+    key_src = "|".join(
+        f"{r.get('id')}:{r.get('content_hash') or ''}"
+        for r, _t in sorted(pairs, key=lambda p: str(p[0].get("id"))))
+    key = hashlib.sha1(
+        f"{key_src}|{max_chars}|{int(bool(cited))}".encode()).hexdigest()[:16]
+    cache = None
+    try:
+        cache = (store._nb_dir(store.resolve_notebook(notebook_id)) / "cache"
+                 / f"digest-{key}.txt")
+        if cache.exists():
+            return cache.read_text(encoding="utf-8")
+    except Exception:
+        cache = None
+
     per_source = max(1500, max_chars // max(1, len(pairs)))
     parts = []
     for i, (rec, text) in enumerate(pairs, 1):
+        n = order.get(rec.get("id"), i)
         labels = ", ".join(rec.get("labels") or [])
         if cited:
-            header = f"[S{order.get(rec.get('id'), i - 1) + 1} · {rec.get('title')} · {rec.get('kind')}"
+            header = f"[S{n} · {rec.get('title')} · {rec.get('kind')}"
             if rec.get("origin") and rec["kind"] in {"url", "youtube"}:
                 header += f" — {rec['origin']}"
             header += "]"
         else:
-            header = f"[Source {i}: {rec.get('title')} — {rec.get('kind')}"
+            header = f"[Source {n}: {rec.get('title')} — {rec.get('kind')}"
             if rec.get("origin") and rec["kind"] in {"url", "youtube"}:
                 header += f" — {rec['origin']}"
             header += f" — labels: {labels}]" if labels else "]"
@@ -296,4 +341,11 @@ def notebook_digest(notebook_id: str, *, max_chars: int = 42000,
         if len(text) > per_source:
             body += "\n\n[... middle omitted ...]\n\n" + text[-(per_source // 3):]
         parts.append(header + "\n" + body)
-    return "\n\n".join(parts)[:max_chars]
+    digest = "\n\n".join(parts)[:max_chars]
+    if cache is not None:
+        try:
+            cache.parent.mkdir(parents=True, exist_ok=True)
+            cache.write_text(digest, encoding="utf-8")
+        except OSError:
+            pass
+    return digest

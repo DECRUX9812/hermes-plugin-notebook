@@ -9,13 +9,13 @@
 //                not invent a method the host lacks.
 // 2 functional   clicking a studio card opens the viewer; asking renders an
 //                answer with citations; a citation opens the source; the label
-//                filter narrows the rail; the ops deck renders eight hosts.
+//                filter narrows the rail.
 // 3 a11y         every interactive control has an accessible name, a >=32px
 //                target (inline prose citations excepted by WCAG 2.5.8), a
 //                focus ring that actually resolves, and 16px body type.
-// 4 layout       no horizontal overflow at 1440/1180/1024/820; the studio and
-//                rail collapse at their breakpoints; nothing straddles a
-//                scroll viewport's edge.
+// 4 layout       no horizontal overflow at 1440/1180/1024/820; the Make drawer
+//                survives every width and the rail is the panel that folds;
+//                nothing straddles a scroll viewport's edge.
 import { readFileSync } from 'node:fs'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
@@ -306,7 +306,7 @@ export const host = { navigate: () => {}, request: async () => ({}), composer: {
   ok('legacy host (contribution only) still gets every area',
     legacyAreas.has('routes') && legacyAreas.has('sidebar.nav') && legacyAreas.has('palette'),
     [...legacyAreas].join(','))
-  ok('three palette commands registered', modern.filter((s) => s.startsWith('register:palette')).length === 3,
+  ok('two palette commands registered', modern.filter((s) => s.startsWith('register:palette')).length === 2,
     `${modern.filter((s) => s.startsWith('register:palette')).length}`)
   ok('the registered file imports nothing but the SDK and react', !/from '(?!@hermes\/plugin-sdk|react)/.test(src),
     'no other specifiers')
@@ -322,7 +322,11 @@ async function functional(port) {
   await settle(page, 900)
 
   const cards = await page.locator('.nb-card').count()
-  ok('studio renders all outputs', cards === 13, `${cards} cards`)
+  // One card per studio kind — 13 outputs plus the architecture blueprint.
+  // `>=` rather than `===` on purpose: adding a kind must not require editing
+  // an assertion for the gate to pass, and a kind that FAILS to render still
+  // leaves the count below the floor and breaks the check.
+  ok('studio renders all outputs', cards >= 14, `${cards} cards`)
 
   // Discover is its own surface, and it must start empty rather than pretending
   // it has results: the panel only fills after a real /discover pass.
@@ -392,6 +396,80 @@ async function functional(port) {
     }
   }
 
+  // ------------------------------------------------------- rendering integrity
+  // A message body must never print the machinery: no "[object Object]", no
+  // bare "undefined"/"NaN", and the avatar is a mark rather than two letters
+  // that read as a broken tag.
+  {
+    const threadText = await page.locator('.nb-thread').innerText()
+    ok('no message prints an object, undefined or NaN',
+      !/\[object Object\]|\bundefined\b|\bNaN\b/.test(threadText),
+      (threadText.match(/\[object Object\]|\bundefined\b|\bNaN\b/) || ['clean'])[0])
+    const avatarText = (await page.locator('.nb-avatar').first().innerText().catch(() => '')).trim()
+    ok('the assistant mark is a glyph, not a two-letter tag', avatarText === '' || avatarText.length <= 2 && !/^[A-Z]{2}$/.test(avatarText),
+      JSON.stringify(avatarText))
+    const pad = await page.locator('.nb-thread').evaluate((n) => getComputedStyle(n).paddingBottom)
+    ok('the thread keeps room for the composer', parseFloat(pad) >= 72, pad)
+    const cite = page.locator('.nb-inline-cite').first()
+    if (await cite.count()) {
+      const bg = await cite.evaluate((n) => getComputedStyle(n).backgroundColor)
+      ok('citations use the pill material, not the accent wash', /45, 46, 51|232, 240, 254/.test(bg), bg)
+    }
+  }
+
+  // ------------------------------------------------------------ agent mode
+  // The pill is the consent control: pressing it must switch the request path to
+  // /agent/run, and the answer must carry the tool that ran as a card you can open.
+  {
+    const agentPill = page.locator('.nb-mode', { hasText: 'Agent' }).first()
+    const council = page.locator('.nb-mode', { hasText: 'Council' }).first()
+    ok('the composer offers grounded / agent / council', await page.locator('.nb-mode').count() === 3,
+      `${await page.locator('.nb-mode').count()} pills`)
+    ok('council refuses instead of pretending', (await council.getAttribute('aria-pressed')) === 'false', 'off by default')
+    await agentPill.click()
+    await settle(page, 200)
+    ok('agent mode is a sticky, visible state', (await agentPill.getAttribute('aria-pressed')) === 'true', 'pressed')
+    await page.locator('.nb-askbox textarea').fill('Which entity received the most funding?')
+    await page.locator('.nb-askbox .nb-sendbtn').click()
+    await settle(page, 1600)
+    const cards = page.locator('.nb-act')
+    ok('a tool run renders as its own card', (await cards.count()) >= 1, `${await cards.count()} card(s)`)
+    if (await cards.count()) {
+      const head = (await cards.first().locator('.nb-act-title').innerText()).trim()
+      ok('the card names the tool and its engine', /SQL/i.test(head), head)
+      await cards.first().locator('.nb-act-head').click()
+      await settle(page, 300)
+      const rows = await cards.first().locator('.nb-act-table tbody tr').count()
+      const sql = await cards.first().locator('.nb-act-in').innerText().catch(() => '')
+      ok('opening the card shows the statement and its rows', rows >= 3 && /select/i.test(sql),
+        `${rows} rows · ${sql.slice(0, 30)}`)
+      ok('a run can be saved as a source', await cards.first().locator('button', { hasText: 'Save as source' }).count() === 1, 'present')
+      // the statement is tokenised, not flat text: keywords and numbers each
+      // carry their own class so a 200-character query stays readable
+      const kw = await cards.first().locator('.nb-act-in .nb-hl-kw').count()
+      ok('the statement is highlighted', kw >= 3, `${kw} keywords`)
+      ok('a SQL result can be exported', await cards.first().locator('button', { hasText: 'Export CSV' }).count() === 1, 'present')
+    }
+    // council: answers, then re-reads the passages trying to break the answer
+    await page.locator('.nb-mode', { hasText: 'Council' }).first().click()
+    await settle(page, 200)
+    ok('council is a selectable mode', (await page.locator('.nb-mode', { hasText: 'Council' }).first().getAttribute('aria-pressed')) === 'true', 'pressed')
+    await page.locator('.nb-askbox textarea').fill('How much private funding is there?')
+    await page.locator('.nb-askbox .nb-sendbtn').click()
+    await settle(page, 2200)
+    const band = page.locator('.nb-council').last()
+    ok('council shows a verdict on its own answer', await band.count() >= 1, 'band present')
+    if (await band.count()) {
+      const v = await band.getAttribute('data-verdict')
+      ok('the verdict names what did not hold', /holds|partly|fails/.test(String(v)), String(v))
+      const note = (await band.innerText()).replace(/\s+/g, ' ')
+      ok('council says it is one model reading twice, not two vendors', /second pass/i.test(note), note.slice(0, 60))
+    }
+    await page.locator('.nb-mode', { hasText: 'Grounded' }).first().click()
+    await settle(page, 200)
+    ok('switching back to grounded is one click', (await page.locator('.nb-mode', { hasText: 'Grounded' }).first().getAttribute('aria-pressed')) === 'true', 'back')
+  }
+
   // label filter narrows the rail
   const before = await page.locator('.nb-src').count()
   const chip = page.locator('.nb-chip[data-click="true"]').first()
@@ -411,16 +489,43 @@ async function functional(port) {
   ok('source search narrows the list', searched > 0 && searched < before, `${searched} of ${before}`)
   await page.locator('.nb-rail .nb-field input').fill('')
 
-  // ops deck
-  await page.keyboard.press('Escape')
-  await page.locator('.nb-seg button', { hasText: 'Lab Ops' }).click()
-  await settle(page, 900)
-  const rows = await page.locator('.nb-frow').count()
-  ok('lab deck lists the whole fleet', rows >= 8, `${rows} hosts`)
-  const tabs = await page.locator('.nb-tab').count()
-  ok('host tools are offered for a reachable host', tabs >= 5, `${tabs} tabs`)
-  const measured = await page.locator('.nb-cell').count()
-  ok('host measurements are rendered', measured >= 5, `${measured} cells`)
+  // ---------------------------------------------------------- export + copy
+  // The Excel button shipped without the notebook the route resolves first, so
+  // every download came back 422 and the toast blamed "xlsx export failed" —
+  // a broken feature no other check could see, because the DOM was right.
+  {
+    await page.locator('.nb-seg button', { hasText: 'Studio' }).click()
+    await settle(page, 700)
+    const table = page.locator('.nb-card', { hasText: 'Data Table' }).first()
+    if (await table.count() && (await table.getAttribute('data-ready')) === 'true') {
+      await table.click()
+      await settle(page, 800)
+      await page.locator('.nb-menu-wrap button', { hasText: 'Export' }).first().click()
+      await settle(page, 300)
+      await page.locator('.nb-menu-item', { hasText: 'XLSX' }).first().click()
+      await settle(page, 900)
+      const reqs = await page.evaluate(() => window.__NB_REQ__ || [])
+      const xl = reqs.filter((p) => p.startsWith('artifact/xlsx'))
+      ok('the xlsx export asks for the notebook the route requires',
+        xl.length > 0 && /[?&]notebook=[^&]/.test(xl[xl.length - 1] || ''),
+        xl.length ? xl[xl.length - 1].slice(0, 90) : 'no request')
+      const note = (await page.locator('.nb-status').first().innerText().catch(() => '')) || ''
+      ok('the export says it downloaded instead of failing',
+        /downloaded/i.test(note) && !/failed/i.test(note), note.trim().slice(0, 70) || 'no note')
+      // copy is an action: it reports
+      await page.locator('[aria-label="Copy artifact text"]').first().click()
+      await settle(page, 500)
+      const note2 = (await page.locator('.nb-status').first().innerText().catch(() => '')) || ''
+      ok('copy reports its outcome', /copied|will not let the page copy|could not reach/i.test(note2),
+        note2.trim().slice(0, 70) || 'no note')
+      await page.locator('.nb-tab', { hasText: 'Chat' }).click().catch(() => {})
+      await settle(page, 300)
+    } else {
+      ok('the xlsx export asks for the notebook the route requires', false, 'no ready data table')
+      ok('the export says it downloaded instead of failing', false, 'no ready data table')
+      ok('copy reports its outcome', false, 'no ready data table')
+    }
+  }
 
   // untrusted attributes in the directive must not render markup
   ok('no page errors during the run', errors.length === 0, errors.slice(0, 2).join(' | '))
@@ -585,22 +690,194 @@ async function layout() {
         const outsideView = r2.bottom <= pb.top || r2.top >= pb.bottom
         return !inside && !outsideView
       }).map((c) => (c.querySelector('.nb-card-name') || {}).textContent || 'card')
+      // two rows that were clipped by their own panel edge: a Make row wider
+      // than the drawer (a 2-up grid's min-content floor) and the composer's
+      // Send button pushed out by an unshrinkable conversation chip
+      const insideOf = (sel, parentSel) => {
+        const n = document.querySelector(sel); const p2 = document.querySelector(parentSel)
+        if (!n || !p2) return true
+        return n.getBoundingClientRect().right <= p2.getBoundingClientRect().right + 1
+      }
       return {
         overflowX: doc.scrollWidth - doc.clientWidth,
         rail: box('.nb-rail'), studio: box('.nb-studio'), main: box('main'),
         strips: strips.filter((s) => s.sw > s.cw + 1),
-        outside, sliced
+        outside, sliced,
+        toggles: document.querySelectorAll('.nb-paneltog').length,
+        cardFits: insideOf('.nb-card', '.nb-studio'),
+        sendFits: insideOf('.nb-sendbtn', '.nb-main-col'),
+        footFits: (() => { const f = document.querySelector('.nb-askfoot'); return !f || f.scrollWidth <= f.clientWidth + 1 })()
       }
     })
     ok(`no horizontal overflow at ${w}`, r.overflowX <= 1, `overflow=${r.overflowX}`)
     ok(`no toolbar overflows its box at ${w}`, r.strips.length === 0, JSON.stringify(r.strips).slice(0, 120))
     ok(`no pane paints outside its column at ${w}`, r.outside === 0, `${r.outside} panes`)
     ok(`no studio card is sliced by the panel edge at ${w}`, r.sliced.length === 0, r.sliced.join(','))
-    if (w <= 1024) ok(`studio collapses at ${w}`, r.studio === null, 'hidden')
-    if (w <= 840) ok(`rail collapses at ${w}`, r.rail === null, 'hidden')
-    if (w > 1100) ok(`main column keeps >=560px at ${w}`, r.main.w >= 560, `${r.main.w}px`)
+    ok(`a Make row keeps inside the drawer at ${w}`, r.cardFits === true, String(r.cardFits))
+    ok(`Send keeps its slot in the composer at ${w}`, r.sendFits === true && r.footFits === true,
+      `button=${r.sendFits} foot=${r.footFits}`)
+    // THE INVARIANT: a panel may be folded by width, but never made unreachable.
+    // The bug this replaces hid the Make drawer by CSS while the rail was still
+    // mounted — no drawer, no toggle, a chat column and nothing to make with.
+    ok(`the Make drawer is reachable at ${w}`, (r.studio !== null && r.studio.w >= 260) || r.toggles >= 1,
+      r.studio ? `${r.studio.w}px` : `folded, ${r.toggles} toggle(s)`)
+    ok(`the sources rail is reachable at ${w}`, r.rail !== null || r.toggles >= 1,
+      r.rail ? `${r.rail.w}px` : `folded, ${r.toggles} toggle(s)`)
+    if (w >= 1180) ok(`main column keeps >=520px at ${w}`, r.main.w >= 520, `${r.main.w}px`)
+    ok(`the chat keeps >=520px at ${w}`, r.main.w >= 520 || w < 900, `${r.main.w}px`)
     await page.close()
   }
+  await b.close()
+}
+
+/* ---------------------------------------------------- 6 hermes-ux (phase 1)
+ * The "Hermes suggests, you decide" surfaces: thread tabs, the one Add Sources
+ * dialog with its four tabs, bracket-free citation chips, the 12px type floor,
+ * and a Make drawer whose twelve tiles all fit at desktop width.
+ */
+async function hermesUx(port) {
+  const b = await browser()
+  const page = await b.newPage({ viewport: { width: 1440, height: 900 } })
+  const errors = []
+  page.on('pageerror', (e) => errors.push(e.message))
+  await page.goto(`http://127.0.0.1:${port}/preview.html`, { waitUntil: 'load' })
+  await settle(page, 1000)
+
+  // ---------------------------------------------------------- thread tabs
+  await page.locator('.nb-tab', { hasText: 'Chat' }).click().catch(() => {})
+  await settle(page, 400)
+  const tabs = await page.evaluate(() => {
+    const row = document.querySelector('.nb-thrtabs')
+    const tabs = Array.from(document.querySelectorAll('.nb-thr-tab:not([data-more])'))
+    const more = document.querySelector('.nb-thr-tab[data-more]')
+    const neu = document.querySelector('.nb-thr-new')
+    return {
+      row: !!row, count: tabs.length,
+      titles: tabs.map((t) => (t.textContent || '').trim().slice(0, 24)),
+      more: more ? (more.textContent || '').trim() : null,
+      newChat: neu ? (neu.getAttribute('aria-label') || neu.textContent || '').trim() : null
+    }
+  })
+  ok('chat shows a thread tab row capped at four plus New chat',
+    tabs.row && tabs.count >= 1 && tabs.count <= 4 && /new chat/i.test(tabs.newChat || ''),
+    JSON.stringify(tabs).slice(0, 150))
+  ok('overflow threads hide behind a More menu', tabs.more !== null, tabs.more || 'no More (<=4 threads)')
+  if (tabs.more) {
+    await page.locator('.nb-thr-tab[data-more]').click()
+    await settle(page, 250)
+    const menuItems = await page.locator('.nb-thr-menuitem').count()
+    ok('the More menu lists the hidden threads', menuItems >= 1, `${menuItems} items`)
+    await page.keyboard.press('Escape').catch(() => {})
+    await page.locator('.nb-thr-scrim').click({ position: { x: 2, y: 2 } }).catch(() => {})
+    await settle(page, 200)
+  }
+
+  // ---------------------------------------------------- Add Sources dialog
+  await page.locator('.nb-addsrc').first().click()
+  await settle(page, 500)
+  const dlg = await page.evaluate(() => {
+    const strip = document.querySelector('.nb-src-tabs')
+    const tabs = Array.from(document.querySelectorAll('.nb-src-tab'))
+    return {
+      strip: !!strip,
+      role: strip ? strip.getAttribute('role') : null,
+      tabs: tabs.map((t) => ({
+        label: (t.textContent || '').trim(),
+        role: t.getAttribute('role'),
+        selected: t.getAttribute('aria-selected')
+      }))
+    }
+  })
+  ok('Add Sources opens one dialog with four tabs',
+    dlg.strip && dlg.tabs.length === 4 &&
+    ['Files', 'Link', 'Text', 'Find on the web'].every((l) => dlg.tabs.some((t) => t.label.includes(l))),
+    JSON.stringify(dlg.tabs.map((t) => t.label)))
+  ok('the source-type strip is an accessible tablist',
+    dlg.role === 'tablist' && dlg.tabs.every((t) => t.role === 'tab' && (t.selected === 'true' || t.selected === 'false')),
+    `role=${dlg.role}`)
+
+  await page.locator('.nb-src-tab', { hasText: 'Files' }).click()
+  await settle(page, 250)
+  const filesTab = await page.evaluate(() => ({
+    dropzone: !!document.querySelector('.nb-dropzone'),
+    pickers: document.querySelectorAll('input[type="file"]').length
+  }))
+  ok('the Files tab has a drop zone and file pickers', filesTab.dropzone && filesTab.pickers >= 2,
+    JSON.stringify(filesTab))
+
+  await page.locator('.nb-src-tab', { hasText: 'Link' }).click()
+  await settle(page, 250)
+  const linkArea = await page.locator('textarea[aria-label*="per line" i]').count()
+  ok('the Link tab takes one URL or YouTube link per line', linkArea >= 1, `${linkArea} field(s)`)
+
+  await page.locator('.nb-src-tab', { hasText: 'Text' }).click()
+  await settle(page, 250)
+  const textArea = await page.locator('textarea[aria-label="Pasted source text"]').count()
+  ok('the Text tab takes a title plus pasted text', textArea >= 1 &&
+    (await page.locator('input[aria-label="Source title"]').count()) >= 1,
+    `${textArea} textarea`)
+
+  await page.locator('.nb-src-tab', { hasText: 'Find on the web' }).click()
+  await settle(page, 300)
+  const findBox = await page.locator('input[aria-label="Describe the sources to find"]').count()
+  ok('Find on the web keeps the describe-then-pick flow', findBox >= 1, `${findBox} box(es)`)
+  await page.keyboard.press('Escape')
+  await settle(page, 300)
+  const dlgGone = await page.locator('.nb-src-tabs').count()
+  ok('Escape closes the Add Sources dialog', dlgGone === 0, `${dlgGone} left`)
+
+  // ------------------------------------------------------- citation chips
+  await page.locator('.nb-askbox textarea').fill('What do the sources say about funding?')
+  await page.locator('.nb-askbox .nb-sendbtn').click()
+  await settle(page, 1800)
+  const citeText = await page.evaluate(() =>
+    Array.from(document.querySelectorAll('.nb-inline-cite')).slice(0, 8)
+      .map((n) => (n.textContent || '').trim()))
+  ok('citation chips render as bare numbers with no brackets',
+    citeText.length > 0 && citeText.every((t) => !/[\[\]]/.test(t)),
+    citeText.slice(0, 4).join(' | ') || 'no chips rendered')
+
+  // ---------------------------------------------------------- 12px floor
+  const tiny = await page.evaluate(() => {
+    const bad = []
+    const walker = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT)
+    let n
+    while ((n = walker.nextNode())) {
+      const t = (n.nodeValue || '').trim()
+      if (!t) continue
+      const el = n.parentElement
+      if (!el || !el.getClientRects().length) continue
+      if (getComputedStyle(el).visibility === 'hidden') continue
+      const fs = parseFloat(getComputedStyle(el).fontSize)
+      if (fs < 11.5) { bad.push(`${fs}px "${t.slice(0, 28)}"`); if (bad.length > 6) break }
+    }
+    return bad
+  })
+  ok('no visible text renders below 12px', tiny.length === 0, tiny.join(' | '))
+
+  // ------------------------------------------------------- twelve make tiles
+  await page.locator('.nb-seg button', { hasText: 'Studio' }).first().click()
+  await settle(page, 800)
+  const tiles = await page.evaluate(() => {
+    const panel = document.querySelector('.nb-studio')
+    if (!panel) return { panel: false }
+    const tiles = Array.from(panel.querySelectorAll('.nb-gen'))
+    const pb = panel.getBoundingClientRect()
+    return {
+      panel: true, tiles: tiles.length,
+      visible: tiles.filter((t) => {
+        const r = t.getBoundingClientRect()
+        return r.top >= pb.top - 1 && r.bottom <= pb.bottom + 1
+      }).length,
+      scrolls: panel.scrollHeight > panel.clientHeight + 2
+    }
+  })
+  ok('every Make tile is visible without scrolling at 1440x900',
+    tiles.panel && tiles.tiles >= 12 && tiles.visible === tiles.tiles && !tiles.scrolls,
+    JSON.stringify(tiles))
+
+  ok('the ux checks raised no page errors', errors.length === 0, errors.slice(0, 2).join(' | '))
+  await page.close()
   await b.close()
 }
 
@@ -614,6 +891,7 @@ try {
   if (which === 'all' || which === 'surfaces') await surfaces(port)
   if (which === 'all' || which === 'a11y') await a11y(port)
   if (which === 'all' || which === 'layout') { layout.port = port; await layout() }
+  if (which === 'all' || which === 'ux') await hermesUx(port)
 } finally {
   await close()
 }

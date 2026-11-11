@@ -12,11 +12,6 @@
  *            a real thumbnail when the artifact exists (infographic image,
  *            document lines, audio waveform), and the state it is actually in
  *
- * The second surface is the lab: the same shell, the same status bar, and a
- * fleet deck that measures eight hosts over the audited ssh transport — a
- * terminal, service control, a file browser and VM snapshots, all of which
- * report the real exit code instead of a green tick.
- *
  * The system is deliberately NotebookLM-soft: rounded cards, pill controls,
  * quiet labels and per-output colour, all resolved through the app's theme
  * variables so the page follows dark/light and the user's accent. Media
@@ -45,11 +40,22 @@ const ROUTE = '/notebook'
 
 /* ---------------------------------------------------------------- tokens */
 
+/* Quiet ink.
+ *
+ * The theme's tertiary/quaternary are 58% and 42% of the base ink. Measured on
+ * the real page that is 5.98:1 / 3.63:1 in the dark skin and 4.31:1 / 3.57:1 in
+ * a light one — the quaternary fails WCAG AA everywhere, and the tertiary fails
+ * on a light canvas. These two tokens print at 11.5–12.5px, so they take the AA
+ * floor rather than the theme's staircase: 72% and 68% of the primary ink clear
+ * 4.5:1 on every surface this page paints in both skins (canvas, panel, card,
+ * wash) and stay visibly quieter than the secondary. The host's own
+ * --ui-text-tertiary remains available where a surface needs its exact value.
+ */
 const T = {
-  text: 'var(--ui-text-primary, #e9e9ef)',
-  text2: 'var(--ui-text-secondary, #b6b6c2)',
-  text3: 'var(--ui-text-tertiary, #8b8b99)',
-  text4: 'var(--ui-text-quaternary, #6d6d7a)',
+  text: 'var(--nb-ink, #F1F3F4)',
+  text2: 'var(--nb-ink2, #9AA0A6)',
+  text3: 'color-mix(in srgb, var(--nb-ink, #F1F3F4) 74%, transparent)',
+  text4: 'color-mix(in srgb, var(--nb-ink, #F1F3F4) 66%, transparent)',
   accent: 'var(--ui-accent, #8b93ff)',
   line: 'var(--ui-stroke-secondary, rgba(233,233,239,0.11))',
   lineSoft: 'var(--ui-stroke-tertiary, rgba(233,233,239,0.07))',
@@ -74,12 +80,19 @@ const CSS = `
    ========================================================================== */
 
 .nb-root{
-  --nb-rail: 300px; --nb-studio: 396px;
+  --nb-rail: 268px; --nb-studio: 420px;
+  /* NotebookLM's palette, per skin. The host never sets a color-scheme, so the
+     page publishes data-skin (measured from the host's own canvas) and these
+     two blocks are the only place a colour is decided. */
+  --nb-canvas:#0B0C0E; --nb-panel:#16171A; --nb-edge:rgba(255,255,255,.08);
+  --nb-tile:#202124; --nb-tile-hi:#2A2B2E; --nb-ink:#F1F3F4; --nb-ink2:#9AA0A6;
+  --nb-inset:#0F1012;
   --nb-hair: color-mix(in srgb, ${T.text} 10%, transparent);
   --nb-hair-soft: color-mix(in srgb, ${T.text} 6%, transparent);
   --nb-wash: color-mix(in srgb, ${T.text} 4%, transparent);
   --nb-wash-2: color-mix(in srgb, ${T.text} 7.5%, transparent);
   --nb-card: ${T.card};
+  --nb-cite-bg:#2D2E33; --nb-cite-ink:#8AB4F8;
   --nb-shadow: 0 1px 2px rgba(8,10,18,.05), 0 14px 34px -20px rgba(8,10,18,.30);
   --nb-shadow-lift: 0 2px 6px rgba(8,10,18,.07), 0 20px 44px -18px rgba(8,10,18,.38);
   /* motion — Astryx cadence: fast for hovers, medium for entrances, standard
@@ -87,11 +100,45 @@ const CSS = `
   --nb-ease: cubic-bezier(.24,1,.4,1);
   --nb-ease-exit: cubic-bezier(.3,0,.6,.6);
   --nb-dur-fast: .175s; --nb-dur-med: .41s; --nb-dur-slow: .975s;
+  /* radius — one semantic scale instead of ad-hoc pixels: detail 8, element 12,
+     box 16, panel 24, pill. A control's radius says how big it is. */
+  --nb-r-in: 8px; --nb-r-el: 12px; --nb-r-box: 16px; --nb-r-panel: 24px; --nb-r-pill: 99px;
+  /* type — the chrome scale. Every rendered size must be one of these steps;
+     a 10px label beside a 12px one is a bug, and tests/design.test.mjs
+     fails the build on any size that is not on this list. Headings are set
+     in place because each surface owns exactly one of them. */
+  --nb-fs-meta: 12px;   /* counts, timestamps, chips */
+  --nb-fs-label: 12.5px;  /* card names, chips with actions, buttons */
+  --nb-fs-ui: 13px;       /* pane titles, inputs, tabs */
+  --nb-fs-body: 14px;     /* the base UI size */
+  --nb-fs-read: 15px;     /* prose and document body */
+  --nb-fs-title: 16px;    /* hero-side titles, card headings */
+  --nb-fs-display: 26px;  /* the one page title */
+  /* space — a 4px grid, named by intent so padding is a decision, not a number */
+  --nb-sp-1: 4px; --nb-sp-2: 6px; --nb-sp-3: 8px; --nb-sp-4: 12px;
+  --nb-sp-5: 16px; --nb-sp-6: 20px; --nb-sp-7: 24px; --nb-sp-8: 32px;
   --nb-media: linear-gradient(155deg,#20243a 0%,#12151f 100%);
   display:flex; flex-direction:column; height:100%; min-height:0;
-  color:${T.text}; font-size:16px; line-height:1.5;
+  background:var(--nb-canvas); color:${T.text}; font-size:16px; line-height:1.5;
   font-variant-numeric: tabular-nums;
   position:relative;
+}
+.nb-root[data-skin=light]{
+  --nb-canvas:#F8F5EE; --nb-panel:#FFFFFF; --nb-edge:#E8E2D8;
+  --nb-tile:#F3EEE4; --nb-tile-hi:#EBE4D8; --nb-ink:#1F1F1F; --nb-ink2:#5F6368;
+  --nb-inset:#FBF8F2;
+  /* Everything derived, rebuilt on light ink. Without these the card faces and
+     washes stay night-coloured while the text turns dark — the "1.02:1" bug the
+     design pass reports: black ink on a black tile. */
+  --nb-card:#F3EEE4;
+  --nb-cite-bg:#E8F0FE; --nb-cite-ink:#1967D2;
+  --nb-hair:rgba(31,31,31,.10); --nb-hair-soft:rgba(31,31,31,.06);
+  --nb-wash:rgba(31,31,31,.04); --nb-wash-2:rgba(31,31,31,.075);
+  --nb-shadow:0 1px 2px rgba(24,24,27,.05), 0 14px 34px -20px rgba(24,24,27,.22);
+  /* The few rules still written against the host's own tokens are scoped to
+     this subtree, so they follow the notebook rather than the app shell. */
+  --ui-bg-secondary:#F3EEE4; --ui-bg-tertiary:#EDE6D9;
+  --ui-stroke-secondary:rgba(31,31,31,.10); --ui-stroke-tertiary:rgba(31,31,31,.06);
 }
 /* ambient generative field — each notebook's sigil hue bleeds into the room */
 .nb-aurora{position:absolute;inset:0;z-index:0;overflow:hidden;pointer-events:none}
@@ -104,27 +151,33 @@ const CSS = `
 .nb-blob:nth-child(3){background:radial-gradient(circle,hsl(calc(var(--nb-hue, 265) + 165) 75% 58% / .7),transparent 70%);
   width:40vmax;height:40vmax;bottom:-16%;left:-6%;animation-duration:38s;animation-delay:-17s}
 @keyframes nb-drift{from{transform:translate3d(-3%,-2%,0) scale(1)}to{transform:translate3d(4%,3%,0) scale(1.08)}}
-.nb-bar,.nb-body,.nb-home,.nb-ops{position:relative;z-index:1}
+.nb-bar,.nb-body,.nb-home{position:relative;z-index:1}
 .nb-root *{box-sizing:border-box}
+/* Form controls do NOT inherit the page font from the UA sheet: a <button> gets
+ * Arial 13.333px and a <span> inside it inherits that, which is how "Video
+ * Overview" ended up set in Arial while its neighbours were in Inter. One rule
+ * at the root stops the whole family of bugs rather than one class at a time. */
+.nb-root button,.nb-root input,.nb-root select,.nb-root textarea{
+  font-family:inherit;font-feature-settings:inherit;font-variant-numeric:inherit}
 .nb-root :focus-visible{outline:2px solid ${T.accent}; outline-offset:3px}
 .nb-mono{font-family:var(--ui-font-mono,ui-monospace,SFMono-Regular,Menlo,monospace);font-variant-ligatures:none}
 .nb-num{font-family:var(--ui-font-mono,ui-monospace,SFMono-Regular,Menlo,monospace);font-variant-numeric:tabular-nums}
 
 /* quiet section label — small and calm, never telemetry */
-.nb-meta{font-size:12px;letter-spacing:0;text-transform:none;color:${T.text3};font-weight:600}
-.nb-hint{font-size:11.5px;color:${T.text3};letter-spacing:.01em;line-height:1.5}
+.nb-meta{font-size:12.5px;letter-spacing:0;text-transform:none;color:${T.text3};font-weight:600}
+.nb-hint{font-size:12px;color:${T.text3};letter-spacing:.01em;line-height:1.5}
 
 /* ------------------------------------------------------------------ app bar */
 .nb-bar{display:flex;align-items:center;gap:14px;height:56px;flex:0 0 56px;
   padding:0 18px;border-bottom:1px solid var(--nb-hair-soft)}
 .nb-brand{display:flex;align-items:center;gap:11px;min-width:0}
-.nb-mark{width:27px;height:27px;display:grid;place-items:center;flex:0 0 auto;border-radius:8px;
-  background:color-mix(in srgb,${T.accent} 15%, transparent);color:${T.accent}}
-.nb-brandname{font-size:14.5px;font-weight:700;letter-spacing:-.01em;color:${T.text}}
+.nb-mark{width:27px;height:27px;display:grid;place-items:center;flex:0 0 auto;border-radius:var(--nb-r-in);
+  background:color-mix(in srgb,${T.accent} 15%, transparent);color:color-mix(in srgb,${T.accent} 70%, ${T.text})}
+.nb-brandname{font-size:14px;font-weight:700;letter-spacing:-.01em;color:${T.text}}
 .nb-crumb{font-size:12.5px;color:${T.text3};white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:min(52ch,44vw);display:flex;align-items:center;gap:6px;min-width:0}
 .nb-crumb b{color:${T.text2};font-weight:600}
 .nb-crumbedit{display:block;max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;background:transparent;border:0;padding:0 8px;margin:0 -8px;font:inherit;
-  color:${T.text2};font-weight:600;cursor:pointer;border-radius:8px;
+  color:${T.text2};font-weight:600;cursor:pointer;border-radius:var(--nb-r-in);
   display:inline-flex;align-items:center;min-height:32px;max-width:42ch;
   overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .nb-crumbedit:hover{color:${T.text};background:var(--nb-wash-2)}
@@ -133,39 +186,40 @@ const CSS = `
 
 /* ---------------------------------------------------------------- controls */
 .nb-btn{display:inline-flex;align-items:center;justify-content:center;gap:8px;
-  min-height:36px;padding:0 18px;border-radius:99px;cursor:pointer;
+  min-height:36px;padding:0 18px;border-radius:var(--nb-r-pill);cursor:pointer;
   font-size:13px;font-weight:600;letter-spacing:0;text-transform:none;font-family:inherit;
   border:1px solid var(--nb-hair);background:var(--nb-wash);color:${T.text};
   transition:background var(--nb-dur-fast) var(--nb-ease),border-color var(--nb-dur-fast) var(--nb-ease),box-shadow var(--nb-dur-fast) var(--nb-ease),transform var(--nb-dur-fast) var(--nb-ease)}
 .nb-btn:hover{background:var(--nb-wash-2);border-color:color-mix(in srgb,${T.text} 22%, transparent)}
 .nb-btn:active{transform:translateY(1px)}
 .nb-btn[disabled]{opacity:.45;cursor:not-allowed}
-.nb-btn[data-variant=primary]{background:${T.accent};border-color:transparent;color:#0d0e15;font-weight:650;
+.nb-btn[data-variant=primary]{background:${T.accent};border-color:transparent;
+  color:#0d0e15;font-weight:650;
   box-shadow:0 6px 18px -8px color-mix(in srgb,${T.accent} 80%, transparent)}
 .nb-btn[data-variant=primary]:hover{background:color-mix(in srgb,${T.accent} 88%, ${T.text})}
 .nb-btn[data-variant=primary][disabled]{background:var(--nb-wash);border-color:var(--nb-hair);color:${T.text3};box-shadow:none}
 .nb-btn[data-variant=ghost]{background:transparent;border-color:transparent;color:${T.text2}}
 .nb-btn[data-variant=ghost]:hover{background:var(--nb-wash-2);color:${T.text}}
-.nb-btn[data-size=sm]{min-height:32px;padding:0 12px;font-size:12.5px;border-radius:8px}
-.nb-icon{width:36px;height:36px;min-height:36px;flex:0 0 auto;padding:0;border-radius:99px;display:grid;place-items:center;
+.nb-btn[data-size=sm]{min-height:32px;padding:0 12px;font-size:12.5px;border-radius:var(--nb-r-in)}
+.nb-icon{width:36px;height:36px;min-height:36px;flex:0 0 auto;padding:0;border-radius:var(--nb-r-pill);display:grid;place-items:center;
   cursor:pointer;border:1px solid transparent;background:transparent;color:${T.text3};
   transition:background var(--nb-dur-fast) var(--nb-ease),color var(--nb-dur-fast) var(--nb-ease),border-color var(--nb-dur-fast) var(--nb-ease)}
 .nb-icon:hover{background:var(--nb-wash-2);color:${T.text}}
-.nb-icon[data-active=true]{background:color-mix(in srgb,${T.accent} 14%, transparent);color:${T.accent}}
+.nb-icon[data-active=true]{background:color-mix(in srgb,${T.accent} 14%, transparent);color:color-mix(in srgb,${T.accent} 70%, ${T.text})}
 
 /* segmented control — a pill track with a lifted thumb */
-.nb-seg{display:inline-flex;gap:2px;padding:3px;border-radius:12px;
+.nb-seg{display:inline-flex;gap:2px;padding:3px;border-radius:var(--nb-r-el);
   border:1px solid var(--nb-hair);background:var(--nb-wash)}
 .nb-seg[data-fill="true"]{display:flex;width:100%}
 .nb-seg[data-fill="true"] > button{flex:1;justify-content:center}
-.nb-seg > button{min-height:32px;padding:0 14px;border:0;border-radius:8px;background:transparent;
+.nb-seg > button{min-height:32px;padding:0 14px;border:0;border-radius:var(--nb-r-in);background:transparent;
   color:${T.text3};cursor:pointer;font-family:inherit;font-size:12.5px;font-weight:600;letter-spacing:0;
   display:inline-flex;align-items:center;justify-content:center;gap:7px;
   transition:background var(--nb-dur-fast) var(--nb-ease),color var(--nb-dur-fast) var(--nb-ease),box-shadow var(--nb-dur-fast) var(--nb-ease)}
 .nb-seg > button:hover{color:${T.text};background:color-mix(in srgb,${T.text} 6%, transparent)}
 .nb-seg > button[aria-selected=true]{background:${T.card};color:${T.text};box-shadow:var(--nb-shadow)}
 
-.nb-field{display:flex;align-items:center;gap:9px;height:38px;padding:0 12px;border-radius:12px;
+.nb-field{display:flex;align-items:center;gap:9px;height:38px;padding:0 12px;border-radius:var(--nb-r-el);
   border:1px solid var(--nb-hair);background:var(--nb-wash);color:${T.text3}}
 .nb-field:focus-within{border-color:color-mix(in srgb,${T.accent} 55%, transparent);
   box-shadow:0 0 0 3px color-mix(in srgb,${T.accent} 16%, transparent)}
@@ -179,10 +233,10 @@ const CSS = `
 .nb-body{flex:1 1 auto;display:flex;gap:12px;min-height:0;overflow:hidden;
   padding:12px}
 .nb-col{min-width:0;min-height:0;display:flex;flex-direction:column;position:relative}
-.nb-body > .nb-col{background:var(--nb-card);border:1px solid var(--nb-hair-soft);
-  border-radius:24px;overflow:hidden}
+.nb-body > .nb-col{background:var(--nb-panel);border:1px solid var(--nb-edge);
+  border-radius:var(--nb-r-panel);overflow:hidden}
 .nb-rail{flex:0 0 var(--nb-rail)}
-.nb-rail[data-drop="true"]{outline:2px dashed ${T.accent};outline-offset:-6px;border-radius:24px}
+.nb-rail[data-drop="true"]{outline:2px dashed ${T.accent};outline-offset:-6px;border-radius:var(--nb-r-panel)}
 .nb-main-col{flex:1 1 auto}
 .nb-studio{flex:0 0 var(--nb-studio)}
 .nb-fade{position:absolute;left:0;right:0;bottom:0;height:30px;pointer-events:none;
@@ -193,175 +247,256 @@ const CSS = `
 .nb-scroll{flex:1;min-height:0;overflow:auto;overscroll-behavior:contain;scrollbar-width:thin;
   scrollbar-color:color-mix(in srgb,${T.text} 22%,transparent) transparent}
 .nb-root ::selection{background:color-mix(in srgb,${T.accent} 32%,transparent)}
-.nb-pad{padding:12px 14px}
 
 /* ------------------------------------------------------------------- rail */
-.nb-nbrow{display:flex;align-items:center;gap:12px;width:100%;
-  text-align:left;cursor:pointer;border:0;border-radius:12px;background:transparent;
-  padding:9px 10px;color:${T.text};transition:background var(--nb-dur-fast) var(--nb-ease)}
-.nb-nbrow:hover{background:var(--nb-wash-2)}
-.nb-nbrow[aria-current=true]{background:color-mix(in srgb,${T.accent} 11%, transparent)}
-.nb-nbtitle{font-size:13.5px;font-weight:600;line-height:1.32;color:${T.text2};letter-spacing:-.005em;
-  overflow:hidden;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical}
-.nb-nbrow[aria-current=true] .nb-nbtitle{color:${T.text}}
-.nb-nbsub{font-size:11.5px;color:${T.text3};margin-top:2px;display:block}
-.nb-avatar{width:36px;height:36px;flex:0 0 auto;display:grid;place-items:center;border-radius:12px;
-  background:var(--nb-wash-2);color:${T.text2};font-size:13px;font-weight:700}
-.nb-nbrow[aria-current=true] .nb-avatar{background:color-mix(in srgb,${T.accent} 20%, transparent);color:${T.accent}}
+/* the assistant's mark in a message row; the rail's notebook switcher card is
+   gone, so this is the only avatar the surface still draws */
+.nb-avatar{width:36px;height:36px;flex:0 0 auto;display:grid;place-items:center;
+  border-radius:var(--nb-r-el);background:var(--nb-wash-2);color:${T.text2};
+  font-size:13px;font-weight:700}
 
-.nb-src{display:flex;align-items:center;gap:6px;width:100%;border-radius:12px;
-  padding:7px 8px 7px 5px;position:relative;transition:background var(--nb-dur-fast) var(--nb-ease)}
+/* ---- the rail is three zones, not eight stacked boxes ---------------------
+   header (title + add + tools) · one filter bar · the source list. The old
+   panel stacked a notebook switcher card, a dashed Add button, a web-search
+   box, a second search field, wrapped tag pills, a triply-nested checkbox tree
+   and a decorative footer pill — about 380px of chrome above a 120px slit of
+   actual sources. Everything that is not the list now lives behind the header
+   (Add opens the one dialog that can take a URL, a file, pasted text or a web
+   search) or in the single filter bar. */
+.nb-rail-head{display:flex;align-items:center;gap:var(--nb-sp-2);min-height:52px;
+  flex:0 0 52px;padding:0 var(--nb-sp-2) 0 var(--nb-sp-5);border-bottom:1px solid var(--nb-hair-soft)}
+.nb-rail-title{font-size:var(--nb-fs-ui);font-weight:650;letter-spacing:-.01em;color:${T.text};
+  display:flex;align-items:baseline;gap:var(--nb-sp-2);min-width:0}
+.nb-rail-count{font-size:var(--nb-fs-meta);font-weight:600;color:${T.text3};
+  font-variant-numeric:tabular-nums;white-space:nowrap}
+.nb-rail-tools{display:flex;align-items:center;gap:1px;margin-left:auto}
+/* one filter bar: a search field and one horizontally scrolling tag row */
+.nb-rail-filter{padding:var(--nb-sp-3) var(--nb-sp-4) var(--nb-sp-3);display:flex;
+  flex-direction:column;gap:var(--nb-sp-2);flex:0 0 auto}
+.nb-tagrow{display:flex;align-items:center;gap:var(--nb-sp-2);flex-wrap:wrap;
+  overflow:visible;padding-bottom:1px;min-height:24px}
+.nb-tagrow .nb-chip{flex:0 0 auto;max-width:120px;overflow:hidden;
+  text-overflow:ellipsis;white-space:nowrap}
+.nb-tagrow-empty{font-size:var(--nb-fs-meta);color:${T.text4};white-space:nowrap}
+.nb-rail-list{flex:1;min-height:0;display:flex;flex-direction:column}
+/* the source list itself: one flat card per source, checkbox on the left */
+.nb-src-list{display:flex;flex-direction:column;gap:2px;padding:0 var(--nb-sp-3) var(--nb-sp-4)}
+.nb-src{display:flex;align-items:center;gap:2px;width:100%;border-radius:var(--nb-r-el);
+  padding:3px 4px;position:relative;transition:background var(--nb-dur-fast) var(--nb-ease)}
 .nb-src:hover{background:var(--nb-wash-2)}
-.nb-src[data-on=true]{background:color-mix(in srgb,${T.accent} 10%, transparent)}
-.nb-src[data-off=true]{opacity:.55}
-.nb-src-open{flex:1;min-width:0;display:grid;grid-template-columns:36px minmax(0,1fr);gap:11px;
-  align-items:center;text-align:left;background:transparent;border:0;padding:4px;border-radius:12px;
+.nb-src[data-off=true]{opacity:.5}
+.nb-src[data-on=true]{background:color-mix(in srgb,${T.accent} 9%, transparent)}
+.nb-src-open{flex:1;min-width:0;display:flex;align-items:center;gap:var(--nb-sp-3);
+  text-align:left;background:transparent;border:0;padding:5px 4px;border-radius:var(--nb-r-el);
   color:${T.text};cursor:pointer;font-family:inherit}
-.nb-src-ico{position:relative;width:36px;height:36px;border-radius:12px;display:grid;place-items:center;
+.nb-src-ico{position:relative;width:30px;height:30px;border-radius:var(--nb-r-in);display:grid;place-items:center;
   background:var(--nb-wash-2);color:${T.text2};flex:0 0 auto}
-.nb-src[data-on=true] .nb-src-ico{background:color-mix(in srgb,${T.accent} 18%, transparent);color:${T.accent}}
-/* the citation number rides the icon's corner, like a source badge */
-.nb-cite{position:absolute;right:-6px;bottom:-6px;min-width:18px;height:18px;padding:0 5px;
-  border-radius:99px;display:grid;place-items:center;background:${T.accent};color:#0d0e15;
-  font-size:10px;font-weight:700;
-  box-shadow:0 1px 4px rgba(8,10,18,.4)}
-.nb-src-title{font-size:13px;font-weight:600;line-height:1.4;color:${T.text};
-  overflow:hidden;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical}
-.nb-src-meta{display:flex;align-items:center;gap:5px;margin-top:4px;flex-wrap:wrap;row-gap:3px}
-/* NotebookLM's per-source checkbox: a rounded box at the row's right edge */
-.nb-srccheck{width:32px;height:32px;flex:0 0 auto;border-radius:8px;cursor:pointer;
-  border:1.5px solid var(--nb-hair-soft);background:transparent;color:#0d0e15;
+.nb-src[data-on=true] .nb-src-ico{background:color-mix(in srgb,${T.accent} 16%, transparent);
+  color:color-mix(in srgb,${T.accent} 70%, ${T.text})}
+.nb-src-body{min-width:0;flex:1;display:flex;flex-direction:column;gap:1px}
+/* Two lines, always: at 162px of text width a single line identifies nothing
+   ("US roadmap targets fusion deployment by mid 203…"). The clamp is stated on
+   the row's own title so the select-all label (a plain sentence) keeps its box. */
+.nb-src .nb-src-title{font-size:var(--nb-fs-label);font-weight:600;line-height:1.35;color:${T.text};
+  overflow:hidden;display:-webkit-box !important;-webkit-line-clamp:2;-webkit-box-orient:vertical;
+  overflow-wrap:anywhere}
+.nb-src-meta{display:flex;align-items:center;gap:5px;flex-wrap:wrap;row-gap:3px;
+  min-width:0}
+.nb-src-meta .nb-chip{flex:0 0 auto;max-width:110px;overflow:hidden;
+  text-overflow:ellipsis;white-space:nowrap}
+/* the S-number is a quiet mono tag leading the meta line, not a badge on the icon */
+.nb-src-s{font-family:var(--ui-font-mono,ui-monospace,monospace);font-size:12px;
+  font-weight:700;color:${T.text3};flex:0 0 auto}
+.nb-src-meta-txt{flex:0 1 auto;min-width:0;color:${T.text4};font-size:var(--nb-fs-meta);
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+/* NotebookLM's per-source checkbox: a rounded box on the row's left edge */
+.nb-srccheck{width:32px;height:32px;flex:0 0 auto;border-radius:var(--nb-r-in);cursor:pointer;
+  border:1.5px solid var(--ui-stroke-secondary, var(--nb-hair-soft));background:transparent;
+  color:#0d0e15;
   display:grid;place-items:center;padding:0;transition:all var(--nb-dur-fast) var(--nb-ease)}
 .nb-srccheck:hover{border-color:color-mix(in srgb,${T.accent} 55%, transparent)}
-.nb-srccheck[aria-checked=true]{background:${T.accent};border-color:${T.accent}}
-.nb-selall{display:flex;align-items:center;gap:9px;padding:2px 6px}
-.nb-selall .nb-srccheck{width:32px;height:32px;border-radius:8px}
-.nb-src-del{position:absolute;right:44px;top:50%;transform:translateY(-50%);
-  opacity:0;transition:opacity var(--nb-dur-fast) var(--nb-ease)}
+.nb-srccheck[aria-checked=true]{background:${T.accent};border-color:${T.accent};color:#0d0e15}
+.nb-srccheck[aria-checked=mixed]{border-color:color-mix(in srgb,${T.accent} 55%, var(--ui-stroke-secondary, var(--nb-hair-soft)))}
+/* "all included" is a filter row over the list, not a checkbox above a tree */
+.nb-selall{display:flex;align-items:center;gap:var(--nb-sp-2);padding:0 2px var(--nb-sp-2);
+  border-bottom:1px solid var(--nb-hair-soft);margin-bottom:var(--nb-sp-1)}
+.nb-selall .nb-src-title{font-size:var(--nb-fs-label);font-weight:600;color:${T.text2}}
+/* The master control keeps the row's 32px target and the semantic radius (the
+   a11y and design gates both refuse anything else); it is separated from the
+   list by its hairline and by a quieter label, not by a different shape. */
+
+.nb-src-flat{display:flex;flex-direction:column;gap:1px}
+.nb-src-del{position:absolute;right:var(--nb-sp-1);top:50%;transform:translateY(-50%);
+  opacity:0;transition:opacity var(--nb-dur-fast) var(--nb-ease);background:var(--nb-card)}
 .nb-src:hover .nb-src-del,.nb-src-del:focus-visible{opacity:1}
-.nb-srcgroup{display:flex;align-items:center;gap:8px;width:100%;text-align:left;
-  padding:9px 10px;border:0;border-radius:12px;background:transparent;color:${T.text3};
-  font-size:12px;font-weight:650;letter-spacing:.01em;cursor:pointer;font-family:inherit}
-.nb-srcgroup:hover{background:var(--nb-wash-2);color:${T.text2}}
-.nb-srcgroup svg{transition:transform var(--nb-dur-fast) var(--nb-ease)}
-.nb-srcgroup[data-closed=true] svg{transform:rotate(-90deg)}
-.nb-srcgroup em{margin-left:auto;font-style:normal;font-weight:500;color:${T.text3};font-size:11.5px}
-.nb-srcgroup-list{display:flex;flex-direction:column;gap:2px;padding-left:14px}
+/* a topic is a section label, not a control: no checkbox, no fold-in-fold */
+.nb-srcgroup{display:flex;align-items:center;gap:6px;width:100%;
+  padding:10px var(--nb-sp-3) 4px;border:0;background:transparent;color:${T.text4};
+  font-size:var(--nb-fs-meta);font-weight:650;letter-spacing:.02em;text-transform:uppercase;
+  font-family:inherit}
+/* a fold that folds: the chevron turns, the count rides the right edge */
+.nb-srcgroup svg{flex:0 0 auto;opacity:.6;transition:transform var(--nb-dur-fast) var(--nb-ease)}
+.nb-srcgroup[aria-expanded=false] svg{transform:rotate(-90deg)}
+.nb-srcgroup em{margin-left:auto;font-style:normal;font-weight:600;color:${T.text3};
+  font-size:var(--nb-fs-meta);text-transform:none;letter-spacing:0}
 
-/* the web-research box inside the sources panel */
-.nb-finder{margin:0 14px 10px;border-radius:16px;border:1px solid var(--nb-hair-soft);
-  background:var(--nb-wash);padding:10px}
-.nb-finder-row{display:flex;align-items:center;gap:8px}
-.nb-finder-row input{flex:1;min-width:0;height:34px;border:0;outline:0;background:transparent;
-  color:${T.text};font-size:13px;font-family:inherit}
-.nb-finder-row input::placeholder{color:${T.text4}}
-.nb-finder-go{width:32px;height:32px;flex:0 0 auto;border-radius:99px;border:0;cursor:pointer;
-  background:${T.accent};color:#0d0e15;display:grid;place-items:center;padding:0}
-.nb-addsrc{width:100%;justify-content:flex-start;height:34px;background:transparent;
-  border:1px dashed var(--nb-hair);color:${T.text2};font-size:12.5px;box-shadow:none}
-.nb-addsrc:hover{background:var(--nb-wash-2);border-color:color-mix(in srgb,${T.accent} 40%, var(--nb-hair));color:${T.text}}
-.nb-paneltog{flex:0 0 44px;display:flex;flex-direction:column;align-items:center;
-  gap:10px;padding-top:16px}
-.nb-finder-go[disabled]{opacity:.45;cursor:not-allowed}
-.nb-fcand[disabled]{cursor:default}
-.nb-fcand[disabled]:not([data-added=true]){opacity:.55}
-.nb-fcand{display:flex;align-items:center;gap:10px;width:100%;text-align:left;
-  padding:9px 10px;border-radius:12px;border:0;background:transparent;color:${T.text};
-  cursor:pointer;font-family:inherit}
-.nb-fcand:hover{background:var(--nb-wash-2)}
-.nb-fcand-main{flex:1;min-width:0}
-.nb-fcand-title{display:block;font-size:12.5px;font-weight:600;line-height:1.35;color:${T.text};
-  overflow:hidden;white-space:nowrap;text-overflow:ellipsis}
-.nb-fcand-sub{display:block;font-size:11.5px;color:${T.text3};margin-top:2px;
-  overflow:hidden;white-space:nowrap;text-overflow:ellipsis}
-.nb-fcand-add{width:28px;height:28px;flex:0 0 auto;border-radius:99px;cursor:pointer;
-  border:1.5px solid var(--nb-hair);background:transparent;color:${T.text2};
-  display:grid;place-items:center;padding:0}
-.nb-fcand-add:hover{border-color:${T.accent};color:${T.accent}}
-.nb-fcand-add[data-added=true]{background:color-mix(in srgb,${T.ok} 15%, transparent);
-  border-color:color-mix(in srgb,${T.ok} 50%, transparent);color:${T.ok};cursor:default}
-
+/* the "+ Add" control in the rail header is the only add affordance */
+.nb-addsrc{height:32px;min-height:32px;padding:0 12px;border-radius:var(--nb-r-pill);
+  background:${T.accent};border:1px solid transparent;color:#0d0e15;
+  font-size:var(--nb-fs-label);font-weight:650;box-shadow:none;gap:5px}
+.nb-addsrc:hover{background:color-mix(in srgb,${T.accent} 88%, ${T.text});border-color:transparent;
+  color:#0d0e15}
+.nb-paneltog{flex:0 0 48px;display:flex;flex-direction:column;align-items:center;
+  gap:10px;padding-top:12px}
+.nb-paneltog-btn{display:flex;flex-direction:column;align-items:center;gap:6px;width:44px;
+  padding:10px 0 12px;border-radius:var(--nb-r-el);cursor:pointer;font-family:inherit;
+  border:1px solid var(--nb-hair-soft);background:var(--nb-wash);color:${T.text3};
+  font-size:var(--nb-fs-meta);font-weight:650;letter-spacing:.02em;
+  transition:background var(--nb-dur-fast) var(--nb-ease),color var(--nb-dur-fast) var(--nb-ease)}
+.nb-paneltog-btn span{writing-mode:vertical-rl;text-orientation:mixed;letter-spacing:.08em;
+  text-transform:uppercase}
+.nb-paneltog-btn:hover{background:var(--nb-wash-2);color:${T.text}}
+.nb-paneltog-btn:focus-visible{outline:2px solid ${T.accent};outline-offset:2px}
 /* chips are soft pills; clickable ones are full 32px targets */
-.nb-chip{display:inline-flex;align-items:center;gap:5px;height:22px;padding:0 9px;border-radius:99px;
-  font-size:11px;font-weight:600;letter-spacing:.01em;color:${T.text3};
+.nb-chip{display:inline-flex;align-items:center;gap:5px;height:22px;padding:0 9px;border-radius:var(--nb-r-pill);
+  font-size:12px;font-weight:600;letter-spacing:.01em;color:${T.text3};
   background:var(--nb-wash-2);border:1px solid transparent;white-space:nowrap;font-family:inherit}
-.nb-chip[data-tone=accent]{color:${T.accent};background:color-mix(in srgb,${T.accent} 13%, transparent)}
-.nb-chip[data-tone=ok]{color:${T.ok};background:color-mix(in srgb,${T.ok} 13%, transparent)}
-.nb-chip[data-tone=warn]{color:${T.warn};background:color-mix(in srgb,${T.warn} 14%, transparent)}
-.nb-chip[data-tone=danger]{color:${T.danger};background:color-mix(in srgb,${T.danger} 13%, transparent)}
-.nb-citechip{height:32px;min-height:32px;padding:0 7px 0 9px;border-radius:99px;gap:7px;
-  background:var(--nb-card);border-color:var(--nb-hair);color:${T.text2};font-size:12px;font-weight:500}
+.nb-chip[data-tone=accent]{color:color-mix(in srgb,${T.accent} 70%, ${T.text});
+  background:color-mix(in srgb,${T.accent} 13%, transparent)}
+/* Semantic tones are the host's success/warning/danger colours, which are
+   tuned for the dark skin. MIXED toward the page's own ink they keep their hue
+   and pick up contrast on whichever canvas is actually painted — #3fb950 on a
+   near-white card measured 2.41:1 before this. */
+.nb-chip[data-tone=ok]{color:color-mix(in srgb,${T.ok} 62%, ${T.text});
+  background:color-mix(in srgb,${T.ok} 14%, transparent)}
+.nb-chip[data-tone=warn]{color:color-mix(in srgb,${T.warn} 54%, ${T.text});
+  background:color-mix(in srgb,${T.warn} 15%, transparent)}
+.nb-chip[data-tone=danger]{color:color-mix(in srgb,${T.danger} 62%, ${T.text});
+  background:color-mix(in srgb,${T.danger} 14%, transparent)}
+.nb-citechip{height:32px;min-height:32px;padding:0 7px 0 9px;border-radius:var(--nb-r-pill);gap:7px;
+  background:var(--nb-cite-bg);border-color:transparent;color:var(--nb-cite-ink);
+  font-size:12.5px;font-weight:550}
 .nb-citechip:hover{border-color:color-mix(in srgb,${T.accent} 50%, transparent)}
-.nb-citechip b{font-family:var(--ui-font-mono,ui-monospace,monospace);color:${T.accent};font-weight:700;
-  font-size:10.5px;background:color-mix(in srgb,${T.accent} 14%, transparent);border-radius:99px;
+.nb-citechip b{font-family:var(--ui-font-mono,ui-monospace,monospace);color:var(--nb-cite-ink);font-weight:750;
+  font-size:12px;background:color-mix(in srgb,${T.accent} 14%, transparent);border-radius:var(--nb-r-pill);
   padding:3px 7px;flex:0 0 auto}
 .nb-citechip span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0;max-width:300px}
-.nb-chip[data-click=true]{cursor:pointer;min-height:32px;height:32px;padding:0 13px;font-size:12px;
+.nb-chip[data-click=true]{cursor:pointer;min-height:32px;height:32px;padding:0 13px;font-size:12.5px;
   background:var(--nb-card);border-color:var(--nb-hair)}
 .nb-chip[data-click=true]:hover{background:var(--nb-wash-2);color:${T.text};
   border-color:color-mix(in srgb,${T.text} 20%, transparent)}
 .nb-chip[data-click=true][aria-pressed=true]{background:color-mix(in srgb,${T.accent} 14%, transparent);
-  color:${T.accent};border-color:color-mix(in srgb,${T.accent} 45%, transparent)}
+  color:color-mix(in srgb,${T.accent} 70%, ${T.text});border-color:color-mix(in srgb,${T.accent} 45%, transparent)}
 
 /* discover candidates — the "find for me" picker inside the add-source sheet */
 .nb-cand-list{display:flex;flex-direction:column;gap:8px;max-height:308px;overflow:auto;padding:2px}
 .nb-cand{display:flex;gap:11px;align-items:flex-start;width:100%;text-align:left;
-  padding:11px 12px;border-radius:12px;border:1px solid var(--nb-hair-soft);
+  padding:11px 12px;border-radius:var(--nb-r-el);border:1px solid var(--nb-hair-soft);
   background:var(--nb-card);cursor:pointer;font-family:inherit;color:inherit}
 .nb-cand:hover{border-color:color-mix(in srgb,${T.text} 20%, transparent);background:var(--nb-wash-2)}
 .nb-cand[data-on=true]{border-color:color-mix(in srgb,${T.accent} 45%, transparent);
   background:color-mix(in srgb,${T.accent} 8%, transparent)}
-.nb-cand-check{width:20px;height:20px;flex:0 0 auto;margin-top:2px;border-radius:7px;
-  border:1.5px solid var(--nb-hair);display:grid;place-items:center;color:#0d0e15}
+.nb-cand-check{width:20px;height:20px;flex:0 0 auto;margin-top:2px;border-radius:var(--nb-r-in);
+  border:1.5px solid var(--nb-hair);display:grid;place-items:center;color:var(--ui-bg-primary, #0b0c11)}
 .nb-cand[data-on=true] .nb-cand-check{background:${T.accent};border-color:${T.accent}}
-.nb-cand-title{display:block;font-size:13.5px;font-weight:600;line-height:1.35;color:${T.text}}
-.nb-cand-sub{display:flex;gap:7px;align-items:flex-start;margin-top:5px;font-size:12px;
+.nb-cand-title{display:block;font-size:13px;font-weight:600;line-height:1.35;color:${T.text}}
+.nb-cand-sub{display:flex;gap:7px;align-items:flex-start;margin-top:5px;font-size:12.5px;
   color:${T.text3};line-height:1.5}
 .nb-cand-sub .nb-chip{flex:0 0 auto;margin-top:1px}
 .nb-cand-sub > span:last-child{display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;
   overflow:hidden;min-width:0}
 
-/* ------------------------------------------------------- title block (main) */
-.nb-main-head{padding:24px 30px 0;border-bottom:1px solid var(--nb-hair-soft);flex:0 0 auto;position:relative}
-.nb-hero{display:flex;align-items:flex-start;gap:16px;margin-bottom:16px}
-.nb-hero-emoji{width:52px;height:52px;flex:0 0 auto;display:grid;place-items:center;font-size:30px;
-  border-radius:16px;background:var(--nb-wash-2);border:1px solid var(--nb-hair-soft)}
-.nb-hero-main{min-width:0;flex:1}
-.nb-hero-main .nb-h1{margin-bottom:6px}
-.nb-h1{font-size:27px;font-weight:700;letter-spacing:-.025em;line-height:1.15;margin:0;max-width:30ch;
-  text-wrap:balance}
-.nb-sub{color:${T.text2};font-size:14px;line-height:1.55;margin:0;max-width:70ch}
-.nb-hero-side{display:flex;align-items:center;gap:8px;flex:0 0 auto;padding-top:6px}
-/* ops host-measurement strip (Lab Ops only) */
-.nb-strip{display:flex;align-items:stretch;gap:8px;margin:14px 0 0;flex-wrap:wrap}
-.nb-cell{flex:1;min-width:90px;padding:10px 14px 11px;border-radius:12px;
+/* ------------------------------------------------------- title block (main)
+   One compact header instead of a hero + a tab row + a second meta row. The
+   notebook's title lives in the breadcrumb (the app bar already shows it), so
+   the centre pane starts with a 44px strip: sigil, title, one meta line, the
+   grounded chip, and the view tabs on the same baseline. That is ~180px of
+   reading height that the old stacked block spent on nothing. */
+.nb-main-head{padding:0 var(--nb-sp-6);border-bottom:1px solid var(--nb-hair-soft);
+  flex:0 0 auto;position:relative;display:flex;flex-direction:column;min-width:0}
+.nb-head-top{display:flex;align-items:center;gap:var(--nb-sp-3);min-height:52px;padding:var(--nb-sp-2) 0 0;
+  min-width:0}
+/* the view switcher's own row — the title keeps the width it needs */
+.nb-tabs-row{display:flex;align-items:center;gap:var(--nb-sp-3);padding:var(--nb-sp-2) 0 8px;min-width:0}
+.nb-head-sigil{width:34px;height:34px;flex:0 0 auto;display:grid;place-items:center;font-size:20px;
+  border-radius:var(--nb-r-in);background:var(--nb-wash-2);border:1px solid var(--nb-hair-soft);
+  overflow:hidden}
+.nb-head-main{min-width:0;flex:1;display:flex;flex-direction:column;gap:1px}
+.nb-h1{font-size:var(--nb-fs-title);font-weight:650;letter-spacing:-.015em;line-height:1.25;margin:0;
+  overflow:hidden;min-width:0;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;
+  overflow-wrap:anywhere}
+.nb-sub{color:${T.text3};font-size:var(--nb-fs-meta);line-height:1.4;margin:0;
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0;max-width:100%}
+.nb-hero-side{display:flex;align-items:center;gap:var(--nb-sp-2);flex:0 0 auto}
+/* the view switcher: one pill track on the header line, never a second row.
+   Long artifact titles truncate instead of pushing the track into overflow. */
+.nb-tabs{display:inline-flex;align-items:center;gap:2px;padding:3px;flex:0 1 auto;
+  min-width:0;max-width:100%;overflow:hidden;border-radius:var(--nb-r-el);
   border:1px solid var(--nb-hair-soft);background:var(--nb-wash)}
-.nb-cell b{display:block;font-size:17px;font-weight:650;letter-spacing:-.02em;
-  line-height:1.1;font-variant-numeric:tabular-nums}
-.nb-cell span{display:block;font-size:11.5px;color:${T.text3};margin-top:6px;font-weight:600}
-.nb-tabs{display:flex;gap:4px;align-items:flex-end;margin:16px 0 0;position:relative;bottom:-1px}
-.nb-tab{min-height:38px;padding:0 14px 11px;border:0;border-bottom:2px solid transparent;
-  border-radius:10px 10px 0 0;background:transparent;color:${T.text2};font-size:13.5px;
-  font-weight:600;cursor:pointer;display:inline-flex;align-items:center;gap:7px;letter-spacing:0;
+.nb-tab{min-height:32px;padding:0 11px;border:0;border-radius:var(--nb-r-in);background:transparent;
+  color:${T.text2};font-size:var(--nb-fs-label);font-weight:600;cursor:pointer;
+  display:inline-flex;align-items:center;gap:6px;letter-spacing:0;min-width:0;
   font-family:inherit;transition:background var(--nb-dur-fast) var(--nb-ease),color var(--nb-dur-fast) var(--nb-ease)}
-.nb-tab:hover{color:${T.text};background:var(--nb-wash)}
-.nb-tab[aria-selected=true]{color:${T.text};border-bottom-color:${T.accent};background:var(--nb-wash)}
+.nb-tab > span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:150px}
+.nb-tab:hover{color:${T.text};background:var(--nb-wash-2)}
+.nb-tab[aria-selected=true]{color:${T.text};background:var(--nb-card);box-shadow:var(--nb-shadow)}
 .nb-tab[disabled]{opacity:.45;cursor:default}
 
 /* ------------------------------------------------------------------- chat */
 .nb-chat{flex:1;min-height:0;display:flex;flex-direction:column}
+/* the conversation strip: tabs for the open chats, More for the rest, + for a
+   new one — the thread switcher is a row, not a dialog */
+.nb-thrtabs{flex:0 0 auto;display:flex;align-items:center;gap:4px;
+  padding:10px 28px 0;position:relative;overflow-x:auto;scrollbar-width:none}
+.nb-thrtabs::-webkit-scrollbar{display:none}
+.nb-thr-tab{flex:0 0 auto;display:inline-flex;align-items:center;min-height:32px;
+  max-width:190px;padding:0 12px;border-radius:var(--nb-r-pill);border:1px solid transparent;
+  background:transparent;color:${T.text3};font-size:var(--nb-fs-label);font-weight:600;
+  font-family:inherit;cursor:pointer;white-space:nowrap}
+.nb-thr-tab:hover{background:var(--nb-wash-2);color:${T.text2}}
+.nb-thr-tab[data-active=true]{background:var(--nb-wash-2);border-color:var(--nb-hair-soft);color:${T.text}}
+.nb-thr-tab[data-more=true]{border-style:dashed;border-color:var(--nb-hair-soft)}
+.nb-thr-tab-title{min-width:0;overflow:hidden;text-overflow:ellipsis}
+.nb-thr-new{flex:0 0 auto;display:inline-flex;align-items:center;gap:5px;min-height:32px;
+  padding:0 12px;border-radius:var(--nb-r-pill);border:1px dashed var(--nb-hair-soft);
+  background:transparent;color:${T.text3};font-size:var(--nb-fs-label);font-weight:600;
+  font-family:inherit;cursor:pointer}
+.nb-thr-new:hover{border-color:color-mix(in srgb,${T.accent} 50%, transparent);color:${T.text}}
+.nb-thr-rename{flex:0 0 auto;width:150px;height:32px;padding:0 10px;border-radius:var(--nb-r-pill);
+  border:1px solid color-mix(in srgb,${T.accent} 55%, transparent);background:var(--nb-card);
+  color:${T.text};font-size:var(--nb-fs-label);font-family:inherit;outline:none}
+.nb-thr-menu{position:absolute;top:calc(100% + 4px);right:28px;z-index:60;min-width:200px;
+  display:grid;gap:2px;padding:6px;border-radius:var(--nb-r-el);
+  background:var(--nb-card);border:1px solid var(--nb-hair);box-shadow:var(--nb-shadow)}
+.nb-thr-ctx{right:auto;left:28px}
+.nb-thr-menuitem{display:block;width:100%;text-align:left;min-height:34px;padding:6px 12px;
+  border:0;border-radius:var(--nb-r-in);background:transparent;color:${T.text2};
+  font-size:var(--nb-fs-label);font-weight:550;font-family:inherit;cursor:pointer;
+  overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.nb-thr-menuitem:hover{background:var(--nb-wash-2);color:${T.text}}
+.nb-thr-menuitem[data-active=true]{color:${T.text};font-weight:650}
+.nb-thr-menuitem[data-danger=true]{color:${T.danger}}
+.nb-thr-menuitem[data-danger=true]:hover{background:color-mix(in srgb,${T.danger} 12%, transparent)}
+.nb-tabcount{display:inline-grid;place-items:center;min-width:20px;height:20px;
+  padding:0 6px;border-radius:var(--nb-r-pill);margin-left:2px;
+  background:color-mix(in srgb,${T.accent} 18%, transparent);color:${T.text};
+  font-size:var(--nb-fs-meta);font-weight:700;font-variant-numeric:tabular-nums}
+.nb-thr-scrim{position:fixed;inset:0;z-index:55;background:transparent}
+@media (max-width:900px){.nb-thrtabs{padding:10px 20px 0}}
 .nb-chatscroll{flex:1;min-height:0;display:flex;flex-direction:column;position:relative}
-.nb-hl{background:color-mix(in srgb, ${T.accent} 30%, transparent);color:inherit;border-radius:4px;padding:0 2px}
-.nb-latest{position:absolute;left:50%;bottom:14px;transform:translateX(-50%);z-index:20;display:inline-flex;align-items:center;gap:4px;padding:7px 14px;border-radius:999px;border:1px solid var(--nb-line,#2a2d3d);background:var(--nb-card,#14161f);color:var(--nb-text2,#c6c9d8);font-size:12.5px;font-weight:600;cursor:pointer;box-shadow:0 6px 20px rgba(0,0,0,.35);transition:transform var(--nb-dur-fast) var(--nb-ease),box-shadow var(--nb-dur-fast) var(--nb-ease)}
+.nb-hl{background:color-mix(in srgb, ${T.accent} 30%, transparent);color:inherit;border-radius:var(--nb-r-in);padding:0 2px}
+.nb-latest{position:absolute;left:50%;bottom:14px;transform:translateX(-50%);z-index:20;display:inline-flex;align-items:center;gap:4px;padding:7px 14px;border-radius:var(--nb-r-pill);border:1px solid var(--nb-line,#2a2d3d);background:var(--nb-card,#14161f);color:var(--nb-text2,#c6c9d8);font-size:12.5px;font-weight:600;cursor:pointer;box-shadow:0 6px 20px rgba(0,0,0,.35);transition:transform var(--nb-dur-fast) var(--nb-ease),box-shadow var(--nb-dur-fast) var(--nb-ease)}
 .nb-latest:hover{transform:translateX(-50%) translateY(-1px);box-shadow:0 8px 24px rgba(0,0,0,.45)}
-.nb-thread{flex:1;min-height:0;overflow:auto;padding:28px 28px 12px;display:flex;flex-direction:column;gap:24px}
+/* 96px of tail: the composer and the floating zoom pill sit over this column, and a
+   last bubble padded only 12px reads as clipped text at the bottom edge */
+.nb-thread{flex:1;min-height:0;overflow:auto;padding:28px 28px 96px;display:flex;flex-direction:column;gap:24px}
 .nb-msg{max-width:72ch;animation:nb-msg-in var(--nb-dur-fast) var(--nb-ease) both}
 @keyframes nb-msg-in{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:none}}
 /* generative marks breathe — a slow 1.5% drift so sigils feel alive, not pasted */
-.nb-hero-emoji svg,.nb-nbcard-emoji svg,.nb-feature-emoji svg{animation:nb-sigil-float 9s ease-in-out infinite}
+.nb-nbcard-emoji svg,.nb-nbcard-emoji svg{animation:nb-sigil-float 9s ease-in-out infinite}
 @keyframes nb-sigil-float{0%,100%{transform:translateY(0) rotate(0deg)}50%{transform:translateY(-2px) rotate(1.2deg)}}
 /* home cards arrive in a stagger — the directory assembles itself */
-.nb-nbcard-wrap,.nb-feature{animation:nb-card-in var(--nb-dur-med) var(--nb-ease) both}
+.nb-nbcard-wrap{animation:nb-card-in var(--nb-dur-med) var(--nb-ease) both}
 @keyframes nb-card-in{from{opacity:0;transform:translateY(12px) scale(.985)}to{opacity:1;transform:none}}
 /* sigil inscription — ribbons draw themselves in sequence, nodes pop after */
 .nb-sigil-draw path{stroke-dasharray:1;stroke-dashoffset:1;animation:nb-draw .9s cubic-bezier(.45,.05,.3,1) forwards}
@@ -375,7 +510,7 @@ const CSS = `
 .nb-sigil-draw{transform-origin:center;animation:nb-sigil-settle 1.1s var(--nb-ease) both}
 @keyframes nb-sigil-settle{from{opacity:0;transform:scale(.92)}to{opacity:1;transform:scale(1)}}
 @media (prefers-reduced-motion:reduce){
-  .nb-msg,.nb-nbcard-wrap,.nb-feature,.nb-hero-emoji svg,.nb-nbcard-emoji svg,.nb-feature-emoji svg,.nb-blob,.nb-sigil-draw{animation:none!important}
+  .nb-msg,.nb-nbcard-wrap,.nb-nbcard-emoji svg,.nb-blob,.nb-sigil-draw{animation:none!important}
   .nb-sigil-draw path{stroke-dashoffset:0!important}
   .nb-sigil-draw circle{opacity:1!important;transform:none!important}
 }
@@ -383,15 +518,12 @@ const CSS = `
 .nb-msg[data-role=user]{align-self:flex-end;max-width:62ch}
 .nb-msg-body{min-width:0}
 .nb-msg[data-role=user] .nb-bubble{background:var(--nb-wash-2);border:1px solid var(--nb-hair-soft);
-  border-radius:16px;padding:11px 17px;font-size:15px;line-height:1.55;color:${T.text}}
+  border-radius:var(--nb-r-box);padding:11px 17px;font-size:15px;line-height:1.55;color:${T.text}}
 .nb-msg[data-role=assistant] .nb-bubble{font-size:16px;line-height:1.66;color:${T.text}}
 .nb-msg[data-role=assistant] .nb-avatar{width:30px;height:30px;margin-top:2px}
-.nb-avatar{width:36px;height:36px;flex:0 0 auto;display:grid;place-items:center;border-radius:12px;
-  background:var(--nb-wash-2);color:${T.text2};font-size:13px;font-weight:700}
-.nb-nbrow[aria-current=true] .nb-avatar{background:color-mix(in srgb,${T.accent} 20%, transparent);color:${T.accent}}
-.nb-msg .nb-avatar{width:30px;height:30px;border-radius:99px;
-  background:color-mix(in srgb,${T.accent} 16%, transparent);color:${T.accent};font-size:11px;letter-spacing:.02em}
-.nb-who{font-size:11.5px;letter-spacing:.02em;color:${T.text3};font-weight:600;margin-bottom:8px}
+.nb-msg .nb-avatar{width:30px;height:30px;border-radius:var(--nb-r-pill);
+  background:color-mix(in srgb,${T.accent} 16%, transparent);color:color-mix(in srgb,${T.accent} 70%, ${T.text});font-size:12px;letter-spacing:.02em}
+.nb-who{font-size:12px;letter-spacing:.02em;color:${T.text3};font-weight:600;margin-bottom:8px}
 .nb-msg[data-role=user] .nb-who{color:${T.text4}}
 .nb-md p{margin:0 0 11px}
 .nb-md p:last-child{margin-bottom:0}
@@ -399,46 +531,69 @@ const CSS = `
 .nb-md h3{font-size:15px;margin:16px 0 6px;color:${T.text2};font-weight:700}
 .nb-md ul{margin:0 0 11px;padding-left:20px}
 .nb-md li{margin:5px 0}
-.nb-md li::marker{color:${T.accent}}
+.nb-md li::marker{color:color-mix(in srgb,${T.accent} 70%, ${T.text})}
 .nb-md code{font-family:var(--ui-font-mono,ui-monospace,monospace);font-size:12.5px;
-  background:var(--nb-wash-2);padding:1.5px 6px;border-radius:6px}
+  background:var(--nb-wash-2);padding:1.5px 6px;border-radius:var(--nb-r-in)}
 .nb-md strong{font-weight:650;color:${T.text}}
-.nb-md blockquote{margin:12px 0;padding:10px 16px;border-radius:12px;color:${T.text2};
+.nb-md blockquote{margin:12px 0;padding:10px 16px;border-radius:var(--nb-r-el);color:${T.text2};
   background:var(--nb-wash);border-left:3px solid color-mix(in srgb,${T.accent} 55%, transparent)}
 /* inline citations are quiet accent pills with the source number */
-.nb-inline-cite{display:inline-flex;align-items:center;min-height:20px;padding:0 8px;margin:0 2px;
-  border-radius:99px;border:1px solid color-mix(in srgb,${T.accent} 30%, transparent);
-  background:color-mix(in srgb,${T.accent} 10%, transparent);
-  font-size:11px;font-weight:700;letter-spacing:.01em;
-  color:${T.accent};cursor:pointer;vertical-align:1px;line-height:1}
+.nb-inline-cite{display:inline-flex;align-items:center;min-height:22px;padding:0 9px;margin:0 3px;
+  border-radius:var(--nb-r-pill);border:1px solid transparent;
+  background:var(--nb-cite-bg);
+  font-size:var(--nb-fs-meta);font-weight:650;letter-spacing:.01em;
+  color:var(--nb-cite-ink);
+  color:color-mix(in srgb,${T.accent} 70%, ${T.text});cursor:pointer;vertical-align:1px;line-height:1}
 .nb-inline-cite:hover{background:color-mix(in srgb,${T.accent} 20%, transparent)}
+.nb-inline-cite:focus-visible{outline:2px solid color-mix(in srgb,${T.accent} 70%, transparent);outline-offset:1px}
+/* the muted cost line under an answer — what it drew on, in checkable units */
+.nb-cost{margin-top:8px;font-size:var(--nb-fs-meta);color:${T.text4};
+  font-variant-numeric:tabular-nums}
+.nb-cites-toggle{margin-top:8px;display:inline-flex;align-items:center;min-height:32px;
+  padding:0 10px;border-radius:var(--nb-r-pill);border:1px dashed var(--nb-hair);
+  background:transparent;color:${T.text3};font-size:var(--nb-fs-meta);font-weight:600;
+  cursor:pointer;font-family:inherit}
+.nb-cites-toggle:hover{border-color:color-mix(in srgb,${T.accent} 45%, transparent);color:${T.text2}}
+/* suggested questions above the composer: full text, wrapped, one per row */
+.nb-qrow{display:grid;gap:6px;margin-bottom:12px}
+.nb-qchip{text-align:left;min-height:36px;padding:8px 14px;border-radius:var(--nb-r-el);
+  border:1px solid var(--nb-hair-soft);background:var(--nb-card);color:${T.text2};
+  font-size:var(--nb-fs-label);line-height:1.4;font-family:inherit;cursor:pointer;
+  transition:border-color var(--nb-dur-fast) var(--nb-ease),color var(--nb-dur-fast) var(--nb-ease)}
+.nb-qchip:hover{border-color:color-mix(in srgb,${T.accent} 45%, transparent);color:${T.text}}
 .nb-composer{flex:0 0 auto;padding:14px 30px 20px}
 .nb-askbox{display:flex;flex-direction:column;gap:10px;border:1px solid var(--nb-hair);
-  border-radius:26px;background:var(--nb-card);padding:14px 16px;box-shadow:var(--nb-shadow);
+  border-radius:var(--nb-r-panel);background:var(--nb-card);padding:14px 16px;box-shadow:var(--nb-shadow);
   transition:border-color var(--nb-dur-fast) var(--nb-ease),box-shadow var(--nb-dur-fast) var(--nb-ease)}
 .nb-askbox:focus-within{border-color:color-mix(in srgb,${T.accent} 55%, transparent);
   box-shadow:0 0 0 4px color-mix(in srgb,${T.accent} 15%, transparent), var(--nb-shadow)}
 .nb-askbox textarea{width:100%;min-height:44px;max-height:150px;resize:none;border:0;outline:0;
   background:transparent;color:${T.text};font-size:15px;line-height:1.5;font-family:inherit}
 .nb-askbox textarea::placeholder{color:${T.text3}}
-.nb-askfoot{display:flex;align-items:center;gap:8px}
-.nb-sendbtn{width:38px;height:38px;flex:0 0 auto;border-radius:99px;border:0;cursor:pointer;
+.nb-askfoot{display:flex;align-items:center;gap:8px;min-width:0}
+/* the keyboard hint yields before the Send button does: it was pushing the
+   button out of the column at 1330px, so the primary action sat half-clipped
+   at the panel edge */
+.nb-thrchip{min-width:0;max-width:min(210px,38%);overflow:hidden;flex:0 1 auto;min-height:32px}
+.nb-thrchip > span{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.nb-askfoot > .nb-hint{min-width:0;flex:1 1 0;overflow:hidden;text-overflow:ellipsis;
+  white-space:nowrap}
+.nb-sendbtn{width:38px;height:38px;flex:0 0 auto;border-radius:var(--nb-r-pill);border:0;cursor:pointer;
   background:${T.accent};color:#0d0e15;display:grid;place-items:center;padding:0;
   transition:opacity var(--nb-dur-fast) var(--nb-ease),transform var(--nb-dur-fast) var(--nb-ease)}
 .nb-sendbtn:hover{transform:scale(1.05)}
 .nb-sendbtn[disabled]{opacity:.4;cursor:not-allowed;transform:none}
-.nb-disclaimer{font-size:11px;color:${T.text3};text-align:center;margin-top:9px}
 
 /* ------------------------------------------------- overview + suggestions */
-.nb-overview{border:1px solid var(--nb-hair-soft);border-radius:16px;background:var(--nb-card);
+.nb-overview{border:1px solid var(--nb-hair-soft);border-radius:var(--nb-r-box);background:var(--nb-card);
   padding:18px 20px;display:grid;gap:10px}
 .nb-overview-head{display:flex;align-items:center;gap:8px}
 .nb-overview-head .nb-meta{flex:1}
-.nb-overview-body{font-size:14.5px;line-height:1.66;color:${T.text2}}
+.nb-overview-body{font-size:14px;line-height:1.66;color:${T.text2}}
 .nb-overview-body .nb-md strong{color:${T.text}}
 .nb-suggest-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px}
 .nb-suggest{display:flex;flex-direction:column;justify-content:space-between;gap:10px;
-  min-height:104px;text-align:left;padding:14px;border-radius:16px;cursor:pointer;
+  min-height:104px;text-align:left;padding:14px;border-radius:var(--nb-r-box);cursor:pointer;
   border:1px solid var(--nb-hair-soft);background:var(--nb-card);color:${T.text};
   font-family:inherit;font-size:13px;line-height:1.45;transition:border-color var(--nb-dur-fast) var(--nb-ease),
   background var(--nb-dur-fast) var(--nb-ease),transform var(--nb-dur-fast) var(--nb-ease)}
@@ -448,8 +603,44 @@ const CSS = `
 .nb-suggest-go{color:${T.text4};display:flex;justify-content:flex-end}
 .nb-gaprow{display:flex;gap:6px;flex-wrap:wrap;align-items:center}
 .nb-gaprow .nb-chip[data-click=true]{border-style:dashed}
+.nb-gapcard{flex:1 1 200px;max-width:340px;padding:12px 14px;border-radius:var(--nb-r-el);
+  border:1px solid var(--nb-line,${T.line});background:var(--nb-card,${T.card});
+  display:flex;flex-direction:column}
+.nb-gapcard-text{font-size:var(--nb-fs-label);line-height:1.45;color:${T.text2}}
+.nb-src-tabs{display:flex;gap:4px;padding:4px;border-radius:12px;
+  background:var(--nb-wash,${T.cardDeep});border:1px solid var(--nb-line,${T.line})}
+.nb-src-tab{flex:1;display:flex;align-items:center;justify-content:center;gap:7px;
+  height:36px;border:0;border-radius:9px;background:transparent;color:${T.text3};
+  font:inherit;font-size:var(--nb-fs-label);font-weight:600;cursor:pointer;
+  transition:background var(--nb-dur-fast) var(--nb-ease),color var(--nb-dur-fast) var(--nb-ease)}
+.nb-src-tab:hover{color:${T.text}}
+.nb-src-tab[data-on=true]{background:${T.card};color:${T.text};
+  box-shadow:0 1px 3px rgba(0,0,0,.25)}
+.nb-dropzone{display:flex;flex-direction:column;align-items:center;justify-content:center;
+  gap:8px;min-height:130px;padding:18px;border-radius:14px;cursor:pointer;
+  border:1.5px dashed var(--nb-line,${T.line});color:${T.text3};
+  background:var(--nb-wash,${T.cardDeep});text-align:center;
+  transition:border-color var(--nb-dur-fast) var(--nb-ease),background var(--nb-dur-fast) var(--nb-ease)}
+.nb-dropzone:hover,.nb-dropzone:focus-visible{border-color:color-mix(in srgb,${T.accent} 55%, transparent);outline:none}
+.nb-dropzone[data-hot=true]{border-color:${T.accent};
+  background:color-mix(in srgb,${T.accent} 8%, transparent)}
+.nb-staged{display:flex;flex-direction:column;gap:2px;max-height:180px;overflow-y:auto;
+  border:1px solid var(--nb-line,${T.line});border-radius:12px;padding:6px}
+.nb-staged-row{display:flex;align-items:center;gap:9px;padding:6px 8px;
+  border-radius:8px;font-size:var(--nb-fs-label)}
+.nb-staged-row:hover{background:var(--nb-wash-2,${T.cardDeep})}
+.nb-staged-name{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;
+  color:${T.text};font-weight:600}
+.nb-src[data-pending=true]{opacity:.75}
+.nb-src[data-pending=true] .nb-src-title{color:${T.text3};font-style:italic}
+.nb-gen-stop{opacity:0;transition:opacity var(--nb-dur-fast) var(--nb-ease)}
+.nb-gen:hover .nb-gen-stop,.nb-gen:focus-within .nb-gen-stop,
+.nb-gen-stop:focus-visible{opacity:1}
+.nb-jobline{min-height:32px}
+.nb-fc-md p{margin:0}
+.nb-fc-md ul,.nb-fc-md ol{margin:0;padding-left:18px}
 .nb-thrrow{display:flex;align-items:center;gap:10px;width:100%;text-align:left;
-  padding:10px 12px;border-radius:12px;cursor:pointer;font-family:inherit;
+  padding:10px 12px;border-radius:var(--nb-r-el);cursor:pointer;font-family:inherit;
   border:1px solid transparent;background:transparent;color:${T.text}}
 .nb-thrrow:hover{background:var(--nb-wash)}
 .nb-thrrow.is-current{border-color:color-mix(in srgb,${T.accent} 40%, transparent);
@@ -459,32 +650,93 @@ const CSS = `
 .nb-thrwrap .nb-icon{opacity:0;transition:opacity var(--nb-dur-fast) var(--nb-ease)}
 .nb-thrwrap:hover .nb-icon,.nb-thrwrap:focus-within .nb-icon{opacity:1}
 .nb-emgrid{display:grid;grid-template-columns:repeat(8,1fr);gap:6px}
-.nb-em{aspect-ratio:1;border-radius:8px;border:1px solid var(--nb-hair-soft);
+.nb-em{aspect-ratio:1;border-radius:var(--nb-r-in);border:1px solid var(--nb-hair-soft);
   background:var(--nb-card);font-size:17px;cursor:pointer;display:grid;place-items:center;
   transition:border-color var(--nb-dur-fast) var(--nb-ease),background var(--nb-dur-fast) var(--nb-ease)}
 .nb-em:hover{border-color:color-mix(in srgb,${T.accent} 45%, transparent)}
-.nb-em.is-on{border-color:${T.accent};background:color-mix(in srgb,${T.accent} 12%, transparent)}
+.nb-em.is-on{border-color:color-mix(in srgb,${T.accent} 70%, ${T.text});background:color-mix(in srgb,${T.accent} 12%, transparent)}
 
-/* --------------------------------------------------------- studio (index) */
-.nb-grid{display:flex;flex-direction:column;gap:10px;padding:12px 14px 26px}
-/* the generator bento: compact 2-col pills, each tinted by its kind colour */
-.nb-gen-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+/* -------------------------------------------------- studio (the workbench)
+   The right panel is where things get made, so it is organised by what it makes
+   — listen & watch, read, study, visualise — instead of one flat 2-col grid of
+   thirteen equals. Each family folds (a crowded bench is unworkable), each pill
+   says what it produces and what state its last run is in, and the run list
+   underneath is the record of what was actually produced. */
+.nb-studio-head{gap:10px;padding-bottom:10px}
+.nb-studio-head .nb-chip{margin-left:2px}
+.nb-studio-head .nb-icon:last-child{margin-left:auto}
+.nb-studio-body{flex:1;min-height:0;display:flex;flex-direction:column;gap:var(--nb-sp-4);
+  overflow:auto;overscroll-behavior:contain;
+  /* The last card used to end flush against the status bar: a cut card at the
+     panel edge reads as a rendering fault, not as "scroll for more". A real
+     bottom gutter gives the bench a visible end. */
+  padding:var(--nb-sp-4) var(--nb-sp-4) var(--nb-sp-6);
+  /* A card sliced by the panel's bottom edge reads as a rendering fault. The
+     fade says "there is more below" while the panel is scrolled, and because
+     the bottom gutter is deeper than the fade, it disappears at the end of the
+     list instead of dimming the last card. */
+  -webkit-mask-image:linear-gradient(to bottom,#000 calc(100% - 18px),transparent);
+  mask-image:linear-gradient(to bottom,#000 calc(100% - 18px),transparent);
+  scrollbar-width:thin;
+  scrollbar-color:color-mix(in srgb,${T.text} 22%,transparent) transparent}
+.nb-studio-sec{display:flex;flex-direction:column;gap:var(--nb-sp-2)}
+.nb-studio-sec-head{display:flex;align-items:center;gap:var(--nb-sp-2);min-height:32px}
+.nb-studio-sec-head .nb-meta{color:${T.text2}}
 
-/* each output pill carries its own colour (--kc) */
+/* a family header: icon + name + "n of m ready" + fold chevron */
+.nb-group{display:flex;flex-direction:column;gap:var(--nb-sp-2)}
+.nb-group-head{display:flex;align-items:center;gap:var(--nb-sp-2);width:100%;
+  scroll-margin-top:var(--nb-sp-4);
+  min-height:32px;padding:0 var(--nb-sp-2);border:0;border-radius:var(--nb-r-in);
+  background:transparent;cursor:pointer;color:${T.text3};font-family:inherit;
+  font-size:var(--nb-fs-label);font-weight:650;letter-spacing:.01em;
+  transition:background var(--nb-dur-fast) var(--nb-ease),color var(--nb-dur-fast) var(--nb-ease)}
+.nb-group-head:hover{background:var(--nb-wash-2);color:${T.text}}
+.nb-group-head:focus-visible{outline:2px solid ${T.accent};outline-offset:2px}
+.nb-group-head svg{opacity:.7;flex:0 0 auto}
+.nb-group-name{flex:0 0 auto}
+.nb-group-count{margin-left:auto;font-size:var(--nb-fs-meta);font-weight:600;
+  color:${T.text3};font-variant-numeric:tabular-nums}
+.nb-group-head[aria-expanded=true] .nb-group-count{color:${T.text2}}
+.nb-group-chev{display:grid;place-items:center;opacity:.55;
+  transition:transform var(--nb-dur-fast) var(--nb-ease)}
+.nb-group-head[aria-expanded=false] .nb-group-chev{transform:rotate(-90deg)}
+
+/* The output list: ONE per row, tinted by its kind.
+   Two-up cards in a 320–420px drawer left ~190px per card, so every blurb
+   wrapped to three lines, the timestamp dotted beside it, and the whole bench
+   read as a wall of equal-weight boxes. One row per output gives the name room,
+   keeps the state on the same line, and reads like a studio list should. */
+/* The Studio bench, 2-up like NotebookLM's: a 40px pastel badge, the name, a
+   one-line promise, and the state of the last run. Two columns of ~150px tiles
+   fit a 320-420px drawer; below 300px of drawer the container query drops to a
+   single column instead of squeezing. */
+.nb-studio{container-type:inline-size}
+.nb-gen-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;
+  padding:0 0 var(--nb-sp-2)}
+@container (max-width: 300px){ .nb-gen-grid{grid-template-columns:minmax(0,1fr)} }
+/* a family with an odd count leaves its last tile at half width, like every
+   other grid: spanning the row made that one output look like a special case */
+
 .nb-card{--kc:${T.accent};
-  display:flex;align-items:center;gap:10px;width:100%;padding:11px 12px;
-  border:1px solid var(--nb-hair-soft);border-radius:16px;
-  background:var(--nb-card);cursor:pointer;text-align:left;color:${T.text};
-  transition:background var(--nb-dur-fast) var(--nb-ease),border-color var(--nb-dur-fast) var(--nb-ease),transform var(--nb-dur-fast) var(--nb-ease),
-    box-shadow var(--nb-dur-fast) var(--nb-ease)}
-.nb-card:hover{background:var(--nb-wash-2);border-color:color-mix(in srgb,var(--kc) 42%, var(--nb-hair));
+  display:flex;align-items:center;gap:10px;width:100%;min-width:0;
+  min-height:56px;padding:8px 10px;
+  border:1px solid var(--nb-edge);border-radius:var(--nb-r-el);
+  background:var(--nb-tile);cursor:pointer;text-align:left;color:${T.text};
+  transition:background var(--nb-dur-fast) var(--nb-ease),border-color var(--nb-dur-fast) var(--nb-ease),
+    transform var(--nb-dur-fast) var(--nb-ease),box-shadow var(--nb-dur-fast) var(--nb-ease)}
+.nb-card:hover{background:var(--nb-tile-hi);border-color:color-mix(in srgb,var(--kc) 40%, var(--nb-hair));
   transform:translateY(-1px);
-  box-shadow:0 8px 26px -10px color-mix(in srgb,var(--kc) 45%, transparent)}
-.nb-card[data-ready=true]{border-color:color-mix(in srgb,var(--kc) 30%, var(--nb-hair-soft))}
-.nb-card[data-busy=true]{border-color:color-mix(in srgb,var(--kc) 50%, transparent);
+  box-shadow:0 8px 26px -12px color-mix(in srgb,var(--kc) 42%, transparent)}
+.nb-card:focus-visible{outline:2px solid ${T.accent};outline-offset:2px}
+.nb-card[data-ready=true]{border-color:color-mix(in srgb,var(--kc) 26%, var(--nb-hair-soft))}
+.nb-card[data-busy=true]{border-color:color-mix(in srgb,var(--kc) 48%, transparent);
   background:color-mix(in srgb,var(--kc) 6%, var(--nb-card))}
-.nb-card-ico{width:32px;height:32px;flex:0 0 auto;border-radius:8px;display:grid;place-items:center;
-  background:color-mix(in srgb,var(--kc) 14%, transparent);color:var(--kc)}
+/* a 40px pastel badge carries the kind — the colour is the only thing that has
+   to be learned, the words stay in ink */
+.nb-card-ico{width:34px;height:34px;flex:0 0 auto;border-radius:var(--nb-r-in);display:grid;place-items:center;
+  background:color-mix(in srgb,var(--kc) 16%, transparent);color:var(--kc)}
+.nb-card-ico svg{width:17px;height:17px}
 .nb-card[data-kind=video_overview],.nb-art[data-kind=video_overview]{--kc:#81c995}
 .nb-card[data-kind=audio_overview],.nb-art[data-kind=audio_overview]{--kc:#a8c7fa}
 .nb-card[data-kind=summary],.nb-art[data-kind=summary]{--kc:#aecbfa}
@@ -497,60 +749,97 @@ const CSS = `
 .nb-card[data-kind=quiz],.nb-art[data-kind=quiz]{--kc:#c58af9}
 .nb-card[data-kind=slides],.nb-art[data-kind=slides]{--kc:#f28b82}
 .nb-card[data-kind=infographic],.nb-art[data-kind=infographic]{--kc:#fde293}
-.nb-card-main{min-width:0;flex:1;display:flex;flex-direction:column;gap:3px}
-.nb-card-name{display:flex;align-items:center;gap:6px;font-size:12.5px;font-weight:600;
-  letter-spacing:0;line-height:1.25;color:${T.text}}
+.nb-card[data-kind=data_table],.nb-art[data-kind=data_table]{--kc:#a8c7fa}
+.nb-card-main{min-width:0;flex:1;display:flex;flex-direction:column;gap:1px;padding-right:36px}
+.nb-card-name{display:block;font-size:var(--nb-fs-label);font-weight:650;
+  letter-spacing:-.005em;line-height:1.3;color:${T.text};
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .nb-card-name svg{color:var(--kc);flex:0 0 auto}
-.nb-card-blurb{display:block;font-size:11px;line-height:1.4;color:${T.text3};
-  overflow:hidden;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical}
-.nb-card-foot{display:flex;align-items:center;gap:8px;margin-top:auto;padding-top:5px}
-.nb-card-state{display:inline-flex;align-items:center;gap:6px;white-space:nowrap;
-  font-size:10.5px;font-weight:600;color:${T.text3}}
-.nb-card[data-ready=true] .nb-card-state{color:${T.ok};background:color-mix(in srgb,${T.ok} 13%, transparent)}
-.nb-card[data-busy=true] .nb-card-state{color:var(--kc);background:color-mix(in srgb,var(--kc) 13%, transparent)}
-.nb-dot{width:6px;height:6px;border-radius:99px;background:${T.text4};display:inline-block;flex:0 0 auto}
+/* the blurb is what the output actually is — the pill is not just a label */
+.nb-card-blurb{display:none}
+.nb-card .nb-card-state{flex:0 0 auto;align-self:auto;margin:0;padding:0;
+  background:transparent !important;font-size:var(--nb-fs-meta);font-weight:550}
+.nb-card{position:relative}
+.nb-card-bar{position:absolute;left:10px;right:10px;bottom:4px}
+.nb-card-state{display:inline-flex;align-items:center;gap:5px;white-space:nowrap;
+  font-size:var(--nb-fs-meta);font-weight:600;color:${T.text3};
+  padding:0;border-radius:var(--nb-r-pill)}
+.nb-card[data-ready=true] .nb-card-state{color:color-mix(in srgb,${T.ok} 62%, ${T.text})}
+.nb-card[data-busy=true] .nb-card-state{color:color-mix(in srgb,var(--kc) 58%, ${T.text})}
+.nb-dot{width:5px;height:5px;border-radius:50%;background:${T.text4};display:inline-block;flex:0 0 auto}
 .nb-card[data-ready=true] .nb-dot{background:${T.ok}}
 .nb-card[data-busy=true] .nb-dot{background:var(--kc);animation:nb-pulse 1.2s ease-in-out infinite}
-.nb-bar-track{height:4px;margin-top:2px;background:var(--nb-wash-2);border-radius:99px;overflow:hidden;display:block;flex:1;max-width:120px}
-.nb-bar-fill{height:100%;background:var(--kc);border-radius:99px;transition:width var(--nb-dur-med) var(--nb-ease)}
+.nb-bar-track{height:3px;margin-top:3px;background:var(--nb-wash-2);border-radius:var(--nb-r-pill);
+  overflow:hidden;display:block;flex:1;max-width:100%}
+.nb-bar-fill{height:100%;background:var(--kc);border-radius:var(--nb-r-pill);
+  transition:width var(--nb-dur-med) var(--nb-ease)}
 @keyframes nb-pulse{0%,100%{opacity:1}50%{opacity:.35}}
 
-/* the generated-artifacts list: tinted icon tile + title + meta */
-.nb-artlist{display:flex;flex-direction:column;gap:4px}
-.nb-art{display:flex;align-items:center;gap:11px;width:100%;text-align:left;
-  padding:8px 10px;border-radius:12px;border:0;background:transparent;color:${T.text};
-  cursor:pointer;font-family:inherit;transition:background var(--nb-dur-fast) var(--nb-ease)}
-.nb-art:hover{background:var(--nb-wash-2)}
-.nb-art-ico{width:40px;height:40px;flex:0 0 auto;border-radius:12px;position:relative;overflow:hidden;
+/* the run list: a record of real files, newest first */
+.nb-studio-runs{padding-top:var(--nb-sp-3);border-top:1px solid var(--nb-hair-soft)}
+.nb-studio-filters{padding:0 0 var(--nb-sp-2)}
+.nb-artlist{display:flex;flex-direction:column;gap:2px;padding:0 var(--nb-sp-2) 72px}
+.nb-art{display:flex;align-items:center;gap:var(--nb-sp-3);width:100%;text-align:left;
+  min-height:52px;padding:var(--nb-sp-2) var(--nb-sp-3);border-radius:var(--nb-r-el);
+  border:1px solid transparent;background:transparent;color:${T.text};
+  cursor:pointer;font-family:inherit;
+  transition:background var(--nb-dur-fast) var(--nb-ease),border-color var(--nb-dur-fast) var(--nb-ease)}
+.nb-art:hover{background:var(--nb-wash-2);border-color:var(--nb-hair-soft)}
+/* a run that exists reads differently from one that has never been made:
+   the left edge carries the "ready" colour and a quiet open arrow appears on
+   hover, so the drawer answers "what can I read right now" at a glance */
+.nb-art[data-ready=true]{border-left:2px solid color-mix(in srgb,${T.ok} 55%, transparent)}
+.nb-art-go{margin-left:auto;display:grid;place-items:center;flex:0 0 auto;width:28px;height:28px;
+  border-radius:var(--nb-r-pill);color:color-mix(in srgb,${T.ok} 62%, ${T.text});
+  opacity:0;transform:translateX(-3px);
+  transition:opacity var(--nb-dur-fast) var(--nb-ease),transform var(--nb-dur-fast) var(--nb-ease)}
+.nb-art:hover .nb-art-go,.nb-art:focus-visible .nb-art-go{opacity:1;transform:none}
+.nb-art:focus-visible{outline:2px solid ${T.accent};outline-offset:2px}
+.nb-art-ico{width:38px;height:38px;flex:0 0 auto;border-radius:var(--nb-r-in);position:relative;overflow:hidden;
   display:grid;place-items:center;
   background:color-mix(in srgb,var(--kc) 13%, transparent);
   color:color-mix(in srgb,var(--kc) 70%, ${T.text});
   border:1px solid color-mix(in srgb,var(--kc) 22%, transparent)}
-.nb-art-ico svg{opacity:.9}
+.nb-art-ico svg{opacity:.92}
 .nb-art-main{flex:1;min-width:0}
-.nb-art-title{display:block;font-size:13px;font-weight:600;line-height:1.3;color:${T.text};
+.nb-art-title{display:block;font-size:var(--nb-fs-ui);font-weight:600;line-height:1.3;color:${T.text};
   overflow:hidden;white-space:nowrap;text-overflow:ellipsis}
-.nb-art-sub{display:block;font-size:11px;color:${T.text3};margin-top:2px;
+.nb-art-sub{display:block;font-size:var(--nb-fs-meta);color:${T.text3};margin-top:1px;
   overflow:hidden;white-space:nowrap;text-overflow:ellipsis}
 .nb-artrow{position:relative}
-.nb-art-del{position:absolute;right:8px;top:50%;transform:translateY(-50%);
+.nb-art-del{position:absolute;right:var(--nb-sp-1);top:50%;transform:translateY(-50%);
   opacity:0;transition:opacity var(--nb-dur-fast) var(--nb-ease)}
 .nb-artrow:hover .nb-art-del,.nb-art-del:focus-visible{opacity:1}
-.nb-artrow:hover .nb-art{padding-right:36px}
-
+.nb-artrow:hover .nb-art{padding-right:40px}
+.nb-empty-out{display:flex;align-items:flex-start;gap:var(--nb-sp-3);padding:var(--nb-sp-5) var(--nb-sp-3);
+  color:${T.text3};font-size:var(--nb-fs-label);line-height:1.5}
+.nb-empty-out svg{flex:0 0 auto;opacity:.6;margin-top:1px}
 /* thumb content inside the artifact icon tile */
 .nb-art-ico .nb-thumb-img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;display:block}
 .nb-art-ico .nb-thumb-wave{display:flex;align-items:center;gap:1.5px;height:70%;width:80%}
-.nb-art-ico .nb-thumb-wave i{flex:1 1 0;min-width:1.5px;border-radius:99px;background:var(--kc);opacity:.8}
+.nb-art-ico .nb-thumb-wave i{flex:1 1 0;min-width:1.5px;border-radius:var(--nb-r-pill);background:var(--kc);opacity:.8}
 
-/* ----------------------------------------------------------------- viewer */
+/* ----------------------------------------------------------------- viewer
+   The viewer owns exactly ONE toolbar. The surface tab already names the kind,
+   so the strip under it is a 44px line of category badge + human metadata +
+   icon actions — there is no second title, no file-size telemetry dump, and no
+   generated-at timestamp as a heading. */
 .nb-view{flex:1;min-height:0;display:flex;flex-direction:column}
-.nb-view-head{display:flex;align-items:center;gap:12px;padding:12px 24px;
-  border-bottom:1px solid var(--nb-hair-soft)}
-.nb-view-title{font-size:15.5px;font-weight:650;letter-spacing:-.01em}
-.nb-view-body{flex:1;min-height:0;overflow:auto;padding:26px}
-.nb-doc{max-width:70ch;font-size:15.5px;line-height:1.68}
-.nb-doc h1{font-size:23px;line-height:1.2;letter-spacing:-.025em;margin:0 0 14px;text-wrap:balance}
+.nb-view-head{display:flex;align-items:center;gap:var(--nb-sp-3);min-height:44px;
+  padding:var(--nb-sp-1) var(--nb-sp-5);border-bottom:1px solid var(--nb-hair-soft);
+  flex:0 0 auto;background:var(--nb-wash)}
+.nb-view-title{font-size:var(--nb-fs-ui);font-weight:600;letter-spacing:-.005em;color:${T.text};
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0}
+.nb-view-sub{font-size:var(--nb-fs-meta);color:${T.text3};line-height:1.45;
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0}
+.nb-view-acts{display:flex;align-items:center;gap:2px;flex:0 0 auto;margin-left:auto}
+.nb-view-acts .nb-icon{width:32px;height:32px;min-height:32px}
+.nb-view-body{flex:1;min-height:0;overflow:auto;padding:var(--nb-sp-6) var(--nb-sp-6) var(--nb-sp-7)}
+.nb-doc{max-width:70ch;font-size:15px;line-height:1.68}
+/* the artifact's own markdown title is a duplicate of the toolbar title: demote it
+   rather than print the same sentence twice in one viewport */
+.nb-doc h1{font-size:19px;line-height:1.25;letter-spacing:-.02em;margin:0 0 12px;text-wrap:balance;
+  color:${T.text};font-weight:650}
 .nb-doc em{color:${T.text2}}
 .nb-doc hr{border:0;border-top:1px solid var(--nb-hair-soft);margin:22px 0}
 .nb-doc h2{font-size:19px;margin:26px 0 10px;letter-spacing:-.02em}
@@ -559,24 +848,360 @@ const CSS = `
 .nb-doc ul,.nb-doc ol{padding-left:22px;margin:0 0 12px}
 .nb-doc li{margin:5px 0}
 .nb-doc table{border-collapse:separate;border-spacing:0;width:100%;font-size:14px;margin:14px 0;
-  border:1px solid var(--nb-hair-soft);border-radius:12px;overflow:hidden}
+  border:1px solid var(--nb-hair-soft);border-radius:var(--nb-r-el);overflow:hidden}
 .nb-doc th,.nb-doc td{border-bottom:1px solid var(--nb-hair-soft);padding:9px 12px;text-align:left}
 .nb-doc td+td,.nb-doc th+th{border-left:1px solid var(--nb-hair-soft)}
 .nb-doc tr:last-child td{border-bottom:0}
-.nb-doc th{background:var(--nb-wash-2);font-size:11px;letter-spacing:.05em;text-transform:uppercase;
+.nb-doc th{background:var(--nb-wash-2);font-size:12px;letter-spacing:.05em;text-transform:uppercase;
   font-weight:700;color:${T.text2}}
-.nb-doc pre{background:var(--nb-wash);border:1px solid var(--nb-hair-soft);border-radius:12px;
+.nb-doc pre{background:var(--nb-wash);border:1px solid var(--nb-hair-soft);border-radius:var(--nb-r-el);
   padding:14px;overflow:auto;font-size:13px}
+
+/* ------------------------------------------------------- document surfaces
+   Summary and Briefing Doc are documents, not chat replies: a BLUF banner, a
+   KPI strip, then sections. FAQ is an accordion grouped by tier. Study Guide is
+   concept cards plus trap alerts. All of it is built from the generated
+   markdown, so an older artifact without the skeleton still renders as prose. */
+.nb-docdoc{max-width:88ch;display:flex;flex-direction:column;gap:var(--nb-sp-6)}
+.nb-doc-lede{max-width:74ch}
+.nb-doc-sec{display:flex;flex-direction:column;gap:var(--nb-sp-3)}
+.nb-doc-h2{font-size:19px;letter-spacing:-.02em;margin:0;color:${T.text};font-weight:680;line-height:1.25}
+.nb-bluf{display:flex;align-items:flex-start;gap:var(--nb-sp-3);padding:var(--nb-sp-5);
+  border-radius:var(--nb-r-box);
+  border:1px solid color-mix(in srgb,${T.accent} 30%, transparent);
+  background:linear-gradient(135deg, color-mix(in srgb,${T.accent} 14%, var(--nb-card)), var(--nb-card) 72%)}
+.nb-bluf svg{flex:0 0 auto;margin-top:2px;color:color-mix(in srgb,${T.accent} 78%, ${T.text})}
+.nb-bluf-body{display:flex;flex-direction:column;gap:var(--nb-sp-2);min-width:0}
+.nb-bluf-tag{font-size:var(--nb-fs-meta);font-weight:700;letter-spacing:.09em;text-transform:uppercase;
+  color:color-mix(in srgb,${T.accent} 72%, ${T.text})}
+.nb-bluf-text{font-size:var(--nb-fs-read);line-height:1.62;color:${T.text};max-width:74ch}
+.nb-kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:var(--nb-sp-3)}
+.nb-kpi{display:flex;flex-direction:column;gap:3px;padding:var(--nb-sp-4) var(--nb-sp-5);
+  border-radius:var(--nb-r-el);border:1px solid var(--nb-hair-soft);background:var(--nb-card);min-width:0}
+.nb-kpi-value{font-size:26px;font-weight:720;letter-spacing:-.028em;line-height:1.1;
+  color:${T.text};font-variant-numeric:tabular-nums;overflow-wrap:anywhere}
+.nb-kpi-label{font-size:var(--nb-fs-label);color:${T.text2};line-height:1.4;font-weight:600}
+.nb-kpi-ctx{font-size:var(--nb-fs-meta);color:${T.text3};line-height:1.45}
+.nb-kpi-src{font-size:var(--nb-fs-meta);margin-top:2px}
+/* a RAG badge sits in the text flow but reads as a status, not a word */
+.nb-rag{display:inline-flex;align-items:center;height:20px;padding:0 8px;border-radius:var(--nb-r-pill);
+  font-size:var(--nb-fs-meta);font-weight:700;letter-spacing:.07em;text-transform:uppercase;flex:0 0 auto}
+.nb-rag[data-tone=danger]{color:color-mix(in srgb,${T.danger} 58%, ${T.text});
+  background:color-mix(in srgb,${T.danger} 15%, transparent)}
+.nb-rag[data-tone=warn]{color:color-mix(in srgb,${T.warn} 52%, ${T.text});
+  background:color-mix(in srgb,${T.warn} 16%, transparent)}
+.nb-rag[data-tone=ok]{color:color-mix(in srgb,${T.ok} 58%, ${T.text});
+  background:color-mix(in srgb,${T.ok} 15%, transparent)}
+.nb-rag[data-tone=accent]{color:color-mix(in srgb,${T.accent} 72%, ${T.text});
+  background:color-mix(in srgb,${T.accent} 13%, transparent)}
+.nb-risks{display:flex;flex-direction:column;gap:var(--nb-sp-2)}
+.nb-risk{display:flex;align-items:flex-start;gap:var(--nb-sp-3);padding:var(--nb-sp-4);
+  border-radius:var(--nb-r-el);border:1px solid var(--nb-hair-soft);background:var(--nb-card)}
+.nb-risk-body{display:flex;flex-direction:column;gap:4px;min-width:0}
+.nb-risk-head{font-size:var(--nb-fs-read);line-height:1.5;color:${T.text}}
+.nb-risk-rest{font-size:var(--nb-fs-label);line-height:1.55;color:${T.text2}}
+
+/* faq accordion: one tier at a time, verdict first, caveat last */
+.nb-faq{display:flex;flex-direction:column;gap:var(--nb-sp-6);max-width:80ch}
+.nb-faq-bar{display:flex;align-items:center;gap:var(--nb-sp-2);flex-wrap:wrap}
+.nb-faq-tier{display:flex;flex-direction:column;gap:var(--nb-sp-2)}
+.nb-faq-tierhead{display:flex;align-items:center;gap:var(--nb-sp-2);padding-bottom:var(--nb-sp-2);
+  border-bottom:1px solid var(--nb-hair-soft);font-size:var(--nb-fs-label);font-weight:650;
+  color:${T.text2};text-transform:uppercase;letter-spacing:.06em}
+.nb-faq-tierhead svg{opacity:.8}
+.nb-faq-tierhead .nb-meta{margin-left:auto;text-transform:none;letter-spacing:0}
+.nb-faq-item{border:1px solid var(--nb-hair-soft);border-radius:var(--nb-r-el);background:var(--nb-card);
+  overflow:hidden;transition:border-color var(--nb-dur-fast) var(--nb-ease)}
+.nb-faq-item[data-open=true]{border-color:color-mix(in srgb,${T.accent} 34%, var(--nb-hair))}
+.nb-faq-q{display:flex;align-items:flex-start;gap:var(--nb-sp-3);width:100%;min-height:44px;
+  padding:var(--nb-sp-4) var(--nb-sp-5);border:0;background:transparent;color:${T.text};
+  font-family:inherit;font-size:var(--nb-fs-read);font-weight:600;line-height:1.45;
+  text-align:left;cursor:pointer}
+.nb-faq-q:focus-visible{outline:2px solid ${T.accent};outline-offset:-2px}
+.nb-faq-marker{flex:0 0 auto;width:18px;color:color-mix(in srgb,${T.accent} 72%, ${T.text});
+  font-weight:700;font-family:var(--ui-font-mono,ui-monospace,monospace)}
+.nb-faq-qt{min-width:0}
+.nb-faq-a{display:flex;flex-direction:column;gap:var(--nb-sp-3);padding:0 var(--nb-sp-5) var(--nb-sp-5)
+  var(--nb-sp-5)}
+.nb-verdict{align-self:flex-start;display:inline-flex;align-items:center;min-height:26px;
+  padding:3px 10px;border-radius:var(--nb-r-pill);font-size:var(--nb-fs-label);font-weight:650;
+  line-height:1.4;max-width:100%}
+.nb-verdict[data-tone=ok]{color:color-mix(in srgb,${T.ok} 55%, ${T.text});
+  background:color-mix(in srgb,${T.ok} 14%, transparent)}
+.nb-verdict[data-tone=danger]{color:color-mix(in srgb,${T.danger} 55%, ${T.text});
+  background:color-mix(in srgb,${T.danger} 14%, transparent)}
+.nb-verdict[data-tone=accent]{color:color-mix(in srgb,${T.accent} 72%, ${T.text});
+  background:color-mix(in srgb,${T.accent} 13%, transparent)}
+.nb-caveat{display:flex;align-items:flex-start;gap:6px;font-size:var(--nb-fs-label);line-height:1.5;
+  color:${T.text3};padding-top:var(--nb-sp-2);border-top:1px solid var(--nb-hair-soft)}
+.nb-caveat svg{flex:0 0 auto;margin-top:2px;opacity:.8}
+
+/* study guide: concept cards in a two-column bento, trap alerts as a split */
+.nb-studyguide{max-width:92ch;display:flex;flex-direction:column;gap:var(--nb-sp-6)}
+.nb-concepts{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:var(--nb-sp-3)}
+.nb-concept{display:flex;flex-direction:column;gap:var(--nb-sp-2);padding:var(--nb-sp-5);
+  border-radius:var(--nb-r-box);border:1px solid var(--nb-hair-soft);background:var(--nb-card);min-width:0}
+.nb-concept-term{font-size:var(--nb-fs-title);font-weight:680;letter-spacing:-.012em;color:${T.text};
+  line-height:1.3}
+.nb-concept-row{display:flex;flex-direction:column;gap:1px}
+.nb-concept-lab{font-size:var(--nb-fs-meta);font-weight:650;letter-spacing:.05em;text-transform:uppercase;
+  color:${T.text3}}
+.nb-concept-val{font-size:var(--nb-fs-label);line-height:1.55;color:${T.text2}}
+.nb-concept-src{font-size:var(--nb-fs-meta);padding-top:var(--nb-sp-2);margin-top:auto;
+  border-top:1px solid var(--nb-hair-soft)}
+.nb-trap{display:grid;grid-template-columns:1fr 1fr;gap:var(--nb-sp-2);border-radius:var(--nb-r-box);
+  overflow:hidden;border:1px solid var(--nb-hair-soft)}
+.nb-trap-half{display:flex;flex-direction:column;gap:5px;padding:var(--nb-sp-4) var(--nb-sp-5);
+  font-size:var(--nb-fs-label);line-height:1.55;color:${T.text2}}
+.nb-trap-half[data-side=novice]{background:color-mix(in srgb,${T.warn} 9%, var(--nb-card))}
+.nb-trap-half[data-side=actual]{background:color-mix(in srgb,${T.ok} 9%, var(--nb-card))}
+.nb-trap-tag{font-size:var(--nb-fs-meta);font-weight:700;letter-spacing:.05em;text-transform:uppercase}
+.nb-trap-half[data-side=novice] .nb-trap-tag{color:color-mix(in srgb,${T.warn} 52%, ${T.text})}
+.nb-trap-half[data-side=actual] .nb-trap-tag{color:color-mix(in srgb,${T.ok} 52%, ${T.text})}
+@media (max-width:860px){.nb-trap{grid-template-columns:1fr}}
+
+/* ------------------------------------------------------------ slide bodies
+   One layout per archetype, drawn on the dark slide canvas. These rules are
+   scoped to .nb-slide so the presentation surface never inherits a document
+   colour: every ink here is set for #0a0b10, not for the app's own paper. */
+.nb-slide{display:flex;flex-direction:column;gap:18px;flex:1;min-height:0;
+  color:#e9ebf4;overflow:hidden}
+/* the archetype name on the element is a label, not a layout: the shared
+   .nb-slide grid already stacks the head above the body for all nine */
+.nb-slide-gap,.nb-slide-bento,.nb-slide-pipe,.nb-slide-cmp,.nb-slide-tension,
+.nb-slide-roadmap{display:flex;flex-direction:column;gap:16px;flex:1;min-height:0}
+.nb-slide-gap-head{font-size:clamp(19px,2.1vw,30px);font-weight:680;letter-spacing:-.02em;
+  line-height:1.16;color:#f2f3f8;margin:0}
+.nb-slide-kicker{font-size:12px;font-weight:700;letter-spacing:.13em;text-transform:uppercase;
+  color:#9aa0b5}
+.nb-slide-kicker[data-tone=accent]{color:color-mix(in srgb,${T.accent} 62%, #ffffff)}
+.nb-slide-kicker[data-tone=ok]{color:#7fe3b0}
+.nb-slide-kicker[data-tone=warn]{color:#ffd28a}
+.nb-slide-list{margin:0;padding-left:18px;display:grid;gap:9px;font-size:16px;line-height:1.55;
+  color:#d6d8e6}
+.nb-slide-list li{list-style:disc}
+.nb-slide-md{font-size:inherit;line-height:inherit;color:inherit}
+.nb-slide-empty{font-size:13px;color:#7d8398;font-style:italic}
+
+/* title_hero */
+.nb-slide-hero{justify-content:center;gap:16px}
+.nb-slide-hero-t{font-size:clamp(28px,3.4vw,52px);font-weight:700;letter-spacing:-.026em;
+  line-height:1.08;color:#ffffff;max-width:24ch}
+.nb-slide-hero-sub{font-size:17px;line-height:1.5;color:#b7bccd;max-width:62ch}
+.nb-slide-hero-meta{display:flex;flex-wrap:wrap;gap:8px;margin-top:4px}
+.nb-slide-badge{display:inline-flex;align-items:center;height:24px;padding:0 10px;border-radius:99px;
+  font-size:12px;font-weight:600;color:#c7ccdb;background:rgba(255,255,255,.08);
+  border:1px solid rgba(255,255,255,.10)}
+.nb-slide-badge[data-tone=accent]{color:#fff;
+  background:color-mix(in srgb,${T.accent} 34%, rgba(255,255,255,.06));
+  border-color:color-mix(in srgb,${T.accent} 46%, transparent)}
+
+/* executive_bluf */
+.nb-slide-bluf{gap:16px}
+.nb-slide-bluf-t{font-size:clamp(24px,2.6vw,38px);font-weight:690;letter-spacing:-.024em;
+  line-height:1.12;color:#fff;max-width:26ch}
+.nb-slide-stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:12px}
+.nb-slide-stats[data-count="3"]{grid-template-columns:repeat(3,minmax(0,1fr))}
+.nb-slide-stats[data-count="4"]{grid-template-columns:repeat(2,minmax(0,1fr))}
+.nb-slide-stat{display:flex;flex-direction:column;gap:3px;padding:14px 16px;border-radius:14px;
+  background:rgba(255,255,255,.055);border:1px solid rgba(255,255,255,.10);min-width:0}
+.nb-slide-stat-v{font-size:clamp(24px,2.4vw,34px);font-weight:730;letter-spacing:-.03em;
+  line-height:1.06;color:#fff;font-variant-numeric:tabular-nums;overflow-wrap:anywhere}
+.nb-slide-stat-l{font-size:12.5px;line-height:1.4;color:#a8aec1}
+.nb-slide-banner{display:flex;align-items:flex-start;gap:10px;margin-top:auto;padding:14px 16px;
+  border-radius:14px;font-size:16px;line-height:1.5;color:#eef0f7;
+  background:color-mix(in srgb,${T.accent} 22%, rgba(255,255,255,.05));
+  border:1px solid color-mix(in srgb,${T.accent} 38%, transparent)}
+.nb-slide-banner svg{flex:0 0 auto;margin-top:2px;color:color-mix(in srgb,${T.accent} 60%, #ffffff)}
+
+/* problem_gap */
+.nb-slide-split{display:grid;grid-template-columns:1fr auto 1fr;gap:14px;align-items:stretch;flex:1;
+  min-height:0}
+.nb-slide-half{display:flex;flex-direction:column;gap:10px;padding:16px 18px;border-radius:16px;
+  min-width:0;overflow:auto}
+.nb-slide-half[data-side=left]{background:rgba(255,255,255,.035);
+  border:1px solid rgba(255,255,255,.08)}
+.nb-slide-half[data-side=right]{background:color-mix(in srgb,${T.accent} 16%, rgba(255,255,255,.03));
+  border:1px solid color-mix(in srgb,${T.accent} 34%, transparent)}
+.nb-slide-half[data-side=left] .nb-slide-list{color:#9aa0b5}
+.nb-slide-arrow{align-self:center;font-size:22px;color:color-mix(in srgb,${T.accent} 62%, #ffffff)}
+
+/* architecture_bento */
+.nb-slide-cards{display:grid;gap:12px;flex:1;min-height:0}
+.nb-slide-cards[data-count="1"]{grid-template-columns:1fr}
+.nb-slide-cards[data-count="2"]{grid-template-columns:repeat(2,minmax(0,1fr))}
+.nb-slide-cards[data-count="3"]{grid-template-columns:repeat(3,minmax(0,1fr))}
+.nb-slide-cards[data-count="4"]{grid-template-columns:repeat(2,minmax(0,1fr))}
+.nb-slide-cards[data-count="5"]{grid-template-columns:repeat(3,minmax(0,1fr))}
+.nb-slide-card{display:flex;flex-direction:column;gap:6px;padding:14px 15px;border-radius:14px;
+  background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.10);min-width:0;overflow:auto}
+.nb-slide-card-h{font-size:15.5px;font-weight:660;line-height:1.3;color:#f2f3f8}
+.nb-slide-card-s{font-size:13px;line-height:1.45;color:#a8aec1}
+
+/* process_pipeline */
+.nb-slide-stages{display:flex;align-items:stretch;gap:10px;flex:1;min-height:0;flex-wrap:nowrap}
+.nb-slide-stage{flex:1 1 0;min-width:0;display:flex;flex-direction:column;gap:6px;
+  padding:14px 13px;border-radius:14px;background:rgba(255,255,255,.05);
+  border:1px solid rgba(255,255,255,.10);position:relative;overflow:auto}
+.nb-slide-stage-n{display:inline-flex;align-items:center;justify-content:center;width:22px;height:22px;
+  border-radius:99px;font-size:12px;font-weight:700;color:#fff;
+  background:color-mix(in srgb,${T.accent} 46%, transparent)}
+.nb-slide-stage-h{font-size:14.5px;font-weight:650;line-height:1.3;color:#f2f3f8}
+.nb-slide-stage-s{font-size:12.5px;line-height:1.45;color:#a8aec1}
+.nb-slide-chev{align-self:center;flex:0 0 auto;width:0;height:0;margin:0 -4px;
+  border-left:7px solid color-mix(in srgb,${T.accent} 45%, transparent);
+  border-top:6px solid transparent;border-bottom:6px solid transparent}
+
+/* deep_dive_comparison */
+.nb-slide-table{width:100%;border-collapse:collapse;font-size:13.5px;line-height:1.45;
+  color:#d6d8e6}
+.nb-slide-table th{text-align:left;padding:0 12px 8px;border-bottom:1px solid rgba(255,255,255,.16)}
+.nb-slide-table td{padding:9px 12px;border-bottom:1px solid rgba(255,255,255,.07);vertical-align:top}
+.nb-slide-rows{display:flex;flex-direction:column;gap:8px;overflow:auto}
+.nb-slide-row{display:grid;grid-template-columns:minmax(120px,.9fr) 2fr;gap:12px;
+  padding:9px 12px;border-radius:10px;background:rgba(255,255,255,.04)}
+.nb-slide-row-h{font-size:13.5px;font-weight:640;color:#f2f3f8}
+.nb-slide-row-s{font-size:13px;color:#a8aec1}
+
+/* tension_audit */
+.nb-slide-tension-body{display:grid;grid-template-columns:1fr 1fr;gap:12px;flex:1;min-height:0}
+.nb-slide-tcol{display:flex;flex-direction:column;gap:10px;padding:14px 16px;border-radius:14px;
+  min-width:0;overflow:auto}
+.nb-slide-tcol[data-side=agree]{background:rgba(127,227,176,.09);border:1px solid rgba(127,227,176,.26)}
+.nb-slide-tcol[data-side=conflict]{background:rgba(255,210,138,.09);
+  border:1px solid rgba(255,210,138,.26)}
+
+/* roadmap */
+.nb-slide-lanes{display:flex;flex-direction:column;gap:10px;flex:1;min-height:0;overflow:auto}
+.nb-slide-lane{display:grid;grid-template-columns:minmax(96px,.34fr) 1fr;gap:14px;align-items:baseline;
+  padding:10px 0;border-bottom:1px solid rgba(255,255,255,.07)}
+.nb-slide-lane-head{display:flex;flex-direction:column;gap:5px;min-width:0}
+.nb-slide-lane-n{font-size:14px;font-weight:660;color:#fff;overflow-wrap:anywhere}
+.nb-slide-lane-rule{height:3px;border-radius:2px;background:color-mix(in srgb,${T.accent} 52%, transparent)}
+.nb-slide-lane-body{font-size:13.5px;line-height:1.5;color:#a8aec1}
+
+/* closing */
+.nb-slide-close{justify-content:center;align-items:flex-start;gap:16px}
+.nb-slide-close-t{font-size:clamp(26px,3vw,44px);font-weight:700;letter-spacing:-.026em;
+  line-height:1.1;color:#fff;max-width:22ch}
+.nb-slide-close-s{font-size:16px;line-height:1.5;color:#b7bccd;max-width:60ch}
+
+/* the notes affordance is a hint, not a control: it says a key exists */
+.nb-slide-notes-chip{display:inline-flex;align-items:center;gap:6px;align-self:flex-start;
+  font-size:12px;color:#7d8398}
+.nb-slide-notes-chip svg{opacity:.8}
+
+/* quiz: the verdict, the lesson, and why each distractor looked right */
+.nb-quiz-done{display:flex;flex-direction:column;gap:8px;margin-top:10px}
+.nb-quiz-verdict{display:inline-flex;align-items:center;gap:5px;align-self:flex-start;
+  min-height:24px;padding:2px 9px;border-radius:var(--nb-r-pill);font-size:var(--nb-fs-label);
+  font-weight:650}
+.nb-quiz-verdict[data-tone=ok]{color:color-mix(in srgb,${T.ok} 56%, ${T.text});
+  background:color-mix(in srgb,${T.ok} 14%, transparent)}
+.nb-quiz-verdict[data-tone=warn]{color:color-mix(in srgb,${T.warn} 52%, ${T.text});
+  background:color-mix(in srgb,${T.warn} 15%, transparent)}
+.nb-quiz-explain{font-size:var(--nb-fs-label);line-height:1.55;color:${T.text2}}
+.nb-quiz-why{display:flex;flex-direction:column;gap:2px;padding-top:6px;
+  border-top:1px solid var(--nb-hair-soft)}
+.nb-quiz-why-row{display:grid;grid-template-columns:16px 1fr;gap:8px;padding:6px 8px;
+  border-radius:var(--nb-r-el);align-items:start}
+.nb-quiz-why-row[data-tone=ok]{background:color-mix(in srgb,${T.ok} 9%, transparent)}
+.nb-quiz-why-row[data-tone=warn]{background:color-mix(in srgb,${T.warn} 9%, transparent)}
+.nb-quiz-why-mark{font-weight:700;text-align:center;color:${T.text3};font-size:12px;line-height:1.6}
+.nb-quiz-why-row[data-tone=ok] .nb-quiz-why-mark{color:color-mix(in srgb,${T.ok} 60%, ${T.text})}
+.nb-quiz-why-row[data-tone=warn] .nb-quiz-why-mark{color:color-mix(in srgb,${T.warn} 58%, ${T.text})}
+.nb-quiz-why-body{display:flex;flex-direction:column;gap:1px;min-width:0}
+.nb-quiz-why-choice{font-size:var(--nb-fs-meta);font-weight:640;color:${T.text2}}
+.nb-quiz-why-text{font-size:var(--nb-fs-meta);line-height:1.5;color:${T.text3}}
+.nb-quiz-src{display:flex;gap:4px;flex-wrap:wrap}
+
+/* flashcard extras: the hook and the citations, on the answer face */
+.nb-card-hook{display:flex;align-items:flex-start;gap:6px;margin-top:10px;padding:7px 9px;
+  border-radius:var(--nb-r-el);font-size:var(--nb-fs-meta);line-height:1.5;color:${T.text2};
+  background:color-mix(in srgb,${T.accent} 10%, transparent)}
+.nb-card-hook svg{flex:0 0 auto;margin-top:2px;color:color-mix(in srgb,${T.accent} 70%, ${T.text})}
+.nb-card-cites{display:flex;gap:4px;flex-wrap:wrap;margin-top:8px}
+
+/* the mind map: a stage with an inspector beside it, on a dark pane */
+.nb-map-wrap{display:flex;flex-direction:column;gap:10px}
+.nb-map-bar{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+.nb-map-legend{display:flex;gap:10px;flex-wrap:wrap}
+.nb-map-leg{display:inline-flex;align-items:center;gap:5px;font-size:var(--nb-fs-meta);
+  color:${T.text3}}
+.nb-map-dot{width:8px;height:8px;border-radius:99px}
+.nb-map-dot[data-tone=accent]{background:${T.accent}}
+.nb-map-dot[data-tone=accentSoft]{background:color-mix(in srgb,${T.accent} 70%, ${T.text})}
+.nb-map-dot[data-tone=warn]{background:${T.warn}}
+.nb-map-dot[data-tone=danger]{background:${T.danger}}
+.nb-map-dot[data-tone=ok]{background:${T.ok}}
+/* the stage is the whole viewer now — the node detail is a popover on the
+   node itself, not a fixed column eating a third of the canvas */
+.nb-map-stage{position:relative;flex:1;min-height:340px}
+.nb-map{background:var(--nb-wash);border:1px solid var(--nb-hair-soft);
+  border-radius:var(--nb-r-box);touch-action:none}
+.nb-map-pop{position:absolute;z-index:30;max-height:calc(100% - 16px);overflow:auto;
+  box-shadow:var(--nb-shadow)}
+.nb-map-ins{display:flex;flex-direction:column;gap:8px;padding:14px;
+  border:1px solid var(--nb-hair-soft);border-radius:var(--nb-r-box);background:var(--nb-card);
+  min-width:0}
+.nb-map-ins-hint{font-size:var(--nb-fs-label);color:${T.text3};line-height:1.5}
+.nb-map-ins-head{display:flex;flex-direction:column;gap:4px}
+.nb-map-type{align-self:flex-start;font-size:var(--nb-fs-meta);font-weight:700;
+  letter-spacing:.06em;text-transform:uppercase}
+.nb-map-type[data-tone=accent]{color:color-mix(in srgb,${T.accent} 72%, ${T.text})}
+.nb-map-type[data-tone=accentSoft]{color:color-mix(in srgb,${T.accent} 58%, ${T.text})}
+.nb-map-type[data-tone=warn]{color:color-mix(in srgb,${T.warn} 58%, ${T.text})}
+.nb-map-type[data-tone=danger]{color:color-mix(in srgb,${T.danger} 58%, ${T.text})}
+.nb-map-type[data-tone=ok]{color:color-mix(in srgb,${T.ok} 58%, ${T.text})}
+.nb-map-ins-label{font-size:var(--nb-fs-read);font-weight:660;line-height:1.35;color:${T.text}}
+.nb-map-ins-stat{font-size:20px;font-weight:700;letter-spacing:-.02em;color:${T.text};
+  font-variant-numeric:tabular-nums}
+.nb-map-ins-sum{font-size:var(--nb-fs-label);line-height:1.55;color:${T.text2}}
+.nb-map-ins-src{display:flex;gap:4px;flex-wrap:wrap;padding-top:6px;
+  border-top:1px solid var(--nb-hair-soft)}
+
+/* an export menu, not a row of buttons: each target explains what it is for */
+.nb-menu-wrap{position:relative;display:inline-flex}
+.nb-menu{position:absolute;right:0;top:calc(100% + 6px);z-index:40;min-width:250px;
+  display:flex;flex-direction:column;gap:2px;padding:6px;border-radius:var(--nb-r-box);
+  background:var(--nb-card);border:1px solid var(--nb-hair);box-shadow:0 12px 32px rgba(0,0,0,.22)}
+.nb-menu-item{display:flex;align-items:flex-start;gap:9px;width:100%;min-height:44px;padding:7px 9px;
+  border:0;border-radius:var(--nb-r-el);background:transparent;cursor:pointer;
+  font-family:inherit;text-align:left;color:inherit}
+.nb-menu-item:hover,.nb-menu-item:focus-visible{background:var(--nb-wash);outline:none}
+.nb-menu-item svg{flex:0 0 auto;margin-top:3px;color:color-mix(in srgb,${T.accent} 70%, ${T.text})}
+.nb-menu-body{display:flex;flex-direction:column;gap:1px;min-width:0}
+.nb-menu-label{font-size:var(--nb-fs-label);font-weight:650;color:${T.text}}
+.nb-menu-hint{font-size:var(--nb-fs-meta);line-height:1.4;color:${T.text3}}
+
+/* the computed aggregates, beside the table they describe */
+.nb-dt-sum{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:var(--nb-sp-2);
+  margin-top:var(--nb-sp-4)}
+.nb-dt-sum-h{grid-column:1/-1;font-size:var(--nb-fs-meta);font-weight:650;letter-spacing:.05em;
+  text-transform:uppercase;color:${T.text3}}
+.nb-dt-sum-cell{display:flex;flex-direction:column;gap:1px;padding:var(--nb-sp-3) var(--nb-sp-4);
+  border-radius:var(--nb-r-el);border:1px solid var(--nb-hair-soft);background:var(--nb-card)}
+.nb-dt-sum-v{font-size:20px;font-weight:700;letter-spacing:-.02em;color:${T.text};
+  font-variant-numeric:tabular-nums}
+.nb-dt-sum-l{font-size:var(--nb-fs-label);color:${T.text2}}
+.nb-dt-sum-b{font-size:var(--nb-fs-meta);color:${T.text3}}
+
+/* the scrubber carries chapter ticks for a timed transcript */
+.nb-scrub{position:relative;flex:1;display:flex;align-items:center;min-width:0}
+.nb-scrub-marks{position:absolute;left:0;right:0;top:2px;height:6px;pointer-events:none}
+.nb-scrub-mark{position:absolute;top:0;width:2px;height:6px;padding:0;border:0;
+  border-radius:1px;background:#9aa0b5;opacity:.75;pointer-events:auto;cursor:pointer}
+.nb-scrub-mark:hover,.nb-scrub-mark:focus-visible{background:#fff;opacity:1;outline:none}
 
 /* -------------------------------------------------------------- stage/media */
 .nb-stage{display:flex;flex-direction:column;gap:16px}
-.nb-screen{position:relative;overflow:hidden;border-radius:16px;border:1px solid var(--nb-hair);
+.nb-screen{position:relative;overflow:hidden;border-radius:var(--nb-r-box);border:1px solid var(--nb-hair);
   background:var(--nb-media);aspect-ratio:16/9;display:grid;place-items:center;box-shadow:var(--nb-shadow)}
 .nb-screen video,.nb-screen iframe{width:100%;height:100%;border:0;display:block;background:#000}
 .nb-screen-audio{aspect-ratio:auto;padding:22px;display:flex;flex-direction:column;gap:16px;
   place-items:stretch;width:100%}
 .nb-wave{display:flex;align-items:center;gap:2.5px;height:72px;width:100%}
-.nb-wave i{flex:1 1 0;min-width:2px;height:100%;border-radius:99px;background:rgba(235,238,245,.42)}
+.nb-wave i{flex:1 1 0;min-width:2px;height:100%;border-radius:var(--nb-r-pill);background:rgba(235,238,245,.42)}
 .nb-wave i[data-past=true]{background:${T.accent};opacity:1}
 .nb-ctrl{display:flex;align-items:center;gap:10px}
 .nb-timeline{display:flex;flex-direction:column;gap:0;margin:0;padding:0;list-style:none;position:relative}
@@ -585,14 +1210,83 @@ const CSS = `
 .nb-tl{display:grid;grid-template-columns:110px 1fr;gap:16px;padding:13px 0 13px 24px;
   border-top:1px solid var(--nb-hair-soft);position:relative}
 .nb-tl:first-child{border-top:0}
-.nb-tl::before{content:'';position:absolute;left:2px;top:20px;width:11px;height:11px;border-radius:99px;
+.nb-tl::before{content:'';position:absolute;left:2px;top:20px;width:11px;height:11px;border-radius:var(--nb-r-pill);
   background:${T.accent};box-shadow:0 0 0 3px color-mix(in srgb,${T.accent} 18%, transparent)}
-.nb-tl-when{font-family:var(--ui-font-mono,ui-monospace,monospace);font-size:10.5px;font-weight:700;
-  color:${T.accent};letter-spacing:.06em;text-transform:uppercase;padding-top:3px}
+.nb-tl-when{font-family:var(--ui-font-mono,ui-monospace,monospace);font-size:12px;font-weight:700;
+  color:color-mix(in srgb,${T.accent} 70%, ${T.text});letter-spacing:.06em;text-transform:uppercase;padding-top:3px}
 .nb-tl-what{font-size:15px;color:${T.text2}}
 
+/* ---------------------------------------------- timeline artifact (spine)
+   A "timeline" that renders as paragraphs is not a timeline. The generated
+   markdown is parsed into dated/phase nodes and drawn on a vertical spine: a
+   glowing dot per node, a pill for the date or phase, the milestone in a card,
+   and [S1] rendered as a real citation chip that opens the source. When the
+   material is procedural rather than dated the nodes are phases, not dates —
+   the doc says so instead of apologising in prose. */
+.nb-spine{display:flex;flex-direction:column;gap:0;margin:0;padding:0;list-style:none;
+  position:relative;max-width:760px}
+.nb-spine::before{content:'';position:absolute;left:9px;top:14px;bottom:14px;width:2px;
+  border-radius:var(--nb-r-pill);background:linear-gradient(to bottom,
+    color-mix(in srgb,${T.accent} 60%, transparent),
+    color-mix(in srgb,${T.accent} 18%, transparent) 70%,
+    transparent)}
+.nb-node{position:relative;padding:0 0 var(--nb-sp-5) var(--nb-sp-7);display:flex;
+  flex-direction:column;gap:var(--nb-sp-2)}
+.nb-node:last-child{padding-bottom:0}
+.nb-node-dot{position:absolute;left:3px;top:15px;width:14px;height:14px;border-radius:var(--nb-r-pill);
+  background:var(--nb-card-deep, #14161f);border:2px solid color-mix(in srgb,${T.accent} 80%, ${T.text});
+  box-shadow:0 0 0 4px color-mix(in srgb,${T.accent} 12%, transparent),
+              0 0 14px -2px color-mix(in srgb,${T.accent} 55%, transparent)}
+.nb-node-when{display:inline-flex;align-items:center;align-self:flex-start;height:22px;
+  padding:0 9px;border-radius:var(--nb-r-pill);font-size:var(--nb-fs-meta);font-weight:700;
+  letter-spacing:.01em;font-variant-numeric:tabular-nums;
+  color:color-mix(in srgb,${T.accent} 74%, ${T.text});
+  background:color-mix(in srgb,${T.accent} 13%, transparent);
+  border:1px solid color-mix(in srgb,${T.accent} 26%, transparent)}
+.nb-node-when[data-phase=true]{color:color-mix(in srgb,${T.purple} 66%, ${T.text});
+  background:color-mix(in srgb,${T.purple} 15%, transparent);
+  border-color:color-mix(in srgb,${T.purple} 30%, transparent)}
+.nb-node-card{padding:var(--nb-sp-4) var(--nb-sp-5);border-radius:var(--nb-r-el);
+  border:1px solid var(--nb-hair-soft);background:var(--nb-card);
+  font-size:var(--nb-fs-read);line-height:1.6;color:${T.text2};
+  transition:border-color var(--nb-dur-fast) var(--nb-ease),background var(--nb-dur-fast) var(--nb-ease)}
+.nb-node-card:hover{border-color:var(--nb-hair);background:var(--nb-wash)}
+.nb-node-card .nb-md p:last-child{margin-bottom:0}
+.nb-node-src{display:flex;align-items:center;gap:5px;flex-wrap:wrap;padding-top:2px}
+/* the canonical row: category badge, headline, what changed, what it unblocked */
+.nb-node-cat{display:inline-flex;align-items:center;height:20px;padding:0 8px;margin-bottom:6px;
+  border-radius:var(--nb-r-pill);font-size:var(--nb-fs-meta);font-weight:650;letter-spacing:.01em;
+  color:${T.text2};background:var(--nb-wash)}
+.nb-node-cat[data-tone=ok]{color:color-mix(in srgb,${T.ok} 62%, ${T.text});
+  background:color-mix(in srgb,${T.ok} 13%, transparent)}
+.nb-node-cat[data-tone=accent]{color:color-mix(in srgb,${T.accent} 72%, ${T.text});
+  background:color-mix(in srgb,${T.accent} 13%, transparent)}
+.nb-node-cat[data-tone=warn]{color:color-mix(in srgb,${T.warn} 54%, ${T.text});
+  background:color-mix(in srgb,${T.warn} 14%, transparent)}
+.nb-node-headline{font-size:var(--nb-fs-read);font-weight:650;line-height:1.35;color:${T.text};
+  margin-bottom:4px;letter-spacing:-.01em}
+.nb-node-what{color:${T.text2};line-height:1.6}
+.nb-node-cons{display:flex;align-items:flex-start;gap:6px;margin-top:8px;padding-top:8px;
+  border-top:1px solid var(--nb-hair-soft);font-size:var(--nb-fs-label);line-height:1.5;color:${T.text3}}
+.nb-node-cons svg{flex:0 0 auto;margin-top:2px;opacity:.8}
+.nb-node-note{font-size:var(--nb-fs-meta);color:${T.text3};line-height:1.5;
+  padding:var(--nb-sp-2) 0 0 0}
+/* the phase preamble: says what kind of timeline this is, once */
+.nb-spine-lede{display:flex;align-items:center;gap:var(--nb-sp-2);flex-wrap:wrap;
+  margin-bottom:var(--nb-sp-5);font-size:var(--nb-fs-label);color:${T.text3};line-height:1.5}
+.nb-spine-lede b{color:${T.text2};font-weight:600}
+/* a source chip that opens S# — the same affordance the chat answer has */
+.nb-srcchip{display:inline-flex;align-items:center;gap:5px;min-height:32px;padding:0 10px;
+  border-radius:var(--nb-r-pill);border:1px solid color-mix(in srgb,${T.accent} 28%, transparent);
+  background:color-mix(in srgb,${T.accent} 9%, transparent);cursor:pointer;
+  font-size:var(--nb-fs-meta);font-weight:700;color:color-mix(in srgb,${T.accent} 72%, ${T.text});
+  max-width:100%;overflow:hidden;white-space:nowrap;text-overflow:ellipsis;font-family:inherit}
+.nb-srcchip:hover{background:color-mix(in srgb,${T.accent} 18%, transparent);
+  border-color:color-mix(in srgb,${T.accent} 50%, transparent)}
+.nb-srcchip[disabled]{cursor:default;opacity:.7}
+
 /* ---------------------------------------------------------------- mind map */
-.nb-map{width:100%;height:100%;min-height:340px;display:block;cursor:grab;border-radius:16px;
+.nb-map{position:absolute;inset:0;width:100%;height:100%;min-height:0;display:block;cursor:grab;border-radius:var(--nb-r-box);
   border:1px solid var(--nb-hair-soft);
   background:radial-gradient(circle at 50% 45%, color-mix(in srgb,${T.accent} 9%, transparent), transparent 62%), var(--nb-card)}
 .nb-map:active{cursor:grabbing}
@@ -603,156 +1297,395 @@ const CSS = `
 .nb-flip-inner{position:relative;width:100%;min-height:310px;transition:transform .5s cubic-bezier(.2,.7,.2,1);
   transform-style:preserve-3d}
 .nb-flip[data-flipped=true] .nb-flip-inner{transform:rotateY(180deg)}
-.nb-face{position:absolute;inset:0;backface-visibility:hidden;border-radius:16px;
+.nb-face{position:absolute;inset:0;backface-visibility:hidden;border-radius:var(--nb-r-box);
   border:1px solid var(--nb-hair);background:var(--nb-card);box-shadow:var(--nb-shadow);
   padding:30px;display:flex;flex-direction:column;justify-content:center;gap:12px;
   font-size:19px;line-height:1.5}
 .nb-face[data-side=back]{transform:rotateY(180deg);border-color:color-mix(in srgb,${T.accent} 45%, transparent);
   background:linear-gradient(160deg, color-mix(in srgb,${T.accent} 14%, var(--nb-card)), var(--nb-card))}
-.nb-face .nb-meta{position:absolute;top:17px;left:22px}
-.nb-face-hint{font-size:11.5px;color:${T.text4};margin-top:auto;letter-spacing:.02em}
-
-/* -------------------------------------------------------------------- ops */
-.nb-fleet{display:flex;flex-direction:column;gap:8px;padding:8px 0}
-.nb-frow{display:grid;grid-template-columns:10px minmax(0,1fr) auto;align-items:center;gap:12px;
-  padding:11px 14px;border:1px solid var(--nb-hair-soft);border-radius:12px;background:var(--nb-card);
-  cursor:pointer;text-align:left;color:${T.text};min-height:54px;
-  transition:border-color var(--nb-dur-fast) var(--nb-ease),box-shadow var(--nb-dur-fast) var(--nb-ease),transform var(--nb-dur-fast) var(--nb-ease)}
-.nb-frow:hover{border-color:color-mix(in srgb,${T.text} 20%, transparent);box-shadow:var(--nb-shadow)}
-.nb-frow[aria-current=true]{border-color:color-mix(in srgb,${T.accent} 55%, transparent);
-  background:color-mix(in srgb,${T.accent} 9%, var(--nb-card))}
-.nb-fname{font-size:14px;font-weight:600;line-height:1.25}
-.nb-frole{font-size:10.5px;color:${T.text3};text-transform:uppercase;letter-spacing:.06em;font-weight:600}
-.nb-term{font-family:var(--ui-font-mono,ui-monospace,monospace);font-size:13px;line-height:1.55;flex:1 1 auto;
-  background:#101320;color:#c9cede;border-radius:16px;padding:16px;min-height:130px;max-height:none;overflow:auto;
-  white-space:pre-wrap;word-break:break-word;border:1px solid rgba(255,255,255,.09);
-  box-shadow:inset 0 1px 0 rgba(255,255,255,.05)}
-.nb-term-in{display:flex;gap:8px;align-items:center;margin-top:10px}
-.nb-term-in input{flex:1;height:38px;border-radius:12px;border:1px solid var(--nb-hair);
-  background:var(--nb-wash);color:${T.text};padding:0 13px;font-size:13.5px;
-  font-family:var(--ui-font-mono,ui-monospace,monospace);outline:0}
-.nb-term-in input:focus{border-color:color-mix(in srgb,${T.accent} 55%, transparent)}
+/* the side label sits in the flow now — absolutely positioned it printed on
+   top of the card text the moment an answer ran long */
+.nb-face>.nb-meta{align-self:flex-start}
+.nb-face{overflow:auto}
+.nb-face .nb-md{font-size:16px;line-height:1.5}
+.nb-face .nb-md p{margin:0 0 8px}
+.nb-face .nb-md ul,.nb-face .nb-md ol{margin:0 0 8px;padding-left:18px}
+.nb-face .nb-md li{margin:2px 0}
+.nb-face .nb-md h2,.nb-face .nb-md h3{margin:10px 0 4px}
+.nb-fc-src{margin-top:auto;padding-top:10px;border-top:1px solid var(--nb-hair-soft);
+  font-size:var(--nb-fs-meta);color:${T.text3};line-height:1.45}
+.nb-quiz-q p,.nb-quiz-explain p,.nb-quiz-why-md p{margin:0}
+.nb-quiz-why-md ul,.nb-quiz-why-md ol{margin:0;padding-left:16px}
+.nb-face-hint{font-size:12px;color:${T.text4};margin-top:auto;letter-spacing:.02em}
 
 /* -------------------------------------------------------------- status bar */
-.nb-status{flex:0 0 32px;height:32px;display:flex;align-items:center;gap:14px;padding:0 18px;font-size:12px;
+.nb-status{flex:0 0 32px;height:32px;display:flex;align-items:center;gap:14px;padding:0 18px;font-size:12.5px;
   border-top:1px solid var(--nb-hair-soft);background:transparent;
-  font-size:11.5px;color:${T.text3}}
+  font-size:12px;color:${T.text3}}
 .nb-status b{color:${T.text2};font-weight:600}
-.nb-sdot{width:8px;height:8px;border-radius:99px;display:inline-block;margin-right:8px;vertical-align:middle}
+.nb-sdot{width:8px;height:8px;border-radius:var(--nb-r-pill);display:inline-block;margin-right:8px;vertical-align:middle}
 .nb-void{display:grid;place-items:center;height:100%;padding:40px;text-align:center;color:${T.text3}}
-.nb-void h3{color:${T.text};font-size:21px;margin:0 0 10px;letter-spacing:-.02em;font-weight:700}
+.nb-void h3{color:${T.text};font-size:22px;margin:0 0 10px;letter-spacing:-.02em;font-weight:700}
 .nb-void p{margin:0;max-width:48ch;font-size:14px;line-height:1.62}
 
-/* ------------------------------------------------------------ home (directory) */
+/* ------------------------------------------------------ home (the reading room)
+   One shelf, full width, one card design. The old surface drew the same
+   notebooks twice — a coloured "most in the drawer" row and then the grey
+   "all notebooks" grid underneath — and capped both at three columns, leaving
+   the right of a 16:9 window empty. There is now a single responsive grid that
+   spans the content column, one action in the header (New notebook, beside the
+   search field), and one card that carries an accent strip, a clamped title,
+   a description preview and counted metadata. */
 .nb-home{flex:1;min-height:0;display:flex;flex-direction:column}
-.nb-home-scroll{flex:1;min-height:0;overflow:auto;padding:26px 30px 30px;overscroll-behavior:contain}
-.nb-home-head{display:flex;align-items:flex-end;gap:16px;margin-bottom:24px;flex-wrap:wrap}
-.nb-home-title{font-size:26px;font-weight:700;letter-spacing:-.02em;margin:0;line-height:1.2}
-.nb-home-sub{font-size:13.5px;color:${T.text2};margin:5px 0 0}
-.nb-home-search{width:260px;margin-left:auto}
-.nb-feature-row{display:flex;gap:14px;overflow-x:auto;padding:2px 2px 12px;margin-bottom:26px;
-  scrollbar-width:thin}
-.nb-feature{flex:0 0 300px;min-height:176px;height:auto;border-radius:16px;padding:18px;position:relative;
-  overflow:hidden;display:flex;flex-direction:column;justify-content:space-between;
+.nb-home-scroll{flex:1;min-height:0;overflow:auto;
+  padding:var(--nb-sp-7) var(--nb-sp-6) var(--nb-sp-8);
+  overscroll-behavior:contain}
+.nb-home-inner{max-width:1360px;margin:0 auto;width:100%;display:flex;flex-direction:column;
+  min-height:100%}
+/* the header is one bar: title + counts on the left, search + New notebook on
+   the right. The action lives where the person looks first, not stranded over
+   the second row of cards. */
+.nb-home-head{display:flex;align-items:flex-end;gap:var(--nb-sp-4);flex-wrap:wrap;
+  margin-bottom:var(--nb-sp-6)}
+.nb-home-titles{min-width:0;flex:1 1 220px}
+.nb-home-title{font-size:var(--nb-fs-display);font-weight:700;letter-spacing:-.022em;
+  margin:0;line-height:1.15}
+.nb-home-sub{font-size:var(--nb-fs-ui);color:${T.text2};margin:var(--nb-sp-2) 0 0;line-height:1.5}
+.nb-home-sub b{color:${T.text};font-weight:650;font-variant-numeric:tabular-nums}
+.nb-home-tools{display:flex;align-items:center;gap:var(--nb-sp-3);flex-wrap:wrap}
+.nb-home-search{width:min(280px,46vw)}
+/* count chips read as measurements, not prose: glyph + number + quiet noun */
+.nb-counts{display:flex;align-items:center;gap:var(--nb-sp-3);flex-wrap:wrap}
+.nb-count{display:inline-flex;align-items:center;gap:5px;color:${T.text3};
+  font-size:var(--nb-fs-meta);line-height:1;white-space:nowrap}
+.nb-count b{color:${T.text2};font-weight:650;font-variant-numeric:tabular-nums}
+.nb-count svg{opacity:.75}
+
+.nb-home-sec{display:flex;align-items:center;gap:var(--nb-sp-3);margin:0 0 var(--nb-sp-4);
+  padding-bottom:var(--nb-sp-3);border-bottom:1px solid var(--nb-hair-soft)}
+.nb-home-sec .nb-meta{color:${T.text2}}
+/* the shelf fills whatever width the card is given: 320px minimum, no cap */
+.nb-home-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(320px,1fr));
+  gap:var(--nb-sp-4);align-content:start;width:100%}
+.nb-nbcard-wrap{position:relative;min-height:176px;animation:nb-card-in var(--nb-dur-med) var(--nb-ease) both}
+.nb-nbcard{width:100%;height:100%;position:relative;border-radius:var(--nb-r-box);
+  padding:var(--nb-sp-5) var(--nb-sp-5) var(--nb-sp-4);
+  display:flex;flex-direction:column;gap:var(--nb-sp-3);
   text-align:left;cursor:pointer;color:${T.text};font-family:inherit;
-  border:1px solid var(--nb-hair-soft);
-  background:linear-gradient(135deg, color-mix(in srgb,var(--kc) 30%, var(--nb-card)), var(--nb-card) 72%);
-  transition:transform var(--nb-dur-fast) var(--nb-ease),box-shadow var(--nb-dur-fast) var(--nb-ease)}
-.nb-feature:hover{transform:translateY(-2px);box-shadow:var(--nb-shadow-lift)}
-.nb-feature::after{content:'';position:absolute;right:-46px;bottom:-58px;width:190px;height:190px;
-  border-radius:99px;background:color-mix(in srgb,var(--kc) 22%, transparent);pointer-events:none}
-.nb-feature-emoji{font-size:30px;line-height:1}
-.nb-feature-title{font-size:15.5px;font-weight:650;line-height:1.3;position:relative;
-  display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
-.nb-feature-meta{font-size:12px;line-height:1.5;color:${T.text3};position:relative;white-space:normal}
-.nb-home-sec{display:flex;align-items:center;gap:12px;margin:0 0 14px}
-.nb-home-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(215px,1fr));gap:13px;
-  align-content:start}
-.nb-nbcard-wrap{position:relative;height:170px}
-.nb-nbcard{height:100%;position:relative;border-radius:16px;padding:16px;display:flex;
-  flex-direction:column;justify-content:space-between;text-align:left;cursor:pointer;
-  color:${T.text};font-family:inherit;
   border:1px solid var(--nb-hair-soft);background:var(--nb-card);
-  transition:border-color var(--nb-dur-fast) var(--nb-ease),transform var(--nb-dur-fast) var(--nb-ease),box-shadow var(--nb-dur-fast) var(--nb-ease)}
-.nb-nbcard:hover{border-color:color-mix(in srgb,${T.accent} 42%, var(--nb-hair));
-  transform:translateY(-2px);box-shadow:var(--nb-shadow-lift)}
-.nb-nbcard-emoji{font-size:32px;line-height:1}
-.nb-nbcard-del{position:absolute;top:9px;right:7px}
-.nb-nbcard-ren{position:absolute;top:9px;right:32px}
-.nb-nbcard-title{font-size:14.5px;font-weight:650;line-height:1.35;padding-right:28px}
-.nb-nbcard-meta{font-size:11.5px;color:${T.text3};margin-top:8px}
+  transition:border-color var(--nb-dur-fast) var(--nb-ease),transform var(--nb-dur-fast) var(--nb-ease),
+    box-shadow var(--nb-dur-fast) var(--nb-ease),background var(--nb-dur-fast) var(--nb-ease)}
+/* the accent strip: the notebook's own sigil hue, drawn from its id, so two
+   cards never read as the same object */
+.nb-nbcard::before{content:'';position:absolute;left:0;right:0;top:0;height:3px;
+  border-radius:var(--nb-r-box) var(--nb-r-box) 0 0;
+  background:linear-gradient(90deg,
+    color-mix(in srgb,var(--kc) 78%, transparent),
+    color-mix(in srgb,var(--kc) 18%, transparent))}
+.nb-nbcard:hover{border-color:color-mix(in srgb,var(--kc) 44%, var(--nb-hair));
+  transform:translateY(-2px);box-shadow:var(--nb-shadow-lift);background:var(--nb-wash-2)}
+.nb-nbcard:focus-visible{outline:2px solid ${T.accent};outline-offset:3px}
+.nb-nbcard-top{display:flex;align-items:flex-start;gap:var(--nb-sp-3);min-width:0}
+.nb-nbcard-emoji{flex:0 0 auto;line-height:1;display:grid;place-items:center}
+.nb-nbcard-head{min-width:0;flex:1;padding-right:var(--nb-sp-6)}
+.nb-nbcard-title{font-size:var(--nb-fs-title);font-weight:650;line-height:1.3;letter-spacing:-.012em;
+  display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;
+  overflow-wrap:anywhere}
+.nb-nbcard-when{display:block;margin-top:3px;font-size:var(--nb-fs-meta);color:${T.text3};font-weight:500}
+.nb-nbcard-desc{font-size:var(--nb-fs-label);line-height:1.5;color:${T.text3};
+  display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;
+  min-height:calc(2 * 1.5 * var(--nb-fs-label))}
+.nb-nbcard-desc[data-empty="true"]{color:${T.text4};font-style:italic}
+.nb-nbcard-foot{display:flex;align-items:center;gap:var(--nb-sp-3);margin-top:auto;
+  padding-top:var(--nb-sp-3);border-top:1px solid var(--nb-hair-soft);flex-wrap:wrap;row-gap:var(--nb-sp-2)}
+.nb-nbcard-open{display:inline-flex;align-items:center;gap:6px;margin-left:auto;
+  /* 62% of the card's own accent measured 4.45:1 on the light skin — just under
+     AA. 55% clears it on every card colour without turning the link grey. */
+  font-size:var(--nb-fs-label);font-weight:650;color:color-mix(in srgb,var(--kc) 52%, ${T.text});
+  white-space:nowrap}
+.nb-nbcard:hover .nb-nbcard-open svg{transform:translateX(2px)}
+.nb-nbcard-open svg{transition:transform var(--nb-dur-fast) var(--nb-ease)}
+.nb-nbcard-del{position:absolute;top:var(--nb-sp-3);right:var(--nb-sp-2);z-index:2}
+.nb-nbcard-ren{position:absolute;top:var(--nb-sp-3);right:calc(var(--nb-sp-2) + 34px);z-index:2}
+/* the corner buttons only exist when the card is hovered or focused-within —
+   destructive chrome is not billboarded (DESIGN-LORE law 4) */
+.nb-nbcard-del,.nb-nbcard-ren{opacity:0}
+.nb-nbcard-wrap:hover .nb-nbcard-del,.nb-nbcard-wrap:hover .nb-nbcard-ren,
+.nb-nbcard-wrap:focus-within .nb-nbcard-del,.nb-nbcard-wrap:focus-within .nb-nbcard-ren,
+.nb-nbcard-del:focus-visible,.nb-nbcard-ren:focus-visible{opacity:1}
+@media (hover:none){ .nb-nbcard-del,.nb-nbcard-ren{opacity:1} }
+
+/* --------------------------------------------------------------- council */
+.nb-council{display:inline-flex;flex-wrap:wrap;align-items:center;gap:7px;
+  margin:0 0 10px;max-width:100%;padding:7px 12px;border-radius:var(--nb-r-pill);
+  font-size:var(--nb-fs-label);line-height:1.45;color:var(--nb-ink);
+  background:var(--nb-wash);border:1px solid var(--nb-hair)}
+.nb-council>*{white-space:normal}
+.nb-council-dot{width:8px;height:8px;border-radius:50%;flex:none;background:#B8860B;
+  box-shadow:0 0 0 3px color-mix(in srgb,#B8860B 22%, transparent)}
+.nb-council[data-verdict=holds],.nb-council[data-verdict=partly],.nb-council[data-verdict=fails]{
+  color:var(--nb-ink)}
+.nb-council[data-verdict=holds] .nb-council-dot{background:${T.ok};box-shadow:0 0 0 3px color-mix(in srgb,${T.ok} 22%, transparent)}
+.nb-council[data-verdict=partly] .nb-council-dot{background:#C08A2E;box-shadow:0 0 0 3px rgba(192,138,46,.22)}
+.nb-council[data-verdict=fails] .nb-council-dot{background:${T.danger};box-shadow:0 0 0 3px color-mix(in srgb,${T.danger} 22%, transparent)}
+.nb-council[data-verdict=unknown] .nb-council-dot{background:${T.text4}}
+.nb-council-lab{font-weight:750;color:var(--nb-ink)}
+.nb-council-note{color:var(--nb-ink2);font-size:var(--nb-fs-meta)}
+.nb-council-bad{margin:6px 0 0;padding-left:18px;width:100%;color:${T.text2};
+  font-size:var(--nb-fs-label);line-height:1.5}
+.nb-council-bad li{margin:2px 0}
+
+/* ---------------------------------------------- composer modes + action cards */
+.nb-modes{display:flex;gap:6px;align-items:center;margin-bottom:8px;flex-wrap:wrap}
+.nb-mode{display:inline-flex;align-items:center;gap:6px;height:32px;padding:0 12px;
+  border-radius:var(--nb-r-pill);cursor:pointer;font-family:inherit;
+  font-size:var(--nb-fs-meta);font-weight:650;letter-spacing:.01em;
+  border:1px solid var(--nb-edge);background:transparent;color:${T.text3};
+  transition:background var(--nb-dur-fast) var(--nb-ease),color var(--nb-dur-fast) var(--nb-ease),
+    border-color var(--nb-dur-fast) var(--nb-ease)}
+.nb-mode:hover{color:${T.text};background:var(--nb-wash-2)}
+.nb-mode[data-active=true]{color:color-mix(in srgb,${T.accent} 65%, ${T.text});
+  border-color:color-mix(in srgb,${T.accent} 45%, var(--nb-edge));
+  background:color-mix(in srgb,${T.accent} 12%, transparent)}
+.nb-mode:focus-visible{outline:2px solid ${T.accent};outline-offset:2px}
+
+.nb-acts{display:flex;flex-direction:column;gap:8px;margin-bottom:10px}
+.nb-act{background:var(--nb-tile);border:1px solid var(--nb-edge);
+  border-radius:var(--nb-r-el);overflow:hidden}
+.nb-act[data-ok=false]{border-color:color-mix(in srgb,${T.danger} 45%, var(--nb-edge))}
+.nb-act-head{display:flex;align-items:center;gap:8px;width:100%;padding:9px 11px;
+  background:transparent;border:0;cursor:pointer;font-family:inherit;
+  color:${T.text2};font-size:var(--nb-fs-label);text-align:left;min-height:36px}
+.nb-act-head:hover{background:var(--nb-wash)}
+.nb-act-status{display:grid;place-items:center;width:18px;height:18px;border-radius:50%;
+  font-size:11px;font-weight:800;color:#0d0e15;background:${T.ok}}
+.nb-act[data-ok=false] .nb-act-status{background:${T.danger};color:#fff}
+.nb-act-title{font-weight:700;color:${T.text};white-space:nowrap;overflow:hidden;
+  text-overflow:ellipsis}
+.nb-act-meta{color:${T.text3};font-size:var(--nb-fs-meta);font-weight:600}
+.nb-act-ms{margin-left:auto;color:${T.text4};font-size:var(--nb-fs-meta);
+  font-variant-numeric:tabular-nums}
+.nb-act-chev{display:grid;place-items:center;color:${T.text4};
+  transition:transform var(--nb-dur-fast) var(--nb-ease)}
+.nb-act-head[aria-expanded=true] .nb-act-chev{transform:rotate(180deg)}
+.nb-act-body{padding:0 11px 11px;display:flex;flex-direction:column;gap:8px}
+.nb-act-label{font-size:var(--nb-fs-meta);font-weight:700;letter-spacing:.06em;
+  text-transform:uppercase;color:${T.text4}}
+.nb-act-pre{margin:0;padding:9px 11px;border-radius:var(--nb-r-in);background:var(--nb-inset);
+  border:1px solid var(--nb-edge);font-family:ui-monospace,SFMono-Regular,Menlo,monospace;
+  font-size:12.5px;line-height:1.5;color:${T.text2};overflow:auto;max-height:220px;
+  white-space:pre-wrap;overflow-wrap:anywhere}
+.nb-act-in{color:${T.text}}
+/* the same blue the citation pills use, so a query and its sources read as one family */
+.nb-hl-kw{color:var(--nb-cite-ink);font-weight:650}
+.nb-hl-str{color:color-mix(in srgb,${T.ok} 72%, ${T.text})}
+.nb-hl-num{color:color-mix(in srgb,${T.warn} 78%, ${T.text})}
+.nb-hl-com{color:${T.text4};font-style:italic}
+
+.nb-act-err{color:${T.danger}}
+.nb-act-tablewrap{overflow:auto;max-height:240px;border:1px solid var(--nb-edge);
+  border-radius:var(--nb-r-in);background:var(--nb-inset)}
+.nb-act-table{border-collapse:collapse;width:100%;font-size:12.5px}
+.nb-act-table th,.nb-act-table td{padding:6px 10px;text-align:left;
+  border-bottom:1px solid var(--nb-edge);white-space:nowrap}
+.nb-act-table th{font-weight:700;color:${T.text2};position:sticky;top:0;background:var(--nb-tile)}
+.nb-act-note{font-size:var(--nb-fs-meta);color:${T.text3}}
+.nb-act-foot{display:flex;gap:6px;flex-wrap:wrap}
+
+/* ------------------------------------------------ infographic (live render)
+   The artifact is JSON first and a poster second: this renders the JSON, so the
+   numbers are selectable text, each one carries its source, and the layout
+   follows the theme instead of being baked into a PNG. */
+.nb-ig{display:flex;flex-direction:column;gap:16px;padding-bottom:8px}
+.nb-ig-head{display:flex;align-items:baseline;gap:10px;flex-wrap:wrap}
+.nb-ig-title{font-size:22px;font-weight:650;letter-spacing:-.015em;line-height:1.25;margin:0;color:${T.text}}
+.nb-ig-switch{display:flex;justify-content:flex-end;margin-bottom:10px}
+.nb-ig-kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:10px}
+.nb-ig-kpi{background:var(--nb-tile);border:1px solid var(--nb-edge);border-radius:var(--nb-r-el);
+  padding:14px 14px 12px;display:flex;flex-direction:column;gap:4px;min-width:0}
+.nb-ig-kpi-value{font-size:28px;font-weight:750;letter-spacing:-.02em;line-height:1.1;color:${T.text}}
+.nb-ig-kpi-label{font-size:var(--nb-fs-label);font-weight:650;color:${T.text2}}
+.nb-ig-kpi-detail{font-size:var(--nb-fs-meta);line-height:1.45;color:${T.text2}}
+.nb-ig-src{margin-top:2px;max-width:100%;overflow:hidden;text-overflow:ellipsis;
+  white-space:nowrap;display:block;text-align:left}
+.nb-ig-quotes{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:10px}
+.nb-ig-quote{display:flex;flex-direction:column;gap:6px;text-align:left;cursor:pointer;
+  background:var(--nb-tile);border:1px solid var(--nb-edge);border-radius:var(--nb-r-el);
+  padding:13px 14px;font-family:inherit;color:${T.text}}
+.nb-ig-quote[data-open=true]{border-color:color-mix(in srgb,${T.accent} 45%, var(--nb-edge))}
+.nb-ig-quote blockquote{margin:0;font-size:14px;line-height:1.55;color:${T.text2};
+  border-left:2px solid color-mix(in srgb,${T.accent} 45%, transparent);padding-left:10px}
+.nb-ig-quote-src{font-size:var(--nb-fs-meta);font-weight:650;color:${T.text3};
+  overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.nb-ig-cites{display:flex;gap:4px;flex-wrap:wrap}
+.nb-ig-take{background:color-mix(in srgb,${T.accent} 8%, var(--nb-tile));
+  border:1px solid color-mix(in srgb,${T.accent} 26%, var(--nb-edge));
+  border-radius:var(--nb-r-box);padding:14px 16px}
+.nb-ig-take-label{font-size:var(--nb-fs-meta);font-weight:700;letter-spacing:.06em;
+  text-transform:uppercase;color:color-mix(in srgb,${T.accent} 55%, ${T.text})}
+.nb-ig-take p{margin:6px 0 0;font-size:var(--nb-fs-read);line-height:1.55;color:${T.text}}
+/* poster + Checked rail: side by side wide, stacked narrow */
+.nb-ig-stage{display:flex;gap:16px;align-items:flex-start}
+.nb-ig-main{flex:1 1 auto;min-width:0}
+.nb-check{flex:0 0 296px;max-width:296px;background:var(--nb-tile);border:1px solid var(--nb-edge);
+  border-radius:var(--nb-r-el);padding:12px 14px;display:flex;flex-direction:column;gap:8px;max-height:62vh;overflow:auto}
+.nb-check-head{display:flex;align-items:center;gap:7px;color:${T.text}}
+.nb-check-title{font-size:13px;font-weight:700;letter-spacing:.02em}
+.nb-check-sum{margin-left:auto;font-size:11.5px;font-weight:650;color:${T.text3}}
+.nb-check-note{font-size:12px;line-height:1.5;color:${T.text2};background:color-mix(in srgb,${T.warn||'#d9a13b'} 10%, var(--nb-tile));
+  border:1px solid color-mix(in srgb,${T.warn||'#d9a13b'} 30%, transparent);border-radius:8px;padding:7px 9px}
+.nb-check-list,.nb-check-left{display:flex;flex-direction:column}
+.nb-check-row{display:flex;align-items:baseline;gap:7px;padding:5px 0;border-top:1px solid var(--nb-edge-soft, color-mix(in srgb, var(--nb-edge) 55%, transparent));
+  font-size:12.5px;color:${T.text2}}
+.nb-check-row:first-child{border-top:0}
+.nb-check-row svg{flex:0 0 auto;transform:translateY(2px)}
+.nb-check-row[data-status=verified] svg{color:${T.ok}}
+.nb-check-row[data-status=recited] svg{color:${T.accent}}
+.nb-check-row[data-status=unsourced] svg{color:${T.text3}}
+.nb-check-row[data-status=dropped] svg{color:${T.danger}}
+.nb-check-text{flex:1 1 auto;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.nb-check-status{flex:0 0 auto;font-size:11px;font-weight:650;color:${T.text3}}
+.nb-check-sub{font-size:11px;font-weight:700;letter-spacing:.06em;color:${T.text3};text-transform:uppercase;padding:8px 0 2px}
+@media (max-width: 900px){
+  .nb-ig-stage{flex-direction:column}
+  .nb-check{flex:none;max-width:none;width:100%;max-height:40vh}
+}
 
 /* generator options popover + citation hover card + data table */
 .nb-gen{position:relative}
-.nb-gen-cfg{position:absolute;top:4px;right:4px;width:32px;height:32px;opacity:0;
+/* The options button is a CONTROL, not a hover decoration: it was opacity:0
+   until the pointer was already over the card, so on a touch screen, on a
+   trackpad with the pointer elsewhere, or on first glance at the page the
+   settings looked like they did not exist. Quiet when idle, bright on hover. */
+.nb-gen-cfg{position:absolute;top:12px;right:6px;width:32px;height:32px;
+  border-radius:var(--nb-r-in);background:var(--nb-wash-2);opacity:.42;
   transition:opacity var(--nb-dur-fast) var(--nb-ease)}
-.nb-gen:hover .nb-gen-cfg,.nb-gen-cfg[data-active="true"]{opacity:1}
-.nb-genpop{position:absolute;top:calc(100% + 6px);left:0;right:0;z-index:30;
-  background:${T.card};border:1px solid ${T.line};border-radius:16px;
-  box-shadow:var(--nb-shadow-lift);padding:12px;display:grid;gap:12px}
-.nb-genopt-label{font-size:11px;font-weight:600;color:${T.text3};margin-bottom:6px;
+.nb-gen:hover .nb-gen-cfg,.nb-gen:focus-within .nb-gen-cfg,
+.nb-gen-cfg:focus-visible,.nb-gen-cfg[data-active=true]{opacity:1}
+@media (hover:none){.nb-gen-cfg{opacity:.75}}
+.nb-gen:hover .nb-gen-cfg,.nb-gen-cfg[data-active="true"],.nb-gen-cfg:focus-visible{opacity:1}
+@media (hover:none){.nb-gen-cfg{opacity:.8}}
+.nb-genopt-label{font-size:12px;font-weight:600;color:${T.text3};margin-bottom:6px;
   text-transform:uppercase;letter-spacing:.06em}
 .nb-genopt .nb-seg{width:100%}
 .nb-genopt .nb-seg button{flex:1;justify-content:center}
-.nb-genopt-text{width:100%;height:32px;padding:0 10px;border-radius:8px;font-size:13px;
+.nb-genopt-text{width:100%;height:32px;padding:0 10px;border-radius:var(--nb-r-in);font-size:13px;
   border:1px solid ${T.line};background:${T.inset};color:${T.text};outline:none}
 .nb-genopt-text:focus{border-color:color-mix(in srgb,${T.accent} 55%,transparent)}
+/* Look picker: hero looks as swatch chips, the rest of the catalog folds out */
+.nb-looks{display:grid;gap:8px}
+.nb-look-heroes{display:grid;grid-template-columns:repeat(4,1fr);gap:7px}
+.nb-look-rest{display:grid;grid-template-columns:repeat(3,1fr);gap:7px;max-height:220px;overflow:auto;
+  border-top:1px solid ${T.lineSoft};padding-top:8px}
+.nb-look{display:flex;flex-direction:column;align-items:flex-start;gap:5px;padding:8px 9px;
+  background:${T.inset};border:1px solid ${T.line};border-radius:10px;cursor:pointer;
+  font:inherit;color:${T.text2};text-align:left;transition:border-color .12s ease,background .12s ease}
+.nb-look:hover{border-color:color-mix(in srgb,${T.accent} 45%,transparent)}
+.nb-look[data-on=true]{border-color:${T.accent};background:color-mix(in srgb,${T.accent} 9%,${T.inset});
+  color:${T.text}}
+.nb-look-dots{display:flex;gap:3px}
+.nb-look-dots i{width:9px;height:9px;border-radius:50%;display:block;border:1px solid rgba(0,0,0,.18)}
+.nb-look-name{font-size:11.5px;font-weight:650;line-height:1.15}
+.nb-look-more{justify-self:start;background:none;border:none;color:${T.text3};font-size:12px;
+  font-weight:650;cursor:pointer;padding:2px 0}
+.nb-look-more:hover{color:${T.text}}
 
-.nb-citepop{position:fixed;z-index:80;width:320px;max-width:calc(100vw - 32px);
-  background:${T.card};border:1px solid ${T.line};border-radius:16px;
-  box-shadow:var(--nb-shadow-lift);padding:12px 14px;pointer-events:none}
+/* A hover card floats OVER the page, so it gets its own material: the panel
+   colour at 95% over a blur, which reads as glass instead of a second pane. */
+.nb-citepop{position:fixed;z-index:80;width:340px;max-width:calc(100vw - 32px);
+  background:color-mix(in srgb,var(--nb-panel) 95%, transparent);
+  -webkit-backdrop-filter:blur(18px) saturate(1.3);
+  backdrop-filter:blur(18px) saturate(1.3);
+  border:1px solid color-mix(in srgb,var(--nb-ink) 12%, transparent);
+  border-radius:var(--nb-r-box);
+  box-shadow:0 24px 60px -24px rgba(0,0,0,.55);
+  padding:13px 15px;pointer-events:none}
 .nb-citepop-head{display:flex;align-items:center;gap:8px;font-size:12.5px;
   color:${T.text3};margin-bottom:6px;flex-wrap:wrap}
-.nb-citepop-head b{color:${T.accent};font-weight:700}
+.nb-citepop-head b{color:color-mix(in srgb,${T.accent} 70%, ${T.text});font-weight:700}
 .nb-citepop-body{font-size:13px;line-height:1.55;color:${T.text2};
   display:-webkit-box;-webkit-line-clamp:5;-webkit-box-orient:vertical;overflow:hidden}
 
-.nb-scope-check{flex:none;width:18px;height:18px;border-radius:6px;
-  border:1.5px solid ${T.line};display:grid;place-items:center;font-size:11px;
+.nb-scope-check{flex:none;width:18px;height:18px;border-radius:var(--nb-r-in);
+  border:1.5px solid ${T.line};display:grid;place-items:center;font-size:12px;
   color:#fff;transition:all var(--nb-dur-fast) var(--nb-ease)}
 .nb-scope-check.on{background:${T.accent};border-color:${T.accent}}
 
 .nb-search-hit{display:block;width:100%;text-align:left;background:transparent;
-  border:1px solid ${T.line};border-radius:12px;padding:10px 12px;cursor:pointer;
+  border:1px solid ${T.line};border-radius:var(--nb-r-el);padding:10px 12px;cursor:pointer;
   color:${T.text};font:inherit;transition:border-color var(--nb-dur-fast) var(--nb-ease),background var(--nb-dur-fast) var(--nb-ease)}
 .nb-search-hit:hover{border-color:color-mix(in srgb,${T.accent} 45%,transparent);
   background:color-mix(in srgb,${T.accent} 6%,transparent)}
-.nb-search-hit-head{display:flex;align-items:center;gap:8px;font-size:13.5px;
+.nb-search-hit-head{display:flex;align-items:center;gap:8px;font-size:13px;
   margin-bottom:4px}
 .nb-search-hit-head b{font-weight:600;overflow:hidden;text-overflow:ellipsis;
   white-space:nowrap}
 .nb-search-hit-snip{font-size:13px;line-height:1.5;color:${T.text3};
   display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden}
 .nb-search-hit mark{background:color-mix(in srgb,${T.accent} 30%,transparent);
-  color:${T.text};border-radius:3px;padding:0 1px}
+  color:${T.text};border-radius:var(--nb-r-in);padding:0 1px}
 
-.nb-dt-wrap{overflow:auto;border:1px solid ${T.line};border-radius:16px;
+.nb-dt-wrap{overflow:auto;border:1px solid ${T.line};border-radius:var(--nb-r-box);
   background:${T.card}}
 .nb-dt{border-collapse:collapse;width:100%;font-size:13px;min-width:520px}
 .nb-dt th{position:sticky;top:0;background:${T.inset};text-align:left;
-  font-weight:650;font-size:12px;color:${T.text2};padding:10px 14px;
+  font-weight:650;font-size:12.5px;color:${T.text2};padding:10px 14px;
   border-bottom:1px solid ${T.line};cursor:pointer;user-select:none;white-space:nowrap}
 .nb-dt th:hover{color:${T.text}}
-.nb-dt-arrow{color:${T.accent};margin-left:5px;font-size:11px}
+.nb-dt-arrow{color:color-mix(in srgb,${T.accent} 70%, ${T.text});margin-left:5px;font-size:12px}
 .nb-dt td{padding:9px 14px;border-bottom:1px solid ${T.lineSoft};color:${T.text2}}
 .nb-dt tbody tr:last-child td{border-bottom:0}
 .nb-dt tbody tr:hover td{background:color-mix(in srgb,${T.accent} 4%,transparent)}
 
+/* Density is measured on the ROOT (see appendChild's ResizeObserver in
+   30-shell.js), because the viewport is not the space this page gets: the host
+   app's own rail takes 260px of it. These rules replace the viewport queries
+   that shipped before, which fired at the wrong widths and left the main pane
+   332px wide on a 1280px screen. */
+.nb-root[data-density=compact]{--nb-rail:236px; --nb-studio:320px}
+.nb-root[data-density=compact] .nb-body{padding:10px;gap:10px}
+.nb-root[data-density=compact] .nb-h1{font-size:22px}
+/* the output list is one column at every density: a 2-up grid in a 300–420px
+   drawer forces a min-content floor wider than the panel, which is exactly how
+   rows ended up clipped by the drawer's edge */
+/* Below 900 root pixels the three-column workbench is three slivers. The RAIL
+   folds away (its content is reachable from Home and the source dialog), and
+   the drawer keeps its width because the artifacts are the product. Hiding both
+   — which is what the old max-width:1100 query did — left a chat pane and
+   nothing to make anything with. */
+/* TIGHT: widths only — nothing is hidden by CSS.
+   A display:none rule here was a dead end: below 1060 root px (every 1280px
+   window once the app's own sidebar is counted) the sources rail vanished, and
+   because the rail was still mounted there was no toggle to bring it back. A
+   panel may only disappear when the USER closes it, and PanelToggles then keeps
+   it one click away. */
+.nb-root[data-density=tight]{--nb-rail:216px; --nb-studio:288px}
+.nb-root[data-density=tight] .nb-body{padding:8px;gap:8px}
+.nb-root[data-density=tight] .nb-h1{font-size:20px}
+
+/* ================= the old viewport queries, for a host that renders the page
+   full-bleed (the preview harness and a fullscreen window do) ================
+   EVERY rule here is scoped to the root's own density attribute; without that
+   scope they applied to EVERY host. They used to be unscoped,
+   and that was the bug that made the workbench look broken: with the shell's own
+   sidebar taking ~260px, a 1024–1280px window gives this page ~760–1020px, the
+   root-measured tier said "tight — keep the Make drawer", and then
+   the old max-width:1100 query hid it anyway. Rail
+   folded by density, drawer folded by viewport, and the page was a lone chat
+   column with nothing to make anything with. */
 @media (max-width:1280px){
-  .nb-root{--nb-rail:250px; --nb-studio:320px}
-  .nb-body{padding:10px;gap:10px}
-  .nb-h1{font-size:24px}
+  .nb-root:not([data-density]){--nb-rail:240px; --nb-studio:340px}
 }
 @media (max-width:1100px){
-  .nb-studio{display:none}
+  .nb-root:not([data-density]) .nb-studio{display:none}
   .nb-thread{padding:22px 20px 12px}
-  .nb-main-head{padding:20px 20px 0}
+  .nb-main-head{padding:0 var(--nb-sp-4)}
   .nb-composer{padding:12px 20px 16px}
   .nb-home-scroll{padding:20px 18px 24px}
 }
 @media (max-width:820px){
-  .nb-rail{display:none}
-  .nb-h1{font-size:21px}
+  .nb-root:not([data-density]) .nb-rail{display:none}
+  .nb-h1{font-size:22px}
   .nb-body{padding:8px;gap:8px}
   .nb-suggest-grid{grid-template-columns:1fr}
 }
@@ -761,38 +1694,40 @@ const CSS = `
 .nb-study{display:flex;flex-direction:column;gap:16px;padding:26px 30px 40px;max-width:980px;margin:0 auto;
   width:100%;flex:1 1 auto;min-height:0;overflow:auto}
 .nb-study-head{display:flex;align-items:flex-start;gap:14px;flex-wrap:wrap}
-.nb-study-title{font-size:21px;font-weight:650;letter-spacing:-.01em;color:${T.text}}
+.nb-study-title{font-size:22px;font-weight:650;letter-spacing:-.01em;color:${T.text}}
 .nb-study-chips{display:flex;gap:6px;flex-wrap:wrap;margin-top:8px}
 .nb-study-actions{display:flex;gap:8px;align-items:center}
 .nb-study-progress{display:flex;align-items:center;gap:12px}
-.nb-study-bar{flex:1;height:4px;border-radius:99px;background:var(--nb-hair-soft);overflow:hidden}
-.nb-study-bar i{display:block;height:100%;background:${T.accent};border-radius:99px;transition:width .25s ease}
-.nb-study-card{margin-top:auto;border:1px solid var(--nb-hair);border-radius:20px;background:var(--nb-card);
+.nb-study-bar{flex:1;height:4px;border-radius:var(--nb-r-pill);background:var(--nb-hair-soft);overflow:hidden}
+.nb-study-bar i{display:block;height:100%;background:${T.accent};border-radius:var(--nb-r-pill);transition:width .25s ease}
+.nb-study-card{margin-top:auto;border:1px solid var(--nb-hair);border-radius:var(--nb-r-box);background:var(--nb-card);
   padding:28px 30px 24px;min-height:210px;display:flex;flex-direction:column;gap:16px;
   box-shadow:var(--nb-shadow)}
 .nb-study-card[data-phase="new"]{border-color:color-mix(in srgb,${T.accent} 40%, var(--nb-hair))}
 .nb-study-q{font-size:22px;line-height:1.4;font-weight:600;color:${T.text};max-width:62ch}
 .nb-study-choices{display:grid;gap:8px;max-width:62ch}
-.nb-study-choice{padding:10px 14px;border-radius:11px;border:1px solid var(--nb-hair-soft);
-  background:var(--nb-card-deep, transparent);color:${T.text2};font-size:14.5px}
+.nb-study-choice{padding:10px 14px;border-radius:var(--nb-r-el);border:1px solid var(--nb-hair-soft);
+  background:var(--nb-card-deep, transparent);color:${T.text2};font-size:14px}
 .nb-study-choice[data-right="true"]{border-color:${T.ok};background:color-mix(in srgb,${T.ok} 14%, transparent);color:${T.text}}
 .nb-study-a{display:flex;flex-direction:column;gap:8px;font-size:16px;line-height:1.55;color:${T.text};
   padding-top:14px;border-top:1px solid var(--nb-hair-soft)}
-.nb-study-a-label{font-size:11px;letter-spacing:.14em;text-transform:uppercase;color:${T.text4}}
+.nb-study-a-label{font-size:12px;letter-spacing:.14em;text-transform:uppercase;color:${T.text4}}
 .nb-study-reveal{display:flex;align-items:center;gap:12px;margin-top:auto}
 .nb-study-ratings{display:flex;gap:8px;flex-wrap:wrap;min-height:44px;align-items:center;margin-bottom:auto}
 .nb-study-rate{flex:1 1 150px;display:flex;flex-direction:column;gap:2px;align-items:flex-start;
-  padding:10px 14px;border-radius:12px;border:1px solid var(--nb-hair);background:var(--nb-card);
+  padding:10px 14px;border-radius:var(--nb-r-el);border:1px solid var(--nb-hair);background:var(--nb-card);
   color:${T.text};cursor:pointer;font-size:14px}
-.nb-study-rate span{font-size:11.5px;color:${T.text3}}
+.nb-study-rate span{font-size:12px;color:${T.text3}}
 .nb-study-rate:hover{background:var(--nb-card-hover, color-mix(in srgb,#fff 4%, transparent))}
 .nb-study-src{align-self:flex-start;display:inline-flex;align-items:center;gap:6px;padding:0;
-  border:0;background:none;color:${T.accent};font-size:12.5px;text-decoration:underline;
+  border:0;background:none;color:color-mix(in srgb,${T.accent} 70%, ${T.text});
+  font-size:12.5px;text-decoration:underline;
   text-underline-offset:3px;cursor:pointer}
 .nb-study-empty{display:grid;justify-items:center;gap:10px;padding:64px 20px;text-align:center;
-  color:${T.text3};border:1px dashed var(--nb-hair-soft);border-radius:18px}
+  color:${T.text3};border:1px dashed var(--nb-hair-soft);border-radius:var(--nb-r-box)}
 @media (max-width:820px){ .nb-study{padding:18px 16px 32px} .nb-study-q{font-size:19px} }
-.nb-linkbtn{background:none;border:0;padding:0;font:inherit;color:${T.accent};cursor:pointer;
+.nb-linkbtn{background:none;border:0;padding:0;font:inherit;
+  color:color-mix(in srgb,${T.accent} 70%, ${T.text});cursor:pointer;
   text-decoration:underline;text-underline-offset:3px;text-decoration-thickness:1px}
 .nb-linkbtn:hover{color:${T.text}}
 /* --- surfaces that lost their stylesheet in a branch merge: discover, thread
@@ -808,14 +1743,64 @@ const CSS = `
 .nb-newthread .nb-genopt-text{flex:1;min-width:0}
 .nb-danger{color:${T.danger} !important;
   border-color:color-mix(in srgb,${T.danger} 45%,transparent) !important}
+/* ---------------------------------------------------------------- tensions */
+/* The audit reads as a case file: a verdict a person can quote, then numbered
+   disagreements, each with its two (or more) cited sides. Tone follows the
+   measured independence, never a fixed colour. */
+.nb-tensions{flex:1;min-height:0;overflow:auto;padding:var(--nb-sp-7) var(--nb-sp-8) var(--nb-sp-8);
+  display:flex;flex-direction:column;gap:var(--nb-sp-4);max-width:1040px;width:100%;
+  overscroll-behavior:contain}
+.nb-tensions .nb-disc-head h1{margin:0 0 6px}
+.nb-disc-sub{font-size:var(--nb-fs-ui);color:${T.text2};line-height:1.55;margin:0;max-width:76ch}
+.nb-tension-bar{display:flex;align-items:center;gap:var(--nb-sp-4);flex-wrap:wrap;margin-top:2px}
+.nb-tension-counts{display:flex;align-items:center;gap:var(--nb-sp-4);flex-wrap:wrap}
+
+/* the measured verdict — one sentence, toned by what was measured */
+.nb-tension-verdict{padding:var(--nb-sp-4) var(--nb-sp-4);border-radius:var(--nb-r-el);
+  border:1px solid var(--nb-hair-soft);background:var(--nb-card);
+  font-size:var(--nb-fs-ui);line-height:1.55;color:${T.text2};
+  border-left:3px solid color-mix(in srgb,${T.ok} 70%, transparent)}
+.nb-tension-verdict[data-tone=warn]{border-left-color:color-mix(in srgb,${T.warn} 70%, transparent)}
+.nb-tension-verdict b{color:${T.text}}
+
+/* one disagreement = a case file entry */
+.nb-tension-list{display:flex;flex-direction:column;gap:var(--nb-sp-4)}
+.nb-tension{border:1px solid var(--nb-hair-soft);border-radius:var(--nb-r-box);
+  background:var(--nb-card);padding:var(--nb-sp-4) var(--nb-sp-5) var(--nb-sp-5);
+  display:flex;flex-direction:column;gap:var(--nb-sp-3)}
+.nb-tension-head{display:flex;align-items:baseline;gap:var(--nb-sp-3)}
+.nb-tension-n{font-family:var(--ui-font-mono,ui-monospace,monospace);font-size:var(--nb-fs-meta);
+  font-weight:700;color:${T.text3};flex:0 0 auto}
+.nb-tension-topic{margin:0;font-size:var(--nb-fs-title);font-weight:650;line-height:1.35;
+  letter-spacing:-.01em;color:${T.text}}
+.nb-tension-sides{display:grid;grid-template-columns:1fr 1fr;gap:var(--nb-sp-3)}
+.nb-tension-side{display:flex;flex-direction:column;gap:var(--nb-sp-2);min-width:0}
+.nb-tension-claim{font-size:var(--nb-fs-body);line-height:1.5;color:${T.text}}
+.nb-tension-quote{margin:0;padding:var(--nb-sp-2) var(--nb-sp-3);border-radius:var(--nb-r-in);
+  background:var(--nb-wash-2);border-left:2px solid color-mix(in srgb,${T.accent} 55%, transparent);
+  font-size:var(--nb-fs-label);line-height:1.5;color:${T.text3};font-style:italic}
+.nb-tension-src{display:flex;gap:6px;flex-wrap:wrap}
+.nb-tension-why{font-size:var(--nb-fs-label);line-height:1.5;color:${T.text3}}
+.nb-tension-res{font-size:var(--nb-fs-label);line-height:1.5;color:${T.text2};
+  padding-top:var(--nb-sp-2);border-top:1px solid var(--nb-hair-soft)}
+.nb-tension-res b{color:${T.text}}
+.nb-tension-agree{display:flex;flex-direction:column;gap:var(--nb-sp-2);margin-top:var(--nb-sp-2)}
+.nb-tension-agree-row{display:flex;align-items:flex-start;gap:var(--nb-sp-3);
+  padding:var(--nb-sp-2) var(--nb-sp-3);border-radius:var(--nb-r-el);background:var(--nb-wash)}
+.nb-tension-agree-row svg{flex:0 0 auto;margin-top:2px;color:color-mix(in srgb,${T.ok} 62%, ${T.text})}
+.nb-tension-agree-claim{flex:1;min-width:0;font-size:var(--nb-fs-label);line-height:1.5;color:${T.text}}
+.nb-tension-agree-src{flex:0 0 auto;font-family:var(--ui-font-mono,ui-monospace,monospace);
+  font-size:var(--nb-fs-meta);font-weight:650;color:${T.accent}}
+@media (max-width:900px){ .nb-tension-sides{grid-template-columns:1fr} }
+
 /* ---------------------------------------------------------------- discover */
 .nb-disc{flex:1;min-height:0;overflow:auto;padding:26px 30px 40px;display:flex;flex-direction:column;
   gap:14px;max-width:1040px;width:100%}
 .nb-disc-head h1{margin:0 0 6px}
 .nb-disc-search{display:flex;gap:10px;align-items:center;margin-top:4px}
 .nb-disc-search .nb-input{flex:1;min-width:0}
-.nb-input{height:44px;padding:0 16px;border-radius:14px;border:1px solid var(--nb-hair);
-  background:var(--nb-card);color:${T.text};font:inherit;font-size:14.5px;outline:0;
+.nb-input{height:44px;padding:0 16px;border-radius:var(--nb-r-el);border:1px solid var(--nb-hair);
+  background:var(--nb-card);color:${T.text};font:inherit;font-size:14px;outline:0;
   transition:border-color .15s ease, box-shadow .15s ease}
 .nb-input:focus{border-color:color-mix(in srgb,${T.accent} 55%, transparent);
   box-shadow:0 0 0 4px color-mix(in srgb,${T.accent} 14%, transparent)}
@@ -823,27 +1808,27 @@ const CSS = `
 .nb-disc-gaps{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
 .nb-disc-body{display:flex;flex-direction:column;gap:10px;margin-top:4px}
 .nb-disc-card{display:flex;gap:12px;align-items:flex-start;padding:14px 16px;cursor:pointer;
-  border:1px solid var(--nb-hair-soft);border-radius:16px;background:var(--nb-card);
+  border:1px solid var(--nb-hair-soft);border-radius:var(--nb-r-box);background:var(--nb-card);
   transition:border-color .15s ease, background .15s ease}
 .nb-disc-card:hover{border-color:var(--nb-hair)}
 .nb-disc-card[data-on=true]{border-color:color-mix(in srgb,${T.accent} 50%, transparent);
   background:color-mix(in srgb,${T.accent} 8%, var(--nb-card))}
-.nb-disc-card input{width:16px;height:16px;margin-top:3px;accent-color:${T.accent};
+.nb-disc-card input{width:16px;height:16px;margin-top:3px;accent-color:color-mix(in srgb,${T.accent} 70%, ${T.text});
   cursor:pointer;flex:0 0 16px}
 .nb-disc-main{display:flex;flex-direction:column;gap:5px;min-width:0;flex:1}
-.nb-disc-top{display:flex;align-items:center;gap:8px;font-size:11.5px}
-.nb-disc-dom{color:${T.accent};font-weight:600;letter-spacing:.01em}
-.nb-disc-title{font-size:14.5px;font-weight:600;line-height:1.35;color:${T.text}}
+.nb-disc-top{display:flex;align-items:center;gap:8px;font-size:12px}
+.nb-disc-dom{color:color-mix(in srgb,${T.accent} 70%, ${T.text});font-weight:600;letter-spacing:.01em}
+.nb-disc-title{font-size:14px;font-weight:600;line-height:1.35;color:${T.text}}
 .nb-disc-snip{font-size:13px;line-height:1.5;color:${T.text3};
   display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
-.nb-disc-why{display:flex;align-items:center;gap:6px;font-size:12px;color:${T.text2};padding-top:2px}
+.nb-disc-why{display:flex;align-items:center;gap:6px;font-size:12.5px;color:${T.text2};padding-top:2px}
 .nb-disc-foot{display:flex;align-items:center;gap:12px;position:sticky;bottom:12px;
-  padding:12px 14px;border-radius:16px;border:1px solid var(--nb-hair);
+  padding:12px 14px;border-radius:var(--nb-r-box);border:1px solid var(--nb-hair);
   background:var(--nb-card);box-shadow:var(--nb-shadow)}
-.nb-disc-meta{display:flex;gap:14px;flex-wrap:wrap;font-size:11.5px;color:${T.text4};padding-top:4px}
+.nb-disc-meta{display:flex;gap:14px;flex-wrap:wrap;font-size:12px;color:${T.text4};padding-top:4px}
 .nb-disc-empty{display:grid;justify-items:center;gap:8px;padding:56px 20px;text-align:center;
-  color:${T.text3};border:1px dashed var(--nb-hair-soft);border-radius:18px}
-.nb-disc-err{color:${T.danger};font-size:13px;padding:10px 14px;border-radius:12px;
+  color:${T.text3};border:1px dashed var(--nb-hair-soft);border-radius:var(--nb-r-box)}
+.nb-disc-err{color:${T.danger};font-size:13px;padding:10px 14px;border-radius:var(--nb-r-el);
   background:color-mix(in srgb,${T.danger} 12%, transparent)}
 `
 

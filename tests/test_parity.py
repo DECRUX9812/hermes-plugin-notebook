@@ -180,5 +180,9 @@ def test_generate_accepts_new_kinds_in_schema():
     kinds = schemas.NOTEBOOK_GENERATE["parameters"]["properties"]["kind"]["enum"]
     assert "slides" in kinds and "infographic" in kinds
     names = {s["name"] for s in schemas.ALL}
-    assert len(names) == 17
+    # every declared tool must be a real handler and vice versa; a count alone
+    # lets a schema drift in and an implementation drift out
+    from hermes_notebook import tools
+    assert names == set(tools.HANDLERS), sorted(names ^ set(tools.HANDLERS))
     assert "notebook_threads" in names
+    assert {"notebook_study", "notebook_tensions"} <= names

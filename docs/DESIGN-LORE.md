@@ -76,12 +76,23 @@ or rare actions are icons that reveal themselves on hover, never billboarded.
 | Radius | inner `8px` · element `12px` · container `16px` · panel `24px` · pill `99px` |
 | Motion | `--nb-ease` `cubic-bezier(.24,1,.4,1)` · fast `.175s` · medium `.41s` · exit `cubic-bezier(.3,0,.6,.6)` |
 | Focus | `2px` accent outline, `3px` offset — radius is never rewritten |
+| Type | meta `11.5` · label `12.5` · UI `13` · body `14` · reading `15` · title `16` · display `26` |
+| Space | 4 dp base, named by intent: `--nb-sp-1…8` = 4…32px |
+| Quiet ink | `--ui-text-tertiary`/`quaternary` at 58%/42% measure **5.98:1** and **3.63:1** on this canvas and fail AA on a light one; the plugin prints its two quiet steps at **72% / 68%** of the primary ink instead, which clears 4.5:1 in both skins |
+| Accent as text | never the raw host accent: `color-mix(accent 70%, text)` clears AA on a light canvas, where a raw `#B8860B` measures 4.03:1 |
+| Ink on the accent fill | near-black `#0d0e15`. The host's accent family is bright in both themes (`#B8860B` = 5.92:1 with near-black, 3.25:1 with white; `#FFBF00` = 11.65:1 / 1.65:1), so white ink is the one that fails |
 
 Radius and motion follow the Astryx cadence (Meta's design system): a 4dp
 spacing base, semantic radius steps nested inner→container, and a standard
 curve that decelerates into place while exits accelerate away. Type: geometric
 sans (Plus Jakarta Sans / Inter register). Mono is allowed
 *only* inside citation tags and code — never for chrome or counters.
+
+The type and contrast rows are not prose, they are a contract:
+`tests/design.test.mjs` measures them on the rendered page across every
+surface and both skins, and fails the build on an off-scale font size, a
+UA-default font (form controls do not inherit the page font), an off-scale
+radius, or any text below AA.
 
 ## How to use this document
 

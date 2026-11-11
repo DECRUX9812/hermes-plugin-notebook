@@ -245,9 +245,12 @@ def render(graphic: Any, template: str = "infographic", preset: Optional[str] = 
     # the preset resolves first: "auto" means "the composition this look reaches for"
     p = _themed(resolve_preset(preset or DEFAULT_PRESET), theme)
     requested = (template or "auto").strip().lower()
+    # "auto" is the measured block composer; a preset's default_template is what
+    # an explicit template name (or a non-infographic kind) still reaches for.
     if requested in ("", "auto", "default"):
-        requested = p.default_template
-    tpl_name = requested if requested in templates.TEMPLATES else "infographic"
+        requested = "auto"
+    tpl_name = requested if requested in templates.TEMPLATES or requested == "auto" \
+        else "infographic"
     detail = detail if detail in DETAIL_LEVELS else "standard"
 
     w, h = canvas_for(orientation, width, height)
@@ -255,7 +258,11 @@ def render(graphic: Any, template: str = "infographic", preset: Optional[str] = 
     title_id, desc_id = "gfx-title", "gfx-desc"
 
     body = _background(f, p, tpl_name) + _decor(f, p)
-    els, band_y, band_h = templates.TEMPLATES[tpl_name](f, p, g, detail)
+    if tpl_name == "auto":
+        from . import compose
+        els, band_y, band_h = compose.compose(f, p, g, detail)
+    else:
+        els, band_y, band_h = templates.TEMPLATES[tpl_name](f, p, g, detail)
     body += els
     if band_h:
         body += templates.takeaway(f, p, str(g.get("takeaway") or ""), band_y)
@@ -352,7 +359,42 @@ def chrome_path() -> Optional[str]:
             hit = which(cand)
             if hit:
                 return hit
+    # playwright/hermes-managed chromium — same binary, different parking spot
+    import glob
+    home = str(Path.home())
+    for pat in (f"{home}/.cache/ms-playwright/chromium-*/chrome-linux*/chrome",
+                    f"{home}/.cache/ms-playwright/chromium_headless_shell-*/chrome-linux*/headless_shell",
+                    f"{home}/.hermes/tools/chromium-*/chrome-linux*/chrome"):
+        hits = sorted(glob.glob(pat))
+        if hits:
+            return hits[-1]
     return None
+
+
+def svg_to_png(svg: str, path: Any, *, width: int, height: int,
+               scale: float = 1.0) -> Path:
+    """Rasterise an SVG document (already rendered) through headless Chrome —
+    the single-block path (slide charts) that never went through render()."""
+    browser = chrome_path()
+    if not browser:
+        raise RuntimeError("no Chrome/Chromium available to rasterise the SVG")
+    out = Path(path)
+    out.parent.mkdir(parents=True, exist_ok=True)
+    with tempfile.TemporaryDirectory() as tmp:
+        html = Path(tmp) / "g.html"
+        html.write_text(
+            "<!doctype html><meta charset=utf-8>"
+            f"<style>html,body{{margin:0}}svg{{display:block}}</style>" + svg,
+            encoding="utf-8")
+        cmd = [browser, "--headless=new", "--no-sandbox", "--disable-gpu",
+               "--hide-scrollbars", "--virtual-time-budget=4000",
+               f"--force-device-scale-factor={scale}",
+               f"--window-size={int(width)},{int(height)}",
+               f"--screenshot={out}", html.as_uri()]
+        proc = subprocess.run(cmd, capture_output=True, timeout=120)
+        if proc.returncode != 0 or not out.exists():
+            raise RuntimeError(f"chrome failed to rasterise: {proc.stderr[-400:]!r}")
+    return out
 
 
 def to_png(graphic: Any, path: Any, *, scale: float = 1.0, **kwargs: Any) -> Path:
@@ -363,24 +405,8 @@ def to_png(graphic: Any, path: Any, *, scale: float = 1.0, **kwargs: Any) -> Pat
         raise RuntimeError("no Chrome/Chromium available to rasterise the SVG")
     w, h = canvas_for(kwargs.get("orientation", "landscape"),
                       kwargs.get("width"), kwargs.get("height"))
-    out = Path(path)
-    out.parent.mkdir(parents=True, exist_ok=True)
-    with tempfile.TemporaryDirectory() as tmp:
-        html = Path(tmp) / "g.html"
-        html.write_text(
-            "<!doctype html><meta charset=utf-8>"
-            f"<style>html,body{{margin:0}}svg{{display:block}}</style>"
-            + render(graphic, inline=True, responsive=False, **kwargs),
-            encoding="utf-8")
-        cmd = [browser, "--headless=new", "--no-sandbox", "--disable-gpu",
-               "--hide-scrollbars", "--virtual-time-budget=4000",
-               f"--force-device-scale-factor={scale}",
-               f"--window-size={int(w * scale)},{int(h * scale)}",
-               f"--screenshot={out}", html.as_uri()]
-        proc = subprocess.run(cmd, capture_output=True, timeout=120)
-        if proc.returncode != 0 or not out.exists():
-            raise RuntimeError(f"chrome failed to rasterise: {proc.stderr[-400:]!r}")
-    return out
+    svg = render(graphic, inline=True, responsive=False, **kwargs)
+    return svg_to_png(svg, path, width=w, height=h, scale=scale)
 
 
 def to_png_pillow(graphic: Any, path: Any, preset: Optional[str] = None,

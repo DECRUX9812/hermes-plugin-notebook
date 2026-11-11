@@ -3,36 +3,51 @@
 Mounted by the gateway at ``/api/plugins/hermes-notebook/`` and reached from the
 desktop page as ``ctx.rest(...)``.
 
-Why this exists at all: the page needs three things the renderer cannot do —
-read the notebooks on disk, run a grounded answer through the *user's* model,
-and drive the lab over ssh. Every route below is a thin call into code the
+Why this exists at all: the page needs two things the renderer cannot do —
+read the notebooks on disk and run a grounded answer through the *user's*
+model. Every route below is a thin call into code the
 agent half already uses (``hermes_notebook.store`` / ``retrieve`` / ``artifacts``
 / ``audio`` / ``video``), so the page and the tools can never disagree: a
 notebook generated in chat shows up in the studio and vice versa.
 
     GET  /health                     liveness + data root + model readiness
     GET  /state?notebook=<id|slug>   notebooks, sources, artifacts, thread, stats
+    GET  /threads  /thread           the notebook's conversations, one transcript
+    GET  /study?notebook=&limit=     today's spaced-repetition queue + mastery
+    GET  /source_text?notebook=&id=  one source's stored text (chars= caps it)
+    GET  /export?notebook=&b64=1     the whole notebook as a .zip
+    GET  /graphics_library           the SVG template vocabulary
+    GET  /infographic_styles?previews=1  the look catalogue (38 looks)
     POST /notebook                   {title, description} -> create
+    POST /notebook/update            {notebook, title|description|emoji}
+    POST /notebook/duplicate         {notebook} -> copy with sources + artifacts
+    POST /notebook/delete            {notebook, confirm} -> delete a notebook
     POST /source                     {notebook, path|url|text, title?} -> ingest
-    POST /discover                   {notebook, query?, max_results?} -> web-search candidates
     POST /sources                    {notebook, urls[]} -> batch ingest the picked candidates
-    POST /source_state               {notebook, source_id, enabled} -> include/exclude a source
+    POST /source_state               {notebook, source_id|source_ids[], enabled} -> include/exclude
+    POST /source/refresh             {notebook, source_id} -> re-fetch from its origin
+    POST /source/delete              {notebook, source_id}
+    POST /discover                   {notebook, query?, max_results?, deep?, rounds?} -> candidates
     POST /note                       {notebook, text, title?} -> quick note as a source
     POST /suggest                    {notebook} -> questions/artifacts/gaps from the model
     POST /overview                   {notebook} -> one-paragraph executive summary
-    POST /notebook/delete            {notebook, confirm} -> delete a notebook
-    POST /ask                        {notebook, question, thread?} -> cited answer
-    POST /generate                   {notebook, kind, focus?, count_hint?}
+    POST /ask                        {notebook, question, thread?, source_ids?} -> cited answer
+    POST /generate                   {notebook, kind, focus?, count_hint?, style?, language?, …}
     POST /label                      {notebook, force?} -> auto-labels via the model
+    POST /search                     {notebook, query|q, limit?} -> ranked hits with snippets
+    GET  /agent/catalog?notebook=    the tables, tools and MCP servers agent mode can use
+    POST /agent/run                  {notebook, question, mode} -> one grounded tool call + answer
+    POST /agent/rerun                {notebook, tool, arguments} -> run one recorded action again
+    POST /tensions                   {notebook, max_items?, language?} -> where the sources disagree
+    POST /options                    {notebook, options{}} -> per-notebook preferences
+    POST /study/review               {notebook, card, rating} -> schedule the next review
+    POST /audio_render               {notebook, script} -> re-render an edited podcast script
+    POST /video_notes                {notebook, focus?, length?, style?, language?}
+    POST /thread/new  /thread/rename  /thread/delete  /thread/clear
+    POST /artifact/rename  /artifact/delete  {notebook, key, title?}
     GET  /artifact?notebook=&name=   media bytes (mp4/mp3/png/html) or text
-    GET  /search?notebook=&q=        ranked hits with snippets
-    POST /thread/clear               {notebook, thread?}
-
-Ops deck (folded in from the homelab control deck, same audited transport):
-
-    GET  /ops/fleet  /ops/services  /ops/docker  /ops/files  /ops/file
-    GET  /ops/snapshots  /ops/audit  /ops/actions
-    POST /ops/exec  /ops/action  /ops/service  /ops/snapshot
+    GET  /artifact/xlsx?notebook=&name=  the table as a real workbook
+    GET  /artifact/pptx?notebook=&name=  the deck as a real PowerPoint file
 
 Nothing here invents a number: a route that cannot reach its data returns
 ``{"ok": false, "error": <real reason>}`` with a 5xx/4xx status and the page
@@ -42,14 +57,16 @@ renders that sentence.
 from __future__ import annotations
 
 import json
+import re
 import mimetypes
 import sys
 import time
 from pathlib import Path
+from urllib.parse import urlparse
 from typing import Any, Dict, List, Optional
 
 from fastapi import APIRouter, Body, HTTPException, Query
-from fastapi.responses import FileResponse, JSONResponse, PlainTextResponse
+from fastapi.responses import FileResponse, JSONResponse, PlainTextResponse, Response
 from starlette.concurrency import run_in_threadpool
 
 _PLUGIN_ROOT = str(Path(__file__).resolve().parent.parent)
@@ -59,10 +76,26 @@ for _p in (_PLUGIN_ROOT, _HERE):
         sys.path.insert(0, _p)
 
 from hermes_notebook import runtime, store, artifacts as artifacts_mod  # noqa: E402
-from hermes_notebook import gfx  # noqa: E402
+from hermes_notebook import gfx, jobs  # noqa: E402
 from hermes_notebook.gfx import themes as gfx_themes  # noqa: E402
 
 router = APIRouter(tags=["hermes-notebook"])
+
+#: The hero looks — the eight the composer is tuned for — lead the picker, in
+#: this order; every other look stays available behind "More looks".
+_HERO_LOOKS = ("sections", "editorial", "swiss", "magazine",
+               "dashboard", "blueprint", "risograph", "neon")
+
+
+def _style_items() -> List[Dict[str, Any]]:
+    cat = gfx_themes.catalog()
+    hero = sorted((s for s in cat if s["id"] in _HERO_LOOKS),
+                  key=lambda s: _HERO_LOOKS.index(s["id"]))
+    rest = [s for s in cat if s["id"] not in _HERO_LOOKS]
+    return [{"id": p["id"], "label": p["label"], "blurb": p["blurb"],
+             "family": p["family"], "swatch": p["swatch"],
+             "hero": p["id"] in _HERO_LOOKS} for p in hero + rest]
+
 
 #: The twelve studio outputs, in the order the panel draws them. `group` decides
 #: which filter chip a card falls under; `label` is what a person reads.
@@ -102,14 +135,13 @@ KINDS: List[Dict[str, Any]] = [
     {"id": "slides", "label": "Slides", "group": "visual", "ext": "html",
      "blurb": "Self-contained deck, arrow keys", "secs": 22},
     {"id": "infographic", "label": "Infographic", "group": "visual", "ext": "svg",
-     "blurb": "Vector poster — 38 looks, 9 layouts", "secs": 20,
+     "blurb": "Vector poster — 38 looks, measured block composer", "secs": 20,
      "options": [
          {"id": "style", "label": "Look", "kind": "select",
           "default": gfx_themes.DEFAULT_PRESET,
-          "choices": [p["id"] for p in gfx_themes.catalog()],
-          "items": [{"id": p["id"], "label": p["label"], "blurb": p["blurb"],
-                     "family": p["family"], "swatch": p["swatch"]}
-                    for p in gfx_themes.catalog()]},
+          "heroes": list(_HERO_LOOKS),
+          "choices": [p["id"] for p in _style_items()],
+          "items": _style_items()},
          # "auto" lets the look choose its own composition — a cover look draws a
          # cover, a key-figure look draws its hero
          {"id": "template", "label": "Layout", "kind": "select", "default": "auto",
@@ -124,6 +156,28 @@ KINDS: List[Dict[str, Any]] = [
           "choices": ["landscape", "square", "portrait"]},
          {"id": "detail", "label": "Detail", "kind": "seg",
           "choices": ["concise", "standard", "detailed"]}]},
+    {"id": "blueprint_evolution", "label": "Architecture Blueprint", "group": "visual",
+     "ext": "svg",
+     "blurb": "Five-zone engineering poster: gaps → matrix → pillars", "secs": 38,
+     "options": [
+         {"id": "style", "label": "Look", "kind": "select",
+          "default": "sections",
+          "choices": ["sections", "blueprint", "swiss", "carbon", "dashboard",
+                      "terminal", "mission", "hud"],
+          "items": [{"id": i, "label": i.replace("_", " ").title()}
+                    for i in ("sections", "blueprint", "swiss", "carbon", "dashboard",
+                              "terminal", "mission", "hud")]},
+         {"id": "orientation", "label": "Shape", "kind": "seg",
+          "choices": ["landscape", "portrait", "square"],
+          "hint": "the zone geometry scales, it does not reflow"},
+         {"id": "detail", "label": "Detail", "kind": "seg",
+          "choices": ["concise", "standard", "detailed"]},
+         # Deterministic SVG is the default: text stays text, files are a few KB,
+         # and a diffusion step cannot invent a number. The painted route is
+         # opt-in and falls back to SVG when the host has no image backend.
+         {"id": "engine", "label": "Engine", "kind": "seg", "default": "gfx",
+          "choices": ["gfx", "imagen_blueprint"],
+          "labels": {"gfx": "Vector · exact", "imagen_blueprint": "Painted · image model"}}]},
     {"id": "data_table", "label": "Data Table", "group": "docs", "ext": "csv",
      "blurb": "Structured rows, exports to Sheets", "secs": 14},
 ]
@@ -132,7 +186,15 @@ KIND_INDEX = {k["id"]: k for k in KINDS}
 # Every generator accepts a free-text focus — surfaced as a universal option
 # so each studio card's customize popover can narrow the run ("only costs").
 _FOCUS_OPTION = {"id": "focus", "label": "Focus", "kind": "text",
-                 "placeholder": "e.g. only the cost and timeline sections"}
+                 "placeholder": "e.g. only the costs"}
+_LANG_OPTION = {"id": "language", "label": "Language", "kind": "text",
+                "placeholder": "e.g. French, Español"}
+#: NotebookLM lets you turn the conversation you just had into an artifact. The
+#: card's popover offers the same choice: the sources alone, or the open chat as
+#: the brief (angle, audience, emphasis) with facts still coming from sources.
+_FROM_CHAT_OPTION = {"id": "from_chat", "label": "Brief from", "kind": "seg",
+                     "choices": ["sources", "chat"]}
+_MEDIA_KINDS = {"video_overview", "audio_overview"}
 
 
 def _kinds_payload() -> list:
@@ -142,9 +204,18 @@ def _kinds_payload() -> list:
         opts = list(kk.get("options") or [])
         if not any(o.get("id") == "focus" for o in opts):
             opts.append(dict(_FOCUS_OPTION))
+        if not any(o.get("id") == "language" for o in opts):
+            opts.append(dict(_LANG_OPTION))
+        if kk["id"] not in _MEDIA_KINDS and not any(o.get("id") == "from_chat" for o in opts):
+            opts.append(dict(_FROM_CHAT_OPTION))
         kk["options"] = opts
         out.append(kk)
     return out
+
+
+def _conversation_text(nb_id: str, thread: str, limit: int = 9000) -> str:
+    """The open chat as a brief for an artifact (see store.thread_as_brief)."""
+    return store.thread_as_brief(nb_id, thread, limit=limit)
 MEDIA_EXT = {"mp4": "video/mp4", "mp3": "audio/mpeg", "png": "image/png",
              "html": "text/html", "webm": "video/webm", "wav": "audio/wav",
              "svg": "image/svg+xml"}
@@ -157,6 +228,25 @@ def _q(value: Any) -> str:
     """A query argument as text. FastAPI hands the default `Query(...)` object when a
     route is called directly (tests, dump scripts), which has no `.strip()`."""
     return value.strip() if isinstance(value, str) else ""
+
+
+def _why(exc: BaseException) -> str:
+    """The sentence an exception carries, without the type prefix or the repr quotes.
+
+    Two bugs came from hand-building this string 48 times:
+
+    * ``str(KeyError("notebook not found: 'x'"))`` is ``'"notebook not found: \'x\'"'``
+      — KeyError stringifies its argument as a repr, so the toast literally showed
+      doubled quotes around the message;
+    * ``f"{type(exc).__name__}: {exc}"`` prefixed a class name the reader cannot act
+      on ("ValueError: ...") to sentences that were already written for a person.
+
+    Every failing route now reports the same shape: one plain sentence.
+    """
+    if isinstance(exc, KeyError) and exc.args:
+        return str(exc.args[0])
+    text = str(exc).strip()
+    return text or type(exc).__name__
 
 
 def _fail(message: str, status: int = 400, **extra: Any) -> JSONResponse:
@@ -197,6 +287,18 @@ def _artifact_stamp(name: str) -> str:
     return "-".join(parts[:2]) if len(parts) >= 3 else ""
 
 
+def _fold_run(runs: Dict[str, Dict[str, Any]], kind: str, items: List[Dict[str, Any]]) -> None:
+    """Append one cluster of same-kind files to the run it belongs to."""
+    key = f"{_artifact_stamp(items[0]['name'])}-{kind}"
+    run = runs.setdefault(key, {"key": key, "kind": kind, "files": [], "modified": ""})
+    for item in items:
+        name = item["name"]
+        run["files"].append({"name": name, "ext": name.rsplit(".", 1)[-1].lower(),
+                             "size": item.get("size", 0)})
+        if item.get("modified", "") > run["modified"]:
+            run["modified"] = item["modified"]
+
+
 def _collect_artifacts(notebook_id: str) -> List[Dict[str, Any]]:
     """One row per *generation*, not per file: a single audio run writes .mp3 +
     .txt + .json, and a panel that lists all three reads as a mess."""
@@ -204,23 +306,50 @@ def _collect_artifacts(notebook_id: str) -> List[Dict[str, Any]]:
     titles = (store.get_meta(notebook_id).get("artifact_titles") or {})
     gen_opts = (store.get_meta(notebook_id).get("artifact_opts") or {})
     runs: Dict[str, Dict[str, Any]] = {}
+
+    # A run's files are stamped when each one is WRITTEN, so a poster that takes
+    # a second to render lands a second after its own JSON:
+    #   20261109-173411-infographic.json + 20261109-173412-infographic.svg
+    # Keying on the exact stamp split that into two artifacts — one with only the
+    # image, one with only the data — and the viewer, which needs both, showed a
+    # poster and no numbers. Files of one kind whose stamps are within ten
+    # seconds of each other are one run (a render writes its JSON and its poster
+    # a second or two apart; separate generations of the same kind are minutes
+    # apart, and this notebook's bulk smoke runs are >=16s apart).
+    def _stamp_dt(name: str):
+        try:
+            return time.mktime(time.strptime(_artifact_stamp(name), "%Y%m%d-%H%M%S"))
+        except Exception:
+            return None
+
+    by_kind: Dict[str, List[Dict[str, Any]]] = {}
     for item in raw:
-        name = item["name"]
-        kind = _artifact_kind_of(name)
-        ext = name.rsplit(".", 1)[-1].lower()
-        key = f"{_artifact_stamp(name)}-{kind}"
-        run = runs.setdefault(key, {"key": key, "kind": kind, "files": [],
-                                    "modified": item.get("modified", "")})
-        run["files"].append({"name": name, "ext": ext, "size": item.get("size", 0)})
-        if item.get("modified", "") > run["modified"]:
-            run["modified"] = item["modified"]
+        by_kind.setdefault(_artifact_kind_of(item["name"]), []).append(item)
+
+    for kind, items in by_kind.items():
+        items.sort(key=lambda it: (_stamp_dt(it["name"]) or 0))
+        cluster: List[Dict[str, Any]] = []
+        last = None
+        for item in items:
+            at = _stamp_dt(item["name"])
+            if cluster and at is not None and last is not None and at - last > 10:
+                _fold_run(runs, kind, cluster)
+                cluster = []
+            cluster.append(item)
+            last = at if at is not None else last
+        if cluster:
+            _fold_run(runs, kind, cluster)
     out = []
     legacy_used = set()
     for run in runs.values():
         exts = {f["ext"] for f in run["files"]}
         meta = KIND_INDEX.get(run["kind"], {})
-        # prefer the richest representation: media, then html, then md, then json
-        for want in ("mp4", "mp3", "png", "html", "csv", "md", "txt", "json"):
+        # Prefer the richest representation that actually renders: media, then a
+        # vector poster, then a raster one, then html, then text, then json.
+        # `svg` was missing from this list, so a vector poster fell through to
+        # "whatever file the run listed first" — and for the blueprint that was
+        # its .json, which the viewer then tried to open as an image.
+        for want in ("mp4", "mp3", "png", "svg", "html", "csv", "md", "txt", "json"):
             if want in exts:
                 primary = next(f for f in run["files"] if f["ext"] == want)
                 break
@@ -325,7 +454,7 @@ def study_queue(notebook: str = Query("", description="Notebook id or title"),
         return {"ok": True, "notebook": nb,
                 "queue": study_mod.queue(nb, limit), "stats": study_mod.stats(nb)}
     except Exception as exc:
-        return _fail(f"{type(exc).__name__}: {exc}", 400)
+        return _fail(_why(exc), 400)
 
 
 @router.post("/study/review")
@@ -338,7 +467,7 @@ def study_review(payload: Dict[str, Any] = Body(...)) -> Any:
                                str(payload.get("rating") or "good"))
         return {"ok": True, "notebook": nb, "result": out, "stats": study_mod.stats(nb)}
     except Exception as exc:
-        return _fail(f"{type(exc).__name__}: {exc}", 400)
+        return _fail(_why(exc), 400)
 
 
 @router.get("/health")
@@ -362,7 +491,8 @@ def infographic_styles(previews: int = Query(0, description="1 = include SVG thu
         "ok": True,
         "default": gfx_themes.DEFAULT_PRESET,
         "count": len(gfx_themes.PRESETS),
-        "styles": gfx_themes.catalog(),
+        "styles": _style_items(),
+        "heroes": list(_HERO_LOOKS),
         "templates": manifest["templates"],
         "orientations": list(gfx.ORIENTATIONS),
         "detail": list(gfx.DETAIL_LEVELS),
@@ -396,7 +526,7 @@ def _preview_source(notebook: str) -> Tuple[Dict[str, Any], str]:
                 jsons = sorted(list(arts.glob("*-infographic.json")), reverse=True)
                 if jsons:
                     data = json.loads(jsons[0].read_text(encoding="utf-8"))
-                    if isinstance(data, dict) and data.get("stats"):
+                    if isinstance(data, dict) and (data.get("stats") or data.get("blocks")):
                         data.pop("_style", None)
                         data.pop("_graphic", None)
                         return data, str(data.get("title") or "Infographic")
@@ -412,7 +542,7 @@ def _style_thumb(data: Dict[str, Any], title: str, style_id: str) -> str:
         return hit
     payload = dict(data)
     payload.setdefault("title", title)
-    out = gfx.data_url(payload, template="infographic", preset=style_id,
+    out = gfx.data_url(payload, template="auto", preset=style_id,
                        orientation="landscape")
     if len(_THUMB_CACHE) > 96:
         _THUMB_CACHE.clear()
@@ -435,7 +565,7 @@ def state(notebook: str = Query("", description="notebook id, title or slug"),
         elif notebooks:
             active = _notebook_payload(notebooks[0]["id"], thread)
     except Exception as exc:
-        return _fail(str(exc), 404)
+        return _fail(_why(exc), 404)
     cards = []
     for nb in notebooks:
         nb_id = nb.get("id") or ""
@@ -473,11 +603,55 @@ def create_notebook(payload: Dict[str, Any] = Body(...)) -> Any:
     try:
         meta = store.create_notebook(title, str(payload.get("description") or ""))
     except Exception as exc:
-        return _fail(f"{type(exc).__name__}: {exc}", 500)
+        return _fail(_why(exc), 500)
     return {**_notebook_payload(meta["id"]), "ok": True}
 
 
 # ------------------------------------------------------------------ sources
+
+def _job_step(jid: str):
+    """The on_step callable long jobs get: report the phase, then honour a
+    cancel request before the next unit of work starts."""
+    def _step(phase: str, detail: str = "") -> None:
+        jobs.report(jid, phase, detail)
+        jobs.check(jid)
+    return _step
+
+
+def _cancelled(jid: str) -> Dict[str, Any]:
+    """Shared cancel exit: drop the partial files the run tracked, mark the
+    job, and answer in a shape the page can tell apart from a failure."""
+    removed = jobs.cleanup(jid)
+    jobs.finish(jid, "cancelled", "stopped by you")
+    return {"ok": False, "cancelled": True, "removed": len(removed),
+            "error": "stopped — partial output was removed"}
+
+
+@router.get("/progress")
+def progress(notebook: str = Query("", description="Notebook id or title")) -> Any:
+    """Live steps for this notebook's running jobs — the page polls this
+    while something long is in flight and renders the real phase instead of
+    a bare spinner."""
+    try:
+        nb_id = store.resolve_notebook(_q(notebook))
+    except Exception as exc:
+        return _fail(_why(exc), 404)
+    return jobs.snapshot(nb_id)
+
+
+@router.post("/cancel")
+def cancel_job(payload: Dict[str, Any] = Body(...)) -> Any:
+    """Ask the live job for (notebook, key) to stop at its next step."""
+    nb = str(payload.get("notebook") or "")
+    key = str(payload.get("key") or "")
+    try:
+        nb_id = store.resolve_notebook(nb)
+    except Exception as exc:
+        return _fail(_why(exc), 404)
+    if not key:
+        return _fail("give me a job key")
+    return {"ok": True, "cancelled": jobs.cancel(nb_id, key)}
+
 
 @router.post("/source")
 def add_source(payload: Dict[str, Any] = Body(...)) -> Any:
@@ -491,11 +665,21 @@ def add_source(payload: Dict[str, Any] = Body(...)) -> Any:
         return _fail("give me a file path, a URL or some text")
     _ensure_model()
     try:
-        out = json.loads(tools_mod.notebook_add_source(args))
+        nb_id = store.resolve_notebook(nb)
     except Exception as exc:
-        return _fail(f"{type(exc).__name__}: {exc}", 500)
+        return _fail(_why(exc), 404)
+    jid = jobs.begin(nb_id, "ingest", "adding a source")
+    try:
+        out = json.loads(tools_mod.notebook_add_source(args, on_step=_job_step(jid)))
+    except jobs.JobCancelled:
+        return _cancelled(jid)
+    except Exception as exc:
+        jobs.finish(jid, "error", _why(exc))
+        return _fail(_why(exc), 500)
     if not out.get("ok"):
+        jobs.finish(jid, "error", out.get("error") or "ingest failed")
         return _fail(out.get("error") or "ingest failed", 422, detail=out)
+    jobs.finish(jid)
     return {"ok": True, "source": out, "state": _notebook_payload(store.resolve_notebook(nb))}
 
 
@@ -511,8 +695,9 @@ def discover(payload: Dict[str, Any] = Body(...)) -> Any:
     try:
         nb_id = store.resolve_notebook(nb_arg)
     except Exception as exc:
-        return _fail(str(exc), 404)
+        return _fail(_why(exc), 404)
     _ensure_model()
+    jid = jobs.begin(nb_id, "discover", "finding sources")
     try:
         out = discover_mod.discover(
             nb_id,
@@ -520,9 +705,16 @@ def discover(payload: Dict[str, Any] = Body(...)) -> Any:
             max_results=max(4, min(30, int(payload.get("max_results") or 12))),
             per_domain=max(1, min(4, int(payload.get("per_domain") or 2))),
             plan=bool(payload.get("plan", True)),
+            deep=bool(payload.get("deep", False)),
+            rounds=int(payload["rounds"]) if str(payload.get("rounds") or "").isdigit() else None,
+            job=jid,
         )
+    except jobs.JobCancelled:
+        return _cancelled(jid)
     except Exception as exc:
-        return _fail(f"{type(exc).__name__}: {exc}", 500)
+        jobs.finish(jid, "error", _why(exc))
+        return _fail(_why(exc), 500)
+    jobs.finish(jid)
     return out
 
 
@@ -542,10 +734,30 @@ def add_sources(payload: Dict[str, Any] = Body(...)) -> Any:
     if not urls:
         return _fail("no urls to add")
     _ensure_model()
+    try:
+        nb_id = store.resolve_notebook(nb)
+    except Exception as exc:
+        return _fail(_why(exc), 404)
+    jid = jobs.begin(nb_id, "ingest", f"adding {len(urls)} sources")
+    step = _job_step(jid)
     results = []
     for url in urls:
         try:
-            out = json.loads(tools_mod.notebook_add_source({"notebook": nb, "url": url}))
+            try:
+                host = urlparse(url).netloc or url
+            except Exception:
+                host = url
+            jobs.report(jid, "reading", host)
+            jobs.check(jid)
+            out = json.loads(tools_mod.notebook_add_source(
+                {"notebook": nb, "url": url}, on_step=step))
+        except jobs.JobCancelled:
+            jobs.finish(jid, "cancelled", "stopped by you")
+            added = sum(1 for r in results if r.get("ok") and not r.get("duplicate"))
+            return {"ok": False, "cancelled": True, "added": added,
+                    "duplicates": sum(1 for r in results if r.get("duplicate")),
+                    "results": results,
+                    "error": "stopped — sources already added were kept"}
         except Exception as exc:
             results.append({"url": url, "ok": False,
                             "error": f"{type(exc).__name__}: {exc}"})
@@ -563,6 +775,7 @@ def add_sources(payload: Dict[str, Any] = Body(...)) -> Any:
                             "error": out.get("error") or "ingest failed"})
     added = sum(1 for r in results if r.get("ok") and not r.get("duplicate"))
     dupes = sum(1 for r in results if r.get("duplicate"))
+    jobs.finish(jid)
     try:
         state = _notebook_payload(store.resolve_notebook(nb))
     except Exception:
@@ -596,7 +809,7 @@ def source_state(payload: Dict[str, Any] = Body(...)) -> Any:
             return _fail(f"source {sid!r} is not in this notebook", 404)
         store.set_source_enabled(nb_id, sid, enabled)
     except Exception as exc:
-        return _fail(f"{type(exc).__name__}: {exc}", 500)
+        return _fail(_why(exc), 500)
     return {"ok": True, "source_id": sid, "active": enabled,
             "state": _notebook_payload(store.resolve_notebook(nb))}
 
@@ -610,9 +823,9 @@ def delete_source(payload: Dict[str, Any] = Body(...)) -> Any:
         nb_id = store.resolve_notebook(nb)
         store.remove_source(nb_id, sid)
     except KeyError as exc:
-        return _fail(str(exc), 404)
+        return _fail(_why(exc), 404)
     except Exception as exc:
-        return _fail(f"{type(exc).__name__}: {exc}", 500)
+        return _fail(_why(exc), 500)
     return {"ok": True, "source_id": sid,
             "state": _notebook_payload(store.resolve_notebook(nb))}
 
@@ -625,7 +838,7 @@ def delete_artifact(payload: Dict[str, Any] = Body(...)) -> Any:
     try:
         nb_id = store.resolve_notebook(nb)
     except Exception as exc:
-        return _fail(str(exc), 404)
+        return _fail(_why(exc), 404)
     run = next((a for a in _collect_artifacts(nb_id) if a["key"] == key), None)
     if not run:
         return _fail(f"artifact {key!r} is not in this notebook", 404)
@@ -654,7 +867,7 @@ def rename_artifact(payload: Dict[str, Any] = Body(...)) -> Any:
     try:
         nb_id = store.resolve_notebook(nb)
     except Exception as exc:
-        return _fail(str(exc), 404)
+        return _fail(_why(exc), 404)
     run = next((a for a in _collect_artifacts(nb_id) if a["key"] == key), None)
     if not run:
         return _fail(f"artifact {key!r} is not in this notebook", 404)
@@ -681,9 +894,9 @@ async def refresh_source(payload: Dict[str, Any] = Body(...)) -> Any:
         from hermes_notebook import ingest
         updated = await run_in_threadpool(ingest.refresh_source, nb_id, sid)
     except KeyError as exc:
-        return _fail(str(exc), 404)
+        return _fail(_why(exc), 404)
     except Exception as exc:
-        return _fail(f"{type(exc).__name__}: {exc}", 422)
+        return _fail(_why(exc), 422)
     return {"ok": True, "source": updated,
             "state": _notebook_payload(store.resolve_notebook(nb))}
 
@@ -702,7 +915,7 @@ def add_note(payload: Dict[str, Any] = Body(...)) -> Any:
     try:
         out = json.loads(tools_mod.notebook_note(args))
     except Exception as exc:
-        return _fail(f"{type(exc).__name__}: {exc}", 500)
+        return _fail(_why(exc), 500)
     if not out.get("ok"):
         return _fail(out.get("error") or "could not save the note", 422, detail=out)
     return {"ok": True, "source": out,
@@ -719,11 +932,53 @@ def suggest(payload: Dict[str, Any] = Body(...)) -> Any:
     try:
         out = json.loads(tools_mod.notebook_suggest({"notebook": nb}))
     except Exception as exc:
-        return _fail(f"{type(exc).__name__}: {exc}", 500)
+        return _fail(_why(exc), 500)
     if not out.get("ok"):
         return _fail(out.get("error") or "no suggestions", 422, detail=out)
     return {"ok": True, "title": out.get("title"),
             "suggestions": out.get("suggestions") or {}}
+
+
+
+@router.get("/independence")
+def independence(notebook: str = Query("", description="Notebook id or title")) -> Any:
+    """The measured half of the tensions audit — deterministic text overlap,
+    no model call. The status bar and the Tensions tab badge read this so the
+    'N sources · M independent' line is honest before anyone runs an audit."""
+    from hermes_notebook import tensions as tensions_mod
+    try:
+        nb_id = store.resolve_notebook(_q(notebook))
+    except Exception as exc:
+        return _fail(_why(exc), 404)
+    return {"ok": True, "notebook": nb_id, **tensions_mod.independence(nb_id)}
+
+
+@router.post("/tensions")
+def tensions(payload: Dict[str, Any] = Body(...)) -> Any:
+    """Where the sources disagree, plus how independent they really are.
+
+    The independence half is deterministic (text overlap), so it answers even
+    when the model is not bound; only the conflict audit needs the model."""
+    from hermes_notebook import tensions as tensions_mod
+    nb = str(payload.get("notebook") or "")
+    try:
+        nb_id = store.resolve_notebook(nb)
+    except Exception as exc:
+        return _fail(_why(exc), 404)
+    indep = tensions_mod.independence(nb_id)
+    try:
+        _ensure_model()
+        out = tensions_mod.analyze(
+            nb_id,
+            max_items=max(1, min(10, int(payload.get("max_items") or 6))),
+            language=str(payload.get("language") or ""))
+    except Exception as exc:
+        # Honest degradation: the measured half is still worth showing.
+        return {"ok": True, "notebook": nb_id, "items": [], "agreements": [],
+                "independence": indep, "sources": indep.get("sources", 0),
+                "degraded": _why(exc)}
+    out.pop("ok", None)
+    return {"ok": True, **out}
 
 
 @router.post("/overview")
@@ -736,7 +991,7 @@ async def overview(payload: Dict[str, Any] = Body(...)) -> Any:
     try:
         nb_id = store.resolve_notebook(nb)
     except Exception as exc:
-        return _fail(str(exc), 404)
+        return _fail(_why(exc), 404)
     digest = retrieve.notebook_digest(nb_id, max_chars=16000, cited=True)
     if not digest.strip():
         return _fail("no active sources to summarize — check some sources first", 422)
@@ -762,7 +1017,7 @@ async def overview(payload: Dict[str, Any] = Body(...)) -> Any:
     try:
         text = await run_in_threadpool(_run)
     except Exception as exc:
-        return _fail(f"{type(exc).__name__}: {exc}", 500)
+        return _fail(_why(exc), 500)
     return {"ok": True, "overview": (text or "").strip(),
             "seconds": round(time.time() - started, 1)}
 
@@ -786,7 +1041,7 @@ def set_options(payload: Dict[str, Any] = Body(...)) -> Any:
                 merged[key] = value
         store.update_meta(nb_id, options=merged)
     except Exception as exc:
-        return _fail(f"{type(exc).__name__}: {exc}", 500)
+        return _fail(_why(exc), 500)
     return {"ok": True, "options": merged,
             "state": _notebook_payload(store.resolve_notebook(nb))}
 
@@ -807,7 +1062,7 @@ def update_notebook(payload: Dict[str, Any] = Body(...)) -> Any:
             description=str(desc) if desc is not None else None,
             **({"emoji": str(emoji)[:16]} if emoji is not None else {}))
     except Exception as exc:
-        return _fail(f"{type(exc).__name__}: {exc}", 500)
+        return _fail(_why(exc), 500)
     return {"ok": True, "notebook": _notebook_payload(meta["id"])}
 
 
@@ -818,7 +1073,7 @@ def duplicate_notebook(payload: Dict[str, Any] = Body(...)) -> Any:
     try:
         out = store.duplicate_notebook(nb)
     except Exception as exc:
-        return _fail(f"{type(exc).__name__}: {exc}", 500)
+        return _fail(_why(exc), 500)
     return {"ok": True, "notebook": out}
 
 
@@ -830,7 +1085,7 @@ def delete_notebook(payload: Dict[str, Any] = Body(...)) -> Any:
     try:
         out = store.delete_notebook(nb)
     except Exception as exc:
-        return _fail(f"{type(exc).__name__}: {exc}", 500)
+        return _fail(_why(exc), 500)
     return {"ok": True, **out}
 
 
@@ -845,7 +1100,7 @@ async def ask(payload: Dict[str, Any] = Body(...)) -> Any:
     try:
         nb_id = store.resolve_notebook(nb_arg)
     except Exception as exc:
-        return _fail(str(exc), 404)
+        return _fail(_why(exc), 404)
     started = time.time()
 
     def _run() -> Dict[str, Any]:
@@ -863,7 +1118,7 @@ async def ask(payload: Dict[str, Any] = Body(...)) -> Any:
     try:
         out = await run_in_threadpool(_run)
     except Exception as exc:
-        return _fail(f"{type(exc).__name__}: {exc}", 500)
+        return _fail(_why(exc), 500)
     if not out.get("ok"):
         return _fail(out.get("error") or "the model did not answer", 422, detail=out)
     # the citation rows the page renders: number, title, real origin — only
@@ -890,6 +1145,9 @@ async def ask(payload: Dict[str, Any] = Body(...)) -> Any:
         "citations": used,
         "chunks_used": out.get("chunks_used"),
         "total_chunks": out.get("total_chunks"),
+        "context_chars": out.get("context_chars"),
+        "tokens": out.get("tokens"),
+        "usage": out.get("usage"),
         "seconds": round(time.time() - started, 1),
         "thread": out.get("thread"),
     }
@@ -906,7 +1164,7 @@ def source_text(notebook: str = Query(...), id: str = Query(...),
     try:
         nb_id = store.resolve_notebook(notebook)
     except Exception as exc:
-        return _fail(str(exc), 404)
+        return _fail(_why(exc), 404)
     src = store.get_source(nb_id, id)
     if not src:
         return _fail(f"source {id!r} is not in this notebook", 404)
@@ -920,13 +1178,95 @@ def source_text(notebook: str = Query(...), id: str = Query(...),
             "chars": len(text), "truncated": len(text) > limit, "text": text[:limit]}
 
 
+@router.get("/agent/catalog")
+def agent_catalog(notebook: str = Query("", description="notebook id or title")) -> Any:
+    """What agent mode can actually do here: the tables, the tools, the MCP servers."""
+    from hermes_notebook import agent_tools
+    nb = str(notebook or "")
+    try:
+        nb_id = store.resolve_notebook(nb) if nb else ""
+    except Exception as exc:
+        return _fail(_why(exc), 404)
+    out = agent_tools.catalog(nb_id) if nb_id else {
+        "ok": True, "engine": agent_tools.engine_name(), "tools": agent_tools.TOOLS,
+        "tables": [], "mcp": []}
+    out["model_ready"] = _model_ready()
+    return out
+
+
+@router.post("/agent/run")
+def agent_run(payload: Dict[str, Any] = Body(...)) -> Any:
+    """One grounded tool call, then an answer made from its real output.
+
+    ``mode`` is the composer's pill: ``agent`` plans and may execute,
+    ``council`` answers then re-reads the passages trying to refute the answer,
+    ``grounded`` answers from the sources only (no tool is run even if asked).
+    """
+    from hermes_notebook import agent
+    nb = str(payload.get("notebook") or "")
+    question = str(payload.get("question") or "")
+    if not question.strip():
+        return _fail("ask something first")
+    try:
+        nb_id = store.resolve_notebook(nb)
+    except Exception as exc:
+        return _fail(_why(exc), 404)
+    _ensure_model()
+    asked = str(payload.get("mode") or "agent")
+    mode = asked if asked in ("agent", "council") else "grounded"
+    try:
+        out = agent.run(nb_id, question, thread=str(payload.get("thread") or ""), mode=mode)
+    except Exception as exc:
+        return _fail(_why(exc), 500)
+    if not out.get("ok"):
+        return _fail(str(out.get("error") or "the agent did not answer"),
+                     extra={"actions": out.get("actions") or []})
+    return {"ok": True, "notebook": nb_id, "answer": out.get("answer", ""),
+            "citations": out.get("citations") or [], "actions": out.get("actions") or [],
+            "council": out.get("council"), "mode": out.get("mode"),
+            "seconds": out.get("seconds")}
+
+
+@router.post("/agent/rerun")
+def agent_rerun(payload: Dict[str, Any] = Body(...)) -> Any:
+    """Re-run one recorded action verbatim — the card's ⚡ Re-run button."""
+    from hermes_notebook import agent
+    tool = str(payload.get("tool") or "")
+    if tool not in agent.RERUNNABLE:
+        return _fail(f"cannot re-run {tool!r}", 400)
+    try:
+        nb_id = store.resolve_notebook(str(payload.get("notebook") or ""))
+    except Exception as exc:
+        return _fail(_why(exc), 404)
+    out = agent.rerun(nb_id, tool,
+                      payload.get("arguments") if isinstance(payload.get("arguments"), dict) else {})
+    if not out.get("ok"):
+        return _fail(str(out.get("error") or "that action did not run"), 400, action=out.get("action"))
+    return {"ok": True, "action": out["action"]}
+
+
 @router.post("/search")
 def search(payload: Dict[str, Any] = Body(...)) -> Any:
+    """Ranked hits inside one notebook. An empty query is a 400 with a sentence,
+    not a 500: ``notebook_search`` raises ValueError for it, and the page used
+    to get FastAPI's bare "Internal Server Error" instead of anything it could
+    show the reader. ``q`` is accepted beside ``query`` because every other
+    search surface in the app spells it that way."""
     from hermes_notebook import tools as tools_mod
-    out = json.loads(tools_mod.notebook_search(
-        {"notebook": str(payload.get("notebook") or ""),
-         "query": str(payload.get("query") or ""),
-         "limit": int(payload.get("limit") or 12)}))
+    query = str(payload.get("query") or payload.get("q") or "").strip()
+    if not query:
+        return _fail("type something to search for")
+    try:
+        limit = max(1, min(50, int(payload.get("limit") or 12)))
+    except (TypeError, ValueError):
+        limit = 12
+    try:
+        out = json.loads(tools_mod.notebook_search(
+            {"notebook": str(payload.get("notebook") or ""),
+             "query": query,
+             "limit": limit}))
+    except Exception as exc:
+        return _fail(_why(exc))
     return {"ok": bool(out.get("ok")), "result": out}
 
 
@@ -942,8 +1282,10 @@ async def generate(payload: Dict[str, Any] = Body(...)) -> Any:
     try:
         nb_id = store.resolve_notebook(nb_arg)
     except Exception as exc:
-        return _fail(str(exc), 404)
+        return _fail(_why(exc), 404)
     started = time.time()
+    jid = jobs.begin(nb_id, f"gen:{kind}", f"making {kind.replace('_', ' ')}")
+    step = _job_step(jid)
 
     try:
         if kind == "audio_overview":
@@ -951,15 +1293,20 @@ async def generate(payload: Dict[str, Any] = Body(...)) -> Any:
             out = await audio.make_audio_overview(
                 nb_id, length=str(payload.get("length") or "short"),
                 fmt=str(payload.get("format") or "deep_dive"),
-                language=str(payload.get("language") or ""))
+                language=str(payload.get("language") or ""),
+                on_step=step, job=jid)
         elif kind == "video_overview":
             from hermes_notebook import video
             out = await video.make_video_overview(
                 nb_id, style=str(payload.get("style") or "cinematic"),
                 length=str(payload.get("length") or "short"),
                 language=str(payload.get("language") or ""),
-                notes=payload.get("notes") if isinstance(payload.get("notes"), dict) else None)
+                notes=payload.get("notes") if isinstance(payload.get("notes"), dict) else None,
+                on_step=step, job=jid)
         else:
+            conversation = ""
+            if str(payload.get("from_chat") or "") in ("chat", "conversation"):
+                conversation = _conversation_text(nb_id, str(payload.get("thread") or ""))
             out = await run_in_threadpool(
                 lambda: artifacts_mod.generate(
                     nb_id, kind,
@@ -967,15 +1314,27 @@ async def generate(payload: Dict[str, Any] = Body(...)) -> Any:
                     count_hint=str(payload.get("count_hint") or ""),
                     style=str(payload.get("style") or ""),
                     fmt=str(payload.get("template") or ""),
+                    conversation=conversation,
+                    language=str(payload.get("language") or ""),
+                    on_step=step, job=jid,
                     options={"orientation": payload.get("orientation") or "landscape",
-                             "detail": payload.get("detail") or "standard"}))
+                             "detail": payload.get("detail") or "standard",
+                             # `engine` decides vector vs painted for the blueprint.
+                             # Dropping it here made the Studio toggle a no-op: it
+                             # saved the choice and generated the default anyway.
+                             "engine": (payload.get("options") or {}).get("engine")
+                                       or payload.get("engine") or "gfx"}))
+    except jobs.JobCancelled:
+        return _cancelled(jid)
     except Exception as exc:
-        return _fail(f"{type(exc).__name__}: {exc}", 500)
+        jobs.finish(jid, "error", _why(exc))
+        return _fail(_why(exc), 500)
+    jobs.finish(jid)
     # remember the knobs this run used — regenerate reuses them and the row
     # can show the artifact was tailored
     opts_used = {k: str(payload.get(k) or "").strip()
                  for k in ("focus", "count_hint", "format", "length", "language", "style",
-                           "template", "orientation", "detail")}
+                           "template", "orientation", "detail", "engine", "from_chat")}
     opts_used = {k: v for k, v in opts_used.items() if v}
     if opts_used:
         try:
@@ -1005,14 +1364,20 @@ async def audio_render(payload: Dict[str, Any] = Body(...)) -> Any:
     try:
         nb_id = store.resolve_notebook(nb_arg)
     except Exception as exc:
-        return _fail(str(exc), 404)
+        return _fail(_why(exc), 404)
     from hermes_notebook import audio
     script = payload.get("script") if isinstance(payload.get("script"), dict) else payload
     started = time.time()
+    jid = jobs.begin(nb_id, "audio_render", "re-voicing the script")
     try:
-        out = await audio.render_audio_script(nb_id, script)
+        out = await audio.render_audio_script(nb_id, script,
+                                              on_step=_job_step(jid), job=jid)
+    except jobs.JobCancelled:
+        return _cancelled(jid)
     except Exception as exc:
-        return _fail(f"{type(exc).__name__}: {exc}", 500)
+        jobs.finish(jid, "error", _why(exc))
+        return _fail(_why(exc), 500)
+    jobs.finish(jid)
     return {"ok": True, "result": out,
             "seconds": round(time.time() - started, 1)}
 
@@ -1027,7 +1392,7 @@ async def video_notes(payload: Dict[str, Any] = Body(...)) -> Any:
     try:
         nb_id = store.resolve_notebook(nb_arg)
     except Exception as exc:
-        return _fail(str(exc), 404)
+        return _fail(_why(exc), 404)
     from hermes_notebook import video
     try:
         out = await video.video_notes(
@@ -1037,7 +1402,7 @@ async def video_notes(payload: Dict[str, Any] = Body(...)) -> Any:
             language=str(payload.get("language") or ""),
             focus=str(payload.get("focus") or ""))
     except Exception as exc:
-        return _fail(f"{type(exc).__name__}: {exc}", 500)
+        return _fail(_why(exc), 500)
     return {"ok": True, **out}
 
 
@@ -1050,7 +1415,7 @@ async def label(payload: Dict[str, Any] = Body(...)) -> Any:
     try:
         nb_id = store.resolve_notebook(nb_arg)
     except Exception as exc:
-        return _fail(str(exc), 404)
+        return _fail(_why(exc), 404)
 
     def _run() -> Dict[str, Any]:
         from hermes_notebook import ingest
@@ -1072,7 +1437,7 @@ async def label(payload: Dict[str, Any] = Body(...)) -> Any:
     try:
         out = await run_in_threadpool(_run)
     except Exception as exc:
-        return _fail(f"{type(exc).__name__}: {exc}", 500)
+        return _fail(_why(exc), 500)
     return {"ok": True, **out, "state": _notebook_payload(nb_id)}
 
 
@@ -1083,7 +1448,7 @@ def get_thread(notebook: str = Query(...), name: str = Query("default")) -> Any:
     try:
         nb_id = store.resolve_notebook(notebook)
     except Exception as exc:
-        return _fail(str(exc), 404)
+        return _fail(_why(exc), 404)
     safe = runtime.slugify(name or "default", 60) or "default"
     return {"ok": True, "thread": safe,
             "messages": store.get_thread(nb_id, safe)[-48:]}
@@ -1095,7 +1460,7 @@ def threads(notebook: str = Query("", description="notebook id, title or slug"))
     try:
         nb_id = store.resolve_notebook(notebook)
     except Exception as exc:
-        return _fail(str(exc), 404)
+        return _fail(_why(exc), 404)
     rows = store.list_threads(nb_id)
     return {"ok": True, "threads": rows, "count": len(rows),
             "default": rows[0]["name"] if rows else ""}
@@ -1107,12 +1472,12 @@ def new_thread(payload: Dict[str, Any] = Body(...)) -> Any:
     try:
         nb_id = store.resolve_notebook(str(payload.get("notebook") or ""))
     except Exception as exc:
-        return _fail(str(exc), 404)
+        return _fail(_why(exc), 404)
     try:
         created = store.create_thread(nb_id, title=str(payload.get("title") or ""),
                                       name=str(payload.get("name") or ""))
     except Exception as exc:
-        return _fail(str(exc), 400)
+        return _fail(_why(exc), 400)
     return {"ok": True, "thread": created, "threads": store.list_threads(nb_id)}
 
 
@@ -1121,12 +1486,12 @@ def rename_thread(payload: Dict[str, Any] = Body(...)) -> Any:
     try:
         nb_id = store.resolve_notebook(str(payload.get("notebook") or ""))
     except Exception as exc:
-        return _fail(str(exc), 404)
+        return _fail(_why(exc), 404)
     try:
         out = store.rename_thread(nb_id, str(payload.get("thread") or ""),
                                   str(payload.get("title") or ""))
     except Exception as exc:
-        return _fail(str(exc), 400)
+        return _fail(_why(exc), 400)
     return {"ok": True, "thread": out, "threads": store.list_threads(nb_id)}
 
 
@@ -1137,11 +1502,11 @@ def delete_thread(payload: Dict[str, Any] = Body(...)) -> Any:
     try:
         nb_id = store.resolve_notebook(str(payload.get("notebook") or ""))
     except Exception as exc:
-        return _fail(str(exc), 404)
+        return _fail(_why(exc), 404)
     try:
         out = store.delete_thread(nb_id, str(payload.get("thread") or ""))
     except Exception as exc:
-        return _fail(str(exc), 400)
+        return _fail(_why(exc), 400)
     return {"ok": True, **out, "threads": store.list_threads(nb_id)}
 
 
@@ -1150,7 +1515,7 @@ def clear_thread(payload: Dict[str, Any] = Body(default={})) -> Any:
     try:
         nb_id = store.resolve_notebook(str(payload.get("notebook") or ""))
     except Exception as exc:
-        return _fail(str(exc), 404)
+        return _fail(_why(exc), 404)
     return {"ok": True, "thread": store.clear_thread(nb_id, str(payload.get("thread") or "default"))}
 
 
@@ -1170,7 +1535,7 @@ def artifact(notebook: str = Query(...), name: str = Query(...),
         nb_id = store.resolve_notebook(notebook)
         path = store.artifact_path(nb_id, name)
     except Exception as exc:
-        return _fail(str(exc), 404)
+        return _fail(_why(exc), 404)
     if not path.exists():
         return _fail(f"{name} is not in this notebook", 404)
     ext = path.suffix.lstrip(".").lower()
@@ -1191,6 +1556,147 @@ def artifact(notebook: str = Query(...), name: str = Query(...),
     return FileResponse(str(path), media_type=guessed, filename=path.name)
 
 
+@router.get("/artifact/xlsx")
+def artifact_xlsx(notebook: str = Query(...), name: str = Query(...),
+                  b64: int = Query(0, description="1 = return base64 JSON (the page's blob path")) -> Any:
+    """A data table as a real .xlsx.
+
+    The CSV is the interchange format and stays the artifact; a spreadsheet with
+    typed columns, a frozen header row and an auto-filter is what someone
+    actually pivots. Built from the SAME stored JSON the viewer reads, so the
+    workbook cannot disagree with the table on screen.
+    """
+    from hermes_notebook import xlsx_export
+    try:
+        nb_id = store.resolve_notebook(notebook)
+        path = store.artifact_path(nb_id, name)
+    except Exception as exc:
+        return _fail(_why(exc), 404)
+    if not path.exists():
+        return _fail(f"{name} is not in this notebook", 404)
+    try:
+        data = json.loads(path.read_text(encoding="utf-8", errors="replace"))
+    except ValueError:
+        return _fail(f"{name} is not table JSON — open the artifact's events file", 400)
+    try:
+        blob = xlsx_export.workbook(data)
+    except Exception as exc:  # openpyxl missing or a malformed table
+        return _fail(_why(exc), 500)
+    out_name = re.sub(r"\.json$", "", path.name) + ".xlsx"
+    if b64:
+        import base64 as _b64
+        return {"ok": True, "name": out_name, "ext": "xlsx",
+                "mime": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                "bytes": len(blob), "b64": _b64.b64encode(blob).decode("ascii")}
+    from fastapi import Response
+    return Response(content=blob, media_type=(
+        "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"),
+        headers={"Content-Disposition": f'attachment; filename="{out_name}"'})
+
+
+@router.get("/artifact/png")
+def artifact_png(notebook: str = Query(...), name: str = Query(...),
+                 scale: float = Query(2.0, description="device-pixel factor"),
+                 b64: int = Query(0, description="1 = return base64 JSON")) -> Any:
+    """An infographic as a PNG — the same stored JSON re-rendered by gfx and
+    rasterised through the installed headless Chrome, so the export is the
+    poster on screen, not a re-layout of it."""
+    try:
+        nb_id = store.resolve_notebook(notebook)
+        path = store.artifact_path(nb_id, name)
+    except Exception as exc:
+        return _fail(_why(exc), 404)
+    if not path.exists():
+        return _fail(f"{name} is not in this notebook", 404)
+    try:
+        data = json.loads(path.read_text(encoding="utf-8", errors="replace"))
+    except ValueError:
+        return _fail(f"{name} is not graphic JSON — open the artifact's events file", 400)
+    meta = data.get("_graphic") or {}
+    style_id = (data.get("_style") or {}).get("id") or ""
+    import tempfile
+    out_name = re.sub(r"\.json$", "", path.name) + ".png"
+    try:
+        with tempfile.TemporaryDirectory() as tmp:
+            target = Path(tmp) / "poster.png"
+            gfx.to_png(data, target, scale=max(1.0, min(3.0, scale)),
+                       template=meta.get("template") or "auto",
+                       preset=style_id or None,
+                       orientation=meta.get("orientation") or "landscape",
+                       detail=meta.get("detail") or "standard")
+            blob = target.read_bytes()
+    except RuntimeError as exc:
+        return _fail(f"PNG export needs a headless Chrome/Chromium: {exc}", 501)
+    except Exception as exc:
+        return _fail(_why(exc), 500)
+    if b64:
+        import base64 as _b64
+        return {"ok": True, "name": out_name, "ext": "png", "mime": "image/png",
+                "bytes": len(blob), "b64": _b64.b64encode(blob).decode("ascii")}
+    return Response(content=blob, media_type="image/png",
+                    headers={"Content-Disposition": f'attachment; filename="{out_name}"'})
+
+
+@router.get("/artifact/pptx")
+def artifact_pptx(notebook: str = Query(...), name: str = Query(...),
+                  b64: int = Query(0, description="1 = return base64 JSON (the page's blob path")) -> Any:
+    """The slide deck as a real .pptx — NotebookLM ships PPTX/Slides export and a
+    deck that can only be presented inside Hermes is half a deliverable.
+
+    Built from the stored deck JSON by `hermes_notebook.pptx_export`, so the
+    file always matches what the viewer shows (no second model pass, no drift).
+    """
+    from hermes_notebook import pptx_export
+    try:
+        nb_id = store.resolve_notebook(notebook)
+        path = store.artifact_path(nb_id, name)
+    except Exception as exc:
+        return _fail(_why(exc), 404)
+    if not path.exists():
+        return _fail(f"{name} is not in this notebook", 404)
+    try:
+        deck = json.loads(path.read_text(encoding="utf-8", errors="replace"))
+    except ValueError:
+        return _fail(f"{name} is not deck JSON — open the slides artifact's events file", 400)
+    slides = deck.get("slides") if isinstance(deck, dict) else None
+    if not isinstance(slides, list) or not slides:
+        return _fail(f"{name} has no slides to export", 400)
+    meta = store.get_meta(nb_id)
+    title = str(deck.get("title") or meta.get("title") or nb_id)
+    subtitle = str(deck.get("subtitle") or deck.get("framing") or meta.get("description") or "")
+    # slides may carry a verified infographic block — it lands in the deck as a
+    # PNG, drawn by the same chart code as the poster (skipped if no browser)
+    images = {}
+    try:
+        from hermes_notebook.gfx import charts as _charts
+        preset = gfx.resolve_preset("neon")
+        import tempfile
+        with tempfile.TemporaryDirectory() as tmp:
+            for idx, s in enumerate(slides):
+                ch = s.get("chart") if isinstance(s, dict) else None
+                if not isinstance(ch, dict):
+                    continue
+                try:
+                    svg = _charts.render_block(ch, preset, 1100, 460)
+                    target = Path(tmp) / f"chart{idx}.png"
+                    gfx.svg_to_png(svg, target, width=1100, height=460, scale=2)
+                    images[idx] = target.read_bytes()
+                except Exception:
+                    continue
+    except Exception:
+        images = {}
+    data = pptx_export.build_pptx(title, slides, subtitle=subtitle,
+                                  images=images or None)
+    filename = runtime.slugify(title, limit=40) + ".pptx"
+    mime = "application/vnd.openxmlformats-officedocument.presentationml.presentation"
+    if b64:
+        import base64 as _b64
+        return {"ok": True, "name": filename, "ext": "pptx", "mime": mime,
+                "bytes": len(data), "b64": _b64.b64encode(data).decode("ascii")}
+    return Response(content=data, media_type=mime,
+                    headers={"content-disposition": f'attachment; filename="{filename}"'})
+
+
 @router.get("/export")
 def export_nb(notebook: str = Query(...),
               b64: int = Query(0, description="1 = base64 JSON (the page's blob path)")) -> Any:
@@ -1201,7 +1707,7 @@ def export_nb(notebook: str = Query(...),
         meta = store.get_meta(nb_id)
         out = store.export_notebook(nb_id)
     except Exception as exc:
-        return _fail(str(exc), 404)
+        return _fail(_why(exc), 404)
     zp = Path(out["zip"])
     name = f"{nb_id}-notebook.zip"
     if b64:
@@ -1209,19 +1715,3 @@ def export_nb(notebook: str = Query(...),
         return {"ok": True, "name": name, "bytes": out["size_bytes"], "files": out["files"],
                 "b64": _b64.b64encode(zp.read_bytes()).decode("ascii")}
     return FileResponse(str(zp), media_type="application/zip", filename=name)
-
-
-# -------------------------------------------------------------- ops (folded)
-
-def _mount_ops() -> None:
-    """Fold the homelab control deck in as `/ops/*`, same audited transport."""
-    try:
-        import ops_api  # type: ignore  # sibling module in dashboard/
-    except Exception as exc:          # pragma: no cover - missing copy
-        import logging
-        logging.getLogger(__name__).warning("notebook: ops deck unavailable (%s)", exc)
-        return
-    router.include_router(ops_api.router, prefix="/ops")
-
-
-_mount_ops()

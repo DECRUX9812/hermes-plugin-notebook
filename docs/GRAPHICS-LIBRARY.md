@@ -1,7 +1,7 @@
 # The graphics library
 
 `hermes_notebook/gfx` is a reusable HTML/SVG graphics library: **38 looks × 9
-templates × 3 shapes × 3 detail levels**, composed from primitives instead of
+templates × 7 canvases × 3 detail levels**, composed from primitives instead of
 hand-built one-offs. It renders NotebookLM-class artifact visuals without an image
 model, so every numeral on the sheet is the numeral that came out of the sources.
 

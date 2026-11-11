@@ -33,7 +33,7 @@ function useFile(notebookId, name) {
   return st
 }
 
-function Viewer({ artifact, notebook, onCite, onRegenerate, regenerating, onChanged, onPrevRun, onNextRun, runPos }) {
+function Viewer({ artifact, notebook, onCite, onRegenerate, regenerating, onChanged, onPrevRun, onNextRun, runPos, onClose, onSay }) {
   const [renOpen, setRenOpen] = useState(false)
   const [renVal, setRenVal] = useState('')
   const [renBusy, setRenBusy] = useState(false)
@@ -47,8 +47,14 @@ function Viewer({ artifact, notebook, onCite, onRegenerate, regenerating, onChan
         timeoutMs: 30000
       })
       setRenOpen(false)
+      if (onSay) onSay('renamed')
       if (onChanged) onChanged()
-    } catch { /* rename is best-effort */ } finally { setRenBusy(false) }
+    } catch (e) {
+      // A rename that fails must NOT close the dialog: the old code swallowed
+      // the error, closed the panel and left the title unchanged, which reads
+      // as "the app ignored me" rather than "that did not save".
+      if (onSay) onSay(`could not rename: ${e.message || e}`)
+    } finally { setRenBusy(false) }
   }
   const jsonName = (files.find((f) => f.ext === 'json') || {}).name || ''
   const txtName = (files.find((f) => f.ext === 'txt') || {}).name || ''
@@ -72,17 +78,29 @@ function Viewer({ artifact, notebook, onCite, onRegenerate, regenerating, onChan
   } else if (artifact.kind === 'audio_overview') {
     body = jsx(AudioView, { src: primary.url, json: asJson.json, text: asTxt.text, notebook, onChanged })
   } else if (artifact.kind === 'mind_map') {
-    body = jsx(MindMapView, { data: asJson.json, text: primary.text })
+    body = jsx(MindMapView, { data: asJson.json, text: primary.text, onCite })
   } else if (artifact.kind === 'flashcards') {
-    body = jsx(FlashcardsView, { data: asJson.json, text: primary.text, key: artifact.key, deckId: artifact.key })
+    body = jsx(FlashcardsView, { data: asJson.json, text: primary.text, key: artifact.key, deckId: artifact.key, onCite })
   } else if (artifact.kind === 'quiz') {
-    body = jsx(QuizView, { data: asJson.json, text: primary.text, deckId: artifact.key })
+    body = jsx(QuizView, { data: asJson.json, text: primary.text, deckId: artifact.key, onCite })
   } else if (artifact.kind === 'slides') {
-    body = jsx(SlidesView, { data: asJson.json, text: primary.text, htmlUrl: primary.url && artifact.ext === 'html' ? primary.url : '' })
-  } else if (artifact.kind === 'infographic') {
-    body = jsx(InfographicView, { src: primary.url, data: asJson.json })
+    body = jsx(SlidesView, { data: asJson.json, text: primary.text, notebook, jsonName, onCite, onSay,
+                             htmlUrl: primary.url && artifact.ext === 'html' ? primary.url : '' })
+  } else if (artifact.kind === 'infographic' || artifact.kind === 'blueprint_evolution') {
+    // The blueprint is an SVG poster like an infographic: same stage, same
+    // zoom, same style chip. A separate viewer would be the same code twice.
+    body = jsx(InfographicView, { src: primary.url, data: asJson.json,
+      notebookId: notebook && notebook.id, jsonName, onSay })
   } else if (artifact.kind === 'data_table') {
-    body = jsx(DataTableView, { text: primary.text, name: artifact.primary })
+    body = jsx(DataTableView, { text: primary.text, name: artifact.primary, data: asJson.json,
+                                notebookId: notebook && notebook.id, onSay })
+  } else if (artifact.kind === 'summary' || artifact.kind === 'briefing_doc') {
+    // A document, not a chat reply: BLUF banner, KPI strip, then sections.
+    body = jsx(DocView, { text: primary.text, kind: artifact.kind, onCite })
+  } else if (artifact.kind === 'faq') {
+    body = jsx(FaqView, { text: primary.text, onCite })
+  } else if (artifact.kind === 'study_guide') {
+    body = jsx(StudyGuideView, { text: primary.text, onCite })
   } else if (artifact.kind === 'timeline') {
     body = jsx(TimelineView, { text: primary.text, onCite })
   } else {
@@ -91,34 +109,44 @@ function Viewer({ artifact, notebook, onCite, onRegenerate, regenerating, onChan
   }
 
   return el('div', { className: 'nb-view' },
+    // ONE 44px toolbar: category badge, the artifact's name, a human-readable
+    // provenance line, then the icon actions. There is no second sub-header and
+    // no "<notebook> — <kind>" H1 anywhere below it: the tab above already names
+    // the kind, and the file's size in bytes is not something a reader needs.
     el('div', { className: 'nb-view-head' },
       el('span', { className: 'nb-chip', 'data-tone': 'accent', children: artifact.label }),
-      el('div', { style: { flex: 1, minWidth: 0 } },
-        el('div', { className: 'nb-view-title', children: artifact.title || (asJson.json && (asJson.json.title || asJson.json.topic)) || prettyFile(artifact.primary) }),
-        el('div', { style: { fontSize: '12.5px', color: T.text4 },
-          children: `${artifact.files.length} file${artifact.files.length === 1 ? '' : 's'} · ${Math.max(1, Math.round(artifact.bytes / 1024))} KB · ${ago(artifact.modified)}${optsSummary(artifact.opts) ? ` · ${optsSummary(artifact.opts)}` : ''}` })),
-      primary.text
-        ? jsx(IconBtn, {
-            icon: 'copy', label: 'Copy artifact text',
-            onClick: () => { try { navigator.clipboard.writeText(primary.text) } catch { /* clipboard may be unavailable */ } }
-          })
-        : null,
-      jsx(IconBtn, {
-        icon: 'download', label: `Download ${artifact.label}`,
-        onClick: () => downloading(primary.url, artifact.primary)
-      }),
-      onPrevRun ? jsx(IconBtn, { icon: 'arrowLeft', label: 'Older version', onClick: onPrevRun }) : null,
-      onNextRun ? jsx(IconBtn, { icon: 'arrowRight', label: 'Newer version', onClick: onNextRun }) : null,
-      runPos ? el('span', { className: 'nb-meta', style: { fontSize: '12px' }, children: runPos }) : null,
-      onRegenerate ? jsx(IconBtn, {
-        icon: 'refresh', label: `Regenerate ${artifact.label}`,
-        active: !!regenerating, disabled: !!regenerating,
-        onClick: onRegenerate
-      }) : null,
-      jsx(IconBtn, {
-        icon: 'pencil', label: 'Rename this artifact',
-        onClick: () => { setRenVal(artifact.title || ''); setRenOpen(true) }
-      })
+      el('div', { style: { flex: '1 1 auto', minWidth: 0 } },
+        el('div', { className: 'nb-view-title',
+          title: artifact.title || (asJson.json && (asJson.json.title || asJson.json.topic)) || artifact.primary,
+          children: artifact.title || (asJson.json && (asJson.json.title || asJson.json.topic)) || prettyFile(artifact.primary) }),
+        el('div', { className: 'nb-view-sub',
+          title: optsSummary(artifact.opts) || undefined,
+          children: `Updated ${ago(artifact.modified) || 'just now'} · ${artifact.files.length} file${artifact.files.length === 1 ? '' : 's'}${runPos ? ` · version ${runPos}` : ''}${optsSummary(artifact.opts) ? ` · ${optsSummary(artifact.opts)}` : ''}` })),
+      el('div', { className: 'nb-view-acts' },
+        primary.text
+          ? jsx(IconBtn, {
+              icon: 'copy', label: 'Copy artifact text',
+              onClick: () => copyText(primary.text, onSay || (host.say ? (m) => host.say(m) : null))
+            })
+          : null,
+        jsx(IconBtn, {
+          icon: 'download', label: `Download ${artifact.label}`,
+          onClick: () => downloading(primary.url, artifact.primary)
+        }),
+        onPrevRun ? jsx(IconBtn, { icon: 'arrowLeft', label: 'Older version', onClick: onPrevRun }) : null,
+        onNextRun ? jsx(IconBtn, { icon: 'arrowRight', label: 'Newer version', onClick: onNextRun }) : null,
+        onRegenerate ? jsx(IconBtn, {
+          icon: 'refresh', label: `Regenerate ${artifact.label}`,
+          active: !!regenerating, disabled: !!regenerating,
+          onClick: onRegenerate
+        }) : null,
+        jsx(IconBtn, {
+          icon: 'pencil', label: 'Rename this artifact',
+          onClick: () => { setRenVal(artifact.title || ''); setRenOpen(true) }
+        }),
+        onClose ? jsx(IconBtn, {
+          icon: 'close', label: 'Close this tab — back to chat', onClick: onClose
+        }) : null)
     ),
     body,
     renOpen
@@ -203,7 +231,7 @@ function VideoView({ src, json, text }) {
                       : null] })
               ]
             })))
-        : (text ? el('pre', { className: 'nb-mono', style: { whiteSpace: 'pre-wrap', color: T.text3, fontSize: '13.5px' }, children: text }) : null))
+        : (text ? el('pre', { className: 'nb-mono', style: { whiteSpace: 'pre-wrap', color: T.text3, fontSize: '13px' }, children: text }) : null))
   )
 }
 
@@ -433,7 +461,7 @@ function AudioView({ src, json, text, notebook, onChanged }) {
             onClick: () => patchSeg(i, { speaker: s.speaker === 'host_a' ? 'host_b' : 'host_a' }),
             style: {
               width: '30px', height: '30px', borderRadius: '8px', cursor: 'pointer',
-              border: `1px solid ${T.lineSoft}`, fontSize: '12px', fontWeight: 700,
+              border: `1px solid ${T.lineSoft}`, fontSize: '12.5px', fontWeight: 700,
               background: s.speaker === 'host_a'
                 ? `color-mix(in srgb, ${T.accent} 18%, transparent)` : `color-mix(in srgb, ${T.purple} 18%, transparent)`,
               color: s.speaker === 'host_a' ? T.accent : T.purple
@@ -448,7 +476,7 @@ function AudioView({ src, json, text, notebook, onChanged }) {
               width: '100%', boxSizing: 'border-box', resize: 'vertical',
               background: 'rgba(255,255,255,.05)', border: `1px solid ${T.lineSoft}`,
               borderRadius: '10px', color: T.text, padding: '8px 10px',
-              fontSize: '13.5px', lineHeight: 1.5, fontFamily: 'inherit'
+              fontSize: '13px', lineHeight: 1.5, fontFamily: 'inherit'
             }
           }),
           el('button', {
@@ -510,6 +538,7 @@ function AudioView({ src, json, text, notebook, onChanged }) {
             style: { background: 'rgba(255,255,255,.1)', width: '40px', height: '40px' },
             children: jsx(Glyph, { name: playing ? 'pause' : 'play', size: 16 })
           }),
+          el('div', { className: 'nb-scrub' },
           el('input', {
             type: 'range', min: 0, max: 100, value: Math.round(progress * 100),
             'aria-label': 'Scrub audio', style: { flex: 1, accentColor: T.accent },
@@ -518,6 +547,19 @@ function AudioView({ src, json, text, notebook, onChanged }) {
               if (a && dur) { a.currentTime = (Number(e.target.value) / 100) * dur }
             }
           }),
+          // one tick per speaker turn, positioned by its real timestamp — the
+          // transcript is already timed, so a chapter list would be the same
+          // information printed twice
+          segsTimed && dur
+            ? el('div', { className: 'nb-scrub-marks', 'aria-hidden': 'true' },
+                segsTimed.map((seg, si) => el('button', {
+                  key: `mk${si}`, type: 'button', className: 'nb-scrub-mark',
+                  title: `${fmtTime(seg.start)} — ${String(seg.speaker || '').toUpperCase()}`,
+                  'aria-label': `Jump to ${fmtTime(seg.start)}`,
+                  style: { left: `${Math.min(100, (seg.start / dur) * 100)}%` },
+                  onClick: () => seekSeg(si)
+                })))
+            : null),
           el('button', {
             type: 'button', className: 'nb-chip', 'data-click': 'true',
             'aria-label': 'Playback speed', title: 'Playback speed',
@@ -559,7 +601,7 @@ function AudioView({ src, json, text, notebook, onChanged }) {
               canEditScript
                 ? el('button', {
                     type: 'button', className: 'nb-chip', 'data-click': 'true',
-                    style: { marginLeft: 'auto', fontSize: '11.5px' },
+                    style: { marginLeft: 'auto', fontSize: '12px' },
                     onClick: startEdit,
                     children: 'edit script → re-voice'
                   })
@@ -604,7 +646,7 @@ function TranscriptLine({ line, first, active, seekable, segStart, onSeek }) {
   },
   jsx('span', {
     style: {
-      fontSize: '11.5px', fontWeight: 700, letterSpacing: '.04em',
+      fontSize: '12px', fontWeight: 700, letterSpacing: '.04em',
       color: line.who === 'B' ? T.purple : T.accent,
       fontFamily: 'var(--ui-font-mono, ui-monospace, monospace)'
     },
@@ -614,7 +656,7 @@ function TranscriptLine({ line, first, active, seekable, segStart, onSeek }) {
   seekable
     ? jsx('span', {
         style: {
-          fontSize: '11px', color: T.text4, textAlign: 'right',
+          fontSize: '12px', color: T.text4, textAlign: 'right',
           fontFamily: 'var(--ui-font-mono, ui-monospace, monospace)',
           paddingTop: '3px', fontVariantNumeric: 'tabular-nums'
         },
@@ -630,82 +672,131 @@ const fmtTime = (s) => {
 
 /* --------------------------------------------------------------- mind map */
 
-function MindMapView({ data, text }) {
-  const tree = useMemo(() => (data && data.children ? data : parseMindMapMd(text)), [data, text])
-  const [zoom, setZoom] = useState(1)
-  const [pan, setPan] = useState({ x: 0, y: 0 })
-  const drag = useRef(null)
-  const { nodes, width, height } = useMemo(() => layoutTree(tree), [tree])
+/** node_type → the colour and glyph the topology uses. A reader learns that
+ *  rose means a tension and amber means a number after one graph. */
+const MAP_TONE = {
+  core_thesis: { ink: 'accent', label: 'thesis' },
+  subsystem: { ink: 'accentSoft', label: 'subsystem' },
+  metric_proof: { ink: 'warn', label: 'metric' },
+  risk_bottleneck: { ink: 'danger', label: 'risk' },
+  tension_conflict: { ink: 'danger', label: 'tension' },
+  action_item: { ink: 'ok', label: 'action' }
+}
+const mapInk = (tone) => (tone === 'warn' ? T.warn
+  : tone === 'danger' ? T.danger
+    : tone === 'ok' ? T.ok
+      : tone === 'accentSoft' ? `color-mix(in srgb, ${T.accent} 70%, ${T.text})`
+        : T.accent)
 
-  if (!nodes.length) {
-    return el('div', { className: 'nb-view-body' },
-      jsx('div', { className: 'nb-hint', children: 'no mind map structure in this artifact' }))
+/** Lay out a node/edge graph: depth by distance from `root`, leaves on a grid.
+ *
+ *  A force layout would be prettier and would also be different on every open,
+ *  which is wrong for a map you learn: the same notebook must draw the same
+ *  topology every time. Nodes are put in columns by BFS depth, spread evenly in
+ *  their column, then nudged apart only if they actually overlap. */
+function layoutGraph(graph) {
+  const raw = (graph.nodes || []).filter((n) => n && n.id)
+  if (!raw.length) return { nodes: [], edges: [], width: 900, height: 560 }
+  const byId = new Map(raw.map((n) => [n.id, n]))
+  const adj = new Map(raw.map((n) => [n.id, []]))
+  for (const e of graph.edges || []) {
+    if (!byId.has(e.source) || !byId.has(e.target)) continue
+    adj.get(e.source).push(e.target)
+    adj.get(e.target).push(e.source)
   }
+  const rootId = (graph.root && byId.has(graph.root)) ? graph.root : raw[0].id
+  const depth = new Map([[rootId, 0]])
+  const queue = [rootId]
+  while (queue.length) {
+    const id = queue.shift()
+    for (const next of adj.get(id) || []) {
+      if (!depth.has(next)) { depth.set(next, depth.get(id) + 1); queue.push(next) }
+    }
+  }
+  // anything unreachable from the root still has to be drawn
+  for (const n of raw) if (!depth.has(n.id)) depth.set(n.id, 2)
 
-  const nodeEls = nodes.map((n, i) => jsx('g', { key: `n${i}`, children: [
-    n.parent >= 0
-      ? jsx('path', {
-          d: curve(nodes[n.parent], n),
-          fill: 'none',
-          stroke: `color-mix(in srgb, ${T.accent} ${n.depth === 1 ? 52 : 34}%, transparent)`,
-          strokeWidth: n.depth === 1 ? 1.8 : 1.3
-        })
-      : null,
-    jsx('rect', {
-      x: n.x - n.w / 2, y: n.y - n.h / 2, width: n.w, height: n.h, rx: 9,
-      fill: n.depth === 0
-        ? `color-mix(in srgb, ${T.accent} 24%, transparent)`
-        : n.depth === 1
-          ? `color-mix(in srgb, ${T.accent} 9%, var(--ui-bg-primary, #101116))`
-          : 'var(--ui-bg-primary, #101116)',
-      stroke: `color-mix(in srgb, ${T.accent} ${n.depth === 0 ? 62 : n.depth === 1 ? 34 : 20}%, transparent)`
-    }),
-    jsx('text', {
-      x: n.x, y: n.y + (n.depth === 0 ? 5 : 4), textAnchor: 'middle',
-      fill: n.depth === 0 ? T.text : n.depth === 1 ? T.text : T.text2,
-      fontSize: n.depth === 0 ? 18 : n.depth === 1 ? 16 : 14.5,
-      fontWeight: n.depth <= 1 ? 660 : 500,
-      children: n.label
-    }),
-    n.detail ? jsx('title', { children: `${n.label} — ${n.detail}` }) : null
-  ].filter(Boolean) }))
+  const columns = new Map()
+  for (const n of raw) {
+    const d = depth.get(n.id)
+    if (!columns.has(d)) columns.set(d, [])
+    columns.get(d).push(n)
+  }
+  const maxDepth = Math.max(...columns.keys())
+  const COL_W = 268
+  // A node is 46px tall and can carry a metric badge under its label, so rows
+  // need more than the bare height. 92 gives a visible gap at 2x and keeps two
+  // same-column nodes from touching (the old 82 did not).
+  const ROW_H = 92
+  const rows = Math.max(...[...columns.values()].map((c) => c.length), 1)
+  const width = Math.max(720, (maxDepth + 1) * COL_W + 120)
+  const height = Math.max(320, rows * ROW_H + 140)
 
-  const canvas = jsx('svg', {
-    className: 'nb-map', viewBox: `0 0 ${width} ${height}`, role: 'img',
-    'aria-label': `Mind map: ${(tree && tree.label) || 'root'} with ${nodes.length} nodes`,
-    preserveAspectRatio: 'xMidYMid meet',
-    onWheel: (e) => {
-      e.preventDefault()
-      setZoom((z) => Math.min(2.4, Math.max(0.55, z - e.deltaY * 0.0012)))
-    },
-    onPointerDown: (e) => {
-      drag.current = { x: e.clientX - pan.x, y: e.clientY - pan.y }
-      if (e.currentTarget.setPointerCapture) e.currentTarget.setPointerCapture(e.pointerId)
-    },
-    onPointerMove: (e) => {
-      if (drag.current) setPan({ x: e.clientX - drag.current.x, y: e.clientY - drag.current.y })
-    },
-    onPointerUp: () => { drag.current = null },
-    onPointerCancel: () => { drag.current = null },
-    children: el('g', {
-      transform: `translate(${pan.x} ${pan.y}) translate(${width / 2} ${height / 2}) scale(${zoom}) translate(${-width / 2} ${-height / 2})`
-    }, nodeEls)
-  })
-
-  const toolbar = el('div', { style: { display: 'flex', gap: '8px', alignItems: 'center', marginBottom: '8px' } },
-    jsx('span', { className: 'nb-hint', children: `${nodes.length} nodes · drag to pan · scroll to zoom · hover a node for its detail` }),
-    el('span', { style: { flex: 1 } }),
-    jsx(Btn, {
-      size: 'sm', icon: 'grid', children: 'Reset view',
-      onClick: () => { setZoom(1); setPan({ x: 0, y: 0 }) }
-    }))
-
-  return el('div', { className: 'nb-view-body', style: { padding: '12px', display: 'flex', flexDirection: 'column' } },
-    toolbar,
-    el('div', { style: { flex: 1, minHeight: '340px' } }, canvas))
+  const nodes = []
+  for (const [d, list] of [...columns.entries()].sort((a, b) => a[0] - b[0])) {
+    const span = (list.length - 1) * ROW_H
+    const top = (height - span) / 2
+    list.forEach((n, i) => {
+      const label = String(n.label || n.id)
+      const w = Math.min(196, 34 + label.length * 8.4)
+      nodes.push({
+        id: n.id, label, w, h: 46,
+        x: 60 + d * COL_W + w / 2,
+        y: top + i * ROW_H,
+        nodeType: String(n.node_type || '').toLowerCase(),
+        stat: String(n.key_stat || '').trim(),
+        summary: String(n.summary || '').trim(),
+        citations: (n.citations || []).map((c) => Number(c)).filter((c) => c > 0)
+      })
+    })
+  }
+  // Collision avoidance on load: walk each column top to bottom and push a
+  // node down whenever its box would touch the one above it. ROW_H already
+  // leaves a gap, so this only bites on hand-made or densely packed maps —
+  // but it means no two node labels ever sit on each other.
+  const byX = new Map()
+  for (const n of nodes) {
+    const k = Math.round(n.x)
+    if (!byX.has(k)) byX.set(k, [])
+    byX.get(k).push(n)
+  }
+  for (const list of byX.values()) {
+    list.sort((a, b) => a.y - b.y)
+    for (let i = 1; i < list.length; i += 1) {
+      const need = (list[i - 1].h + list[i].h) / 2 + 12
+      if (list[i].y - list[i - 1].y < need) list[i].y = list[i - 1].y + need
+    }
+  }
+  const at = new Map(nodes.map((n) => [n.id, n]))
+  const edges = []
+  let edgeIdx = 0
+  for (const e of graph.edges || []) {
+    const a = at.get(e.source)
+    const b = at.get(e.target)
+    if (!a || !b) continue
+    // a link between two nodes of the same column must bow sideways — drawn
+    // straight it runs down the column through every sibling between them
+    const sameCol = Math.abs(a.x - b.x) < 1
+    const bow = sameCol
+      ? (edgeIdx % 2 === 0 ? 1 : -1) * Math.min(140, Math.max(70, Math.abs(a.y - b.y) * 0.4))
+      : 0
+    edges.push({
+      a, b,
+      relation: String(e.relation || '').trim(),
+      style: String(e.style || 'solid').trim(),
+      bow
+    })
+    edgeIdx += 1
+  }
+  return { nodes, edges, width, height, columns: maxDepth + 1 }
 }
 
-function curve(a, b) {
+function curve(a, b, bow = 0) {
+  if (bow) {
+    // bowed same-column link: the apex sits ~3/4 of the bow offset out, which
+    // is where the edge label's candidates anchor too
+    return `M${a.x},${a.y} C${a.x + bow},${a.y} ${b.x + bow},${b.y} ${b.x},${b.y}`
+  }
   const mx = (a.x + b.x) / 2
   return `M${a.x},${a.y} C${mx},${a.y} ${mx},${b.y} ${b.x},${b.y}`
 }
@@ -784,9 +875,327 @@ function parseMindMapMd(text) {
   return root.children.length ? root : null
 }
 
+/* ------------------------------------------------------- the mind map view */
+
+/** The inspector for a hovered/selected node: its type, its metric, its
+ *  summary and its citations. Built as explicit variables rather than one deep
+ *  el() tree — the nesting is what made the previous version's brackets fail. */
+function MapInspector({ node, onCite }) {
+  if (!node) {
+    return el('div', { className: 'nb-map-ins' },
+      el('div', { className: 'nb-map-ins-hint', children: 'hover a node to inspect it' }))
+  }
+  const tone = MAP_TONE[node.nodeType]
+  const rows = []
+  rows.push(el('div', { className: 'nb-map-ins-head' },
+    el('span', { className: 'nb-map-type', 'data-tone': tone ? tone.ink : 'accent',
+      children: tone ? tone.label : 'node' }),
+    el('span', { className: 'nb-map-ins-label', children: node.label })))
+  if (node.stat) {
+    rows.push(el('div', { className: 'nb-map-ins-stat', children: node.stat }))
+  }
+  if (node.summary) {
+    rows.push(el('div', { className: 'nb-map-ins-sum', children: node.summary }))
+  }
+  if (node.citations.length) {
+    const chip = (n) => (onCite
+      ? el('button', { type: 'button', className: 'nb-srcchip', key: `i${n}`,
+          'aria-label': `Open source S${n}`, onClick: () => onCite(n), children: `S${n}` })
+      : el('span', { className: 'nb-srcchip', key: `i${n}`, children: `S${n}` }))
+    rows.push(el('div', { className: 'nb-map-ins-src' }, node.citations.map(chip)))
+  }
+  return el('div', { className: 'nb-map-ins' }, rows)
+}
+
+function MindMapView({ data, text, onCite }) {
+  // The schema describes a GRAPH (nodes + typed edges); the old viewer only
+  // understood a nested `children` tree, so a generated mind map lost its node
+  // types, its metric badges, its relation labels and every cross-link. The
+  // tree path stays as the fallback for an artifact made before that schema.
+  const graph = useMemo(
+    () => (data && Array.isArray(data.nodes) && data.nodes.length ? data : null),
+    [data])
+  const tree = useMemo(
+    () => (graph ? null : (data && data.children ? data : parseMindMapMd(text))),
+    [data, text, graph])
+
+  const laid = useMemo(() => (graph ? layoutGraph(graph) : layoutTree(tree)), [graph, tree])
+  const nodes = laid.nodes || []
+  const edges = laid.edges || []
+  const width = laid.width
+  const height = laid.height
+
+  const [zoom, setZoom] = useState(1)
+  const [pan, setPan] = useState({ x: 0, y: 0 })
+  // hover/focus carries the node AND its screen box so the detail popover can
+  // anchor to it — there is no fixed inspector column anymore
+  const [hover, setHover] = useState(null)
+  // an edge label that lost its collision check stays hidden until its link —
+  // or one of its endpoint nodes — is hovered or focused
+  const [hotEdge, setHotEdge] = useState(null)
+  const drag = useRef(null)
+  const stageRef = useRef(null)
+  const [stage, setStage] = useState({ w: 0, h: 0, left: 0, top: 0 })
+
+  useEffect(() => {
+    const el = stageRef.current
+    if (!el) return undefined
+    const measure = () => {
+      const r = el.getBoundingClientRect()
+      setStage({ w: r.width, h: r.height, left: r.left, top: r.top })
+    }
+    measure()
+    const ro = typeof ResizeObserver !== 'undefined' ? new ResizeObserver(measure) : null
+    if (ro) ro.observe(el)
+    window.addEventListener('resize', measure)
+    return () => { if (ro) ro.disconnect(); window.removeEventListener('resize', measure) }
+  }, [])
+
+  // a different artifact is a different map — always open fitted, never
+  // remembering the last one's zoom
+  useEffect(() => { setZoom(1); setPan({ x: 0, y: 0 }); setHover(null); setHotEdge(null) }, [data])
+
+  if (!nodes.length) {
+    return el('div', { className: 'nb-view-body' },
+      el('div', { className: 'nb-hint', children: 'no mind map structure in this artifact' }))
+  }
+
+  /* Fit-to-view maths: the SVG's viewBox already scales the whole graph into
+   * the stage, so zoom 1 IS the fit. What the fit does to TEXT is the problem
+   * — a 1600-unit-wide map drawn into 800px renders 14.5-unit labels at ~7px.
+   * The floor below buys legibility back in layout units, and truncation keeps
+   * the boxes from overflowing when the floor bites. */
+  const fitScale = stage.w && stage.h ? Math.min(stage.w / width, stage.h / height) : 1
+  const unit = Math.max(1, 12 / Math.max(fitScale, 0.05))   // user units per 12px
+  const fsLabel = Math.max(14.5, unit)
+  const fsRoot = Math.max(16, unit + 1.5)
+  const fsStat = Math.max(12, unit)
+  const fsEdge = Math.max(12, unit)
+  const charW = (fs) => fs * 0.56
+  const fitText = (label, w, fs) => {
+    const max = Math.max(4, Math.floor((w - 18) / charW(fs)))
+    const s = String(label || '')
+    return s.length > max ? { text: `${s.slice(0, Math.max(1, max - 1))}…`, full: s } : { text: s, full: s }
+  }
+  const anchorNode = (e, n) => {
+    const r = e.currentTarget.getBoundingClientRect()
+    setHover({ id: n.id, x: r.left, y: r.top, w: r.width, h: r.height })
+  }
+  const clearHover = (id) => setHover((h) => (h && h.id === id ? null : h))
+
+  /* Edge-label placement. Every label claims a box at the floored font size;
+   * the box must stay on the canvas and may touch neither a node nor a label
+   * already placed. The midpoint between two columns is exactly where the
+   * parallel links fan through — unguarded, a dense map stacked half its
+   * labels on the same spot. A label that finds no free candidate is not
+   * dropped: it stays hidden until its link (or an endpoint node) is
+   * hovered/focused, then draws on top with a halo. */
+  const lbox = (cx, cy, w, h) => ({ x0: cx - w / 2, y0: cy - h / 2, x1: cx + w / 2, y1: cy + h / 2 })
+  const boxesHit = (a, b) => a.x0 < b.x1 && a.x1 > b.x0 && a.y0 < b.y1 && a.y1 > b.y0
+  const solid = nodes.map((n) => lbox(n.x, n.y, n.w + 18, n.h + 14))
+  const placed = []
+  const edgeSpots = new Map()
+  edges.forEach((e, i) => {
+    if (!e.relation) return
+    const w = Math.min(230, e.relation.length * charW(fsEdge) + 18)
+    const h = fsEdge * 1.5
+    const mid = { x: (e.a.x + e.b.x) / 2, y: (e.a.y + e.b.y) / 2 }
+    const cands = e.bow
+      ? [{ x: mid.x + e.bow * 0.78, y: mid.y },
+         { x: mid.x + e.bow * 0.78, y: mid.y - h - 8 },
+         { x: mid.x + e.bow * 0.78, y: mid.y + h + 8 },
+         { x: mid.x + e.bow * 0.45, y: mid.y - h - 8 },
+         { x: mid.x + e.bow * 0.45, y: mid.y + h + 8 }]
+      : [{ x: mid.x, y: mid.y - h * 0.7 - 4 },
+         { x: mid.x, y: mid.y + h * 0.7 + 4 },
+         { x: mid.x + w / 2 + 20, y: mid.y - h * 0.5 },
+         { x: mid.x - w / 2 - 20, y: mid.y - h * 0.5 },
+         { x: mid.x, y: mid.y - h * 1.8 - 4 },
+         { x: mid.x, y: mid.y + h * 1.8 + 4 }]
+    const spot = cands.find((c) => {
+      const b2 = lbox(c.x, c.y, w, h)
+      if (b2.x0 < 2 || b2.x1 > width - 2 || b2.y0 < 2 || b2.y1 > height - 2) return false
+      return !solid.some((s) => boxesHit(b2, s)) && !placed.some((p) => boxesHit(b2, p))
+    })
+    if (spot) placed.push(lbox(spot.x, spot.y, w, h))
+    edgeSpots.set(i, spot
+      ? { x: spot.x, y: spot.y, w, hidden: false }
+      : { x: mid.x, y: mid.y - h * 0.7, w, hidden: true })
+  })
+  const hiddenCount = [...edgeSpots.values()].filter((s) => s.hidden).length
+
+  const edgeEl = (e, i) => {
+    const tension = e.style === 'dashed_tension' || /contradict/i.test(e.relation)
+    const thick = e.style === 'thick_flow' || /produces|depends/i.test(e.relation)
+    const stroke = tension ? T.danger : thick
+      ? `color-mix(in srgb, ${T.accent} 62%, transparent)`
+      : `color-mix(in srgb, ${T.accent} 34%, transparent)`
+    const d = curve(e.a, e.b, e.bow || 0)
+    const spot = edgeSpots.get(i)
+    // a hidden label also surfaces when either endpoint node is inspected —
+    // hovering a node answers "what does it link with" without a hunt
+    const reveal = hotEdge === i || (hover && (hover.id === e.a.id || hover.id === e.b.id))
+    const shown = spot && (!spot.hidden || reveal)
+    const labelFit = e.relation ? fitText(e.relation, (spot ? spot.w : 230) + 18, fsEdge) : null
+    return jsx('g', {
+      key: `e${i}`,
+      'data-edge': i,
+      tabIndex: 0,
+      role: 'img',
+      'aria-label': e.relation ? `${e.a.label} ${e.relation} ${e.b.label}` : `${e.a.label} → ${e.b.label}`,
+      onMouseEnter: () => setHotEdge(i),
+      onMouseLeave: () => setHotEdge((h) => (h === i ? null : h)),
+      onFocus: () => setHotEdge(i),
+      onBlur: () => setHotEdge((h) => (h === i ? null : h)),
+      children: [
+        jsx('title', { children: e.relation ? `${e.a.label} — ${e.relation} — ${e.b.label}` : `${e.a.label} → ${e.b.label}` }),
+        // a fat invisible twin of the visible path, so a 1.5px line is still a
+        // hover/focus target you can actually hit
+        e.relation ? jsx('path', { d, fill: 'none', stroke: 'rgba(0,0,0,0)', strokeWidth: 20, pointerEvents: 'stroke' }) : null,
+        jsx('path', {
+          d, fill: 'none', stroke,
+          strokeWidth: thick ? 2.4 : 1.5,
+          strokeDasharray: tension ? '5 4' : undefined,
+          opacity: hotEdge === i ? 1 : 0.9,
+          pointerEvents: 'none'
+        }),
+        shown && labelFit ? jsx('text', {
+          x: spot.x, y: spot.y, textAnchor: 'middle', fontSize: fsEdge,
+          fill: tension ? `color-mix(in srgb, ${T.danger} 72%, ${T.text})`
+            : spot.hidden ? T.text : T.text3,
+          fontWeight: spot.hidden ? 650 : 500,
+          stroke: 'var(--nb-card)', strokeWidth: fsEdge * 0.3, strokeLinejoin: 'round',
+          paintOrder: 'stroke', pointerEvents: 'none',
+          children: labelFit.text
+        }) : null
+      ].filter(Boolean) })
+  }
+
+  const nodeEl = (n, i) => {
+    const tone = MAP_TONE[n.nodeType] || MAP_TONE.core_thesis
+    const ink = mapInk(tone.ink)
+    const isRoot = graph ? String((graph.root || '')) === n.id : n.depth === 0
+    const hot = hover && hover.id === n.id
+    const fs = isRoot ? fsRoot : fsLabel
+    const labelFit = fitText(n.label, n.w, fs)
+    const statFit = n.stat ? fitText(n.stat, n.w, fsStat) : null
+    // the stat is a second line only when the two lines genuinely fit inside
+    // the box at the floored size — past that zoom it lives in the <title>
+    // and the popover, not printed on top of the label
+    const statShown = statFit && fs + fsStat + 4 <= n.h
+    const labelY = statShown
+      ? n.y - (fs + fsStat + 4) / 2 + fs * 0.78
+      : n.y + fs * 0.36
+    const statY = statShown ? n.y + (fs + fsStat + 4) / 2 - fsStat * 0.24 : 0
+    const kids = [
+      jsx('title', { children: n.stat ? `${labelFit.full} — ${n.stat}` : labelFit.full }),
+      jsx('rect', {
+        x: n.x - n.w / 2, y: n.y - n.h / 2, width: n.w, height: n.h, rx: isRoot ? 14 : 10,
+        fill: isRoot ? `color-mix(in srgb, ${ink} 26%, transparent)`
+          : `color-mix(in srgb, ${ink} 8%, var(--ui-bg-primary, #101116))`,
+        stroke: `color-mix(in srgb, ${ink} ${isRoot || hot ? 66 : 34}%, transparent)`,
+        strokeWidth: isRoot || hot ? 2 : 1.2
+      }),
+      jsx('text', {
+        x: n.x, y: labelY, textAnchor: 'middle',
+        fill: isRoot ? '#f2f3f8' : T.text,
+        fontSize: fs, fontWeight: isRoot ? 680 : 600,
+        children: labelFit.text
+      })
+    ]
+    if (statShown) {
+      kids.push(jsx('text', {
+        x: n.x, y: statY, textAnchor: 'middle', fontSize: fsStat,
+        fill: `color-mix(in srgb, ${ink} 78%, ${T.text})`, fontWeight: 700,
+        children: statFit.text
+      }))
+    }
+    return jsx('g', {
+      key: `n${i}`,
+      'data-node': n.id,
+      tabIndex: 0,
+      role: 'button',
+      'aria-label': `${n.label}${n.nodeType ? ` — ${n.nodeType.replace(/_/g, ' ')}` : ''}`,
+      onMouseEnter: (e) => anchorNode(e, n),
+      onMouseLeave: () => clearHover(n.id),
+      onFocus: (e) => anchorNode(e, n),
+      onBlur: () => clearHover(n.id),
+      style: { cursor: 'pointer' },
+      children: kids
+    })
+  }
+
+  const canvas = jsx('svg', {
+    className: 'nb-map', viewBox: `0 0 ${width} ${height}`, role: 'img',
+    'aria-label': `Mind map: ${(graph && graph.title) || (tree && tree.label) || 'root'} with ${nodes.length} nodes`,
+    preserveAspectRatio: 'xMidYMid meet',
+    onWheel: (e) => {
+      e.preventDefault()
+      setZoom((z) => Math.min(2.4, Math.max(0.55, z - e.deltaY * 0.0012)))
+    },
+    onPointerDown: (e) => {
+      drag.current = { x: e.clientX - pan.x, y: e.clientY - pan.y }
+      if (e.currentTarget.setPointerCapture) e.currentTarget.setPointerCapture(e.pointerId)
+    },
+    onPointerMove: (e) => {
+      if (drag.current) setPan({ x: e.clientX - drag.current.x, y: e.clientY - drag.current.y })
+    },
+    onPointerUp: () => { drag.current = null },
+    onPointerLeave: () => { drag.current = null },
+    children: jsx('g', {
+      transform: `translate(${pan.x} ${pan.y}) translate(${width / 2} ${height / 2}) scale(${zoom}) translate(${-width / 2} ${-height / 2})`,
+      children: edges.map(edgeEl).concat(nodes.map(nodeEl))
+    })
+  })
+
+  const types = {}
+  for (const n of nodes) {
+    const key = n.nodeType || ''
+    if (key) types[key] = (types[key] || 0) + 1
+  }
+  const legend = Object.keys(types).length > 1
+    ? el('div', { className: 'nb-map-legend' },
+        Object.keys(types).map((t) => el('span', { className: 'nb-map-leg', key: t },
+          el('span', { className: 'nb-map-dot', 'data-tone': (MAP_TONE[t] || {}).ink || 'accent' }),
+          el('span', { children: `${(MAP_TONE[t] || {}).label || t} ${types[t]}` }))))
+    : null
+
+  const toolbar = el('div', { className: 'nb-map-bar' },
+    el('span', { className: 'nb-hint',
+      children: `${nodes.length} nodes · ${edges.length} links${hiddenCount ? ` · ${hiddenCount} link labels on hover` : ''} · drag to pan · scroll to zoom` }),
+    el('span', { style: { flex: 1 } }),
+    legend,
+    jsx(Btn, { size: 'sm', icon: 'grid', children: 'Reset',
+      onClick: () => { setZoom(1); setPan({ x: 0, y: 0 }) } }))
+
+  const hovered = nodes.find((n) => hover && n.id === hover.id) || null
+  // popover placement: right of the node, flipped left when it would clip,
+  // always inside the stage vertically
+  let popStyle = null
+  if (hovered && hover) {
+    const POP_W = 264
+    let left = hover.x - stage.left + hover.w + 10
+    if (left + POP_W > stage.w - 8) left = hover.x - stage.left - POP_W - 10
+    left = Math.max(8, Math.min(left, stage.w - POP_W - 8))
+    let top = hover.y - stage.top
+    top = Math.max(8, Math.min(top, Math.max(8, stage.h - 40)))
+    popStyle = { left: `${left}px`, top: `${top}px`, width: `${POP_W}px` }
+  }
+  return el('div', { className: 'nb-view-body nb-map-wrap' },
+    toolbar,
+    el('div', { className: 'nb-map-stage', ref: stageRef },
+      canvas,
+      popStyle
+        ? el('div', { className: 'nb-map-pop', style: popStyle, role: 'dialog',
+            'aria-label': `Details for ${hovered.label}`,
+            children: jsx(MapInspector, { node: hovered, onCite }) })
+        : null)
+  )
+}
+
 /* ------------------------------------------------------------ flashcards */
 
-function FlashcardsView({ data, text, deckId }) {
+function FlashcardsView({ data, text, deckId, onCite }) {
   const cards = (data && data.cards) || []
   const [i, setI] = useState(0)
   const [flipped, setFlipped] = useState(false)
@@ -824,6 +1233,14 @@ function FlashcardsView({ data, text, deckId }) {
       el('div', { style: { display: 'flex', alignItems: 'center', gap: '10px' } },
         jsx('span', { className: 'nb-chip', 'data-tone': Object.keys(known).length ? 'ok' : undefined,
           children: `${knownCount} known` }),
+        card.card_type
+          ? jsx('span', { className: 'nb-chip',
+              children: `Type: ${String(card.card_type).replace(/_/g, ' ')}` })
+          : null,
+        card.difficulty
+          ? jsx('span', { className: 'nb-chip', title: 'Difficulty 1 easy · 3 hard',
+              children: `Difficulty: ${['', 'easy', 'medium', 'hard'][Math.max(1, Math.min(3, Number(card.difficulty) || 1))] || card.difficulty}` })
+          : null,
         jsx('span', { className: 'nb-hint', children: `card ${i + 1} of ${cards.length}` }),
         el('span', { style: { flex: 1 } }),
         jsx(Btn, {
@@ -834,19 +1251,37 @@ function FlashcardsView({ data, text, deckId }) {
           size: 'sm', icon: 'refresh', children: 'Restart',
           onClick: () => { setI(0); setFlipped(false); setOrder(null); setKnown({}); persist.set(storeKey, {}) }
         })),
-      jsx('button', {
-        type: 'button', className: 'nb-flip', 'data-flipped': flipped ? 'true' : 'false',
+      // a div with role=button, not a <button>: citation chips inside the card
+      // are real buttons, and buttons cannot nest
+      el('div', {
+        className: 'nb-flip', role: 'button', tabIndex: 0,
+        'data-flipped': flipped ? 'true' : 'false',
         onClick: () => setFlipped((f) => !f),
+        onKeyDown: (e) => {
+          if (e.target !== e.currentTarget) return
+          if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setFlipped((f) => !f) }
+        },
         'aria-label': flipped ? 'Show the question again' : 'Show the answer',
         children: el('div', { className: 'nb-flip-inner' },
           el('div', { className: 'nb-face', 'data-side': 'front' },
             jsx('span', { className: 'nb-meta', children: 'question' }),
-            jsx('span', { children: card.front }),
+            jsx(Markdown, { text: card.front, onCite, className: 'nb-fc-md' }),
             jsx('span', { className: 'nb-face-hint', children: 'click the card — or press “Show answer” — to flip' })),
           el('div', { className: 'nb-face', 'data-side': 'back' },
             jsx('span', { className: 'nb-meta', children: 'answer' }),
-            jsx('span', { children: card.back }),
-            card.source ? jsx('span', { style: { fontSize: '13px', color: T.text3, marginTop: 'auto' }, children: card.source }) : null))
+            jsx(Markdown, { text: card.back, onCite, className: 'nb-fc-md' }),
+            // the hook and the tier are what make a deck more than a list of
+            // Q&A: the schema asks for both, so the card shows both
+            card.mnemonic
+              ? el('div', { className: 'nb-card-hook' },
+                  jsx(Glyph, { name: 'sparkle', size: 12 }),
+                  el('span', { children: card.mnemonic }))
+              : null,
+            (card.citations || []).length
+              ? el('div', { className: 'nb-card-cites' },
+                  card.citations.map((n) => citeBtn(n, onCite, `k${n}`)))
+              : null,
+            card.source ? el('div', { className: 'nb-fc-src', children: card.source }) : null))
       }),
       el('div', { style: { display: 'flex', gap: '8px', justifyContent: 'center', alignItems: 'center' } },
         jsx(Btn, {
@@ -873,7 +1308,7 @@ function FlashcardsView({ data, text, deckId }) {
 
 /* ------------------------------------------------------------------ quiz */
 
-function QuizView({ data, text, deckId }) {
+function QuizView({ data, text, deckId, onCite }) {
   const questions = (data && (data.questions || data.items)) || []
   // answers persist per artifact — revisiting the deck keeps your score
   const storeKey = `quiz:picked:${deckId || 'default'}`
@@ -911,7 +1346,8 @@ function QuizView({ data, text, deckId }) {
         },
         el('div', { style: { display: 'flex', gap: '10px', alignItems: 'baseline' } },
           el('span', { className: 'nb-mono', style: { color: T.text4, fontSize: '12.5px' }, children: String(qi + 1).padStart(2, '0') }),
-          el('span', { style: { fontSize: '15.5px', fontWeight: 600, lineHeight: 1.45 }, children: q.question })),
+          el('div', { style: { fontSize: '15px', fontWeight: 600, lineHeight: 1.45, flex: 1, minWidth: 0 } },
+            jsx(Markdown, { text: q.question, onCite, className: 'nb-quiz-q' }))),
         el('div', { style: { display: 'grid', gap: '6px', marginTop: '10px' }, role: 'group', 'aria-label': `Choices for question ${qi + 1}` },
           (q.choices && q.choices.length ? q.choices : [q.answer]).map((c, ci) => {
             const isChosen = chosen === c
@@ -923,15 +1359,37 @@ function QuizView({ data, text, deckId }) {
               style: {
                 minHeight: '38px', textAlign: 'left', padding: '8px 12px', borderRadius: '9px',
                 border: `1px solid ${isChosen || (done && isRight) ? T.line : T.lineSoft}`,
-                background: tone, color: T.text, fontSize: '14.5px', cursor: done ? 'default' : 'pointer'
+                background: tone, color: T.text, fontSize: '14px', cursor: done ? 'default' : 'pointer'
               },
               children: c
             }, `c${ci}`)
           })),
         done
-          ? el('div', { style: { marginTop: '10px', fontSize: '14px', color: right ? T.ok : T.warn } },
-              el('b', { children: right ? 'Correct. ' : `Not quite — ${q.answer}. ` }),
-              q.explanation ? el('span', { style: { color: T.text2 }, children: q.explanation }) : null)
+          ? el('div', { className: 'nb-quiz-done' },
+              el('div', { className: 'nb-quiz-verdict', 'data-tone': right ? 'ok' : 'warn' },
+                jsx(Glyph, { name: right ? 'check' : 'close', size: 13 }),
+                el('span', { children: right ? 'Correct' : `Not quite — the answer is “${q.answer}”` })),
+              q.explanation ? jsx(Markdown, { text: q.explanation, onCite, className: 'nb-quiz-explain' }) : null,
+              // per-option rationale: the schema asks the model for one per
+              // choice precisely so a miss explains WHY the distractor looked
+              // right. Ignoring it made every wrong answer read the same.
+              (q.rationales || []).length
+                ? el('div', { className: 'nb-quiz-why' },
+                    (q.choices || []).map((c, ci) => {
+                      const good = normAnswer(c) === normAnswer(q.answer)
+                      const why = String(q.rationales[ci] || '').trim()
+                      if (!why) return null
+                      return el('div', { className: 'nb-quiz-why-row', key: `w${ci}`,
+                        'data-tone': good ? 'ok' : (chosen === c ? 'warn' : 'dim') },
+                        el('span', { className: 'nb-quiz-why-mark', children: good ? '✓' : (chosen === c ? '✗' : '·') }),
+                        el('div', { className: 'nb-quiz-why-body' },
+                          el('span', { className: 'nb-quiz-why-choice', children: c }),
+                          el('div', { className: 'nb-quiz-why-text' },
+                            jsx(Markdown, { text: why, onCite, className: 'nb-quiz-why-md' }))))
+                    }))
+                : null,
+              jsx('div', { className: 'nb-quiz-src' },
+                (q.citations || []).map((n) => citeBtn(n, onCite, `q${qi}s${n}`)))) 
           : null)
       }))
   )
@@ -942,11 +1400,12 @@ const normAnswer = (s) => String(s == null ? '' : s).trim().toLowerCase()
 
 /* ---------------------------------------------------------------- slides */
 
-function SlidesView({ data, htmlUrl }) {
+function SlidesView({ data, htmlUrl, notebook, jsonName, onCite, onSay }) {
   const deck = data || {}
   const slides = deck.slides || []
   const [i, setI] = useState(0)
   const [fs, setFs] = useState(false)
+  const [pptxBusy, setPptxBusy] = useState(false)
   const screenRef = useRef(null)
   const go = useCallback((d) => setI((n) => Math.min(slides.length - 1, Math.max(0, n + d))), [slides.length])
   useEffect(() => {
@@ -974,6 +1433,33 @@ function SlidesView({ data, htmlUrl }) {
     ? () => (host.openLink ? host.openLink(htmlUrl) : window.open(htmlUrl, '_blank'))
     : null
 
+  // NotebookLM exports decks to PPTX; this writes the same file from the stored
+  // deck JSON, so the download can never disagree with what is on screen.
+  const savePptx = async () => {
+    if (!notebook || !jsonName || pptxBusy) return
+    setPptxBusy(true)
+    try {
+      const out = await api(`/artifact/pptx?${qs({ notebook: notebook.id, name: jsonName, b64: 1 })}`, {
+        timeoutMs: 120000
+      })
+      const bytes = Uint8Array.from(atob(out.b64), (ch) => ch.charCodeAt(0))
+      const url = URL.createObjectURL(new Blob([bytes], { type: out.mime }))
+      const a = document.createElement('a')
+      a.href = url
+      a.download = out.name || 'deck.pptx'
+      document.body.appendChild(a); a.click(); a.remove()
+      setTimeout(() => URL.revokeObjectURL(url), 2000)
+      // a download that says nothing looks like a button that did nothing
+      const said = `downloaded ${out.name || 'deck.pptx'}`
+      if (onSay) onSay(said); else if (host.say) host.say(said)
+    } catch (e) {
+      const said = `pptx export failed: ${e.message || e}`
+      if (onSay) onSay(said); else if (host.say) host.say(said)
+    } finally {
+      setPptxBusy(false)
+    }
+  }
+
   if (!slides.length) {
     return el('div', { className: 'nb-view-body' },
       el('div', { className: 'nb-hint', children: 'this deck has no slides in its json' }),
@@ -994,10 +1480,10 @@ function SlidesView({ data, htmlUrl }) {
         }
       },
       el('div', { style: { display: 'flex', alignItems: 'center', gap: '10px' } },
-        el('span', { style: { fontSize: '11.5px', letterSpacing: '.14em', textTransform: 'uppercase', color: '#9aa0b5', fontWeight: 700 },
+        el('span', { style: { fontSize: '12px', letterSpacing: '.14em', textTransform: 'uppercase', color: '#9aa0b5', fontWeight: 700 },
           children: deck.title || 'Deck' }),
         el('span', { style: { flex: 1 } }),
-        el('span', { className: 'nb-mono', style: { fontSize: '12px', color: '#9aa0b5' }, children: `${i + 1}/${slides.length}` }),
+        el('span', { className: 'nb-mono', style: { fontSize: '12.5px', color: '#9aa0b5' }, children: `${i + 1}/${slides.length}` }),
         el('button', {
           type: 'button', className: 'nb-chip', 'data-click': 'true',
           'aria-label': fs ? 'Exit fullscreen' : 'Present fullscreen', title: fs ? 'Exit fullscreen' : 'Present fullscreen',
@@ -1013,11 +1499,29 @@ function SlidesView({ data, htmlUrl }) {
               onClick: (e) => { e.stopPropagation(); openDeck() },
               children: 'open deck ↗'
             })
+          : null,
+        jsonName
+          ? el('button', {
+              type: 'button', className: 'nb-chip', 'data-click': 'true',
+              disabled: pptxBusy,
+              'aria-label': 'Download this deck as PowerPoint (.pptx)',
+              title: 'Download this deck as PowerPoint (.pptx)',
+              style: { background: 'rgba(255,255,255,.1)', color: '#cfd3e0', borderColor: 'transparent', cursor: pptxBusy ? 'progress' : 'pointer' },
+              onClick: (e) => { e.stopPropagation(); savePptx() },
+              children: pptxBusy ? 'exporting…' : 'pptx ↓'
+            })
           : null),
-      el('div', { style: { fontSize: '30px', fontWeight: 680, letterSpacing: '-.02em', color: '#f2f3f8', margin: '18px 0 14px', lineHeight: 1.15 }, children: s.title }),
-      el('ul', { style: { margin: 0, paddingLeft: '20px', color: '#d6d8e6', fontSize: '17px', lineHeight: 1.6, display: 'grid', gap: '9px' } },
-        (s.bullets || []).map((b, bi) => el('li', { children: b }, `b${bi}`))),
-      s.note ? el('div', { style: { marginTop: 'auto', fontSize: '13px', color: '#8b90a3', fontStyle: 'italic' }, children: s.note }) : null),
+      // One layout per `archetype`: the prompt asks for nine named shapes and
+      // this is what makes them look different on screen. `slideBody` falls
+      // back to the old title+bullets for an unknown tag.
+      jsx(SlideBody, { slide: s, deck, ctx: { onCite, deckTitle: deck.title,
+                                               total: slides.length } }),
+      (s.notes || s.note)
+        ? el('div', { className: 'nb-slide-notes-chip' }, [
+            jsx(Glyph, { name: 'doc', size: 12 }),
+            el('span', { children: 'speaker notes — press N' })
+          ])
+        : null),
       el('div', { style: { display: 'flex', gap: '8px', alignItems: 'center' } },
         jsx(Btn, { icon: 'arrowLeft', onClick: () => go(-1), disabled: i === 0, children: 'Back' }),
         jsx(Btn, { icon: 'arrowRight', onClick: () => go(1), disabled: i === slides.length - 1, children: 'Next' }),
@@ -1042,32 +1546,158 @@ function SlidesView({ data, htmlUrl }) {
 
 /* ----------------------------------------------------------- infographic */
 
-function InfographicView({ src, data }) {
+/* One row of the Checked panel: the figure, its verdict, where it pointed. */
+function CheckRow({ item }) {
+  const status = item.status || 'verified'
+  const icon = status === 'verified' ? 'check'
+    : status === 'recited' ? 'refresh'
+    : status === 'dropped' ? 'close' : 'doc'
+  const label = status === 'verified' ? 'verified'
+    : status === 'recited' ? `re-cited to ${Array.isArray(item.to) ? item.to.map((n) => `S${n}`).join(', ') : `S${item.to}`}`
+    : status === 'unsourced' ? 'unsourced' : 'left out'
+  return el('div', { className: 'nb-check-row', 'data-status': status },
+    jsx(Glyph, { name: icon, size: 13 }),
+    el('span', { className: 'nb-check-text', title: item.text, children: item.text || '—' }),
+    el('span', { className: 'nb-check-status', children: label }))
+}
+
+function CheckedPanel({ verify }) {
+  const v = verify || {}
+  const kept = (v.items || []).filter((i) => i.status !== 'dropped')
+  const out = v.dropped || []
+  const good = (v.verified || 0) + (v.recited || 0)
+  return el('aside', { className: 'nb-check' },
+    el('div', { className: 'nb-check-head' },
+      jsx(Glyph, { name: 'shield', size: 14 }),
+      el('span', { className: 'nb-check-title', children: 'Checked' }),
+      v.checked
+        ? el('span', { className: 'nb-check-sum',
+            children: `${good} of ${v.checked} verified` })
+        : null),
+    v.note ? el('div', { className: 'nb-check-note', children: v.note }) : null,
+    kept.length
+      ? el('div', { className: 'nb-check-list' },
+          kept.map((i, k) => jsx(CheckRow, { key: k, item: i })))
+      : el('div', { className: 'nb-hint', children: 'No figures on this poster' }),
+    out.length
+      ? el('div', { className: 'nb-check-left' },
+          el('div', { className: 'nb-check-sub', children: `Left out (${out.length})` }),
+          out.map((d, k) => el('div', { key: k, className: 'nb-check-row', 'data-status': 'dropped' },
+            jsx(Glyph, { name: 'close', size: 13 }),
+            el('span', { className: 'nb-check-text', title: d.text, children: d.text || '—' }),
+            el('span', { className: 'nb-check-status', title: d.reason, children: 'left out' }))))
+      : null)
+}
+
+function InfographicView({ src, data, notebookId, jsonName, onSay }) {
   const [zoom, setZoom] = useState(1)
+  const [pngBusy, setPngBusy] = useState(false)
+  const stats = (data && data.stats) || []
+  const quotes = (data && data.quotes) || []
+  const cards = stats.filter((x) => x && (x.value || x.label))
+  const verify = (data && data._verify) || null
+  const say = onSay || (host.say ? (m) => host.say(m) : null)
+  // The poster is a rendered PNG; the JSON beside it is the SOURCE of that
+  // poster. Rendering the JSON as components means the page can show crisp,
+  // selectable type at any width, put a citation on every number, and stay
+  // readable when the artifact is older than the current theme.
+  // The JSON arrives a tick after the component mounts (the viewer fetches it),
+  // so the mode cannot be decided in a useState initialiser: it would latch on
+  // "poster" before the first file landed and never show the live view.
+  const [chosen, setChosen] = useState(null)
+  const mode = chosen || (cards.length && !verify ? 'live' : 'poster')
+  const [openQuote, setOpenQuote] = useState(-1)
+
+  const savePng = async () => {
+    if (pngBusy || !jsonName) return
+    setPngBusy(true)
+    try {
+      const out = await api(`/artifact/png?${qs({ notebook: notebookId || '', name: jsonName, b64: 1, scale: 2 })}`, { timeoutMs: 90000 })
+      const bytes = Uint8Array.from(atob(out.b64), (ch) => ch.charCodeAt(0))
+      const url = URL.createObjectURL(new Blob([bytes], { type: out.mime || 'image/png' }))
+      const a = document.createElement('a')
+      a.href = url
+      a.download = out.name || 'infographic.png'
+      document.body.appendChild(a); a.click(); a.remove()
+      setTimeout(() => URL.revokeObjectURL(url), 2000)
+      if (say) say(`downloaded ${out.name || 'infographic.png'}`)
+    } catch (e) {
+      if (say) say(`png export failed: ${e.message || e}`)
+    } finally {
+      setPngBusy(false)
+    }
+  }
+
+  const poster = el('div', null,
+    el('div', {
+      style: {
+        border: `1px solid ${T.line}`, borderRadius: '18px', overflow: 'auto',
+        background: '#0d1017', maxHeight: '62vh'
+      }
+    },
+    src
+      ? el('img', {
+          src, alt: (data && data.title) || 'infographic',
+          style: { display: 'block', width: `${Math.round(zoom * 100)}%`, height: 'auto' }
+        })
+      : el('div', { className: 'nb-hint', style: { padding: '20px' }, children: 'the image did not load' })),
+    el('div', { style: { display: 'flex', gap: '8px', alignItems: 'center', marginTop: '10px', flexWrap: 'wrap' } },
+      jsx(Btn, { size: 'sm', onClick: () => setZoom((z) => Math.max(0.5, z - 0.15)), children: '−' }),
+      jsx(Btn, { size: 'sm', onClick: () => setZoom((z) => Math.min(2, z + 0.15)), children: '+' }),
+      el('span', { className: 'nb-hint', children: `${Math.round(zoom * 100)}%` }),
+      el('span', { style: { flex: 1 } }),
+      jsx(Btn, {
+        size: 'sm', icon: 'download', onClick: () => {
+          const a = document.createElement('a')
+          a.href = src; a.download = 'infographic.svg'
+          document.body.appendChild(a); a.click(); a.remove()
+        }, children: 'SVG'
+      }),
+      jsx(Btn, { size: 'sm', icon: 'download', onClick: savePng, disabled: pngBusy || !jsonName, children: pngBusy ? 'rendering…' : 'PNG' })))
+
+  const live = el('div', { className: 'nb-ig' },
+    el('div', { className: 'nb-ig-head' },
+      el('h2', { className: 'nb-ig-title', children: (data && data.title) || 'Infographic' }),
+      data && data._style && data._style.label
+        ? el('span', { className: 'nb-chip', children: data._style.label }) : null),
+    cards.length
+      ? el('div', { className: 'nb-ig-kpis' }, cards.slice(0, 6).map((st, i) => el('div', {
+          key: i, className: 'nb-ig-kpi'
+        },
+        el('div', { className: 'nb-ig-kpi-value', children: st.value }),
+        el('div', { className: 'nb-ig-kpi-label', children: st.label }),
+        st.detail ? el('div', { className: 'nb-ig-kpi-detail', children: st.detail }) : null,
+        st.source ? el('span', { className: 'nb-chip nb-ig-src', title: st.source, children: st.source }) : null)))
+      : null,
+    quotes.length
+      ? el('div', { className: 'nb-ig-quotes' }, quotes.slice(0, 4).map((q, i) => el('button', {
+          key: i, type: 'button', className: 'nb-ig-quote',
+          'data-open': openQuote === i ? 'true' : 'false',
+          onClick: () => setOpenQuote((n) => (n === i ? -1 : i)),
+          'aria-expanded': openQuote === i
+        },
+        el('blockquote', { children: `“${openQuote === i ? q.text : String(q.text || '').slice(0, 150) + (String(q.text || '').length > 150 ? '…' : '')}”` }),
+        el('span', { className: 'nb-ig-quote-src', children: q.source || 'source' }),
+        (q.citations || []).length
+          ? el('span', { className: 'nb-ig-cites', children: q.citations.map((c, k) => el('span', {
+              key: k, className: 'nb-chip', children: `S${c}` })) }) : null)))
+      : null,
+    data && data.takeaway
+      ? el('div', { className: 'nb-ig-take' },
+          el('span', { className: 'nb-ig-take-label', children: 'Bottom line' }),
+          el('p', { children: data.takeaway }))
+      : null)
+
   return el('div', { className: 'nb-view-body' },
-    el('div', { className: 'nb-stage' },
-      el('div', {
-        style: {
-          border: `1px solid ${T.line}`, borderRadius: '18px', overflow: 'auto',
-          background: '#0d1017', maxHeight: '62vh'
-        }
-      },
-      src
-        ? el('img', {
-            src, alt: (data && data.title) || 'infographic',
-            style: { display: 'block', width: `${Math.round(zoom * 100)}%`, height: 'auto' }
-          })
-        : el('div', { className: 'nb-hint', style: { padding: '20px' }, children: 'the image did not load' })),
-      el('div', { style: { display: 'flex', gap: '8px', alignItems: 'center' } },
-        jsx(Btn, { size: 'sm', onClick: () => setZoom((z) => Math.max(0.5, z - 0.15)), children: '−' }),
-        jsx(Btn, { size: 'sm', onClick: () => setZoom((z) => Math.min(2, z + 0.15)), children: '+' }),
-        el('span', { className: 'nb-hint', children: `${Math.round(zoom * 100)}%` }),
-        el('span', { style: { flex: 1 } }),
-        data && data._style
-          ? el('span', { className: 'nb-chip', title: 'Infographic style',
-                         children: data._style.label }) : null,
-        data && data.takeaway ? el('span', { className: 'nb-chip', 'data-tone': 'accent', children: data.takeaway }) : null))
-  )
+    cards.length
+      ? el('div', { className: 'nb-ig-switch' },
+          jsx(Seg, { label: 'View', value: mode, onChange: setChosen,
+            options: [{ id: 'live', label: 'Live' }, { id: 'poster', label: 'Poster' }] }))
+      : null,
+    el('div', { className: 'nb-ig-stage' },
+      el('div', { className: 'nb-ig-main' },
+        mode === 'live' && cards.length ? live : poster),
+      verify ? jsx(CheckedPanel, { verify }) : null))
 }
 
 /* ----------------------------------------------------------- data table */
@@ -1095,7 +1725,92 @@ function parseCsv(text) {
   return rows
 }
 
-function DataTableView({ text, name }) {
+/* One download control with three targets: CSV (the artifact itself), XLSX
+ * (a real workbook with a frozen header and an auto-filter) and the clipboard
+ * as tab-separated text, which is what "copy for Sheets" actually pastes well.
+ *
+ * ``notebookId`` is REQUIRED by the route (``/artifact/xlsx`` resolves the
+ * notebook before it can find the JSON), and this menu used to omit it: every
+ * Excel download came back 422 and the toast said "xlsx export failed". The
+ * path is built from the same three values the viewer was handed, so it cannot
+ * drift from the table on screen. */
+function DownloadMenu({ csvText, name, notebookId, onCsv, onSay }) {
+  const [open, setOpen] = useState(false)
+  const [busy, setBusy] = useState(false)
+  const ref = useRef(null)
+  useEffect(() => {
+    if (!open) return undefined
+    const onDoc = (e) => { if (ref.current && !ref.current.contains(e.target)) setOpen(false) }
+    const onKey = (e) => { if (e.key === 'Escape') setOpen(false) }
+    document.addEventListener('mousedown', onDoc)
+    document.addEventListener('keydown', onKey)
+    return () => {
+      document.removeEventListener('mousedown', onDoc)
+      document.removeEventListener('keydown', onKey)
+    }
+  }, [open])
+
+  const copyForSheets = async () => {
+    // tab-separated, because a CSV pasted into a spreadsheet cell stays in one
+    // cell while a tab-separated block splits into columns
+    const rows = parseCsv(csvText || '')
+    const tsv = rows.map((r) => r.join('\t')).join('\n')
+    await copyText(tsv, (m) => {
+      const out = m === 'copied to the clipboard' ? 'copied as tab-separated text — paste into a sheet' : m
+      if (onSay) onSay(out); else if (host.say) host.say(out)
+    })
+    setOpen(false)
+  }
+
+  const saveXlsx = async () => {
+    if (busy) return
+    setBusy(true)
+    try {
+      const stem = String(name || '').replace(/\.(csv|json|md)$/i, '')
+      const out = await api(`/artifact/xlsx?${qs({ notebook: notebookId || '', name: `${stem}.json`, b64: 1 })}`, { timeoutMs: 60000 })
+      const bytes = Uint8Array.from(atob(out.b64), (ch) => ch.charCodeAt(0))
+      const url = URL.createObjectURL(new Blob([bytes], { type: out.mime }))
+      const a = document.createElement('a')
+      a.href = url
+      a.download = out.name || `${stem}.xlsx`
+      document.body.appendChild(a); a.click(); a.remove()
+      setTimeout(() => URL.revokeObjectURL(url), 2000)
+      const said = `downloaded ${out.name || `${stem}.xlsx`}`
+      if (onSay) onSay(said); else if (host.say) host.say(said)
+    } catch (e) {
+      // the xlsx route resolves the notebook BEFORE it can find the table JSON,
+      // so a missing notebook was a 422 that read as "broken export"
+      const said = `xlsx export failed: ${e.message || e}`
+      if (onSay) onSay(said); else if (host.say) host.say(said)
+    } finally {
+      setBusy(false); setOpen(false)
+    }
+  }
+
+  const item = (label, hint, onClick, icon) => el('button', {
+    type: 'button', className: 'nb-menu-item', onClick,
+    children: [
+      jsx(Glyph, { name: icon, size: 14 }),
+      el('div', { className: 'nb-menu-body' },
+        el('span', { className: 'nb-menu-label', children: label }),
+        el('span', { className: 'nb-menu-hint', children: hint }))
+    ]
+  })
+
+  return el('div', { className: 'nb-menu-wrap', ref }, [
+    jsx(Btn, { size: 'sm', icon: 'download', children: busy ? 'working…' : 'Export',
+      onClick: () => setOpen((o) => !o), disabled: busy }),
+    open
+      ? el('div', { className: 'nb-menu', role: 'menu' }, [
+          item('CSV', 'the artifact itself — opens anywhere', () => { onCsv(); setOpen(false) }, 'grid'),
+          item('XLSX', 'frozen header, auto-filter, typed cells', saveXlsx, 'chart'),
+          item('Copy for Sheets', 'tab-separated, pastes into columns', copyForSheets, 'copy')
+        ])
+      : null
+  ])
+}
+
+function DataTableView({ text, name, data, notebookId, onSay }) {
   const rows = useMemo(() => parseCsv(text), [text])
   const [sort, setSort] = useState({ col: -1, dir: 1 })
   const [q, setQ] = useState('')
@@ -1133,7 +1848,17 @@ function DataTableView({ text, name }) {
       el('span', { className: 'nb-meta', children: q.trim() ? `${filtered.length} of ${body.length} rows × ${head.length} columns` : `${body.length} rows × ${head.length} columns` }),
       el('span', { style: { flex: 1 } }),
       body.length > 8 ? jsx(SearchField, { value: q, onChange: setQ, placeholder: 'Filter rows', label: 'Filter table rows' }) : null,
-      jsx(Btn, { size: 'sm', icon: 'download', onClick: exportCsv, children: 'Export CSV' })),
+      jsx(DownloadMenu, { csvText: text, name, notebookId, onCsv: exportCsv, onSay })),
+    // the aggregates the prompt computed are not in the CSV (it is rectangular);
+    // they belong beside the table, not only inside the workbook
+    (data && (data.summary || []).length)
+      ? el('div', { className: 'nb-dt-sum' },
+          el('div', { className: 'nb-dt-sum-h', children: 'Computed over these rows' }),
+          (data.summary || []).map((it, i) => el('div', { className: 'nb-dt-sum-cell', key: `sm${i}` },
+            el('div', { className: 'nb-dt-sum-v', children: String(it.value || '') }),
+            el('div', { className: 'nb-dt-sum-l', children: String(it.label || '') }),
+            it.basis ? el('div', { className: 'nb-dt-sum-b', children: String(it.basis) }) : null)))
+      : null,
     el('div', { className: 'nb-dt-wrap' },
       el('table', { className: 'nb-dt' },
         el('thead', null, el('tr', null,
@@ -1147,25 +1872,257 @@ function DataTableView({ text, name }) {
             head.map((_, ci) => el('td', { key: `c${ci}`, children: String(r[ci] || '') }, `c${ci}`))))))))
 }
 
-/* ------------------------------------------------------------- timeline */
+/* ------------------------------------------------------------- timeline
+ *
+ * A timeline artifact is markdown, and for a year it was drawn as plain
+ * paragraphs with literal "(Source 1)" strings — which is a dump, not a
+ * timeline. It is now parsed into nodes and drawn on a spine:
+ *
+ *   - `## <date|period|phase>` starts a node; the bullets under it are its body
+ *   - `- **1971** — …` is a node of its own
+ *   - "(Source 2)" and "(Sources 1 and 4)" become real [S2] citation chips
+ *   - the model's meta-commentary ("Note: the provided source is thematic…")
+ *     is stripped: if the material is a process rather than a chronology, the
+ *     surface says "sequenced phases" once and draws phase badges, instead of
+ *     printing the apology as body text.
+ */
+const TL_MONTHS = 'january|february|march|april|may|june|july|august|september|october|november|december|jan|feb|mar|apr|jun|jul|aug|sep|sept|oct|nov|dec'
+const TL_DATED = new RegExp(`\\b(1[0-9]{3}|20[0-9]{2}|2100)\\b|\\b(${TL_MONTHS})\\b`, 'i')
+const TL_META = /^(?:note[:—-]|nb[:]|disclaimer[:])?\s*(?:the (?:provided |given )?(?:source|sources|material|document|text)\s+(?:is|are|does|do|was|were)|i (?:cannot|can not|can’t|don’t|do not)|as an ai|keep in mind that|please note that|there (?:is|are) no (?:explicit|specific) (?:dates|timeline|dates or timeline)|this (?:timeline|document) (?:is|was) (?:compiled|based|created) (?:from|using))/i
+const TL_NOISE = /^(?:note[:—-]\s*)?(?:nb[:]|caution[:]|caveat[:])\s*/i
+/** "- <when> — body": the marker a one-line milestone starts with. Accepts
+ *  years, year ranges, "April 2025", "Apr 12, 2025", "12 April 2025". */
+const TL_NODE_PREFIX = new RegExp('^(?:\\*\\*)?(' + [
+  // procedural labels: "Phase 2", "T+90 days", "Pre-interview phase", "Step 3"
+  '(?:Phase|Stage|Step|Wave|Round)\\s*[0-9A-Za-z+.-]*',
+  '(?:Pre|Post|During|After|Before)[- ]?[A-Za-z]+\\s+phase',
+  '[A-Za-z]+(?:-[A-Za-z]+)?\\s+phase',
+  'T\\s*\\u00b1?\\+\\s*[0-9]+(?:\\s*[A-Za-z]+)?',
+  '[0-9]{3,4}(?:\\s*[\\u2013-]\\s*[0-9]{2,4})?',
+  '(?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Sept|Oct|Nov|Dec)[a-z]*\\s+[0-9]{1,2}(?:,\\s*[0-9]{4})?',
+  '[A-Z][a-z]+\\s+[0-9]{1,2}(?:,\\s*|[\\s]+)[0-9]{4}',
+  '[A-Z][a-z]+\\s+[0-9]{4}',
+  '[0-9]{1,2}\\s+[A-Z][a-z]+\\s+[0-9]{4}'
+].join('|') + ')(?:\\*\\*)?\\s*[\\u2014\\u2013:-]\\s*(.+)$')
+
+/** "(Source 2)" / "(Sources 1 and 4)" → "[S2]" / "[S1][S4]". */
+function tlCiteFix(line) {
+  return String(line)
+    .replace(/\(\s*(?:see\s+)?(?:sources?|ref(?:erence)?s?\.?)\s*(?:no\.?\s*)?([0-9]+(?:\s*(?:,|and|&(?:amp;)?)\s*[0-9]+)*)\s*\)/gi,
+      (m, list) => list.split(/[,\s]+|and|&amp;|&/).filter((n) => n && /^[0-9]+$/.test(n))
+        .map((n) => `[S${n}]`).join(''))
+    .replace(/\s*\(\s*si\s*\)/gi, '')
+}
+
+/** Strip the model talking about itself: a timeline that apologises for its
+ *  shape instead of being shaped is the failure this viewer exists to hide. */
+const tlIsMeta = (line) => {
+  const t = String(line).trim()
+  if (!t) return false
+  if (TL_META.test(t)) return true
+  return TL_NOISE.test(t) && /(thematic|not (?:strictly )?chronolog|no (?:explicit )?dates|rather than chronological)/i.test(t)
+}
+
+function tlParse(text) {
+  const lines = tlCiteFix(String(text || '').replace(/\r\n/g, '\n')).split('\n')
+  const nodes = []
+  const lede = []
+  let title = ''
+  let pending = null     // the heading a bullet list belongs to
+  let sawMeta = false
+  const openNode = (when) => {
+    const n = { when: String(when || '').trim(), body: [], tags: [] }
+    nodes.push(n)
+    return n
+  }
+  const pushBody = (n, line) => { if (n) n.body.push(line.trim()) }
+  for (const raw of lines) {
+    const line = raw.trimEnd()
+    const t = line.trim()
+    if (!t) { if (pending) pushBody(pending.obj, ''); continue }
+    if (tlIsMeta(t)) { sawMeta = true; continue }
+    const h1 = /^#\s+(.*)$/.exec(t)
+    if (h1) { title = h1[1].trim(); continue }
+    const h = /^#{2,4}\s+(.*)$/.exec(t)
+    if (h) {
+      const when = h[1].replace(/\*\*/g, '').replace(/^[\d.]+\s+/, '').trim()
+      pending = { when, obj: openNode(when) }
+      continue
+    }
+    const item = /^(?:[-*+]|\d+\.)\s+(.*)$/.exec(t)
+    if (item) {
+      const body = item[1].trim()
+      // The canonical row is pipe-delimited (the artifact prompt asks for
+      // `- **<when>** | <category> | <headline> | <what changed> [S#] | <unblocked>`).
+      // Parse it here so the renderer can draw the category as a badge and the
+      // consequence as its own line, instead of printing one run-on sentence.
+      if (TL_ROW.test(body)) {
+        const cells = body.split(/\s*\|\s*/).map((c) => c.trim())
+        const when = (cells[0] || '').replace(/\*\*/g, '').trim()
+        const n = openNode(when)
+        n.row = {
+          category: (cells[1] || '').replace(/\*\*/g, '').trim(),
+          headline: (cells[2] || '').replace(/\*\*/g, '').trim(),
+          what: (cells[3] || '').trim(),
+          consequence: (cells[4] || '').replace(/\*\*/g, '').trim()
+        }
+        pending = null
+        continue
+      }
+      // "- **1971** — text" / "- 1971: text" is a node by itself
+      const own = TL_NODE_PREFIX.exec(body)
+      if (own) {
+        const n = openNode(own[1].replace(/\*\*/g, '').trim())
+        pushBody(n, own[2])
+        pending = null
+      } else if (pending) {
+        pushBody(pending.obj, body)
+      } else {
+        // a bullet without a date and without a heading: keep it as its own
+        // numbered step so nothing is silently dropped
+        const n = openNode('')
+        pushBody(n, body)
+        pending = null
+      }
+      continue
+    }
+    if (/^(?:[-*_]){3,}$/.test(t)) continue
+    if (pending) pushBody(pending.obj, t)
+    else lede.push(t)
+  }
+  // dates only when the document is actually dated; a sequence of phases is a
+  // sequence even if half its labels are words
+  const datedCount = nodes.filter((n) => n.when && TL_DATED.test(n.when)).length
+  const kind = nodes.length && datedCount <= nodes.length / 2 ? 'phases' : 'dates'
+  // a fully dated timeline is a chronology: order it as one. If any node is a
+  // phase label (or undated), the document order is the sequence the model meant.
+  const keys = nodes.map((n) => tlWhenKey(n.when))
+  if (nodes.length && keys.every((k) => k !== null)) {
+    const ordered = nodes.slice().sort((a, b) => tlWhenKey(a.when) - tlWhenKey(b.when))
+    return { title, lede, nodes: ordered, sawMeta, kind, reordered: ordered.some((n, i) => n !== nodes[i]) }
+  }
+  return { title, lede, nodes, sawMeta, kind, reordered: false }
+}
+
+/** The canonical timeline row: at least four pipe-separated cells. */
+const TL_ROW = /\|/
+/** Categories the artifact prompt allows, and the tone each is drawn in. */
+const TL_CATS = {
+  'milestone': 'ok',
+  'architecture shift': 'accent',
+  'external event': 'accent',
+  'bottleneck': 'warn',
+  'target deadline': 'warn'
+}
+
+/** A sortable key for a node's date, or null when it is a phase label.
+ *  The artifact prompt asks the model for chronological order; models drift
+ *  (the December 2025 sample listed April before January), so a timeline that
+ *  is fully dated is sorted here — the reader is looking at a chronology, not
+ *  at the model's draft. */
+const TL_MONTH_INDEX = {
+  jan: 1, feb: 2, mar: 3, apr: 4, may: 5, jun: 6,
+  jul: 7, aug: 8, sep: 9, oct: 10, nov: 11, dec: 12
+}
+function tlWhenKey(when) {
+  const t = String(when || '').trim()
+  const year = /(1[0-9]{3}|20[0-9]{2})/.exec(t)
+  if (!year) return null
+  const y = Number(year[1])
+  const month = /\b(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)[a-z]*\b/i.exec(t)
+  const day = new RegExp(`\\b${month ? month[1] : '(?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)'}\\w*\\s+([0-9]{1,2})`, 'i').exec(t)
+    || /([0-9]{1,2})\s+[A-Z][a-z]+/.exec(t)
+  // a year-only entry summarizes that year, so it sorts after the year's dated
+  // events rather than ahead of January (which read as "2025, then January 2025")
+  const mo = month ? TL_MONTH_INDEX[month[1].slice(0, 3).toLowerCase()] || 12 : 12
+  const d = month ? (day ? Number(day[1]) : 1) : 31
+  return y * 10000 + mo * 100 + d
+}
+
+/** The S# markers a node cites, in order. */
+const tlSRefs = (body) => {
+  const out = []
+  for (const m of String(body || '').matchAll(/\[S([0-9]+)\]/g)) {
+    const n = Number(m[1])
+    if (!out.includes(n)) out.push(n)
+  }
+  return out
+}
 
 function TimelineView({ text, onCite }) {
-  const rows = useMemo(() => {
-    const out = []
-    for (const line of String(text || '').split('\n')) {
-      const m = /^\s*[-*]\s*(?:\*\*)?([0-9]{3,4}[^—\-:\*]*|[A-Z][a-z]{2,8}\.?\s+[0-9]{1,2},?\s+[0-9]{4})(?:\*\*)?\s*[—\-:]\s*(.+)$/.exec(line)
-      if (m) out.push({ when: m[1].trim().replace(/\*\*/g, ''), what: m[2].trim() })
-    }
-    return out
-  }, [text])
-  if (rows.length < 3) {
-    return el('div', { className: 'nb-view-body' }, el('div', { className: 'nb-doc' }, jsx(Markdown, { text, onCite })))
+  const doc = useMemo(() => tlParse(text), [text])
+  if (doc.nodes.length < 2) {
+    // not enough structure to draw: render the document honestly, minus the
+    // meta commentary the parser already identified
+    const fallback = doc.nodes.length
+      ? `${[doc.title && `# ${doc.title}`, ...doc.lede, ...doc.nodes.map((n) => `- ${n.when ? `${n.when} — ` : ''}${n.body.filter(Boolean).join(' ')}`)].filter(Boolean).join('\n\n')}`
+      : text
+    return el('div', { className: 'nb-view-body' }, el('div', { className: 'nb-doc' }, jsx(Markdown, { text: fallback, onCite })))
   }
+  const bodyOf = (n) => (n.row
+    ? `${n.row.headline} ${n.row.what} ${n.row.consequence}`
+    : n.body.filter(Boolean).join('\n\n'))
+  const cited = new Set()
+  for (const n of doc.nodes) for (const r of tlSRefs(bodyOf(n))) cited.add(r)
   return el('div', { className: 'nb-view-body' },
-    el('div', { style: { maxWidth: '72ch' } },
-      el('ol', { className: 'nb-timeline', 'aria-label': 'Timeline' },
-        rows.map((r, i) => el('li', { className: 'nb-tl', key: `t${i}` },
-          el('span', { className: 'nb-tl-when', children: r.when }),
-          el('span', { className: 'nb-tl-what', children: jsx(Markdown, { text: r.what, onCite }) })))))
-  )
+    el('div', { style: { display: 'flex', flexDirection: 'column' } },
+      el('div', { className: 'nb-spine-lede' },
+        jsx(Glyph, { name: 'timeline', size: 14 }),
+        el('span', { children: [
+          el('b', { children: String(doc.nodes.length) }),
+          doc.kind === 'dates' ? ' milestones' : ' phases',
+          cited.size ? ` · cites ${[...cited].sort((a, b) => a - b).map((n) => `S${n}`).join(', ')}` : '',
+          doc.reordered ? ' · reordered chronologically' : ''
+        ] }),
+        doc.kind === 'phases'
+          ? el('span', { className: 'nb-chip', title: 'The sources describe a sequence of steps rather than dated events.',
+              children: 'sequenced phases' })
+          : null),
+      el('ol', { className: 'nb-spine', 'aria-label': doc.title ? `Timeline — ${doc.title}` : 'Timeline' },
+        doc.nodes.map((n, i) => {
+          const refs = tlSRefs(bodyOf(n))
+          const phase = doc.kind === 'phases'
+          const when = n.when || (phase ? `Phase ${i + 1}` : `Entry ${i + 1}`)
+          const chips = el('div', { className: 'nb-node-src' },
+            refs.map((r) => (onCite
+              ? el('button', {
+                  type: 'button', className: 'nb-srcchip',
+                  title: `Open source S${r}`,
+                  'aria-label': `Citation S${r} — open the source`,
+                  onClick: (e) => { e.stopPropagation(); onCite(r) },
+                  children: `S${r}`
+                }, `s${i}-${r}`)
+              : el('span', { className: 'nb-srcchip', children: `S${r}` }, `s${i}-${r}`))))
+          // a canonical row carries its own structure: category, headline, what
+          // changed, and what it unblocked. Drawing it as one paragraph is what
+          // made the old viewer read like a text dump.
+          const card = n.row
+            ? el('div', { className: 'nb-node-card' },
+                n.row.category
+                  ? el('span', { className: 'nb-node-cat', 'data-tone': TL_CATS[n.row.category.toLowerCase()] || undefined,
+                      children: n.row.category })
+                  : null,
+                n.row.headline
+                  ? el('div', { className: 'nb-node-headline', children: n.row.headline })
+                  : null,
+                n.row.what
+                  ? el('div', { className: 'nb-node-what', children: jsx(Markdown, { text: n.row.what, onCite }) })
+                  : null,
+                n.row.consequence
+                  ? el('div', { className: 'nb-node-cons' }, [
+                      jsx(Glyph, { name: 'bolt', size: 12 }),
+                      el('span', { children: n.row.consequence })
+                    ])
+                  : null)
+            : el('div', { className: 'nb-node-card' },
+                jsx(Markdown, { text: n.body.filter(Boolean).join('\n\n'), onCite }))
+          const kids = [
+            el('span', { className: 'nb-node-dot', 'aria-hidden': 'true' }),
+            el('span', { className: 'nb-node-when', 'data-phase': phase ? 'true' : 'false', children: when }),
+            card,
+            refs.length ? chips : null
+          ].filter(Boolean)
+          return el('li', { className: 'nb-node', key: `n${i}` }, kids)
+        }))
+  ))
 }

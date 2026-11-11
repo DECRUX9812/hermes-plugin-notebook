@@ -16,6 +16,9 @@ const P = {
   cards: 'M8 7h11v11H8V7ZM5 17V4h11',
   slides: 'M3 4h18v11H3V4Zm9 11v5M8 20h8',
   chart: 'M4 20h16M7 16V9M12 16V5M17 16v-5',
+  // a blueprint reads as a plan view, not a bar chart: three stacked
+  // zones with a column split, which is what the poster actually is
+  blueprint: 'M3 4h18v16H3V4Zm0 5h18M9 9v11M14 9v11M3 15h18',
   summary: 'M5 6h14M5 10h14M5 14h9M5 18h6',
   quiz: 'M4 5h16v14H4V5Zm3.5 7.2 2 2 3.5-3.5',
   search: 'M10.5 17a6.5 6.5 0 1 0 0-13 6.5 6.5 0 0 0 0 13Zm4.8.2L20 21',
@@ -35,7 +38,11 @@ const P = {
   camera: 'M4 8h3l1.5-2h7L17 8h3v11H4V8Zm8 8.5a3.5 3.5 0 1 0 0-7 3.5 3.5 0 0 0 0 7Z',
   shield: 'M12 3l8 3v6c0 4.5-3.2 7.6-8 9-4.8-1.4-8-4.5-8-9V6l8-3Zm-3 9 2 2 4-4',
   copy: 'M9 9h10v10H9V9Zm-4 6H4V4h11v1',
+  sun: 'M12 4v2M12 18v2M4 12h2M18 12h2M6.3 6.3l1.4 1.4M16.3 16.3l1.4 1.4M17.7 6.3l-1.4 1.4M7.7 16.3l-1.4 1.4M12 8.5a3.5 3.5 0 1 0 0 7 3.5 3.5 0 0 0 0-7Z',
+  lock: 'M7 11V8a5 5 0 0 1 10 0v3M5 11h14v9H5v-9Zm7 3v3',
+  moon: 'M20 14.5A8.5 8.5 0 0 1 9.5 4a8.5 8.5 0 1 0 10.5 10.5Z',
   check: 'M5 13l4.5 4.5L19 7',
+  minus: 'M6 12h12',
   download: 'M12 4v10M8 11l4 4 4-4M5 19h14',
   bolt: 'M13 3L5 14h6l-1 7 8-11h-6l1-7Z',
   cpu: 'M8 8h8v8H8V8Zm-3 3h3m-3 3h3m13-6h-3m3 6h-3M11 5v3m3-3v3m-3 11v-3m3 3v-3',
@@ -266,4 +273,44 @@ function Dialog({ open, onClose, title, children, width = 520 }) {
     jsx(IconBtn, { icon: 'close', label: 'Close dialog', onClick: onClose })
   ),
   children))
+}
+
+/* Copying is an ACTION, so it reports.
+ *
+ * Every call site used to wrap `navigator.clipboard.writeText(...)` in
+ * try/catch. writeText returns a PROMISE, so a denied permission sailed past
+ * the catch as an unhandled rejection, and the button said nothing either
+ * way — the click looked broken in exactly the window where copying matters
+ * most (the app's renderer, where the async clipboard can be refused).
+ *
+ * One helper, three outcomes with a sentence for each, and a selection-copy
+ * fallback that works where the async API is refused. */
+async function copyText(text, say) {
+  const value = String(text == null ? '' : text)
+  if (!value.trim()) { if (say) say('there is nothing to copy here'); return false }
+  let told = false
+  try {
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      await navigator.clipboard.writeText(value)
+      if (say) say('copied to the clipboard')
+      return true
+    }
+  } catch { told = true /* refused — fall through to the legacy path */ }
+  try {
+    const ta = document.createElement('textarea')
+    ta.value = value
+    ta.setAttribute('readonly', 'true')
+    ta.style.cssText = 'position:fixed;top:-1000px;left:-1000px;opacity:0'
+    document.body.appendChild(ta)
+    ta.select()
+    const done = document.execCommand ? document.execCommand('copy') : false
+    ta.remove()
+    if (say) say(done ? 'copied to the clipboard'
+      : 'this window will not let the page copy — select the text and press Ctrl+C')
+    return !!done
+  } catch {
+    if (say) say(told ? 'this window will not let the page copy — select the text and press Ctrl+C'
+      : 'could not reach the clipboard')
+    return false
+  }
 }

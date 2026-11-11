@@ -94,7 +94,7 @@ def test_discover_is_read_only(monkeypatch):
     monkeypatch.setattr(discover, "plan_queries",
                         lambda *a, **k: {"gaps": ["grid interconnection"], "queries": ["fusion grid"]})
     monkeypatch.setattr(discover, "search_all",
-                        lambda qs, per_query=6: [
+                        lambda qs, per_query=6, state=None: [
                             _row("https://one.example/a", "Fusion grid interconnection backlog"),
                             _row("https://two.example/b", "Fusion funding roundup"),
                         ])
@@ -115,7 +115,7 @@ def test_discover_falls_back_to_the_notebook_title(monkeypatch):
     monkeypatch.setattr(discover, "plan_queries", lambda *a, **k: {"gaps": [], "queries": []})
     seen = {}
 
-    def fake(qs, per_query=6):
+    def fake(qs, per_query=6, state=None):
         seen["qs"] = qs
         return []
     monkeypatch.setattr(discover, "search_all", fake)

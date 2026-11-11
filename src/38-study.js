@@ -129,22 +129,30 @@ function StudyPanel({ notebook, onSay, onOpenSource }) {
   }, [nbId, m.state])
 
   const counts = stats.counts || {}
+  const plural = (n, one, many) => `${n} ${n === 1 ? one : many}`
   const chip = (label, value, tone) => el('span', {
-    className: 'nb-chip', 'data-tone': tone || undefined,
+    key: label, className: 'nb-chip', 'data-tone': tone || undefined,
     children: `${value} ${label}`
   })
+
+  // The phases are the four buckets a card can sit in, and they must add up to
+  // the notebook's cards. `young` was missing from this row, so a deck of 3
+  // showed "3 due · 2 new · 0 learning · 0 mastered" — the numbers did not
+  // reconcile and the reader had no way to know one bucket was hidden. Zero
+  // buckets are noise, so only non-zero ones are shown.
+  const phases = [['new', counts.new], ['learning', counts.learning],
+                  ['scheduled', counts.young], ['mastered', counts.mastered]]
+    .filter(([, v]) => Number(v) > 0)
 
   const header = el('div', { className: 'nb-study-head' },
     el('div', null,
       el('div', { className: 'nb-study-title', children: 'Study' }),
       el('div', { className: 'nb-hint', children: stats.cards
-        ? `${stats.cards} cards in this notebook · ${stats.due || 0} due · ${stats.mastered_pct || 0}% mastered`
+        ? `${plural(stats.cards, 'card', 'cards')} in this notebook · ${stats.due || 0} due · ${stats.mastered_pct || 0}% mastered`
         : 'No flashcards or quiz in this notebook yet — generate one, then come back.' }),
       el('div', { className: 'nb-study-chips' },
         chip('due', stats.due || 0, stats.due ? 'accent' : undefined),
-        chip('new', counts.new || 0),
-        chip('learning', counts.learning || 0),
-        chip('mastered', counts.mastered || 0, 'ok'),
+        phases.map(([label, value]) => chip(label, value, label === 'mastered' ? 'ok' : undefined)),
         stats.streak ? chip('day streak', stats.streak) : null,
         stats.reviews_today ? chip('today', stats.reviews_today) : null)),
     el('div', { className: 'nb-spacer' }),

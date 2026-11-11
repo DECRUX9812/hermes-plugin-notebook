@@ -1,4 +1,4 @@
-// Shoot the six documentation screenshots + the banner, from the real UI.
+// Shoot the five documentation screenshots + the banner, from the real UI.
 //
 //   node tests/shots-docs.mjs
 //
@@ -27,7 +27,7 @@ const shots = [
       // ask in the real composer so the capture shows the citation machinery,
       // not a stored thread that predates it
       await page.locator('.nb-askbox textarea').fill('Where does ITER assembly stand, and what is still unsolved?')
-      await page.locator('.nb-askbox .nb-btn[data-variant=primary]').click()
+      await page.locator('.nb-askbox .nb-sendbtn').click()
       await page.waitForTimeout(2200)
       await page.locator('.nb-thread').evaluate((n) => { n.scrollTop = n.scrollHeight })
       await settle(page, 400)
@@ -60,22 +60,6 @@ const shots = [
     async setup(page) {
       const card = page.locator('.nb-flip')
       if (await card.count()) { await card.click(); await settle(page, 700) }
-    }
-  },
-  {
-    file: 'shot-06-lab-ops.png',
-    query: '?mode=ops',
-    async setup(page) {
-      await page.locator('.nb-frow').nth(1).click()
-      await settle(page, 700)
-      await page.locator('.nb-tab', { hasText: 'Terminal' }).click()
-      await settle(page, 400)
-      const input = page.locator('.nb-term-in input')
-      if (await input.count()) {
-        await input.fill('uptime; df -h / | tail -1')
-        await page.locator('.nb-term-in .nb-btn[data-variant=primary]').click()
-        await settle(page, 1600)
-      }
     }
   }
 ]
@@ -151,11 +135,10 @@ const bannerHtml = `<!doctype html><html><head><meta charset="utf-8">
       </div>
       <h1>Sources in.<br><em>Cited answers</em><br>and a podcast out.</h1>
       <p>Every answer is built from your sources and cites the one it came from.
-         Twelve studio outputs, one lab deck, inside Hermes Desktop.</p>
+         Twelve studio outputs, inside Hermes Desktop.</p>
       <div class="chips">
         <span class="chip">12 studio outputs</span>
         <span class="chip g">grounded Q&amp;A</span>
-        <span class="chip">8-host fleet deck</span>
       </div>
     </div>
     <div class="right">

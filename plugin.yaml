@@ -1,21 +1,16 @@
 name: hermes-notebook
-version: 1.5.0
+version: 2.0.0
 manifest_version: 2
 api_version: 1
 description: >-
-  NotebookLM inside Hermes Desktop, plus the lab deck. Desktop half: a
-  three-column studio (sources rail with model labels and search; grounded
-  chat whose [S1] citations open the source; a Studio panel with twelve
-  outputs — video and audio overviews, summary, briefing doc, study guide,
-  FAQ, timeline, mind map, flashcards, quiz, slides, infographic — an SVG
-  graphics library: 38 looks x 9 layouts x 3 shapes x 3 detail levels) and a
-  Lab Ops surface that measures a fleet over audited ssh and drives a
-  terminal, services, files and VM snapshots. Agent half: gather sources
-  (files, PDFs, Office docs, web pages, YouTube, pasted text, images, notes),
-  ask questions answered only from those sources (in any number of separate
-  conversations per notebook), search, auto-label, generate
-  artifacts, produce audio/video overviews, discover and refresh sources, and
-  export notebooks.
+  A NotebookLM-style research studio for Hermes that answers only from your
+  sources. Add files, PDFs, web pages, YouTube and recordings; ask in separate
+  threads with [S1] citations checked against the source list; see where your
+  sources disagree and how many are really independent (Tensions); generate
+  briefing docs, mind maps, flashcards, quizzes, slides (.pptx), infographics,
+  two-host audio overviews and narrated video overviews; and review the
+  notebook's own cards with spaced repetition. Agent tools, a /notebook
+  command and a desktop page share one store.
 author: Ritesh Patel
 license: MIT
 homepage: https://github.com/DECRUX9812/hermes-plugin-notebook
@@ -39,6 +34,8 @@ provides_tools:
   - notebook_export
   - notebook_discover
   - notebook_delete
+  - notebook_study
+  - notebook_tensions
 provides_hooks: []
 config_schema:
   default_notebook:
@@ -48,7 +45,7 @@ config_schema:
     description: Notebook used when a tool call does not name one.
   ask_context_chars:
     type: int
-    default: 28000
+    default: 16000
     label: Chat context budget
     description: Max characters of source text sent to the model per notebook_ask call.
   podcast_context_chars:
@@ -100,7 +97,7 @@ config_schema:
     label: TTS segment concurrency
     description: Parallel edge-tts segment synthesis workers (1-8). Lower if you hit throttling.
 python_dependencies:
-  - "pillow>=10,<13"
+  - "pillow>=10,<14"
   - "pypdf>=4.2,<7"
   - "edge-tts>=7.0,<8"
   - "youtube-transcript-api>=1.0,<2"

@@ -27,8 +27,8 @@
  *                        nested machine inside one dialog; self-contained.
  *   M6  audio player     playing/t/dur/rate × editing/draft/rendering —
  *                        viewer-local, orthogonal substates.
- *   M7  ops panels       per-panel state{idle,busy,done,error} — repeated
- *                        shape, already honest about failures.
+ *   M7  per-panel       state{idle,busy,done,error} repeated shape in the
+ *                        studio cards — already honest about failures.
  *   M8  viewer chrome    zoom/pan, slide index, quiz index, table sort —
  *                        pure UI state, no cross-component invariants.
  *
@@ -62,6 +62,7 @@ export const VIEW_FSM = createMachine({
   initial: { tab: 'chat', artifact: null, source: null },
   transitions: {
     TAB_CHAT: (s) => ({ ...s, tab: 'chat' }),
+    TAB_TENSIONS: (s) => ({ ...s, tab: 'tensions' }),
     TAB_VIEW: (s) => (s.artifact ? { ...s, tab: 'view' } : s),
     TAB_PEEK: (s) => (s.source ? { ...s, tab: 'peek' } : s),
     OPEN_ARTIFACT: (s, e) => ({ tab: 'view', artifact: e.artifact, source: s.source }),

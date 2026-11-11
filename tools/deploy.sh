@@ -40,7 +40,13 @@ for pkgroot in "$HOME/.hermes-webapp/plugins" "$HOME/.hermes/plugins"; do
   rm -rf "$pkgroot/$ID/hermes_notebook" "$pkgroot/$ID/dashboard" "$pkgroot/$ID/desktop"
   cp -r "$ROOT/hermes_notebook" "$pkgroot/$ID/"
   cp -r "$ROOT/dashboard" "$pkgroot/$ID/"
-  cp -r "$ROOT/desktop" "$pkgroot/$ID/"
+  # NOT copied: desktop/. The shell's `reconcile` publishes any package that
+  # ships a desktop/ folder into desktop-plugins/ WITH a .hermes-package.json
+  # marker, and a marker means defaultEnabled:false — the plugin then loads
+  # disabled and never appears in the nav, which is exactly what "the plugin is
+  # broken" looked like. The front-end is deployed separately below; the backend
+  # does not need it.
+
   cp "$ROOT/__init__.py" "$pkgroot/$ID/" 2>/dev/null || true
   echo "  pkg -> $pkgroot/$ID"
 done

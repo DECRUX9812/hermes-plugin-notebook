@@ -10,51 +10,52 @@
 
 name: hermes-notebook
 repo: https://github.com/DECRUX9812/hermes-plugin-notebook
-sha: "120e3844b0000863431eefcceb08edffb0643ae6"
-version: "1.5.0"
+sha: "12a78c2afbb462655823097a33cb20fc6d49876b"
+version: "2.0.0"
 title: Hermes Notebook
 category: desktop
 description: >-
-  NotebookLM, rebuilt as a real product surface inside Hermes Desktop — and
-  grounded the way only a plugin can be. The desktop studio is three columns:
-  a source rail with the model's own auto-labels and search, a chat that
-  answers only from those sources with numbered [S1] citations that open the
-  source they point at, and a Studio panel with twelve outputs — Video
-  Overview, Audio Overview (two-host podcast with a real waveform and
-  transcript), Summary, Briefing Doc, Study Guide, FAQ, Timeline, Mind Map
-  (pannable SVG tree), Flashcards (flip deck, Anki export), Quiz, Slides and
-  Infographic. Generation runs through hermes_notebook.artifacts, so the page
-  and the tools can never disagree. The same window carries a second surface,
-  Lab Ops: eight hosts measured over an audited ssh transport with kernel
-  patch posture, then a terminal, service control, a file browser and VM
-  snapshots that report the real exit code. Agent half: 16 tools
-  (list/create/add_source/ask/generate/audio/video/suggest/search/note/
-  refresh/delete_source/update/export/discover/delete), a /notebook slash
-  command, a `hermes notebook` CLI, a bundled skill, and an auxiliary task
-  slot for cheap labelling. Backend routes at /api/plugins/hermes-notebook/
-  (state, source, ask, generate, label, artifact, plus /ops/*) so the page
-  reads the same store the agent writes. Disclosure — add_source/ask/
-  generate/audio/video/suggest make host-owned LLM calls through ctx.llm on
-  the user's active model; web pages go through web_extract with a
-  direct-fetch fallback that refuses private-network addresses; discover uses
-  web_search; YouTube sources fetch public transcripts; audio/video synthesis
-  calls edge-tts (ffmpeg on PATH, Pillow for video cards and infographics);
-  the Lab Ops deck runs ssh/docker/systemctl/qm only for hosts in
-  dashboard/hosts.json, validates every target, requires a typed confirm for
-  destructive actions, and appends each call to an audit log.
+  A research studio inside Hermes Desktop: sources in, cited answers and
+  studio artifacts out. Add files, PDFs, Office docs, EPUB, images, audio and
+  video recordings (Whisper), web pages, YouTube and pasted text, or find
+  sources on the web without leaving the page; every source is auto-labelled
+  and deduplicated on ingest. Ask in as many named threads as you like —
+  answers come only from the sources, with stable [S1] citations that carry
+  the passage they were built from, and every answer shows its cost receipt.
+  Tensions audits where the sources disagree — quoted conflicts with a
+  measured independence count (8 sources, 7 independent) plus a stable-ground
+  consensus. Studio outputs: audio overviews in four formats (two-host, real
+  waveform + transcript), narrated video overviews, mind maps, flashcards,
+  quizzes, real .pptx slide decks, .xlsx/.csv data tables, briefing docs,
+  timelines — and infographics that verify every printed figure against its
+  cited source and show a Checked panel of what was verified, re-cited and
+  dropped. Study mode schedules reviews with SM-2 spaced repetition. Agent
+  half: 19 tools (list/create/add_source/ask/generate/audio/video/suggest/
+  search/note/refresh/delete_source/update/export/discover/study/tensions/
+  threads/delete), a /notebook slash command, a hermes notebook CLI, a bundled
+  skill and an auxiliary.notebook slot for cheap labelling + history
+  compaction. Backend routes under /api/plugins/hermes-notebook/ including
+  /progress + /cancel for long jobs. Disclosure — add_source/ask/generate/
+  audio/video/suggest/tensions make host-owned LLM calls through ctx.llm on
+  the user's active model (verified on small local and mid-size hosted
+  models); web pages go through web_extract with a direct-fetch fallback that
+  refuses private-network addresses; discover uses the host web_search or an
+  EXA/TAVILY key; YouTube sources fetch public transcripts; audio/video
+  synthesis calls edge-tts (ffmpeg on PATH, Pillow for cards); agent actions
+  route through the host MCP gate; read-only in-memory SQL for data tables;
+  long jobs are cooperatively cancellable; no shell commands issued.
 maintainer: DECRUX9812
 tier: community
 requires_hermes: ">=0.22"
-docs_url: https://github.com/DECRUX9812/hermes-plugin-notebook/blob/a2073ebc5242c3a7b3d1098c7c2f0cc1e70e3a77/README.md
+docs_url: https://github.com/DECRUX9812/hermes-plugin-notebook/blob/12a78c2afbb462655823097a33cb20fc6d49876b/README.md
 readme: true
-image: https://raw.githubusercontent.com/DECRUX9812/hermes-plugin-notebook/a2073ebc5242c3a7b3d1098c7c2f0cc1e70e3a77/assets/banner.png
+image: https://raw.githubusercontent.com/DECRUX9812/hermes-plugin-notebook/12a78c2afbb462655823097a33cb20fc6d49876b/assets/banner.png
 screenshots:
-  - https://raw.githubusercontent.com/DECRUX9812/hermes-plugin-notebook/a2073ebc5242c3a7b3d1098c7c2f0cc1e70e3a77/assets/shot-01-studio.png
-  - https://raw.githubusercontent.com/DECRUX9812/hermes-plugin-notebook/a2073ebc5242c3a7b3d1098c7c2f0cc1e70e3a77/assets/shot-02-mindmap.png
-  - https://raw.githubusercontent.com/DECRUX9812/hermes-plugin-notebook/a2073ebc5242c3a7b3d1098c7c2f0cc1e70e3a77/assets/shot-03-audio.png
-  - https://raw.githubusercontent.com/DECRUX9812/hermes-plugin-notebook/a2073ebc5242c3a7b3d1098c7c2f0cc1e70e3a77/assets/shot-04-video.png
-  - https://raw.githubusercontent.com/DECRUX9812/hermes-plugin-notebook/a2073ebc5242c3a7b3d1098c7c2f0cc1e70e3a77/assets/shot-05-flashcards.png
-  - https://raw.githubusercontent.com/DECRUX9812/hermes-plugin-notebook/a2073ebc5242c3a7b3d1098c7c2f0cc1e70e3a77/assets/shot-06-lab-ops.png
+  - https://raw.githubusercontent.com/DECRUX9812/hermes-plugin-notebook/12a78c2afbb462655823097a33cb20fc6d49876b/assets/shot-01-studio.png
+  - https://raw.githubusercontent.com/DECRUX9812/hermes-plugin-notebook/12a78c2afbb462655823097a33cb20fc6d49876b/assets/shot-02-tensions.png
+  - https://raw.githubusercontent.com/DECRUX9812/hermes-plugin-notebook/12a78c2afbb462655823097a33cb20fc6d49876b/assets/shot-03-infographic.png
+  - https://raw.githubusercontent.com/DECRUX9812/hermes-plugin-notebook/12a78c2afbb462655823097a33cb20fc6d49876b/assets/shot-04-audio.png
+  - https://raw.githubusercontent.com/DECRUX9812/hermes-plugin-notebook/12a78c2afbb462655823097a33cb20fc6d49876b/assets/shot-05-study.png
 platforms: [linux, macos, windows]
 capabilities:
   provides_tools:
@@ -74,14 +75,16 @@ capabilities:
     - notebook_export
     - notebook_discover
     - notebook_delete
+    - notebook_study
+    - notebook_tensions
+    - notebook_threads
   provides_hooks: []
   provides_middleware: []
   requires_env: []
 known_issues:
   - "The desktop half needs the agent half enabled in the same profile: the page renders from /api/plugins/hermes-notebook/state, and Ask/Generate answer 503 with an explicit sentence until the plugin is registered in that gateway (enable it, restart the gateway, reload the window)."
-  - "Lab Ops only drives hosts listed in dashboard/hosts.json; edit that inventory (or delete the file) before installing if you do not want the shipped fleet. ssh needs keys per host, and the deck refuses to reboot or power off the machine serving the page."
   - "Audio/video overviews synthesize per-segment with edge-tts (network required) and need ffmpeg on PATH (plus Pillow for video cards); a ~5-minute episode takes 1-3 minutes end to end."
-  - "Context is bounded: ask_context_chars (default 28000) and podcast_context_chars (default 42000) cap source text per call; very large notebooks rely on head+tail digests for generation."
+  - "Context is bounded: ask_context_chars (default 16000) and podcast_context_chars (default 42000) cap source text per call; very large notebooks rely on head+tail digests for generation."
   - "PDF extraction needs the declared pypdf dependency; scanned/image-only PDFs have no text layer and are rejected with guidance."
   - "YouTube sources need public captions (youtube-transcript-api); region-locked or caption-less videos fail with a clear error."
   - "Source auto-labeling prefers the auxiliary.notebook slot (inherits compression by default) and falls back to the main model when the aux route returns non-JSON — labels are best-effort and never block ingestion. Sources written straight to disk wear no labels until /label runs."

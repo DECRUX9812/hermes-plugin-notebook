@@ -11,10 +11,14 @@ import json
 from pathlib import Path
 from typing import Any, Optional
 
-from . import llmio, retrieve, runtime, store
+from . import jobs, llmio, retrieve, runtime, store
 
 MD_KINDS = ("summary", "briefing_doc", "study_guide", "faq", "timeline")
-STRUCT_KINDS = ("mind_map", "flashcards", "quiz", "slides", "infographic", "data_table")
+STRUCT_KINDS = ("mind_map", "flashcards", "quiz", "slides", "infographic", "data_table",
+                # a five-zone engineering poster is its own artifact, not an
+                # infographic with a different template: it has its own schema,
+                # its own label and its own viewer expectations
+                "blueprint_evolution")
 ALL_KINDS = MD_KINDS + STRUCT_KINDS
 
 KIND_LABEL = {
@@ -29,199 +33,248 @@ KIND_LABEL = {
     "slides": "Slide Deck",
     "infographic": "Infographic",
     "data_table": "Data Table",
+    "blueprint_evolution": "Architecture Blueprint",
 }
 
-_MD_PROMPTS = {
-    "summary": (
-        "Write a concise SUMMARY of this notebook's sources. Structure: a 2-3 "
-        "sentence overview, then 'Key points' bullets (5-10), then 'Notable "
-        "details' bullets. Attribute claims to sources by name in brackets like "
-        "[Source title]. Plain markdown, no preamble."
-    ),
-    "briefing_doc": (
-        "Write a detailed BRIEFING DOC from these sources. Sections: Context & "
-        "background, Key facts, Developments & details, Implications & "
-        "takeaways, Open questions. Use headings, bullets and short paragraphs. "
-        "Cite source names in brackets. This should read like a polished analyst "
-        "brief — thorough but skimmable."
-    ),
-    "study_guide": (
-        "Write a STUDY GUIDE from these sources, organized for learning: "
-        "Learning objectives, Core concepts (each with a plain-language "
-        "explanation + example from the sources), Key terms glossary, Practice "
-        "questions (with answers in a collapsed-style 'Answer:' line), and a "
-        "'Remember' recap. Markdown."
-    ),
-    "faq": (
-        "Write an FAQ document: the 10-15 questions a reader would most likely "
-        "ask about this material, each answered accurately from the sources in "
-        "2-5 sentences. Format: '## Q: ...' then the answer. Ground every "
-        "answer in the sources; if the sources can't answer a natural question, "
-        "skip it."
-    ),
-    "timeline": (
-        "Write a TIMELINE of the events, periods, developments or steps covered "
-        "by these sources, in chronological order. Format: '## <date/period>' "
-        "then 1-3 bullets of what happened and which source covers it. If the "
-        "material isn't chronological, organize it as a logical progression "
-        "instead and title the doc accordingly."
-    ),
-}
+from . import artifact_prompts as prompts
 
-_STRUCT_SCHEMAS = {
-    "mind_map": {
-        "type": "object",
-        "properties": {
-            "title": {"type": "string"},
-            "children": {"type": "array", "items": {"$ref": "#/$defs/node"}},
-        },
-        "required": ["title", "children"],
-        "$defs": {
-            "node": {
-                "type": "object",
-                "properties": {
-                    "label": {"type": "string", "description": "short node label (<= 8 words)"},
-                    "detail": {"type": "string", "description": "optional one-line detail"},
-                    "children": {"type": "array", "items": {"$ref": "#/$defs/node"}},
-                },
-                "required": ["label"],
-            }
-        },
-    },
-    "flashcards": {
-        "type": "object",
-        "properties": {
-            "cards": {"type": "array", "items": {
-                "type": "object",
-                "properties": {
-                    "front": {"type": "string", "description": "question or prompt"},
-                    "back": {"type": "string", "description": "concise answer from the sources"},
-                    "source": {"type": "string", "description": "source title it came from"},
-                },
-                "required": ["front", "back"],
-            }},
-        },
-        "required": ["cards"],
-    },
-    "quiz": {
-        "type": "object",
-        "properties": {
-            "questions": {"type": "array", "items": {
-                "type": "object",
-                "properties": {
-                    "question": {"type": "string"},
-                    "choices": {"type": "array", "items": {"type": "string"},
-                                "description": "optional 4 options for multiple-choice"},
-                    "answer": {"type": "string", "description": "correct answer (option letter or text)"},
-                    "explanation": {"type": "string"},
-                },
-                "required": ["question", "answer"],
-            }},
-        },
-        "required": ["questions"],
-    },
-    "slides": {
-        "type": "object",
-        "properties": {
-            "title": {"type": "string", "description": "deck title"},
-            "slides": {"type": "array", "items": {
-                "type": "object",
-                "properties": {
-                    "title": {"type": "string", "description": "slide headline (<= 10 words)"},
-                    "bullets": {"type": "array", "items": {"type": "string"},
-                                "description": "3-6 punchy bullets, each <= 18 words"},
-                    "note": {"type": "string", "description": "optional speaker note"},
-                },
-                "required": ["title", "bullets"],
-            }},
-        },
-        "required": ["title", "slides"],
-    },
-    "infographic": {
-        "type": "object",
-        "properties": {
-            "title": {"type": "string"},
-            "takeaway": {"type": "string", "description": "one-line bottom-line takeaway"},
-            "stats": {"type": "array", "items": {
-                "type": "object",
-                "properties": {
-                    "value": {"type": "string", "description": "big number/short stat, e.g. '1789' or '3x'"},
-                    "label": {"type": "string", "description": "what the stat means (<= 8 words)"},
-                    "detail": {"type": "string", "description": "optional one-line source-backed detail"},
-                },
-                "required": ["value", "label"],
-            }, "description": "3-6 headline stats/facts from the sources"},
-            "quotes": {"type": "array", "items": {
-                "type": "object",
-                "properties": {
-                    "text": {"type": "string", "description": "a striking fact or near-quote from the sources"},
-                    "source": {"type": "string"},
-                },
-                "required": ["text"],
-            }, "description": "2-4 key facts worth highlighting"},
-        },
-        "required": ["title", "stats", "quotes", "takeaway"],
-    },
-    "data_table": {
-        "type": "object",
-        "properties": {
-            "title": {"type": "string", "description": "what the table compares or lists"},
-            "columns": {"type": "array", "items": {"type": "string"},
-                        "description": "3-8 short column headers"},
-            "rows": {"type": "array", "items": {"type": "array", "items": {"type": "string"}},
-                     "description": "5-15 data rows; every cell a short string from the sources"},
-        },
-        "required": ["title", "columns", "rows"],
-    },
-}
+#: The per-kind instructions and schemas live in `artifact_prompts` now — one
+#: registry that states the shape of every output (citation contract, tension
+#: ledger, KPI strip, slide archetypes, node/edge graph). This module keeps the
+#: short aliases the rest of the plugin and the preview harness read.
+_PROMPTS = prompts.INSTRUCTIONS
+_STRUCT_INSTRUCTIONS = {k: prompts.build_instructions(k, mode="struct")
+                        for k in STRUCT_KINDS}
+_STRUCT_SCHEMAS = {k: prompts.SCHEMAS[k] for k in STRUCT_KINDS}
 
-_STRUCT_INSTRUCTIONS = {
-    "mind_map": (
-        "Build a MIND MAP of this material as a nested JSON tree. The root is the "
-        "notebook's central topic; branches are major themes; leaves are specific "
-        "facts/concepts. 3 levels deep max, 15-40 nodes total. Labels <= 8 words."
-    ),
-    "flashcards": (
-        "Create STUDY FLASHCARDS from these sources: 12-20 cards. Front = a "
-        "question or 'what/why/how' prompt; back = a concise answer (1-3 "
-        "sentences) grounded in the sources. Include the source title when a "
-        "card is source-specific."
-    ),
-    "quiz": (
-        "Create a PRACTICE QUIZ from these sources: 8-12 questions. Mix formats — "
-        "some multiple-choice (4 choices), some short-answer. Every answer must "
-        "be verifiable from the sources; include a one-line explanation."
-    ),
-    "slides": (
-        "Design a SLIDE DECK from these sources: 8-14 slides. First slide = title "
-        "+ one-line framing; last slide = key takeaways. Middle slides each cover "
-        "one idea with a punchy headline (<=10 words) and 3-6 bullets of <=18 "
-        "words. Order for narrative flow. Every bullet must be grounded in the "
-        "sources — this is a presentation, not an essay."
-    ),
-    "infographic": (
-        "Design an INFOGRAPHIC's content from these sources: pick the 3-6 most "
-        "striking stats/facts/dates (the 'value' should be the number or short "
-        "fact itself, e.g. '1789', '70%', '3 treaties'), 2-4 quotable key facts, "
-        "and a one-line takeaway. All grounded in the sources."
-    ),
-    "data_table": (
-        "Build a DATA TABLE from these sources: pick the comparison the material "
-        "most supports (entities × attributes, events × dates, options × tradeoffs). "
-        "3-8 columns with short headers, 5-15 rows. Every cell must be a short "
-        "verbatim-ish fact from the sources — no invented numbers, no empty cells "
-        "unless the source genuinely lacks the value."
-    ),
-}
+
+def _ledger_for(nb_id: str, language: str = "") -> dict:
+    """The tension audit for this notebook, cached per source-state.
+
+    Every artifact gets the same ledger, so a notebook's ten outputs cost one
+    audit rather than ten. A failed audit degrades to the measured independence
+    alone — an artifact with fewer conflict notes still beats no artifact."""
+    try:
+        return prompts.tensions_brief(nb_id, language=language)
+    except Exception as exc:  # noqa: BLE001 - never fail a generation over an audit
+        logger.warning("tension ledger unavailable: %s", exc)
+        return {"text": "", "items": [], "independence": {}, "degraded": str(exc)}
 
 
 def _meta(notebook_id: str) -> dict:
     return store.get_meta(notebook_id)
 
 
-def _digest(notebook_id: str) -> str:
-    budget = int(runtime.config("podcast_context_chars", default=42000))
-    return retrieve.notebook_digest(notebook_id, max_chars=budget)
+def _tension_brief(notebook_id: str) -> str:
+    """The measured tension audit, formatted for the blueprint prompt.
+
+    Deterministic half only (independence + the conflicts already computed on
+    demand): the model must not be asked to audit its own evidence in the same
+    call that consumes it. When there is nothing to report, the string is empty
+    and the prompt is unchanged.
+    """
+    try:
+        from . import tensions as tensions_mod
+        indep = tensions_mod.independence(notebook_id)
+    except Exception:
+        return ""
+    if not indep or not indep.get("sources"):
+        return ""
+    bits = [f"\nINDEPENDENCE AUDIT (measured from the text, not asked of you): "
+            f"{indep['sources']} active sources, {indep.get('independent')} independent."]
+    clusters = indep.get("clusters") or []
+    for c in clusters[:3]:
+        members = ", ".join(f"S{m}" for m in c.get("members") or [])
+        bits.append(f"  {members} repeat the same opening text — treat their agreement as ONE voice.")
+    known = ""
+    try:
+        from . import retrieve
+        known = retrieve.notebook_digest(notebook_id, max_chars=6000)
+    except Exception:
+        known = ""
+    if clusters and known:
+        bits.append("  So a claim carried only by a cluster is weakly corroborated: "
+                    "mark it as a gap rather than a target.")
+    return "\n".join(bits) + "\n"
+
+
+#: The image-generation route, as the plugin reaches it: Hermes' own
+#: `image_generate` tool through the context dispatcher. Nothing is called
+#: directly (the agent's modules are not importable from a plugin process) and
+#: nothing is assumed about which backend answers.
+IMAGE_TOOL = "image_generate"
+
+
+def image_mode_available() -> bool:
+    """Is there an image backend behind `image_generate` right now?
+
+    Deliberately conservative and CHEAP. There is no probe endpoint that answers
+    this without generating an image, and paying for a render just to light up a
+    toggle would be a bug, so this reads the two things the host's own gate
+    reads:
+
+    * `image_gen.provider` in the host config (``nous`` / ``fal`` / a plugin), and
+    * an API key in the environment for that provider.
+
+    A False here is a hint, not a promise — `_image_blueprint` still attempts the
+    dispatch and falls back to the vector engine if the host disagrees. Being
+    wrong toward False only leaves the hand-drawn poster, which is the default
+    anyway.
+    """
+    import os
+    from pathlib import Path
+
+    provider = ""
+    for candidate in (Path.home() / ".hermes-webapp" / "config.yaml",
+                      Path.home() / ".hermes" / "config.yaml"):
+        try:
+            text = candidate.read_text(encoding="utf-8", errors="ignore")
+        except Exception:
+            continue
+        block = text.split("image_gen:", 1)
+        if len(block) < 2:
+            continue
+        for line in block[1].splitlines()[:6]:
+            stripped = line.strip()
+            if stripped.startswith("provider:"):
+                provider = stripped.split(":", 1)[1].strip().strip("'\"") or provider
+                break
+        break
+    if not provider:
+        return False
+    keys = ("FAL_KEY", "FAL_API_KEY", "OPENAI_API_KEY", "KREA_API_KEY", "NOUS_API_KEY")
+    if any(os.getenv(k) for k in keys):
+        return True
+    # a managed host backend (provider: nous) bills through the gateway, not a
+    # key in this process, so a configured provider is enough to try
+    return provider in ("nous", "fal")
+
+
+def _image_blueprint(parsed: Dict[str, Any], style_id: str,
+                     notebook_id: str = "") -> Optional[str]:
+    """Render a blueprint poster through the image model instead of the vector engine.
+
+    Deterministic SVG is the default and stays the default: it is crisp at any
+    size, a few KB, and its text cannot be hallucinated by a diffusion step.
+    This path exists because a painted poster is a different product, and it is
+    offered as an opt-in the caller must ask for.
+
+    Returns the artefact path, or None when the backend refused — the caller
+    then falls back to the vector render rather than failing the run.
+    """
+    prompt = _blueprint_image_prompt(parsed, style_id)
+    try:
+        from . import runtime
+        raw = runtime.dispatch(IMAGE_TOOL, {"prompt": prompt, "aspect_ratio": "4:3"})
+    except Exception:
+        return None
+    try:
+        import json
+        data = json.loads(raw) if isinstance(raw, str) else raw
+    except Exception:
+        return None
+    if not isinstance(data, dict) or not data.get("success"):
+        return None
+    image = data.get("agent_visible_image") or data.get("image")
+    if not image:
+        return None
+    image = str(image)
+    # The backend hands back a CDN URL or a temp path. Neither survives: a URL
+    # expires and a temp file is cleaned up, so the artifact would open as a
+    # broken image tomorrow. Copy it into the notebook's artifacts directory and
+    # return the local path, which is what every other writer here returns.
+    try:
+        return str(_keep_local_image(notebook_id, image))
+    except Exception:
+        return image
+
+
+def _blueprint_image_prompt(parsed: Dict[str, Any], style_id: str) -> str:
+    """The Master Blueprint Prompt: the structured JSON, restated as art direction.
+
+    The poster's content is passed as an already-decided plan, not as a question:
+    a diffusion model given fields to invent will invent them, and an invention
+    in a technical poster is worse than a gap.
+    """
+    title = str(parsed.get("title") or "Architecture blueprint")
+    sub = str(parsed.get("subtitle") or "").strip()
+    gaps = [f"{g.get('title')}: {g.get('spec')}" for g in parsed.get("current_gaps") or []
+            if isinstance(g, dict)]
+    pillars = [f"{p.get('title')}: {p.get('concise_spec')}"
+               for p in parsed.get("core_pillars") or [] if isinstance(p, dict)]
+    matrix = [f"{m.get('domain')}: {m.get('before_label')} -> {m.get('after_label')}"
+              for m in parsed.get("evolution_matrix") or [] if isinstance(m, dict)]
+    lines = [
+        f"Executive engineering poster, landscape 4:3, high-density technical "
+        f"illustration. Title: {title}."]
+    if sub:
+        lines.append(f"Subtitle: {sub}.")
+    lines += [
+        "Left column: five stacked muted slate cards headed CURRENT GAPS, each with "
+        "a small isometric wireframe icon: " + "; ".join(gaps) + ".",
+        "Centre: a white comparison table card, rows domain, before -> after, with "
+        "sankey ribbons passing behind it: " + "; ".join(matrix) + ".",
+        "Right column: five pill-shaped colour-coded pillars in amber, purple, cyan, "
+        "coral and emerald, each with a dark technical diagram pane: "
+        + "; ".join(pillars) + ".",
+        "Bottom: a progressive scale ladder on the left and a 2x2 validation bench "
+        "grid on the right.",
+        "Strict left-to-right saturation gradient: desaturated cool greys on the left, "
+        "high-saturation functional colour on the right. Off-white background "
+        "#F8FAFC, Inter typography, mathematically aligned grid, vector-crisp "
+        "micro-labels, no photographic elements, no decorative flourishes, no "
+        "invented numbers - only the text listed above.",
+    ]
+    return "\n".join(lines)
+
+
+def _digest(notebook_id: str, budget: int = 0) -> str:
+    """Source text for one generation, capped.
+
+    The podcast default (42k) was being used for EVERY artifact, which made a
+    short document pay for a long-context call: a summary over a six-source
+    notebook took minutes and the page's own 240s timeout expired before the
+    model finished. Documents get a smaller, configurable budget; audio and
+    video keep the large one because they genuinely need the whole corpus.
+    """
+    if budget <= 0:
+        budget = int(runtime.config("artifact_context_chars", default=24000))
+    # cited=True tags each excerpt [S<n>] where n is the source's index position
+    # — the same numbering src_lines now states and verify.py keys on. Without
+    # it the digest's [Source i] headers numbered by extraction order and the
+    # two spaces silently disagreed whenever a source was disabled.
+    return retrieve.notebook_digest(notebook_id, max_chars=budget, cited=True)
+
+
+def _keep_local_image(notebook_id: str, image: str) -> "Any":
+    """Copy a generated image into the notebook's artifacts dir, keep its bytes.
+
+    A remote URL or a temp path is not an artifact. This downloads with the
+    plugin's own HTTP client (no model call, no new dependency) and writes the
+    same stamped filename the other writers use, so the image is discoverable by
+    the artifact list, exportable, and still there next week.
+    """
+    import shutil
+    from pathlib import Path
+
+    nb_id = store.resolve_notebook(notebook_id)
+    d = store._nb_dir(nb_id) / "artifacts"
+    d.mkdir(parents=True, exist_ok=True)
+    dest = d / f"{runtime.utc_stamp()}-blueprint_evolution.png"
+
+    src = Path(image)
+    if src.exists():
+        shutil.copyfile(src, dest)
+    else:
+        import urllib.request
+        req = urllib.request.Request(image, headers={"User-Agent": "hermes-notebook"})
+        with urllib.request.urlopen(req, timeout=60) as response:  # noqa: S310
+            data = response.read()
+        if not data:
+            raise RuntimeError("the image backend returned an empty body")
+        dest.write_bytes(data)
+    store.touch(nb_id)
+    return dest
 
 
 def _write_artifact(notebook_id: str, kind: str, ext: str, content: str) -> Path:
@@ -234,13 +287,35 @@ def _write_artifact(notebook_id: str, kind: str, ext: str, content: str) -> Path
     return path
 
 
+MAX_CONVERSATION_CHARS = 9000
+
+
 def generate(notebook: str, kind: str, *, focus: str = "", count_hint: str = "",
-             fmt: str = "md", style: str = "", options: Optional[dict] = None) -> dict:
+             fmt: str = "md", style: str = "", options: Optional[dict] = None,
+             conversation: str = "", language: str = "",
+             on_step=None, job: str = "") -> dict:
     """Generate one artifact; returns {path, kind, preview} or raises.
     fmt='csv' switches flashcards to an Anki-importable CSV.
     style picks the look of the visual kinds — see `hermes_notebook.igstyles`
-    for the bundled infographic pack (16 styles, four layout families)."""
+    for the bundled infographic pack (16 styles, four layout families).
+
+    `on_step(phase, detail)` feeds the dashboard's progress line and `job`
+    (a jobs.begin id) is the cancel gate + partial-file tracker: every
+    artifact this run writes is remembered so a cancelled run deletes it."""
     options = options if isinstance(options, dict) else {}
+
+    def _emit(phase: str, detail: str = "") -> None:
+        if on_step:
+            on_step(phase, detail)
+        if job:
+            jobs.check(job)
+
+    def _save(ext: str, content: str) -> Path:
+        _emit("saving", KIND_LABEL.get(kind, kind))
+        p = _write_artifact(nb_id, kind, ext, content)
+        if job:
+            jobs.track_file(job, p)
+        return p
     kind = (kind or "").strip().lower().replace("-", "_").replace(" ", "_")
     style = (style or "").strip().lower()
     if kind not in ALL_KINDS:
@@ -253,25 +328,65 @@ def generate(notebook: str, kind: str, *, focus: str = "", count_hint: str = "",
     if not sources:
         raise ValueError(f"notebook {nb_id!r} has no sources — add some first")
 
+    _emit("reading", f"{len(sources)} sources")
     digest = _digest(nb_id)
+    # S-numbers are explicit and stable: S<n> = the source's position in the
+    # index, which is also what notebook_digest(cited=True) tags and what the
+    # verifier keys on. An unnumbered bullet list left the model to guess when
+    # sources were disabled or had no extracted text.
     src_lines = "\n".join(
-        f"- {s.get('title')} ({s.get('kind')})" + (f" — {s.get('origin')}" if s.get('origin') and s.get('kind') in {'url', 'youtube'} else "")
-        for s in sources
+        f"S{i + 1}. {s.get('title')} ({s.get('kind')})" + (f" — {s.get('origin')}" if s.get('origin') and s.get('kind') in {'url', 'youtube'} else "")
+        for i, s in enumerate(sources)
     )
     focus_line = f"\nFocus/topic requested by the user: {focus.strip()}\n" if focus.strip() else ""
+    if kind == "infographic" and not count_hint.strip():
+        # detail maps to a block budget: concise 3-4, standard 4-6, detailed 6-8
+        count_hint = {"concise": "3-4 blocks", "standard": "4-6 blocks",
+                      "detailed": "6-8 blocks"}.get(
+                          str(options.get("detail") or "standard").lower(),
+                          "4-6 blocks")
     count_line = f"\nRequested amount: {count_hint.strip()}\n" if count_hint.strip() else ""
+    conv_text = (conversation or "").strip()
+    if len(conv_text) > MAX_CONVERSATION_CHARS:
+        conv_text = conv_text[:MAX_CONVERSATION_CHARS] + "\n[... conversation trimmed ...]"
+    conv_line = (
+        "\nThe user worked this request out in a conversation with the notebook. "
+        "Use it as the brief: it decides the angle, the audience and what to "
+        "emphasise. Facts still come only from the sources — anything the "
+        "conversation asserts that no source supports is the user's own position "
+        "and must be attributed to them, never restated as fact.\n"
+        f"CONVERSATION SO FAR:\n{conv_text}\n"
+    ) if conv_text else ""
+    lang_line = (
+        f"\nWRITE THE ENTIRE OUTPUT IN {language.strip()}. Translate the task, "
+        "headings and all prose into that language; keep source titles, "
+        "identifiers and quoted strings in their original form.\n"
+    ) if language.strip() else ""
+
+    # One audit for every artifact in this notebook, cached per source-state —
+    # a ten-output run pays for one tension pass, not ten.
+    _emit("analysing", "where the sources disagree")
+    ledger = _ledger_for(nb_id, language)
 
     if kind in MD_KINDS:
+        # a document reads a focused slice, not the whole corpus: the prompt
+        # already names what to look for, and a smaller context returns in a
+        # fraction of the wall time on the same model
+        digest = _digest(nb_id, int(runtime.config("artifact_context_chars",
+                                                  default=24000)))
+        # The registry assembles brief + ledger + focus + language + citation
+        # contract in one block, so every markdown kind states its own skeleton.
+        task = prompts.build_instructions(
+            kind, ledger_text=ledger.get("text") or "", focus=focus,
+            count_hint=count_hint, language=language, conversation=conv_text)
         messages = [
-            {"role": "system", "content":
-             "You are an expert research analyst producing a polished document "
-             "strictly from the provided sources. Never invent facts; if "
-             "something is uncertain, say so. Markdown output only."},
+            {"role": "system", "content": prompts.build_system_prompt(kind, "md")},
             {"role": "user", "content":
              f"Notebook: {meta.get('title')}\nDescription: {meta.get('description', '')}\n"
-             f"Sources:\n{src_lines}\n{focus_line}{count_line}\n"
-             f"Task: {_MD_PROMPTS[kind]}\n\nSources content:\n{digest}"},
+             f"Sources (cite these numbers as [S<n>]):\n{src_lines}\n\n"
+             f"Task: {task}\n\nSources content:\n{digest}"},
         ]
+        _emit("writing", KIND_LABEL.get(kind, kind))
         text = llmio.complete(
             messages, purpose=f"hermes-notebook.generate.{kind}",
             max_tokens=6000, temperature=0.4,
@@ -282,44 +397,131 @@ def generate(notebook: str, kind: str, *, focus: str = "", count_hint: str = "",
         if meta.get("description"):
             header += f"_{meta['description']}_\n\n"
         header += f"_Generated {runtime.utc_stamp()} · {len(sources)} sources_\n\n---\n\n"
-        path = _write_artifact(nb_id, kind, "md", header + text)
+        path = _save("md", header + text)
         return {"path": str(path), "kind": kind, "preview": text[:1200]}
 
-    # structured kinds
-    instructions = _STRUCT_INSTRUCTIONS[kind]
+    # structured kinds — same registry, same ledger, JSON shape instead of prose
     style_spec = None
-    if kind == "infographic":
+    style_note = ""
+    if kind in ("infographic", "blueprint_evolution"):
         from .gfx import themes as _themes
+        # `igstyles.prompt_hint` was dropped by the gfx rewrite (4850aa0) but the
+        # call was left behind, so every infographic generation raised NameError
+        # at the model call — a 500 the tests never reached because they render
+        # the library directly instead of generating through this path.
+        from . import igstyles  # noqa: F401  (module is still the style source)
         style_spec = _themes.resolve(style)
         # The content shape follows the look: a dashboard wants measurable metrics,
         # an editorial page wants headline numbers. Same sources, different picks.
-        instructions += ("\n\nVisual treatment: " + style_spec.blurb + " "
-                         + igstyles.prompt_hint(style_spec))
+        hint = ""
+        try:
+            hint = " " + igstyles.prompt_hint(style_spec)
+        except Exception:
+            hint = ""  # the look still resolves; only its content hint is missing
+        style_note = style_spec.blurb + hint
+    instructions = prompts.build_instructions(
+        kind, ledger_text=ledger.get("text") or "", focus=focus,
+        count_hint=count_hint, language=language, conversation=conv_text,
+        style_note=style_note, mode="struct")
+    extra = ""
+    if kind == "blueprint_evolution" and not ledger.get("text"):
+        # the blueprint's zones are gaps; when the model half of the audit was
+        # unavailable, the measured independence still goes in
+        extra = _tension_brief(nb_id)
+    _emit("writing", KIND_LABEL.get(kind, kind))
+    parse_out: list = []
     parsed = llmio.structured(
         instructions=instructions,
         input=[{"type": "text", "text":
                 f"Notebook: {meta.get('title')}\nSources:\n{src_lines}\n"
-                f"{focus_line}{count_line}\nSources content:\n{digest}"}],
+                f"{focus_line}{count_line}{conv_line}{lang_line}{extra}"
+                f"\nSources content:\n{digest}"}],
         json_schema=_STRUCT_SCHEMAS[kind],
         schema_name=f"notebook.{kind}",
-        system_prompt=(
-            "You produce structured study material strictly from the provided "
-            "sources. Every item must be grounded in them."
-        ),
+        system_prompt=prompts.build_system_prompt(kind, "struct"),
         purpose=f"hermes-notebook.generate.{kind}",
         max_tokens=8000, temperature=0.3,
+        parse_out=parse_out,
     )
     if parsed is None:
         raise RuntimeError("model did not return valid JSON for this artifact")
+    if isinstance(parsed, dict) and parse_out:
+        # how the JSON was produced — direct | extracted | retried — so a run
+        # log can say honestly when the small model needed a second try
+        parsed["_parse"] = parse_out[0]
 
-    json_path = _write_artifact(nb_id, kind, "json", json.dumps(parsed, indent=2, ensure_ascii=False))
+    if kind == "slides":
+        # a slide's optional chart is a blocks-graphic block: normalise it and
+        # run the same verification the poster gets, so a number on a slide is
+        # held to the same bar as a number on an infographic — BEFORE the JSON
+        # is written, so the artifact keeps the verified shape
+        from .gfx import blocks as _blocks
+        from . import verify as _verify
+        pairs = store.all_source_texts(nb_id)
+        order = {s.get("id"): i + 1 for i, s in enumerate(sources)}
+        smap = {order.get(r.get("id")): t for r, t in pairs}
+        for s in parsed.get("slides") or []:
+            ch = s.get("chart")
+            if not isinstance(ch, dict):
+                continue
+            g = _blocks.normalise_graphic({"blocks": [ch]})
+            if g["blocks"]:
+                _verify.verify_graphic(g, smap)
+                if g["blocks"]:
+                    s["chart"] = g["blocks"][0]
+                    s["_chart_verify"] = g["_verify"]
+                else:
+                    s.pop("chart", None)
+            else:
+                s.pop("chart", None)
+
+    json_path = _save("json", json.dumps(parsed, indent=2, ensure_ascii=False))
     header = f"# {meta.get('title')} — {KIND_LABEL[kind]}\n\n"
     header += f"_Generated {runtime.utc_stamp()} · {len(sources)} sources_\n\n---\n\n"
 
     if kind == "slides":
+        _emit("rendering", "slide deck")
         html = _render_slides_html(parsed, meta.get("title") or nb_id)
-        path = _write_artifact(nb_id, kind, "html", html)
+        path = _save("html", html)
         return {"path": str(path), "kind": kind, "preview": html[:1200]}
+
+    if kind == "blueprint_evolution":
+        from . import gfx
+        style_spec = style_spec or gfx.resolve_preset("")
+        parsed["_style"] = {"id": style_spec.id, "label": style_spec.label,
+                            "family": style_spec.family}
+        engine = str(options.get("engine") or "gfx").strip().lower()
+        json_path = _save("json",
+                          json.dumps(parsed, indent=2, ensure_ascii=False))
+
+        # Opt-in only. The vector engine is the default because it is exact: the
+        # text is the text, it is crisp at any size, and it is a few KB. A painted
+        # poster is offered as `engine="imagen_blueprint"` and degrades back to the
+        # vector render when the host has no image backend, so a demo cannot end
+        # on a 500 because someone ticked a toggle.
+        if engine == "imagen_blueprint":
+            painted = _image_blueprint(parsed, style_spec.id, nb_id)
+            if painted:
+                return {"path": painted, "json": str(json_path), "kind": kind,
+                        "style": style_spec.id, "style_label": style_spec.label,
+                        "template": "blueprint_evolution", "format": "png",
+                        "engine": "imagen_blueprint",
+                        "preview": json.dumps(parsed, ensure_ascii=False)[:1200]}
+
+        _emit("rendering", "blueprint poster")
+        svg = gfx.render(parsed, template="blueprint_evolution", preset=style_spec.id,
+                         orientation=str(options.get("orientation") or "landscape").lower(),
+                         detail=str(options.get("detail") or "standard").lower())
+        path = _save("svg", svg)
+        result = {"path": str(path), "json": str(json_path), "kind": kind,
+                  "style": style_spec.id, "style_label": style_spec.label,
+                  "template": "blueprint_evolution", "format": "svg",
+                  "engine": "gfx",
+                  "preview": json.dumps(parsed, ensure_ascii=False)[:1200]}
+        if engine == "imagen_blueprint":
+            # the fallback is stated, not silently swallowed
+            result["engine_fallback"] = "the image backend did not return a render"
+        return result
 
     if kind == "infographic":
         assert style_spec is not None
@@ -331,15 +533,28 @@ def generate(notebook: str, kind: str, *, focus: str = "", count_hint: str = "",
             template = "auto"
         orientation = str(options.get("orientation") or "landscape").lower()
         detail = str(options.get("detail") or "standard").lower()
+        # schema v2: model output → canonical typed blocks (legacy stats/quotes
+        # convert), then deterministic verification against the S-numbered
+        # source texts — numbers found only elsewhere are re-cited, numbers
+        # found nowhere are dropped before they can reach a poster.
+        from .gfx import blocks as _blocks
+        from . import verify as _verify
+        parsed = _blocks.normalise_graphic(parsed)
+        pairs = store.all_source_texts(nb_id)
+        order = {s.get("id"): i + 1 for i, s in enumerate(sources)}
+        _verify.verify_graphic(parsed, {order.get(r.get("id")): t for r, t in pairs})
+        parsed["_sources"] = [{"n": i + 1, "title": s.get("title")}
+                              for i, s in enumerate(sources)]
         parsed["_style"] = {"id": style_spec.id, "label": style_spec.label,
                             "family": style_spec.family}
         parsed["_graphic"] = {"template": template, "orientation": orientation,
                               "detail": detail}
-        json_path = _write_artifact(nb_id, kind, "json",
-                                    json.dumps(parsed, indent=2, ensure_ascii=False))
+        json_path = _save("json",
+                          json.dumps(parsed, indent=2, ensure_ascii=False))
+        _emit("rendering", "infographic poster")
         svg = gfx.render(parsed, template=template, preset=style_spec.id,
                          orientation=orientation, detail=detail)
-        path = _write_artifact(nb_id, kind, "svg", svg)
+        path = _save("svg", svg)
         return {"path": str(path), "json": str(json_path), "kind": kind,
                 "style": style_spec.id, "style_label": style_spec.label,
                 "template": template, "orientation": orientation, "detail": detail,
@@ -347,7 +562,7 @@ def generate(notebook: str, kind: str, *, focus: str = "", count_hint: str = "",
 
     if kind == "data_table":
         csv_text = _render_data_table_csv(parsed)
-        path = _write_artifact(nb_id, kind, "csv", csv_text)
+        path = _save("csv", csv_text)
         # the markdown twin keeps the artifact readable without a table parser
         cols = [str(c) for c in (parsed.get("columns") or [])]
         md_rows = ["| " + " | ".join(cols) + " |",
@@ -358,8 +573,8 @@ def generate(notebook: str, kind: str, *, focus: str = "", count_hint: str = "",
                 cells += [""] * (len(cols) - len(cells))
                 md_rows.append("| " + " | ".join(cells) + " |")
         md = "\n".join(md_rows) + "\n"
-        _write_artifact(nb_id, kind, "md",
-                        header + f"_{parsed.get('title') or 'Data table'}_\n\n" + md)
+        _save("md",
+              header + f"_{parsed.get('title') or 'Data table'}_\n\n" + md)
         return {"path": str(path), "json": str(json_path), "kind": kind,
                 "format": "csv", "preview": csv_text[:1200]}
 
@@ -367,14 +582,14 @@ def generate(notebook: str, kind: str, *, focus: str = "", count_hint: str = "",
         md = _render_mind_map(parsed)
     elif kind == "flashcards" and fmt == "csv":
         csv_text = _render_flashcards_csv(parsed)
-        path = _write_artifact(nb_id, kind, "csv", csv_text)
+        path = _save("csv", csv_text)
         return {"path": str(path), "json": str(json_path), "kind": kind,
                 "format": "csv", "preview": csv_text[:1200]}
     elif kind == "flashcards":
         md = _render_flashcards(parsed)
     else:
         md = _render_quiz(parsed)
-    path = _write_artifact(nb_id, kind, "md", header + md)
+    path = _save("md", header + md)
     return {"path": str(path), "json": str(json_path), "kind": kind, "preview": md[:1200]}
 
 
@@ -473,10 +688,24 @@ def _render_slides_html(data: dict, deck_title: str) -> str:
         title = _esc(str(s.get("title") or f"Slide {i + 1}"))
         note = _esc(str(s.get("note") or ""))
         lis = "".join(f"<li>{_esc(str(b))}</li>" for b in (s.get("bullets") or [])[:8])
+        chart_html = ""
+        if isinstance(s.get("chart"), dict):
+            # the composer draws the block — same chart code as the poster, so
+            # a chart on a slide renders exactly like the infographic's
+            try:
+                from .gfx import charts as _charts, resolve_preset
+                chart_html = ('<div class="chartbox">'
+                              + _charts.render_block(s["chart"],
+                                                     resolve_preset("neon"),
+                                                     1100, 460)
+                              + "</div>")
+            except Exception:
+                chart_html = ""
         cards.append(
             f'<section class="slide{" title-slide" if i == 0 else ""}">'
             f'<div class="num">{i + 1:02d} / {len(slides):02d}</div>'
             f'<h1>{title}</h1><ul>{lis}</ul>'
+            + chart_html
             + (f'<div class="note">{note}</div>' if note else "")
             + "</section>")
     title_esc = _esc(data.get("title") or deck_title)
@@ -493,6 +722,8 @@ li{{font-size:clamp(1.1rem,2vw,1.6rem);line-height:1.5;padding:.55em 0 .55em 1.6
 li::before{{content:"";position:absolute;left:0;top:.95em;width:.7em;height:.7em;border-radius:50%;background:#8b6cff}}
 .num{{position:absolute;top:3vh;right:4vw;font-size:.85rem;letter-spacing:.2em;color:#8b6cff;font-weight:600}}
 .note{{margin-top:5vh;font-size:.95rem;color:#8a8aa5;font-style:italic}}
+.chartbox{{margin-top:3.5vh;max-width:1100px}}
+.chartbox svg{{width:100%;height:auto;display:block;border-radius:14px}}
 .hint{{position:fixed;bottom:2.5vh;width:100%;text-align:center;font-size:.8rem;color:#55556e;letter-spacing:.15em}}
 .bar{{position:fixed;top:0;left:0;height:3px;background:linear-gradient(90deg,#8b6cff,#ec945c);transition:width .3s}}
 </style></head><body>

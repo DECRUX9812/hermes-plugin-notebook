@@ -38,7 +38,8 @@ NOTEBOOK_ADD_SOURCE = {
     "description": (
         "Add ONE source to a notebook. Exactly one of path/url/text: 'path' for a "
         "local file (pdf, docx, pptx, xlsx, epub, ipynb, txt/md/code, images — "
-        "images are described by vision), 'url' for a web page or YouTube video "
+        "images are described by vision, and audio/video recordings are "
+        "transcribed), 'url' for a web page or YouTube video "
         "(transcript), 'text' for pasted content. Sources are auto-labeled with "
         "topic tags. Call once per source."
     ),
@@ -87,6 +88,25 @@ def _style_ids() -> list:
 
 _STYLE_IDS = _style_ids()
 
+NOTEBOOK_TENSIONS = {
+    "name": "notebook_tensions",
+    "description": (
+        "Audit a notebook's sources for disagreements and independence. Returns "
+        "where sources genuinely conflict (with each position's real [S<n>] "
+        "sources and a verbatim quote), what they agree on, and how many of the "
+        "sources are actually independent — syndicated copies of one story are "
+        "detected by shared text, so '6 sources' does not read as 6 confirmations. "
+        "Use before trusting a contested answer, or when the user asks whether "
+        "their sources agree."
+    ),
+    "parameters": {"type": "object", "properties": {
+        "notebook": _NB,
+        "max_items": {"type": "integer", "description": "Most tensions to return (1-10, default 6)"},
+        "language": {"type": "string",
+                     "description": "Optional: write the claims in this language, keeping S<n> markers"},
+    }, "required": ["notebook"]},
+}
+
 NOTEBOOK_GENERATE = {
     "name": "notebook_generate",
     "description": (
@@ -119,6 +139,14 @@ NOTEBOOK_GENERATE = {
                                   "black borders), retro (halftone), risograph "
                                   "(overprint), kraft (taped paper), chalkboard "
                                   "(slate board), dashboard / mission (KPI tiles).")},
+        "thread": {"type": "string",
+                   "description": ("optional conversation name: turns that chat into the "
+                                   "artifact's brief (angle, audience, emphasis) while facts "
+                                   "still come only from the sources")},
+        "language": {"type": "string",
+                     "description": ("optional output language, e.g. 'French' or 'Japanese' — "
+                                     "the whole artifact is written in it; source titles and "
+                                     "quoted strings stay in their original form")},
     }, "required": ["kind"]},
 }
 
@@ -293,6 +321,12 @@ NOTEBOOK_DISCOVER = {
         "query": {"type": "string",
                   "description": "Optional search query — defaults to notebook title + description"},
         "max_results": {"type": "integer", "description": "Default 6, max 10"},
+        "deep": {"type": "boolean",
+                 "description": ("Deep Research: a second (and third) round that reads what "
+                                 "the first pass found and asks genuinely different queries. "
+                                 "Slower; use when the notebook needs a real source set.")},
+        "rounds": {"type": "integer",
+                   "description": "With deep=true: 1-3 rounds, default 2"},
     }},
 }
 
@@ -306,8 +340,10 @@ NOTEBOOK_DELETE = {
         "notebook": _NB,
         "confirm": {"type": "boolean", "description": "Must be true to actually delete"},
     }, "required": ["confirm"]},
-    "notebook_study": {
-        "name": "notebook_study",
+}
+
+NOTEBOOK_STUDY = {
+    "name": "notebook_study",
         "description": (
             "Spaced repetition over a notebook's own flashcards and quiz questions. "
             "action=queue returns the cards due today (with phase and interval), "
@@ -324,7 +360,6 @@ NOTEBOOK_DELETE = {
             "rating": {"type": "string", "enum": ["again", "hard", "good", "easy"],
                        "description": "How well the card was known (default good)"},
         }, "required": ["notebook"]},
-    },
 }
 
 ALL = [
@@ -333,4 +368,5 @@ ALL = [
     NOTEBOOK_THREADS,
     NOTEBOOK_SEARCH, NOTEBOOK_NOTE, NOTEBOOK_REFRESH, NOTEBOOK_DELETE_SOURCE,
     NOTEBOOK_UPDATE, NOTEBOOK_EXPORT, NOTEBOOK_DISCOVER, NOTEBOOK_DELETE,
+    NOTEBOOK_STUDY, NOTEBOOK_TENSIONS,
 ]

@@ -86,6 +86,8 @@ function Main({ notebook, kinds, tab, setTab, picked, setPicked, busy, generate,
                 refreshArtifact }) {
   const sources = (notebook && notebook.sources) || []
   const [askScope, setAskScope] = useState(null)   // chat scoped to one source
+  // the Tensions tab's count badge — null until an audit has answered
+  const [tensionCount, setTensionCount] = useState(null)
 
   if (loading && !notebook) {
     return el('main', { className: 'nb-col nb-main-col' },
@@ -147,49 +149,73 @@ function Main({ notebook, kinds, tab, setTab, picked, setPicked, busy, generate,
 
   return el('main', { className: 'nb-col nb-main-col' },
     el('div', { className: 'nb-main-head' },
-      el('div', { className: 'nb-hero' },
-        el('span', { className: 'nb-hero-emoji', 'aria-hidden': 'true',
+      // ONE header line: sigil, title, one meta line, the grounded chip, and the
+      // view switcher on the same baseline. The old block was a 52px sigil +
+      // two-line h1 + two meta paragraphs + a chip row, then a 38px tab row
+      // below it — ~180px of vertically stacked titles before any content, and
+      // the notebook's title was printed four times in one viewport (breadcrumb,
+      // rail switcher card, this h1, and the artifact's own markdown h1).
+      el('div', { className: 'nb-head-top' },
+        el('span', { className: 'nb-head-sigil', 'aria-hidden': 'true',
           children: (notebook.emoji && String(notebook.emoji).trim())
             ? emojiFor(notebook.id, notebook.emoji)
-            : jsx(Sigil, { seed: notebook.id, size: 52, draw: true }) }),
-        el('div', { className: 'nb-hero-main' },
-          el('h1', { className: 'nb-h1', children: notebook.title }),
-          el('p', { className: 'nb-sub', children:
-            `${sources.length} source${sources.length === 1 ? '' : 's'} · ${activeCount} active · ${stats.labels || 0} topics · updated ${ago(notebook.updated_at) || 'recently'}` }),
-          notebook.description
-            ? el('p', { className: 'nb-sub', style: { marginTop: '4px', color: T.text3, fontStyle: 'italic' },
-                children: notebook.description })
-            : null),
+            : jsx(Sigil, { seed: notebook.id, size: 26 }) }),
+        el('div', { className: 'nb-head-main' },
+          el('h1', { className: 'nb-h1', children: notebook.title,
+            title: notebook.title }),
+          // the description lives on Home; the studio header keeps the title
+          // once and lets the counts carry the rest
+          el('p', { className: 'nb-sub',
+            children: `${sources.length} source${sources.length === 1 ? '' : 's'} · ${stats.labels || 0} topics · updated ${ago(notebook.updated_at) || 'recently'}` })),
         el('div', { className: 'nb-hero-side' },
           el('span', {
             className: 'nb-chip', 'data-tone': modelReady ? 'ok' : 'warn',
             children: modelReady ? 'grounded' : 'model offline'
-          }))
-      ),
-      el('div', { className: 'nb-tabs', role: 'tablist', 'aria-label': 'Notebook views' },
-        el('button', {
-          type: 'button', role: 'tab', className: 'nb-tab', 'aria-selected': tab === 'chat',
-          onClick: () => setTab('chat'), children: [jsx(Glyph, { name: 'faq', size: 15 }), 'Chat']
-        }),
-        el('button', {
-          type: 'button', role: 'tab', className: 'nb-tab', 'aria-selected': tab === 'view',
-          onClick: () => setTab('view'), disabled: !picked,
-          children: [jsx(Glyph, { name: picked ? (KIND_ICON[picked.kind] || 'doc') : 'doc', size: 15 }),
-                     viewName || 'Viewer']
-        }),
-        peek ? el('button', {
-          type: 'button', role: 'tab', className: 'nb-tab', 'aria-selected': tab === 'peek',
-          onClick: () => setTab('peek'),
-          children: [jsx(Glyph, { name: 'book', size: 15 }), `S${peek.n} · ${peek.title}`]
-        }) : null
-      )
+          }))),
+      // The view switcher gets its own row: sharing one line with the sigil, the
+      // title and the meta block meant the h1 was truncated even at 1330px
+      // ("Commercial Fusion Energy in 2…") and the active tab competed with the
+      // grounded chip for the same corner.
+      el('div', { className: 'nb-tabs-row' },
+        el('div', { className: 'nb-tabs', role: 'tablist', 'aria-label': 'Notebook views' },
+          el('button', {
+            type: 'button', role: 'tab', className: 'nb-tab', 'aria-selected': tab === 'chat',
+            onClick: () => setTab('chat'),
+            children: [jsx(Glyph, { name: 'faq', size: 14 }), el('span', { children: 'Chat' })]
+          }),
+          el('button', {
+            type: 'button', role: 'tab', className: 'nb-tab', 'aria-selected': tab === 'tensions',
+            onClick: () => setTab('tensions'), disabled: !sources.length,
+            title: 'Where the sources disagree, and whether they corroborate each other',
+            children: [jsx(Glyph, { name: 'shield', size: 14 }),
+                       el('span', { children: 'Tensions' }),
+                       tensionCount
+                         ? el('span', { className: 'nb-tabcount', children: String(tensionCount) })
+                         : null]
+          }),
+          // the viewer tab exists only while an artifact is open — a disabled
+          // placeholder tab is a promise the pane cannot keep
+          picked ? el('button', {
+            type: 'button', role: 'tab', className: 'nb-tab', 'aria-selected': tab === 'view',
+            onClick: () => setTab('view'),
+            title: `${picked.label} — ${picked.title || picked.primary}`,
+            children: [jsx(Glyph, { name: KIND_ICON[picked.kind] || 'doc', size: 14 }),
+                       el('span', { children: viewName || picked.label || 'Viewer' })]
+          }) : null,
+          peek ? el('button', {
+            type: 'button', role: 'tab', className: 'nb-tab', 'aria-selected': tab === 'peek',
+            onClick: () => setTab('peek'), title: peek.title,
+            children: [jsx(Glyph, { name: 'book', size: 14 }),
+                       el('span', { children: `S${peek.n} · ${peek.title}` })]
+          }) : null
+        ))
     ),
 
     tab === 'peek' && peek
       ? (() => {
           const pi = sources.findIndex((s) => s.id === peek.id)
           return jsx(SourcePeek, {
-            source: peek, notebook,
+            source: peek, notebook, onSay,
             onClose: () => { setPeek(null); setTab('chat') },
             onAskAbout: (s) => { setAskScope({ ids: [s.id], title: s.title }); setTab('chat') },
             onRefresh: onRefreshSource ? () => onRefreshSource(peek) : null,
@@ -197,6 +223,15 @@ function Main({ notebook, kinds, tab, setTab, picked, setPicked, busy, generate,
             onNext: pi >= 0 && pi < sources.length - 1 ? () => setPeek(sources[pi + 1]) : null
           })
         })()
+      : tab === 'tensions'
+        ? jsx(TensionsPanel, {
+            notebook, onSay, modelReady,
+            onOpenSource, onCount: setTensionCount,
+            onCite: (n, cite) => {
+              const src = sources.find((s) => (cite && cite.id && s.id === cite.id) || s.n === n)
+              if (src) { setPeek({ ...src, citeSnippet: (cite && cite.snippet) || '' }); setTab('peek') }
+            }
+          })
       : tab === 'view' && picked
         ? (() => {
             // sibling runs of the same kind, oldest first — ‹ › flips versions
@@ -204,13 +239,14 @@ function Main({ notebook, kinds, tab, setTab, picked, setPicked, busy, generate,
               .slice().sort((a, b) => String(a.modified).localeCompare(String(b.modified)))
             const si = sibs.findIndex((a) => a.key === picked.key)
             return jsx(Viewer, {
-              artifact: picked, notebook,
+              artifact: picked, notebook, onSay,
               regenerating: !!(busy && busy[picked.kind]),
               onRegenerate: () => generate(picked.kind, picked.opts || {}),
               onChanged: refreshArtifact || (() => reload && reload(true)),
               onPrevRun: si > 0 ? () => setPicked(sibs[si - 1]) : null,
               onNextRun: si >= 0 && si < sibs.length - 1 ? () => setPicked(sibs[si + 1]) : null,
               runPos: sibs.length > 1 ? `${si + 1} of ${sibs.length}` : '',
+              onClose: () => { setPicked(null); setTab('chat') },
               onCite: (n, cite) => {
                 const src = sources.find((s) => (cite && cite.id && s.id === cite.id) || s.n === n)
                 if (src) { setPeek({ ...src, citeSnippet: (cite && cite.snippet) || '' }); setTab('peek') }
@@ -249,9 +285,19 @@ function Chat({ notebook, kinds, askOpen, onSay, modelReady, onCite, onOpenSourc
   const nbKey = `${notebook.id}:default`
   const [thread, setThread] = useState('default')
   const [threads, setThreads] = useState(() => notebook.threads || [])
-  const [thrOpen, setThrOpen] = useState(false)
-  const curThread = useRef('default')
-  curThread.current = thread
+  const [cfgOpen, setCfgOpen] = useState(false)
+  const [scopeOpen, setScopeOpen] = useState(false)
+  // the thread strip: which tab is being renamed inline, which context menu
+  // is open, which name sits behind the delete confirm
+  const [renaming, setRenaming] = useState(null)
+  const [renVal, setRenVal] = useState('')
+  const [menuFor, setMenuFor] = useState(null)
+  const [moreOpen, setMoreOpen] = useState(false)
+  const [delName, setDelName] = useState(null)
+  // source-gap suggestions the reader waved away — local to this chat view
+  const [skippedGaps, setSkippedGaps] = useState(() => new Set())
+  const [cfg, setCfg] = useState({})
+  const [cfgBusy, setCfgBusy] = useState(false)
   const [msgs, setMsgs] = useState(() =>
     threadCache.get(nbKey) || (notebook.thread || []).map((m, i) => ({ ...m, k: `t${i}` })))
   const [text, setText] = useState('')
@@ -266,10 +312,12 @@ function Chat({ notebook, kinds, askOpen, onSay, modelReady, onCite, onOpenSourc
   const sugg = suggest.ctx.list
   const suggErr = suggest.matches('failed')
   const [ovRetry, setOvRetry] = useState(0)
-  const [cfgOpen, setCfgOpen] = useState(false)
-  const [scopeOpen, setScopeOpen] = useState(false)
-  const [cfg, setCfg] = useState({})
-  const [cfgBusy, setCfgBusy] = useState(false)
+  // The composer's pill: what "send" means. Grounded is read-only, agent may run
+  // a tool, council wants more than one model to answer.
+  const [agentMode, setAgentMode] = useState(() => persist.get('composerMode', 'grounded'))
+  const setMode = (m) => { setAgentMode(m); persist.set('composerMode', m) }
+  const curThread = useRef('default')
+  curThread.current = thread
   const threadRef = useRef(null)
   const boxRef = useRef(null)
   const stickRef = useRef(true)
@@ -371,14 +419,7 @@ function Chat({ notebook, kinds, askOpen, onSay, modelReady, onCite, onOpenSourc
     } catch (e) { if (onSay) onSay(`could not save note: ${e.message || e}`) }
   }
 
-  const copyOv = () => {
-    try {
-      if (navigator.clipboard && navigator.clipboard.writeText) {
-        navigator.clipboard.writeText(ov)
-        if (onSay) onSay('overview copied')
-      }
-    } catch { /* clipboard is a nicety */ }
-  }
+  const copyOv = () => copyText(ov, onSay)
 
   useEffect(() => { if (askOpen) { const n = boxRef.current; if (n) n.focus() } }, [askOpen])
 
@@ -426,21 +467,27 @@ function Chat({ notebook, kinds, askOpen, onSay, modelReady, onCite, onOpenSourc
     const started = Date.now()
     TURN.send('ASK', { q, since: started })
     try {
-      const out = await api('/ask', {
+      const agentRun = (agentMode === 'agent' || agentMode === 'council') && !retry
+      const out = await api(agentRun ? '/agent/run' : '/ask', {
         method: 'POST',
         body: {
           notebook: notebook.id, question: q, thread: t,
+          ...(agentRun ? { mode: agentMode } : {}),
           ...(retry ? { retry: true } : {}),
-          ...(askScope && (askScope.ids || askScope.id)
+          ...(!agentRun && askScope && (askScope.ids || askScope.id)
             ? { source_ids: askScope.ids || [askScope.id] }
             : {})
         },
-        timeoutMs: 180000
+        timeoutMs: 240000
       })
       const answer = {
         role: 'assistant', content: out.answer, k: `a${Date.now()}`,
         citations: out.citations || [], seconds: out.seconds,
-        meta: `${out.chunks_used || 0} of ${out.total_chunks || 0} passages`
+        chars: out.context_chars, tokens: out.tokens, usage: out.usage,
+        actions: out.actions || [], council: out.council || null,
+        meta: (out.actions || []).length
+          ? `${out.actions.length} tool${out.actions.length === 1 ? '' : 's'} ran`
+          : `${out.chunks_used || 0} of ${out.total_chunks || 0} passages`
       }
       const prev = threadCache.get(key) || []
       const next = cacheMsgs(key, [...prev, answer])
@@ -448,8 +495,16 @@ function Chat({ notebook, kinds, askOpen, onSay, modelReady, onCite, onOpenSourc
       // refresh /state so the thread list + default thread stay truthful
       if (reload) reload(true)
     } catch (e) {
+      // A 404 here is not the model failing: /agent/* is served by the gateway,
+      // which loads a plugin's routes once at start. Say which step is missing
+      // instead of letting a fresh deploy look like a broken feature.
+      const raw = String(e.message || e)
+      const stale = agentMode === 'agent' && /404|not found|unauthenticated/i.test(raw)
       const errMsg = {
-        role: 'assistant', content: `**That question did not get an answer.**\n\n${e.message || e}`,
+        role: 'assistant',
+        content: stale
+          ? '**Agent mode is not running yet.**\n\nThe page is the new build, but the gateway still has the old routes: restart it once (`hermes gateway restart` from a shell outside it) and this will go through. Powered Q&A keeps working meanwhile.'
+          : `**That question did not get an answer.**\n\n${raw}`,
         k: `e${Date.now()}`, error: true
       }
       const prev = threadCache.get(key) || []
@@ -470,7 +525,149 @@ function Chat({ notebook, kinds, askOpen, onSay, modelReady, onCite, onOpenSourc
   const thrMeta = (threads || []).find((x) => x.name === thread)
   const thrLabel = (thrMeta && thrMeta.title) || (thread === 'default' ? 'Chat' : 'New chat')
 
+  /* Conversation tabs — the switcher is a strip, not a dialog: up to four
+   * visible, the rest behind More, + starts a chat, double-click renames,
+   * right-click offers rename/delete. Same /thread/* routes the dialog used. */
+  const thrList = (threads && threads.length)
+    ? threads
+    : [{ name: 'default', title: 'Chat', count: 0, updated: '' }]
+  const thrTitle = (t) => (t && (t.title || (t.name === 'default' ? 'Chat' : t.name))) || 'Chat'
+  const visThreads = thrList.slice(0, 4)
+  const moreThreads = thrList.slice(4)
+
+  const newThread = async () => {
+    try {
+      const out = await api('/thread/new', {
+        method: 'POST',
+        body: { notebook: notebook.id, title: '' },
+        timeoutMs: 30000
+      })
+      const name = (out && out.thread && out.thread.name) || `chat-${Date.now().toString(36)}`
+      threadCache.set(`${notebook.id}:${name}`, [])
+      setThreads((ts) => [{ name, title: (out && out.thread && out.thread.title) || 'New chat',
+                            count: 0, updated: '' }, ...ts])
+      setThread(name)
+    } catch (e) { onSay && onSay(`could not start a chat: ${e.message || e}`) }
+  }
+
+  const renameThread = async (name, title) => {
+    try {
+      const out = await api('/thread/rename', {
+        method: 'POST',
+        body: { notebook: notebook.id, thread: name, title },
+        timeoutMs: 30000
+      })
+      const fresh = (out && out.thread) || {}
+      setThreads((ts) => ts.map((t) => (t.name === name
+        ? { ...t, title: fresh.title || title } : t)))
+      if (reload) reload(true)
+    } catch (e) { onSay && onSay(`could not rename: ${e.message || e}`) }
+  }
+
+  const deleteThread = async (name) => {
+    try {
+      await api('/thread/delete', {
+        method: 'POST',
+        body: { notebook: notebook.id, thread: name, confirm: true },
+        timeoutMs: 30000
+      })
+      const key = `${notebook.id}:${name}`
+      threadCache.delete(key)
+      setThreads((ts) => ts.filter((t) => t.name !== name))
+      if (name === thread) {
+        if (name === 'default') { cacheMsgs(key, []); setMsgs([]) }
+        else setThread('default')
+      }
+      if (reload) reload(true)
+      if (onSay) onSay('conversation deleted')
+    } catch (e) { onSay && onSay(`could not delete chat: ${e.message || e}`) }
+  }
+
+  const commitRename = () => {
+    const name = renaming
+    const title = renVal.trim()
+    setRenaming(null)
+    if (name && title) renameThread(name, title)
+  }
+
+  const thrTab = (t) => {
+    const active = t.name === thread
+    if (renaming === t.name) {
+      return el('input', {
+        key: t.name, className: 'nb-thr-rename', value: renVal, autoFocus: true,
+        'aria-label': `Rename conversation ${thrTitle(t)}`,
+        onChange: (e) => setRenVal(e.target.value),
+        onBlur: commitRename,
+        onKeyDown: (e) => {
+          if (e.key === 'Enter') { e.preventDefault(); commitRename() }
+          if (e.key === 'Escape') { e.preventDefault(); setRenaming(null) }
+        }
+      }, t.name)
+    }
+    return el('button', {
+      key: t.name, type: 'button', className: 'nb-thr-tab',
+      'data-active': active ? 'true' : 'false',
+      'aria-current': active ? 'true' : undefined,
+      title: thrTitle(t),
+      onClick: () => { setThread(t.name); setMoreOpen(false); setMenuFor(null) },
+      onDoubleClick: () => { setRenaming(t.name); setRenVal(thrTitle(t) === t.name ? '' : thrTitle(t)) },
+      onContextMenu: (e) => { e.preventDefault(); setMenuFor(t.name); setMoreOpen(false) },
+      children: el('span', { className: 'nb-thr-tab-title', children: thrTitle(t) })
+    }, t.name)
+  }
+
   return el('div', { className: 'nb-chat' },
+    el('div', { className: 'nb-thrtabs' },
+      visThreads.map(thrTab),
+      moreThreads.length
+        ? el('span', { style: { position: 'relative' } },
+            el('button', {
+              type: 'button', className: 'nb-thr-tab', 'data-more': 'true',
+              'aria-haspopup': 'menu', 'aria-expanded': moreOpen ? 'true' : 'false',
+              onClick: () => { setMoreOpen((o) => !o); setMenuFor(null) },
+              children: `More · ${moreThreads.length}`
+            }),
+            moreOpen
+              ? el('div', { className: 'nb-thr-menu', role: 'menu', 'aria-label': 'More conversations' },
+                  moreThreads.map((t) => el('button', {
+                    key: t.name, type: 'button', role: 'menuitem',
+                    className: 'nb-thr-menuitem',
+                    'data-active': t.name === thread ? 'true' : 'false',
+                    onClick: () => { setThread(t.name); setMoreOpen(false) },
+                    children: thrTitle(t)
+                  })))
+              : null)
+        : null,
+      el('button', {
+        type: 'button', className: 'nb-thr-new',
+        'aria-label': 'New chat', title: 'New chat',
+        onClick: newThread,
+        children: [jsx(Glyph, { name: 'plus', size: 13 }), el('span', { children: 'New chat' })]
+      })),
+    // right-click menu on a tab — rename or delete, delete asks first
+    menuFor
+      ? el('div', { className: 'nb-thr-menu nb-thr-ctx', role: 'menu', 'aria-label': 'Conversation actions' },
+          el('button', {
+            type: 'button', role: 'menuitem', className: 'nb-thr-menuitem',
+            onClick: () => {
+              const t = thrList.find((x) => x.name === menuFor)
+              setRenaming(menuFor); setRenVal(t ? thrTitle(t) : ''); setMenuFor(null)
+            },
+            children: 'Rename'
+          }),
+          el('button', {
+            type: 'button', role: 'menuitem', className: 'nb-thr-menuitem', 'data-danger': 'true',
+            onClick: () => { setDelName(menuFor); setMenuFor(null) },
+            children: 'Delete'
+          }))
+      : null,
+    // one transparent layer that closes the menus on any outside click
+    (menuFor || moreOpen)
+      ? el('div', {
+          className: 'nb-thr-scrim', 'aria-hidden': 'true',
+          onClick: () => { setMenuFor(null); setMoreOpen(false) }
+        })
+      : null,
     el('div', { className: 'nb-chatscroll' },
     el('div', { className: 'nb-thread', ref: threadRef, onScroll: onThreadScroll, role: 'log', 'aria-live': 'polite', 'aria-label': 'Conversation' },
       ov
@@ -507,30 +704,31 @@ function Chat({ notebook, kinds, askOpen, onSay, modelReady, onCite, onOpenSourc
                 jsx(Glyph, { name: 'sparkle', size: 19 })),
               el('div', { style: { fontSize: '20px', fontWeight: 650, letterSpacing: '-.015em' }, children: 'Ask the sources' }),
               el('div', {
-                style: { color: T.text3, fontSize: '14.5px', lineHeight: 1.6 },
+                style: { color: T.text3, fontSize: '14px', lineHeight: 1.6 },
                 children: 'Every answer is built from this notebook and cites the source it came from. If the sources do not cover it, the answer says so.'
               })))
         : null,
-      msgs.length === 0 && !pending && sugg && (sugg.questions || []).length
-        ? el('div', { style: { marginTop: ov ? '18px' : '0' } },
-            el('div', { className: 'nb-meta', style: { marginBottom: '10px' }, children: 'Suggested questions' }),
-            el('div', { className: 'nb-suggest-grid' },
-              sugg.questions.slice(0, 3).map((question) => el('button', {
-                key: question, type: 'button', className: 'nb-suggest',
-                onClick: () => send(question),
-                'aria-label': `Ask: ${question}`,
-                children: [
-                  el('span', { className: 'nb-suggest-q', children: question }),
-                  el('span', { className: 'nb-suggest-go', 'aria-hidden': 'true' },
-                    jsx(Glyph, { name: 'arrowRight', size: 14 }))
-                ]
-              }, question))),
-            (sugg.gaps || []).length
+      msgs.length === 0 && !pending && sugg
+        ? el('div', null,
+            (sugg.gaps || []).filter((g) => !skippedGaps.has(g)).length
               ? el('div', { className: 'nb-gaprow', style: { marginTop: '14px' } },
                   el('span', { className: 'nb-meta', children: 'Source gaps' }),
-                  sugg.gaps.slice(0, 3).map((g) => jsx(Chip, {
-                    key: g, onClick: () => onFindSources && onFindSources(g),
-                    title: 'Find sources for this gap', children: g
+                  sugg.gaps.filter((g) => !skippedGaps.has(g)).slice(0, 3).map((g) => el('div', {
+                    key: g, className: 'nb-gapcard',
+                    children: [
+                      el('div', { className: 'nb-gapcard-text', children: g }),
+                      el('div', { style: { display: 'flex', gap: '8px', marginTop: '10px' } },
+                        jsx(Btn, {
+                          size: 'sm', variant: 'primary', icon: 'sparkle',
+                          onClick: () => onFindSources && onFindSources(g),
+                          children: 'Find sources'
+                        }),
+                        jsx(Btn, {
+                          size: 'sm',
+                          onClick: () => setSkippedGaps((s) => { const n = new Set(s); n.add(g); return n }),
+                          children: 'Skip'
+                        }))
+                    ]
                   })))
               : null,
             (sugg.artifacts || []).length
@@ -559,17 +757,18 @@ function Chat({ notebook, kinds, askOpen, onSay, modelReady, onCite, onOpenSourc
             }))
         : null,
       msgs.map((m, i) => jsx(Msg, {
-        msg: m, onCite, onOpenSource, notebook,
+        msg: m, onCite, onOpenSource, notebook, onSay, reload,
         canRetry: !pending && m.role === 'assistant' && i === msgs.length - 1 &&
                   msgs.slice(0, i).some((x) => x.role === 'user'),
         onRetry: () => send(null, { retry: true })
       }, m.k)),
       pending
         ? el('div', { className: 'nb-msg', 'data-role': 'assistant' },
-            el('span', { className: 'nb-avatar', children: 'HN' }),
+            el('span', { className: 'nb-avatar', 'aria-hidden': 'true' },
+              jsx(Glyph, { name: 'sparkle', size: 14 })),
             el('div', { className: 'nb-msg-body' },
               el('div', { className: 'nb-who', children: 'Reading sources' }),
-              el('div', { style: { display: 'flex', alignItems: 'center', gap: '10px', color: T.text3, fontSize: '14.5px' } },
+              el('div', { style: { display: 'flex', alignItems: 'center', gap: '10px', color: T.text3, fontSize: '14px' } },
                 el('span', { className: 'nb-dot', style: { background: T.accent, boxShadow: `0 0 8px ${T.accent}` } }),
                 `retrieving passages · ${elapsed}s`,
                 // a spinner that cannot be dismissed is a lie about control; the
@@ -598,26 +797,55 @@ function Chat({ notebook, kinds, askOpen, onSay, modelReady, onCite, onOpenSourc
       : null),
 
     el('div', { className: 'nb-composer' },
+      // Hermes suggests, you decide: up to three questions above the box, only
+      // while the thread is empty, each wrapping to its full text — never a
+      // truncated teaser the reader has to guess at.
       msgs.length === 0 && !pending
-        ? el('div', { style: { display: 'flex', gap: '6px', flexWrap: 'wrap', marginBottom: '10px' } },
-            SUGGEST.map((s) => jsx(Chip, {
-              key: s, onClick: () => { setText(s); const n = boxRef.current; if (n) n.focus() },
-              title: 'Use this question', children: s
-            })))
+        ? (() => {
+            const qs = (sugg && sugg.questions && sugg.questions.length)
+              ? sugg.questions.slice(0, 3) : SUGGEST.slice(0, 3)
+            return el('div', { className: 'nb-qrow', role: 'group', 'aria-label': 'Suggested questions' },
+              qs.map((question) => el('button', {
+                key: question, type: 'button', className: 'nb-qchip',
+                onClick: () => send(question),
+                'aria-label': `Ask: ${question}`,
+                children: question
+              })))
+          })()
         : null,
       el('div', { className: 'nb-askbox' },
+        // What "send" is allowed to do. The pill is the consent control for
+        // agent mode: nothing runs a query or a script until the reader picks it.
+        el('div', { className: 'nb-modes', role: 'group', 'aria-label': 'Answer mode' },
+          [['grounded', 'Grounded', 'Answers only from your sources, with citations'],
+           ['agent', 'Agent + tools', 'May run one SQL query or a short script, grounded in the sources'],
+           ['council', 'Council', 'Answer, then re-read the passages trying to break that answer']]
+            .map(([id, label, title]) => el('button', {
+              key: id, type: 'button', className: 'nb-mode',
+              'data-active': agentMode === id ? 'true' : 'false',
+              'aria-pressed': agentMode === id,
+              title,
+              onClick: () => setMode(id),
+              children: [jsx(Glyph, { name: id === 'agent' ? 'terminal' : id === 'council' ? 'shield' : 'lock', size: 13 }),
+                         el('span', { children: label })]
+            }))),
         el('textarea', {
           ref: boxRef, value: text, onChange: (e) => setText(e.target.value), onKeyDown: onKey,
-          placeholder: 'Ask a question or create something',
+          placeholder: agentMode === 'agent'
+            ? 'Ask something, and Hermes may run a query or a script'
+            : agentMode === 'council'
+              ? 'Ask something, and Hermes will try to break its own answer'
+              : 'Ask a question or create something',
           'aria-label': 'Ask the notebook',
           rows: 2
         }),
         el('div', { className: 'nb-askfoot' },
-          jsx(Chip, {
-            title: 'Conversations — switch or start a new chat',
-            onClick: () => setThrOpen(true),
-            children: `💬 ${thrLabel}`
-          }),
+          // The conversation title is a QUESTION ("What does the sources say about
+          // funding?"), so this chip is as wide as the question. Unshrunk it
+          // pushed the Send button 21px past the column edge at 1330px; capped
+          // and ellipsized it stays a chip and the primary action keeps its slot.
+          // The conversation switcher is the tab strip above — the composer
+          // keeps only the source-scope chip and its tools.
           jsx(Chip, {
             title: `${activeCount} of ${stats.sources || 0} sources are in context`,
             children: `${activeCount} source${activeCount === 1 ? '' : 's'}`
@@ -667,8 +895,8 @@ function Chat({ notebook, kinds, askOpen, onSay, modelReady, onCite, onOpenSourc
               setTimeout(() => URL.revokeObjectURL(a.href), 4000)
             }
           }),
-          el('span', { className: 'nb-hint', style: { marginLeft: 'auto' },
-            children: modelReady ? '↵ Send · ⇧↵ New line' : 'model offline — enable the plugin and restart the gateway' }),
+          modelReady ? null : el('span', { className: 'nb-hint', style: { marginLeft: 'auto' },
+            children: 'model offline — enable the plugin and restart the gateway' }),
           el('button', {
             type: 'button', className: 'nb-sendbtn',
             onClick: () => send(), disabled: !text.trim() || !!pending,
@@ -677,8 +905,6 @@ function Chat({ notebook, kinds, askOpen, onSay, modelReady, onCite, onOpenSourc
             children: jsx(Glyph, { name: 'send', size: 15 })
           }))
       ),
-      el('div', { className: 'nb-disclaimer',
-        children: 'Hermes Notebook can make mistakes — double-check it.' }),
       cfgOpen
         ? jsx(Dialog, {
             open: true,
@@ -756,56 +982,20 @@ function Chat({ notebook, kinds, askOpen, onSay, modelReady, onCite, onOpenSourc
             onPick: (scope) => { if (setAskScope) setAskScope(scope); setScopeOpen(false) }
           })
         : null,
-      thrOpen
-        ? jsx(ThreadDialog, {
-            notebook, threads, current: thread,
-            onClose: () => setThrOpen(false),
-            onPick: (name) => { setThread(name); setThrOpen(false) },
-            onNew: async (title) => {
-              try {
-                const out = await api('/thread/new', {
-                  method: 'POST',
-                  body: { notebook: notebook.id, title: title || '' },
-                  timeoutMs: 30000
-                })
-                const name = (out && out.thread && out.thread.name) || `chat-${Date.now().toString(36)}`
-                threadCache.set(`${notebook.id}:${name}`, [])
-                setThreads((ts) => [{ name, title: (out && out.thread && out.thread.title) || 'New chat',
-                                      count: 0, updated: '' }, ...ts])
-                setThread(name); setThrOpen(false)
-              } catch (e) { onSay && onSay(`could not start a chat: ${e.message || e}`) }
-            },
-            onRename: async (name, title) => {
-              try {
-                const out = await api('/thread/rename', {
-                  method: 'POST',
-                  body: { notebook: notebook.id, thread: name, title },
-                  timeoutMs: 30000
-                })
-                const fresh = (out && out.thread) || {}
-                setThreads((ts) => ts.map((t) => (t.name === name
-                  ? { ...t, title: fresh.title || title } : t)))
-                if (reload) reload(true)
-              } catch (e) { onSay && onSay(`could not rename: ${e.message || e}`) }
-            },
-            onDelete: async (name) => {
-              try {
-                await api('/thread/delete', {
-                  method: 'POST',
-                  body: { notebook: notebook.id, thread: name, confirm: true },
-                  timeoutMs: 30000
-                })
-                const key = `${notebook.id}:${name}`
-                threadCache.delete(key)
-                setThreads((ts) => ts.filter((t) => t.name !== name))
-                if (name === thread) {
-                  if (name === 'default') { cacheMsgs(key, []); setMsgs([]) }
-                  else setThread('default')
-                }
-                if (reload) reload(true)
-                if (onSay) onSay('conversation deleted')
-              } catch (e) { onSay && onSay(`could not delete chat: ${e.message || e}`) }
-            }
+      delName
+        ? jsx(Dialog, {
+            open: true, title: 'Delete this conversation?', width: 420,
+            onClose: () => setDelName(null),
+            children: el('div', null,
+              el('p', { style: { margin: '0 0 16px', color: T.text3, fontSize: '14px', lineHeight: 1.55 },
+                children: `“${thrTitle(thrList.find((t) => t.name === delName) || { name: delName })}” and its messages will be removed. This cannot be undone.` }),
+              el('div', { style: { display: 'flex', gap: '8px', justifyContent: 'flex-end' } },
+                jsx(Btn, { onClick: () => setDelName(null), children: 'Cancel' }),
+                jsx(Btn, {
+                  variant: 'primary',
+                  onClick: () => { const n = delName; setDelName(null); deleteThread(n) },
+                  children: 'Delete'
+                })))
           })
         : null
     )
@@ -846,7 +1036,7 @@ function ScopeDialog({ notebook, current, onClose, onPick }) {
         }),
         el('span', { className: 'nb-chip', 'data-tone': 'accent', children: `S${s.n}` }),
         el('span', { style: { flex: 1, minWidth: 0, textAlign: 'left' } },
-          el('div', { style: { fontSize: '13.5px', fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' },
+          el('div', { style: { fontSize: '13px', fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' },
             children: s.title }),
           el('div', { className: 'nb-meta', children: kindLabel(s.kind) })))),
       el('div', { style: { display: 'flex', gap: '8px', justifyContent: 'space-between', marginTop: '10px' } },
@@ -862,97 +1052,20 @@ function ScopeDialog({ notebook, current, onClose, onPick }) {
   })
 }
 
-function ThreadDialog({ notebook, threads, current, onClose, onPick, onNew, onDelete, onRename }) {
-  const list = threads && threads.length ? threads : [{ name: 'default', title: 'Chat', count: 0 }]
-  const [title, setTitle] = useState('')
-  const [editing, setEditing] = useState('')
-  const [draft, setDraft] = useState('')
-  const [confirming, setConfirming] = useState('')
-
-  const commit = (name) => {
-    const next = draft.trim()
-    setEditing('')
-    if (next && onRename) onRename(name, next)
-  }
-
-  return jsx(Dialog, {
-    open: true, onClose, title: 'Conversations', width: 560,
-    children: el('div', { style: { display: 'grid', gap: '12px' } },
-      el('div', { className: 'nb-newthread' },
-        el('input', {
-          className: 'nb-genopt-text', type: 'text',
-          placeholder: 'Name a new conversation (optional)',
-          'aria-label': 'New conversation name',
-          value: title,
-          onChange: (e) => setTitle(e.target.value),
-          onKeyDown: (e) => { if (e.key === 'Enter') { onNew(title); setTitle('') } }
-        }),
-        jsx(Btn, {
-          size: 'sm', variant: 'primary', icon: 'plus',
-          onClick: () => { onNew(title); setTitle('') },
-          children: 'Start'
-        })),
-      el('div', { className: 'nb-thrlist', role: 'list', 'aria-label': 'Conversations' },
-        list.map((t) => {
-          const on = t.name === current
-          const isEditing = editing === t.name
-          return el('div', { key: t.name, className: 'nb-thrwrap', role: 'listitem',
-                             'data-on': on ? 'true' : 'false' },
-            isEditing
-              ? el('div', { className: 'nb-thredit' },
-                  el('input', {
-                    className: 'nb-genopt-text', type: 'text', autoFocus: true,
-                    'aria-label': `Rename ${t.title || t.name}`,
-                    value: draft,
-                    onChange: (e) => setDraft(e.target.value),
-                    onKeyDown: (e) => {
-                      if (e.key === 'Enter') commit(t.name)
-                      if (e.key === 'Escape') setEditing('')
-                    }
-                  }),
-                  jsx(Btn, { size: 'sm', onClick: () => commit(t.name), children: 'Save' }))
-              : el('div', { style: { display: 'flex', alignItems: 'center', flex: 1, minWidth: 0 } },
-                  el('button', {
-                    type: 'button',
-                    className: 'nb-thrrow' + (on ? ' is-current' : ''),
-                    onClick: () => onPick(t.name),
-                    'aria-current': on ? 'true' : undefined,
-                    children: [
-                      el('div', { style: { flex: 1, minWidth: 0 } },
-                        el('div', { style: { fontSize: '14px', fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' },
-                          children: t.title || t.name }),
-                        el('div', { className: 'nb-meta',
-                          children: `${t.count || t.messages || 0} messages`
-                                   + (t.updated ? ` · ${ago(t.updated)}` : '') })),
-                      on ? jsx(Glyph, { name: 'check', size: 15 }) : null
-                    ]
-                  }),
-                  jsx(IconBtn, {
-                    icon: 'note', size: 13, label: `Rename conversation — ${t.title || t.name}`,
-                    onClick: () => { setEditing(t.name); setDraft(t.title || ''); setConfirming('') }
-                  }),
-                  confirming === t.name
-                    ? jsx(Btn, {
-                        size: 'sm', className: 'nb-danger',
-                        label: `Confirm delete — ${t.title || t.name}`,
-                        onClick: () => { setConfirming(''); onDelete(t.name) },
-                        children: 'Really delete'
-                      })
-                    : jsx(IconBtn, {
-                        icon: 'trash', size: 13, label: `Delete conversation — ${t.title || t.name}`,
-                        onClick: () => setConfirming(t.name)
-                      })))
-        })),
-      el('div', { className: 'nb-hint',
-        children: 'Each conversation keeps its own history; answers still cite the same sources.' }))
-  })
+function tidyQuote(text) {
+  return String(text || '')
+    .replace(/\[([^\]]+)\]\([^)]*\)/g, '$1')
+    .replace(/^(skip to (main )?content[\s:.—-]*)+/i, '')
+    .replace(/\s+/g, ' ')
+    .trim()
 }
 
 const CITE_TEXT_CACHE = new Map()
 
-function Msg({ msg, onCite, notebook, canRetry, onRetry }) {
+function Msg({ msg, onCite, notebook, canRetry, onRetry, onSay, reload }) {
   const isUser = msg.role === 'user'
   const [citePop, setCitePop] = useState(null)
+  const [citesOpen, setCitesOpen] = useState(false)
 
   const citeFor = (n) => (msg.citations || []).find((c) => c.n === n)
   // hand the whole citation up — its snippet lets the source open at the
@@ -968,7 +1081,11 @@ function Msg({ msg, onCite, notebook, canRetry, onRetry }) {
     const r = b.getBoundingClientRect()
     // citations carry the passage they were built from — show it instantly;
     // older messages without snippets fall back to the source's head
-    const snippet = c.snippet ? String(c.snippet).replace(/\s+/g, ' ').trim().slice(0, 420) : ''
+    const raw = c.snippet ? String(c.snippet).replace(/\s+/g, ' ').trim() : ''
+    // a snippet that is only the marker ("[S1]") or a stub is worse than none:
+    // it reads as the quote. Fall through to the source's own opening passage.
+    const usable = raw.replace(/\[S\d+\]/gi, '').trim().length >= 40
+    const snippet = usable ? raw.slice(0, 420) : ''
     setCitePop({ n, x: r.left, y: r.bottom + 8, title: c.title, kind: c.kind, id: c.id, text: snippet || null, loading: !snippet })
     if (snippet) return
     const key = `${notebook.id}:${c.id || n}`
@@ -994,21 +1111,33 @@ function Msg({ msg, onCite, notebook, canRetry, onRetry }) {
   }
 
   return el('div', { className: 'nb-msg', 'data-role': isUser ? 'user' : 'assistant' },
-    isUser ? null : el('span', { className: 'nb-avatar', children: 'HN' }),
-    el('div', { className: 'nb-msg-body', onMouseOver: isUser ? undefined : onMouseOver, onMouseOut: isUser ? undefined : onMouseOut },
+    isUser ? null : el('span', { className: 'nb-avatar', 'aria-hidden': 'true' },
+              jsx(Glyph, { name: 'sparkle', size: 14 })),
+    el('div', { className: 'nb-msg-body',
+      // Preact's onFocus/onBlur bubble (focusin/focusout), so keyboard focus on
+      // a citation chip gets the same passage preview hover gives a pointer.
+      onMouseOver: isUser ? undefined : onMouseOver,
+      onMouseOut: isUser ? undefined : onMouseOut,
+      onFocus: isUser ? undefined : onMouseOver,
+      onBlur: isUser ? undefined : onMouseOut },
       isUser
         ? el('div', { className: 'nb-bubble' },
             el('div', { className: 'nb-who', children: 'You' }),
             el('div', { children: msg.content }))
         : el('div', null,
+            msg.council ? jsx(CouncilBand, { council: msg.council, onSay }) : null,
+            (msg.actions || []).length
+              ? el('div', { className: 'nb-acts' }, msg.actions.map((a, i) => jsx(ActionCard, {
+                  key: i, action: a, notebook, onSay,
+                  onSaved: reload ? () => reload(true) : null
+                })))
+              : null,
             el('div', { className: 'nb-who' },
               'Hermes Notebook',
               msg.meta ? el('span', { style: { marginLeft: '8px', color: T.text4, fontWeight: 500, textTransform: 'none', letterSpacing: 0 }, children: `· ${msg.meta}` }) : null,
               jsx(IconBtn, {
                 icon: 'copy', size: 13, label: 'Copy answer',
-                onClick: () => {
-                  try { if (navigator.clipboard) navigator.clipboard.writeText(msg.content) } catch { /* clipboard unavailable */ }
-                }
+                onClick: () => copyText(msg.content, onSay)
               }),
               canRetry
                 ? jsx(IconBtn, { icon: 'refresh', size: 13, label: 'Regenerate this answer', onClick: onRetry })
@@ -1023,21 +1152,55 @@ function Msg({ msg, onCite, notebook, canRetry, onRetry }) {
                       body: { notebook: notebook.id, text: msg.content, title: first.slice(0, 90) },
                       timeoutMs: 30000
                     })
-                  } catch { /* note save is best-effort */ }
+                    if (onSay) onSay('saved as a note — it is a source now')
+                    if (reload) await reload(true)
+                  } catch (e) { if (onSay) onSay(`could not save the note: ${e.message || e}`) }
                 }
               }) : null),
             el('div', { className: 'nb-bubble' },
               jsx(Markdown, { text: msg.content, onCite: citeClick })),
+            // what the answer cost, in the units a reader can check: how many
+            // sources fed it, how much text that was, how long it took — real
+            // token usage when the host reports it, the ~4-chars-per-token
+            // estimate always
+            (() => {
+              const cites = msg.citations || []
+              const bits = []
+              if (cites.length) bits.push(`${cites.length} source${cites.length === 1 ? '' : 's'}`)
+              if (msg.chars) bits.push(`${nfmt(msg.chars)} chars`)
+              if (msg.seconds) bits.push(`${msg.seconds}s`)
+              const toks = (msg.tokens || (msg.usage && msg.usage.tokens))
+              const approx = (msg.usage && msg.usage.approx_tokens)
+              if (toks) bits.push(`${nfmt(toks)} tokens`)
+              else if (approx) bits.push(`~${nfmt(approx)} tokens`)
+              return bits.length
+                ? el('div', { className: 'nb-cost', children: bits.join(' · ') })
+                : null
+            })(),
             (msg.citations || []).length
-              ? el('div', { style: { display: 'flex', gap: '6px', flexWrap: 'wrap', marginTop: '10px' }, role: 'list', 'aria-label': 'Citations' },
-                  msg.citations.map((c) => el('button', {
-                    key: `${c.n}-${c.title}`, type: 'button', className: 'nb-chip nb-citechip',
-                    'data-n': c.n,
-                    onClick: () => citeClick(c.n),
-                    title: c.origin || c.title,
-                    'aria-label': `Citation ${c.n} — ${c.title}`,
-                    children: [el('b', { children: `S${c.n}` }), el('span', { children: c.title })]
-                  })))
+              ? el('div', { style: { marginTop: '8px' } },
+                  citesOpen
+                    ? el('div', {
+                        style: { display: 'flex', gap: '6px', flexWrap: 'wrap' },
+                        role: 'list', 'aria-label': 'Citations'
+                      },
+                        msg.citations.map((c) => el('button', {
+                          key: `${c.n}-${c.title}`, type: 'button', className: 'nb-chip nb-citechip',
+                          'data-n': c.n,
+                          onClick: () => citeClick(c.n),
+                          title: c.origin || c.title,
+                          'aria-label': `Citation ${c.n} — ${c.title}`,
+                          children: [el('b', { children: `S${c.n}` }), el('span', { children: c.title })]
+                        })))
+                    : null,
+                  el('button', {
+                    type: 'button', className: 'nb-cites-toggle',
+                    'aria-expanded': citesOpen,
+                    onClick: () => setCitesOpen((o) => !o),
+                    children: citesOpen
+                      ? 'hide sources'
+                      : `${msg.citations.length} source${msg.citations.length === 1 ? '' : 's'}`
+                  }))
               : null)),
     citePop
       ? el('div', {
@@ -1052,7 +1215,9 @@ function Msg({ msg, onCite, notebook, canRetry, onRetry }) {
               children: citePop.loading
                 ? 'reading the passage…'
                 : citePop.text
-                  ? `“${citePop.text}${citePop.text.length >= 420 ? '…' : ''}”`
+                  // a scraped page opens with nav: "[Skip to main content](…)".
+                  // Show the words, not the markdown that wrapped them.
+                  ? `“${tidyQuote(citePop.text)}${citePop.text.length >= 420 ? '…' : ''}”`
                   : 'passage unavailable — click the citation to open the source' })
           ]
         })
@@ -1062,7 +1227,7 @@ function Msg({ msg, onCite, notebook, canRetry, onRetry }) {
 
 /* ---------------------------------------------------------------- peek */
 
-function SourcePeek({ source, notebook, onClose, onAskAbout, onRefresh, onPrev, onNext }) {
+function SourcePeek({ source, notebook, onClose, onAskAbout, onRefresh, onPrev, onNext, onSay }) {
   const [text, setText] = useState('')
   const [err, setErr] = useState('')
   const [refreshing, setRefreshing] = useState(false)
@@ -1118,19 +1283,19 @@ function SourcePeek({ source, notebook, onClose, onAskAbout, onRefresh, onPrev, 
     el('div', { className: 'nb-view-head' },
       el('span', { className: 'nb-chip', 'data-tone': 'accent', children: `S${source.n}` }),
       jsx(Sigil, { seed: source.id || source.title, size: 26 }),
-      el('div', { style: { flex: 1, minWidth: 0 } },
-        el('div', { className: 'nb-view-title', children: source.title }),
-        el('div', { style: { fontSize: '12.5px', color: T.text4, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' },
+      el('div', { style: { flex: '1 1 auto', minWidth: 0 } },
+        el('div', { className: 'nb-view-title', title: source.title, children: source.title }),
+        el('div', { className: 'nb-view-sub',
           children: `${kindLabel(source.kind)} · ${nfmt(source.chars)} chars · ${source.origin || 'stored text'}` +
-            (source.added_at ? ` · added ${ago(source.added_at)}` : '') +
             (source.refreshed_at ? ` · refreshed ${ago(source.refreshed_at)}` : '') })),
+      el('div', { className: 'nb-view-acts' },
       source.origin && source.origin.startsWith('http')
         ? jsx(IconBtn, { icon: 'external', label: 'Open the original', onClick: () => host.openLink ? host.openLink(source.origin) : window.open(source.origin, '_blank') })
         : null,
       text
         ? jsx(IconBtn, {
             icon: 'copy', label: 'Copy source text',
-            onClick: () => { try { if (navigator.clipboard) navigator.clipboard.writeText(text) } catch { /* clipboard unavailable */ } }
+            onClick: () => copyText(text, onSay)
           })
         : null,
       onRefresh && !['note', 'text'].includes(source.kind)
@@ -1145,7 +1310,7 @@ function SourcePeek({ source, notebook, onClose, onAskAbout, onRefresh, onPrev, 
         : null,
       onPrev ? jsx(IconBtn, { icon: 'arrowLeft', label: `Previous source — S${source.n - 1}`, onClick: onPrev }) : null,
       onNext ? jsx(IconBtn, { icon: 'arrowRight', label: `Next source — S${source.n + 1}`, onClick: onNext }) : null,
-      jsx(IconBtn, { icon: 'close', label: 'Close source', onClick: onClose })
+      jsx(IconBtn, { icon: 'close', label: 'Close source', onClick: onClose }))
     ),
     el('div', { className: 'nb-view-body' },
       onAskAbout
@@ -1172,7 +1337,7 @@ function SourcePeek({ source, notebook, onClose, onAskAbout, onRefresh, onPrev, 
         : text
           ? el('pre', {
               className: 'nb-mono',
-              style: { whiteSpace: 'pre-wrap', fontSize: '14.5px', lineHeight: 1.7, color: T.text2, margin: 0 },
+              style: { whiteSpace: 'pre-wrap', fontSize: '14px', lineHeight: 1.7, color: T.text2, margin: 0 },
               children: hi
                 ? [text.slice(0, hi.start),
                    el('mark', { key: 'hl', className: 'nb-hl', children: text.slice(hi.start, hi.end) }),
@@ -1185,7 +1350,7 @@ function SourcePeek({ source, notebook, onClose, onAskAbout, onRefresh, onPrev, 
 
 /* --------------------------------------------------------------- studio panel */
 
-function StudioPanel({ kinds, notebook, busy, generate, filter, setFilter, onOpen, onDelete, onCollapse, onAddNote }) {
+function StudioPanel({ kinds, notebook, busy, generate, filter, setFilter, onOpen, onDelete, onCollapse, onAddNote, steps, onStopJob }) {
   const ready = latestByKind(notebook ? notebook.artifacts : [])
   const arts = (notebook && notebook.artifacts) || []
   const kindGroup = {}
@@ -1193,6 +1358,8 @@ function StudioPanel({ kinds, notebook, busy, generate, filter, setFilter, onOpe
   const shownArts = arts.filter((a) => filter === 'all' || kindGroup[a.kind] === filter)
   const scrollRef = useRef(null)
   const [canScroll, setCanScroll] = useState(false)
+  const readyCount = Object.keys(ready).length
+  const runningCount = Object.keys(busy || {}).length
 
   // A list taller than the panel is fine, but a row sliced at the panel edge
   // with no affordance reads as broken: measure, then show the fade.
@@ -1207,72 +1374,166 @@ function StudioPanel({ kinds, notebook, busy, generate, filter, setFilter, onOpe
     return () => { if (ro) ro.disconnect(); node.removeEventListener('scroll', check) }
   }, [shownArts.length, filter])
 
+  /* The workbench reads top to bottom in the order work actually happens:
+   * what can be made (grouped by what it makes), then what has been made.
+   * The old panel was one undifferentiated 2-col grid followed by a list, so
+   * "Video Overview" and "Data Table" sat at the same weight even though one
+   * is a 60-second render and the other is a spreadsheet. */
+  const groups = useMemo(() => {
+    // Work order, not alphabetical: listen first, then the picture outputs,
+    // then the reading set, then study. Visual leads with the three the panel
+    // names — map, poster, deck — blueprint last.
+    const order = ['media', 'visual', 'docs', 'study', 'other']
+    const label = { media: 'Listen & watch', visual: 'Visual', docs: 'Read', study: 'Study', other: 'More' }
+    const visualRank = { mind_map: 0, infographic: 1, slides: 2, blueprint_evolution: 3 }
+    const map = {}
+    for (const k of kinds) {
+      const g = k.group || 'other'
+      if (!map[g]) map[g] = []
+      map[g].push(k)
+    }
+    for (const g of Object.keys(map)) {
+      if (g === 'visual') map[g].sort((a, b) => (visualRank[a.id] ?? 9) - (visualRank[b.id] ?? 9))
+    }
+    return order.filter((g) => map[g] && map[g].length)
+      .map((g) => ({ id: g, label: label[g] || 'More', kinds: map[g] }))
+  }, [kinds])
+
+  const [openGroups, setOpenGroups] = useState({})
+  const isOpen = (id) => openGroups[id] !== false
+
+  /* The workbench's first half: every output kind, grouped by what it makes.
+   * A group header is a real button (aria-expanded) so a crowded panel can be
+   * folded down to the one family being worked in. */
+  const groupBlocks = groups.map((g) => el('div', { key: g.id, className: 'nb-group' },
+    el('button', {
+      type: 'button', className: 'nb-group-head',
+      'aria-expanded': isOpen(g.id) ? 'true' : 'false',
+      onClick: () => setOpenGroups((o) => ({ ...o, [g.id]: o[g.id] === false })),
+      children: [
+        jsx(Glyph, { name: GROUP_ICON[g.id] || 'grid', size: 13 }),
+        el('span', { className: 'nb-group-name', children: g.label }),
+        el('span', { className: 'nb-group-chev', 'aria-hidden': 'true',
+          children: jsx(Glyph, { name: 'chevron', size: 13 }) })
+      ]
+    }),
+    isOpen(g.id)
+      ? el('div', { className: 'nb-gen-grid' },
+          g.kinds.map((k) => jsx(GenPill, {
+            key: k.id, kind: k, art: ready[k.id], started: busy[k.id],
+            job: steps ? steps[`gen:${k.id}`] : null,
+            onStop: onStopJob ? () => onStopJob(`gen:${k.id}`) : null,
+            nbId: notebook && notebook.id,
+            onOpen: () => { const art = ready[k.id]; if (art) onOpen(art); else generate(k.id) },
+            onGenerate: (opts) => generate(k.id, opts)
+          })))
+      : null
+  ))
+
   return el('aside', { className: 'nb-col nb-studio', 'aria-label': 'Studio' },
-    el('div', { className: 'nb-pane-head' },
-      el('span', { className: 'nb-pane-title', children: 'Outputs' }),
-      el('span', {
-        className: 'nb-chip',
-        'data-tone': Object.keys(ready).length ? 'ok' : undefined,
-        children: `${Object.keys(ready).length} of ${kinds.length}`
-      }),
-      jsx(IconBtn, { icon: 'arrowRight', label: 'Hide studio panel', onClick: onCollapse })
+    el('div', { className: 'nb-pane-head nb-studio-head' },
+      el('span', { className: 'nb-pane-title', children: 'Make' }),
+      runningCount ? el('span', { className: 'nb-chip', 'data-tone': 'accent',
+        children: `${runningCount} writing` }) : null,
+      jsx(IconBtn, { icon: 'arrowRight', label: 'Hide the make panel (Ctrl+\\)', onClick: onCollapse })
     ),
-    el('div', { className: 'nb-pad', style: { paddingBottom: '8px' } },
-      el('div', { className: 'nb-gen-grid' },
-        kinds.map((k) => jsx(GenPill, {
-          key: k.id, kind: k, art: ready[k.id], started: busy[k.id],
-          nbId: notebook && notebook.id,
-          onOpen: () => { const a = ready[k.id]; if (a) onOpen(a); else generate(k.id) },
-          onGenerate: (opts) => generate(k.id, opts)
-        })))),
-    el('div', { className: 'nb-pad', style: { paddingTop: '12px', paddingBottom: 0, borderTop: `1px solid ${T.lineSoft}` } },
-      el('div', { style: { display: 'flex', alignItems: 'baseline', gap: '8px' } },
-        el('span', { className: 'nb-meta', children: `Runs · ${shownArts.length}` }),
+
+    el('div', { className: 'nb-studio-body nb-scroll', ref: scrollRef,
+      'data-scrollable': canScroll ? 'true' : 'false' },
+      // the pane already says "Make · n of m"; this row only earns its space
+      // when there is nothing to open yet
+      readyCount
+        ? null
+        : el('div', { className: 'nb-studio-sec' },
+            el('div', { className: 'nb-studio-sec-head' },
+              el('span', { className: 'nb-hint', children: 'Nothing made yet — pick an output below.' }))),
+      groupBlocks,
+      el('div', { className: 'nb-studio-sec-head nb-studio-runs' },
+        el('span', { className: 'nb-meta', children: 'Every run' }),
+        el('span', { className: 'nb-hint', children: `· ${shownArts.length}` }),
         el('span', { style: { flex: 1 } }),
-        el('span', { className: 'nb-meta', style: { color: T.text4 }, title: 'every run on disk', children: 'newest first' })),
-      el('div', { className: 'nb-chiprow' },
+        jsx(IconBtn, { icon: 'note', size: 14, label: 'Add a note as a source', onClick: onAddNote, disabled: !notebook }),
+        el('span', { className: 'nb-hint', title: 'every run on disk', children: 'newest first' })),
+      el('div', { className: 'nb-chiprow nb-studio-filters' },
         FILTERS.map((f) => jsx(Chip, {
           key: f.id, tone: filter === f.id ? 'accent' : undefined,
           pressed: filter === f.id,
           onClick: () => setFilter(f.id),
           title: `${f.label} artifacts`, children: f.label
-        })))),
-    el('div', { className: 'nb-scroll', ref: scrollRef, 'data-scrollable': canScroll ? 'true' : 'false' },
-      el('div', { className: 'nb-artlist', style: { padding: '4px 8px 72px' } },
+        }))),
+      el('div', { className: 'nb-artlist' },
         shownArts.length === 0
-          ? el('div', { className: 'nb-hint', style: { padding: '14px 8px', lineHeight: 1.5 } },
-              notebook && notebook.sources && notebook.sources.length
-                ? 'Nothing generated yet — pick an output above.'
-                : 'Add sources first — every artifact is built from them.')
-          : shownArts.map((a, i) => el('div', { key: a.key || a.primary || i, className: 'nb-artrow' },
-              el('button', {
-                type: 'button', className: 'nb-art',
-                'data-kind': a.kind,
-                onClick: () => onOpen(a),
-                'aria-label': `Open ${a.title || a.label || a.kind}`,
-                title: `${a.title || a.primary || a.label}${optsSummary(a.opts) ? ` — ${optsSummary(a.opts)}` : ''}`,
-                children: [
-                  el('span', { className: 'nb-art-ico', 'aria-hidden': 'true' },
-                    i < 12 ? jsx(ArtThumb, { run: a, nbId: notebook && notebook.id })
-                      : jsx(Glyph, { name: KIND_ICON[a.kind] || 'doc', size: 17 })),
-                  el('span', { className: 'nb-art-main' },
-                    el('span', { className: 'nb-art-title', children: a.title || a.label || a.kind }),
-                    el('span', { className: 'nb-art-sub',
-                      children: `${nfmt(a.bytes)} · ${ago(a.modified)}${a.opts && Object.keys(a.opts).length ? ' · tailored' : ''}` }))
-                ]
-              }, a.key || a.primary || i),
-              onDelete ? jsx(IconBtn, {
-                icon: 'trash', size: 13, className: 'nb-art-del',
-                label: `Delete ${a.label || a.kind} artifact`,
-                onClick: () => onDelete(a)
-              }) : null)))),
-    canScroll ? jsx('div', { className: 'nb-fade', 'aria-hidden': 'true' }) : null,
-    el('div', { className: 'nb-pad', style: { borderTop: `1px solid ${T.lineSoft}`, display: 'flex', justifyContent: 'center', paddingTop: '10px', paddingBottom: '12px' } },
-      jsx(Btn, { icon: 'note', onClick: onAddNote, disabled: !notebook, children: 'Add note' }))
+            ? el('div', { className: 'nb-empty-out' },
+                jsx(Glyph, { name: notebook && notebook.sources && notebook.sources.length ? 'sparkle' : 'layers', size: 18 }),
+                el('span', { children: notebook && notebook.sources && notebook.sources.length
+                  ? 'Nothing generated yet — pick an output above.'
+                  : 'Add sources first — every output is built from them.' }))
+            : shownArts.map((a, i) => el('div', { key: a.key || a.primary || i, className: 'nb-artrow' },
+                el('button', {
+                  type: 'button', className: 'nb-art',
+                  'data-kind': a.kind,
+                  onClick: () => onOpen(a),
+                  'aria-label': `Open ${a.title || a.label || a.kind}`,
+                  title: `${a.title || a.primary || a.label}${optsSummary(a.opts) ? ` — ${optsSummary(a.opts)}` : ''}`,
+                  'data-ready': 'true',
+                  children: [
+                    el('span', { className: 'nb-art-ico', 'aria-hidden': 'true' },
+                      i < 12 ? jsx(ArtThumb, { run: a, nbId: notebook && notebook.id })
+                        : jsx(Glyph, { name: KIND_ICON[a.kind] || 'doc', size: 17 })),
+                    el('span', { className: 'nb-art-main' },
+                      el('span', { className: 'nb-art-title', children: a.title || a.label || a.kind }),
+                      el('span', { className: 'nb-art-sub',
+                        children: `Ready · ${ago(a.modified)}${a.opts && Object.keys(a.opts).length ? ' · tailored' : ''}` })),
+                    // a finished run is distinguishable from a not-yet-made one at a
+                    // glance: green accent + an open affordance that appears on hover
+                    el('span', { className: 'nb-art-go', 'aria-hidden': 'true' },
+                      jsx(Glyph, { name: 'arrowRight', size: 14 }))
+                  ]
+                }, a.key || a.primary || i),
+                onDelete ? jsx(IconBtn, {
+                  icon: 'trash', size: 13, className: 'nb-art-del',
+                  label: `Delete ${a.label || a.kind} artifact`,
+                  onClick: () => onDelete(a)
+                }) : null))),
+      canScroll ? jsx('div', { className: 'nb-fade', 'aria-hidden': 'true' }) : null)
   )
 }
 
-function GenPill({ kind, art, started, nbId, onOpen, onGenerate }) {
+/* The look picker: eight hero looks as swatch chips, the rest of the catalog
+ * behind a "More looks" fold so the choice reads like a set, not a wall. */
+function LookPicker({ spec, value, onChange }) {
+  const [more, setMore] = useState(false)
+  const items = spec.items || []
+  const heroes = spec.heroes || []
+  const heroItems = items.filter((i) => heroes.includes(i.id))
+  const rest = items.filter((i) => !heroes.includes(i.id))
+  const chip = (it) => el('button', {
+    type: 'button', key: it.id,
+    className: 'nb-look', 'data-on': value === it.id ? 'true' : 'false',
+    onClick: () => onChange(it.id),
+    title: it.blurb || it.label,
+    'aria-pressed': value === it.id,
+    children: [
+      el('span', { className: 'nb-look-dots', 'aria-hidden': 'true' },
+        (it.swatch || []).slice(0, 4).map((c, i) =>
+          el('i', { key: i, style: { background: c } }))),
+      el('span', { className: 'nb-look-name', children: it.label })
+    ]
+  })
+  return el('div', { className: 'nb-looks' },
+    el('div', { className: 'nb-look-heroes' }, heroItems.map(chip)),
+    rest.length
+      ? el('button', {
+          type: 'button', className: 'nb-look-more',
+          onClick: () => setMore((o) => !o),
+          'aria-expanded': more,
+          children: more ? 'Fewer looks' : `More looks (${rest.length})`
+        })
+      : null,
+    more ? el('div', { className: 'nb-look-rest' }, rest.map(chip)) : null)
+}
+
+function GenPill({ kind, art, started, job, onStop, nbId, onOpen, onGenerate }) {
   const [, force] = useState(0)
   const [opts, setOpts] = useState({})
   const [cfgOpen, setCfgOpen] = useState(false)
@@ -1292,8 +1553,16 @@ function GenPill({ kind, art, started, nbId, onOpen, onGenerate }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [art && art.key])
   const secs = started ? Math.max(0, Math.round((Date.now() - started) / 1000)) : 0
-  const state = started ? `writing · ${secs}s` : art ? `ready · ${ago(art.modified)}` : 'Generate'
+  // one honest status line: the backend's real phase while it runs
+  // ('synthesising 7 of 24 segments'), else what the last run left behind
+  const live = started && job && job.state === 'running'
+    ? `${job.step === 'starting' ? 'starting' : job.step}${job.detail ? ` ${job.detail}` : ''}`
+    : null
+  const state = live || (started ? `writing · ${secs}s` : art ? `ready · ${ago(art.modified)}` : 'Generate')
   const pick = (id, v) => setOpts((o) => ({ ...o, [id]: v }))
+  /* Compact tile: icon, name, one status line. The tune knob only exists on
+   * hover/focus (CSS) — twelve tiles at 56px have to read as a list, not a
+   * dashboard of buttons. */
   return el('div', { className: 'nb-gen', 'data-kind': kind.id },
     el('button', {
       type: 'button', className: 'nb-card',
@@ -1301,39 +1570,58 @@ function GenPill({ kind, art, started, nbId, onOpen, onGenerate }) {
       'data-ready': art ? 'true' : 'false', 'data-busy': started ? 'true' : 'false',
       onClick: started ? undefined : (art ? onOpen : () => onGenerate(opts)),
       'aria-label': `${kind.label} — ${state}. ${art ? 'Open it' : 'Generate it'}`,
-      title: art ? `${kind.label} · ${art.primary}` : `Generate ${kind.label}`,
+      title: `${kind.label} — ${kind.blurb || 'generate it'}${art ? ` · ${art.primary}` : ''}`,
       children: [
         el('span', { className: 'nb-card-ico', 'aria-hidden': 'true' },
-          jsx(Glyph, { name: KIND_ICON[kind.id] || 'doc', size: 15 })),
+          jsx(Glyph, { name: KIND_ICON[kind.id] || 'doc', size: 16 })),
         el('span', { className: 'nb-card-main' },
           el('span', { className: 'nb-card-name', children: kind.label }),
-          el('span', { className: 'nb-card-state' },
+          el('span', { className: 'nb-card-state', 'data-kind': started ? 'busy' : art ? 'ready' : 'idle' },
             el('span', {
               className: 'nb-dot',
               style: { background: started ? 'var(--kc)' : art ? T.ok : undefined }
             }),
-            started ? `${secs}s` : art ? ago(art.modified) : 'generate'),
-          started
-            ? el('span', { className: 'nb-bar-track', style: { marginTop: '2px' } },
-                el('span', {
-                  className: 'nb-bar-fill',
-                  style: { width: `${Math.min(96, 12 + secs * 2.2)}%`, opacity: 0.9 }
-                }))
-            : null)
+            state)),
+        started
+          ? el('span', { className: 'nb-bar-track nb-card-bar' },
+              el('span', {
+                className: 'nb-bar-fill',
+                style: { width: `${Math.min(96, 12 + secs * 2.2)}%`, opacity: 0.9 }
+              }))
+          : null
       ]
     }),
+    started && onStop
+      ? jsx(IconBtn, {
+          icon: 'close', label: `Stop ${kind.label}`, size: 13,
+          className: 'nb-gen-stop',
+          onClick: onStop
+        })
+      : null,
     optSpecs.length
       ? jsx(IconBtn, {
-          icon: 'sliders', label: `${kind.label} options`,
+          icon: 'sliders', label: `Options for ${kind.label}`,
           className: 'nb-gen-cfg', active: cfgOpen,
           onClick: () => setCfgOpen((o) => !o)
         })
       : null,
+    // Options live in a DIALOG, not in an absolutely-positioned popover.
+    // The popover measured 394x354 inside a card and covered six cards below it —
+    // "form fields rendering on top of the artifact tiles", which is exactly what
+    // it was. A modal has its own layer, its own scroll and a close button.
     cfgOpen && optSpecs.length
-      ? el('div', { className: 'nb-genpop', role: 'dialog', 'aria-label': `${kind.label} options` },
+      ? jsx(Dialog, {
+          open: true, title: `${kind.label} options`,
+          onClose: () => setCfgOpen(false), width: 460,
+          children: el('div', { style: { display: 'grid', gap: '14px' } },
           optSpecs.map((spec) => el('div', { key: spec.id, className: 'nb-genopt' },
             el('div', { className: 'nb-genopt-label', children: spec.label }),
-            spec.kind === 'text'
+            spec.kind === 'select' && spec.heroes
+              ? jsx(LookPicker, {
+                  spec, value: opts[spec.id] || spec.default || (spec.choices || [])[0],
+                  onChange: (v) => pick(spec.id, v)
+                })
+              : spec.kind === 'text'
               ? el('input', {
                   className: 'nb-genopt-text', type: 'text',
                   placeholder: spec.placeholder || '',
@@ -1341,10 +1629,16 @@ function GenPill({ kind, art, started, nbId, onOpen, onGenerate }) {
                   onChange: (e) => pick(spec.id, e.target.value)
                 })
               : el(Seg, {
-                  value: opts[spec.id] || spec.choices[0],
+                  // The backend may name a choice ('Vector · exact'). Title-casing
+                  // the id is the fallback, not the rule: an engine called
+                  // 'imagen_blueprint' should not read as 'Imagen Blueprint' to
+                  // someone deciding whether to spend money on a render.
+                  value: opts[spec.id] || spec.default || spec.choices[0],
                   onChange: (v) => pick(spec.id, v),
                   options: spec.choices.map((c) => ({
-                    id: c, label: c.replace(/_/g, ' ').replace(/\b\w/g, (ch) => ch.toUpperCase())
+                    id: c,
+                    label: (spec.labels && spec.labels[c]) ||
+                      c.replace(/_/g, ' ').replace(/\b\w/g, (ch) => ch.toUpperCase())
                   }))
                 }))),
           kind.id === 'video_overview' && nbId
@@ -1375,7 +1669,16 @@ function GenPill({ kind, art, started, nbId, onOpen, onGenerate }) {
                       children: `Render with these notes (${(notes.beats || []).length} beats)`
                     })
                   : null)
-            : null)
+            : null,
+          // one obvious way out that also does the thing
+          el('div', { style: { display: 'flex', justifyContent: 'flex-end', gap: '8px' } },
+            jsx(Btn, { onClick: () => setCfgOpen(false), children: 'Cancel' }),
+            jsx(Btn, {
+              variant: 'primary', disabled: started,
+              onClick: () => { setCfgOpen(false); onGenerate(opts) },
+              children: started ? 'Making…' : `Make ${kind.label}`
+            })))
+        })
       : null,
     notes
       ? jsx(Dialog, {
@@ -1390,7 +1693,7 @@ function GenPill({ kind, art, started, nbId, onOpen, onGenerate }) {
                     border: `1px solid ${T.lineSoft}`, borderRadius: '12px', padding: '10px 12px'
                   }
                 },
-                  el('div', { style: { fontSize: '12px', fontWeight: 650, color: T.accent, marginBottom: '4px' },
+                  el('div', { style: { fontSize: '12.5px', fontWeight: 650, color: T.accent, marginBottom: '4px' },
                     children: `${String(i + 1).padStart(2, '0')} · ${b.headline || 'beat'}` }),
                   el('div', { style: { fontSize: '13px', color: T.text2, lineHeight: 1.5 }, children: b.text }))))
         })
@@ -1449,60 +1752,74 @@ function WaveThumb({ seed }) {
 
 /* -------------------------------------------------------------- status bar */
 
-function StatusBar({ mode, notebook, data, note, opsStats }) {
+function StatusBar({ mode, notebook, data, note, noteAct, indep }) {
   const ready = data && data.model_ready
-  const ops = mode === 'ops'
   const home = mode === 'home'
   const notebooks = (data && data.notebooks) || []
   return el('footer', { className: 'nb-status', role: 'contentinfo' },
-    ops
+    home
       ? el('span', null,
-          jsx('span', {
-            className: 'nb-sdot',
-            style: { background: opsStats && opsStats.down ? T.warn : T.ok }
-          }),
-          opsStats
-            ? `${opsStats.hosts} hosts · ${opsStats.patched} patched · ${opsStats.exposed} fix available · ${opsStats.down} unreachable`
-            : 'measuring the fleet…')
-      : home
-        ? el('span', null,
-            jsx('span', { className: 'nb-sdot', style: { background: ready ? T.ok : T.warn } }),
-            `${notebooks.length} notebook${notebooks.length === 1 ? '' : 's'} · `,
-            ready ? 'model ready' : 'model offline')
-        : el('span', null,
-            jsx('span', { className: 'nb-sdot', style: { background: ready ? T.ok : T.warn } }),
-            ready ? 'model ready · answering only from your sources' : 'model offline — enable the plugin'),
-    !ops && !home && notebook
-      ? el('span', null, jsx('b', { children: notebook.stats.sources }), ' sources · ',
-          jsx('b', { children: nfmt(notebook.stats.chars) }), ' chars · ',
+          jsx('span', { className: 'nb-sdot', style: { background: ready ? T.ok : T.warn } }),
+          `${notebooks.length} notebook${notebooks.length === 1 ? '' : 's'} · `,
+          ready ? 'model ready' : 'model offline')
+      : el('span', null,
+          jsx('span', { className: 'nb-sdot', style: { background: ready ? T.ok : T.warn } }),
+          ready ? 'model ready · answering only from your sources' : 'model offline — enable the plugin'),
+    !home && notebook
+      ? el('span', null, jsx('b', { children: notebook.stats.sources }), ' sources',
+          indep && indep.measured && indep.independent !== undefined
+            ? ` · ${indep.independent} independent`
+            : '',
+          ' · ', jsx('b', { children: nfmt(notebook.stats.chars) }), ' chars · ',
           jsx('b', { children: notebook.stats.labels }), ' labels')
       : null,
-    !ops && !home && notebook && notebook.stats.unlabeled
+    !home && notebook && notebook.stats.unlabeled
       ? jsx('span', {
           style: { color: T.warn },
           children: `${notebook.stats.unlabeled} source${notebook.stats.unlabeled === 1 ? '' : 's'} unlabeled — press “label” on the rail`
         })
       : null,
-    note ? jsx('span', { style: { color: T.accent }, children: note }) : null,
+    // Every action's outcome ("copied", "downloaded", "could not rename") lands
+    // here. It was a visual-only sentence: a screen-reader user pressed Copy and
+    // heard nothing at all. role=status + aria-live makes the reply audible
+    // without stealing focus.
+    note
+      ? el('span', { role: 'status', 'aria-live': 'polite', style: { color: T.accent, display: 'inline-flex', alignItems: 'center', gap: '8px' }, children: [
+          note,
+          noteAct && noteAct.run
+            ? el('button', {
+                type: 'button',
+                style: {
+                  border: `1px solid color-mix(in srgb, ${T.accent} 45%, transparent)`,
+                  background: 'transparent', color: T.accent, borderRadius: '99px',
+                  padding: '1px 10px', fontSize: 'inherit', fontWeight: 650,
+                  fontFamily: 'inherit', cursor: 'pointer'
+                },
+                onClick: () => noteAct.run(),
+                children: noteAct.label || 'Undo'
+              })
+            : null
+        ].filter(Boolean) })
+      : null,
     el('span', { style: { flex: 1 } }),
-    jsx('span', { className: 'nb-mono', style: { fontSize: '11.5px' },
-      children: ops ? 'ssh · audited transport' : (notebook ? notebook.id : 'no notebook') }),
-    data && !ops ? jsx('span', { className: 'nb-mono', style: { fontSize: '11.5px' },
+    jsx('span', { className: 'nb-mono', style: { fontSize: '12px' },
+      children: notebook ? notebook.id : 'no notebook' }),
+    data ? jsx('span', { className: 'nb-mono', style: { fontSize: '12px' },
       children: `synced ${clock(data.generated_at)}` }) : null
   )
 }
 
 /* ---------------------------------------------------------------- dialogs */
 
-const SOURCE_MODES = [
-  { id: 'find', label: 'Find for me', icon: 'sparkle' },
-  { id: 'url', label: 'Web URL', icon: 'link' },
-  { id: 'path', label: 'File path', icon: 'file' },
-  { id: 'text', label: 'Paste text', icon: 'note' }
-]
-
 const hostOf = (url) => {
   try { return new URL(url).hostname.replace(/^www\./, '') } catch { return '' }
+}
+
+const fmtSize = (n) => {
+  if (!n && n !== 0) return ''
+  if (n < 1024) return `${n} B`
+  if (n < 1048576) return `${Math.round(n / 1024)} KB`
+  return `${(n / 1048576).toFixed(1)} MB`
 }
 
 /* notebook-wide passage search — deterministic BM25 over every source,
@@ -1627,12 +1944,24 @@ function SearchDialog({ open, onClose, notebook, onPick }) {
   })
 }
 
-function AddSourceDialog({ open, onClose, notebook, onDone, initialMode, seedQuery, noteOnly }) {
-  const [mode, setMode] = useState(noteOnly ? 'note' : (initialMode || 'find'))
-  const [value, setValue] = useState('')
+const SRC_TABS = [
+  { id: 'files', label: 'Files', icon: 'folder' },
+  { id: 'link', label: 'Link', icon: 'link' },
+  { id: 'text', label: 'Text', icon: 'note' },
+  { id: 'find', label: 'Find on the web', icon: 'sparkle' }
+]
+const TAB_FROM_MODE = { find: 'find', url: 'link', path: 'files', text: 'text', note: 'text' }
+
+function AddSourceDialog({ open, onClose, notebook, onDone, initialMode, seedQuery, noteOnly,
+                          steps, onCancelJob, onPending, onLanded }) {
+  const [tab, setTab] = useState('find')
+  const [value, setValue] = useState('')     // text tab: the paste
+  const [links, setLinks] = useState('')     // link tab: one url per line
   const [title, setTitle] = useState('')
+  const [files, setFiles] = useState([])     // staged File objects
   const [busy, setBusy] = useState(false)
   const [err, setErr] = useState('')
+  const [dragHot, setDragHot] = useState(false)
   // the find flow: describe -> candidates -> pick -> batch ingest -> summary
   const [cands, setCands] = useState(null)
   const [sel, setSel] = useState({})
@@ -1640,43 +1969,57 @@ function AddSourceDialog({ open, onClose, notebook, onDone, initialMode, seedQue
   const [added, setAdded] = useState(null)
   const wasOpen = useRef(false)
   const fileRef = useRef(null)
+  const dirRef = useRef(null)
 
-  // real file pick: Electron exposes .path (ingest the file itself); anywhere
-  // else small text-ish files are read and sent as pasted text
-  const onFile = async (e) => {
-    const f = e.target.files && e.target.files[0]
-    e.target.value = ''
-    if (!f || !notebook || busy) return
-    setBusy(true); setErr('')
-    try {
-      let body
-      if (f.path) {
-        body = { notebook: notebook.id, path: f.path, title: f.name }
-      } else if (f.size <= 1500000) {
-        body = { notebook: notebook.id, text: await f.text(), title: f.name }
-      } else {
-        setErr('That file is too large to read here — switch to File path and give its location.')
-        return
+  const ingestJob = steps && steps.ingest && steps.ingest.state === 'running' ? steps.ingest : null
+  const discoverJob = steps && steps.discover && steps.discover.state === 'running' ? steps.discover : null
+  const jobLine = (job) => job
+    ? `${job.step === 'starting' ? 'starting' : job.step}${job.detail ? ` ${job.detail}` : ''}`
+    : null
+
+  // stage picked/dropped files — deduped by name+size, order kept
+  const stageFiles = (list) => {
+    const arr = Array.from(list || [])
+    if (!arr.length) return
+    setFiles((cur) => {
+      const seen = new Set(cur.map((f) => `${f.name}:${f.size}`))
+      const next = [...cur]
+      for (const f of arr) {
+        const k = `${f.name}:${f.size}`
+        if (!seen.has(k)) { seen.add(k); next.push(f) }
       }
-      const out = await api('/source', { method: 'POST', body, timeoutMs: 120000 })
-      await onDone(out.source && out.source.title ? `added ${out.source.title}` : 'file added')
-    } catch (err2) {
-      setErr(err2.message || String(err2))
-    } finally {
-      setBusy(false)
-    }
+      return next
+    })
+  }
+  const onPickFiles = (e) => { stageFiles(e.target.files); e.target.value = '' }
+  const onPickDir = (e) => { stageFiles(e.target.files); e.target.value = '' }
+
+  // one source through POST /source; reports the pending rail row, reloads
+  // quietly when it lands so the list streams in row by row
+  const addOne = async (body, pendingTitle) => {
+    if (onPending) onPending({ title: pendingTitle })
+    const out = await api('/source', {
+      method: 'POST', body: { notebook: notebook.id, ...body }, timeoutMs: 180000
+    })
+    if (onLanded) onLanded()
+    if (onPending) onPending(null)
+    if (out && out.cancelled) return { cancelled: true }
+    const src = out && out.source
+    return { id: src && src.source_id ? src.source_id : null,
+             title: (src && src.title) || pendingTitle }
   }
 
   // fresh state on every open; the find box starts from the caller's seed (a
   // source gap, a describe prompt) or the notebook's own topic
   useEffect(() => {
     if (open && !wasOpen.current) {
-      setMode(noteOnly ? 'note' : (initialMode || 'find')); setValue(''); setTitle(''); setErr('')
+      setTab(noteOnly ? 'text' : (TAB_FROM_MODE[initialMode] || 'find'))
+      setValue(''); setLinks(''); setTitle(''); setFiles([]); setErr('')
       setCands(null); setSel({}); setAdded(null)
-      setBusy(false); setAdding(false)
+      setBusy(false); setAdding(false); setDragHot(false)
       const seed = (seedQuery || '').trim()
-      if (seed) { setValue(seed); return }
-      if (notebook && !noteOnly) {
+      if (seed) { setValue(seed); setTab('find') }
+      else if (notebook && !noteOnly) {
         const t = `${notebook.title || ''}${notebook.description ? ` — ${notebook.description}` : ''}`.trim()
         if (t) setValue(t)
       }
@@ -1684,8 +2027,8 @@ function AddSourceDialog({ open, onClose, notebook, onDone, initialMode, seedQue
     wasOpen.current = open
   }, [open, notebook, initialMode, seedQuery, noteOnly])
 
-  const pickMode = (m) => {
-    setMode(m)
+  const pickTab = (m) => {
+    setTab(m)
     if (m !== 'find') { setCands(null); setAdded(null); setErr('') }
   }
 
@@ -1699,6 +2042,11 @@ function AddSourceDialog({ open, onClose, notebook, onDone, initialMode, seedQue
         body: { notebook: notebook.id, query: q, max_results: 8 },
         timeoutMs: 90000
       })
+      if (out && out.cancelled) {
+        setCands(null)
+        setErr('stopped — nothing was added')
+        return
+      }
       const list = out.candidates || []
       setCands(list)
       const all = {}
@@ -1721,6 +2069,9 @@ function AddSourceDialog({ open, onClose, notebook, onDone, initialMode, seedQue
       const out = await api('/sources', {
         method: 'POST', body: { notebook: notebook.id, urls }, timeoutMs: 300000
       })
+      if (out && out.cancelled) {
+        setErr('stopped — the sources that already landed were kept')
+      }
       setAdded(out)
     } catch (e) {
       setErr(e.message || String(e))
@@ -1729,26 +2080,89 @@ function AddSourceDialog({ open, onClose, notebook, onDone, initialMode, seedQue
     }
   }
 
-  const submit = async () => {
-    if (!value.trim() || busy || !notebook) return
+  // sequential single-source adds for the Files / Link / Text tabs — each one
+  // reloads quietly so the rail streams the row in as it lands, and the ids
+  // collected feed the Undo toast
+  const runAdds = async (items, label) => {
+    // items: [{body, pending, skip?}]
+    if (!items.length || busy || !notebook) return
     setBusy(true); setErr('')
-    try {
-      const body = { notebook: notebook.id, [mode]: value.trim() }
-      if (title.trim()) body.title = title.trim()
-      const out = await api('/source', { method: 'POST', body, timeoutMs: 120000 })
-      setValue(''); setTitle('')
-      await onDone(out.source && out.source.title ? `added ${out.source.title}` : 'source added')
-    } catch (e) {
-      setErr(e.message || String(e))
-    } finally {
-      setBusy(false)
+    const ids = []
+    let landed = 0
+    const problems = []
+    for (const it of items) {
+      if (it.skip) { problems.push(it.skip); continue }
+      try {
+        const r = await addOne(it.body, it.pending)
+        if (r.cancelled) {
+          problems.push('stopped — what already landed was kept')
+          break
+        }
+        landed += 1
+        if (r.id) ids.push(r.id)
+      } catch (e) {
+        problems.push(`${it.pending} — ${e.message || e}`)
+      }
     }
+    if (onPending) onPending(null)
+    setBusy(false)
+    const skipped = items.length - landed - problems.filter((p) => p.startsWith('stopped')).length
+    await onDone(
+      problems.length
+        ? `${landed} added · ${problems.length} skipped`
+        : `added ${landed} ${label}${landed === 1 ? '' : 's'}`,
+      { addedIds: ids, addedCount: landed, skipped: Math.max(0, skipped) })
   }
 
+  const addFiles = () => {
+    const items = []
+    for (const f of files) {
+      if (f.path) items.push({ body: { path: f.path, title: f.name }, pending: f.name })
+      else if (f.size <= 1500000) {
+        items.push({
+          body: null, pending: f.name, file: f,
+          read: async () => ({ text: await f.text(), title: f.name })
+        })
+      } else items.push({ pending: f.name, skip: `${f.name} — too large to read here (max ~1.5 MB)` })
+    }
+    // text bodies need an async read first — resolve them before the loop
+    Promise.all(items.map(async (it) => {
+      if (it.read) it.body = await it.read()
+      return it
+    })).then((ready) => runAdds(ready.filter((it) => it.body || it.skip), 'file'))
+      .catch((e) => { setErr(e.message || String(e)); setBusy(false) })
+  }
+
+  const linkItems = () => {
+    const seen = new Set()
+    const urls = []
+    for (const line of links.split('\n')) {
+      const u = line.trim()
+      if (!u || seen.has(u)) continue
+      seen.add(u); urls.push(u)
+      if (urls.length >= 10) break
+    }
+    return urls.map((u) => ({
+      body: { url: u }, pending: hostOf(u) || u
+    }))
+  }
+
+  const addLinks = () => runAdds(linkItems(), 'link')
+
+  const addText = () => runAdds([{
+    body: { text: value.trim(), ...(title.trim() ? { title: title.trim() } : {}) },
+    pending: title.trim() || 'pasted text'
+  }], 'source')
+
   const pickedCount = (cands || []).filter((c) => sel[c.url]).length
-  const finish = () => onDone(added && added.added
-    ? `added ${added.added} source${added.added === 1 ? '' : 's'}${added.duplicates ? ` · ${added.duplicates} already here` : ''}`
-    : null)
+  const finish = () => {
+    const ids = (added && added.results || [])
+      .filter((r) => r.ok && !r.duplicate && r.source_id).map((r) => r.source_id)
+    onDone(added && added.added
+      ? `added ${added.added} source${added.added === 1 ? '' : 's'}${added.duplicates ? ` · ${added.duplicates} already here` : ''}`
+      : null,
+      { addedIds: ids, addedCount: added ? added.added : 0 })
+  }
 
   const findBody = () => {
     if (added) {
@@ -1841,9 +2255,11 @@ function AddSourceDialog({ open, onClose, notebook, onDone, initialMode, seedQue
     try {
       const body = { notebook: notebook.id, text: value.trim() }
       if (title.trim()) body.title = title.trim()
-      await api('/note', { method: 'POST', body, timeoutMs: 60000 })
+      const out = await api('/note', { method: 'POST', body, timeoutMs: 60000 })
       setValue(''); setTitle('')
-      await onDone('note saved — it is searchable now')
+      const sid = out && out.source && out.source.source_id
+      await onDone('note saved — it is searchable now',
+        sid ? { addedIds: [sid], addedCount: 1 } : null)
     } catch (e) {
       setErr(e.message || String(e))
     } finally {
@@ -1852,7 +2268,7 @@ function AddSourceDialog({ open, onClose, notebook, onDone, initialMode, seedQue
   }
 
   const noteBody = () => el('div', null,
-    el('p', { style: { margin: '0 0 14px', color: T.text3, fontSize: '14.5px', lineHeight: 1.55 },
+    el('p', { style: { margin: '0 0 14px', color: T.text3, fontSize: '14px', lineHeight: 1.55 },
       children: 'A note becomes a first-class source — searchable, citable, and included in every answer and artifact.' }),
     el('div', { style: { display: 'grid', gap: '10px' } },
       el('textarea', {
@@ -1861,7 +2277,7 @@ function AddSourceDialog({ open, onClose, notebook, onDone, initialMode, seedQue
         'aria-label': 'Note text',
         style: {
           minHeight: '150px', borderRadius: '12px', border: `1px solid ${T.line}`,
-          background: T.cardDeep, color: T.text, padding: '12px', fontSize: '14.5px',
+          background: T.cardDeep, color: T.text, padding: '12px', fontSize: '14px',
           lineHeight: 1.55, resize: 'vertical', outline: 'none'
         }
       }),
@@ -1882,69 +2298,163 @@ function AddSourceDialog({ open, onClose, notebook, onDone, initialMode, seedQue
       }))
   )
 
+  const txtArea = {
+    minHeight: '150px', borderRadius: '12px', border: `1px solid ${T.line}`,
+    background: T.cardDeep, color: T.text, padding: '12px', fontSize: '14px',
+    lineHeight: 1.55, resize: 'vertical', outline: 'none', width: '100%',
+    fontFamily: 'inherit', boxSizing: 'border-box'
+  }
+  const errLine = err
+    ? el('div', { style: { color: T.danger, fontSize: '14px' }, children: err })
+    : null
+
+  const filesBody = () => el('div', { style: { display: 'grid', gap: '10px' } },
+    el('input', {
+      ref: fileRef, type: 'file', multiple: true, hidden: true, onChange: onPickFiles,
+      accept: '.pdf,.docx,.pptx,.xlsx,.epub,.ipynb,.txt,.md,.csv,.json,.png,.jpg,.jpeg,.webp,.mp3,.wav,.m4a,.mp4,.mov,.webm'
+    }),
+    el('input', { ref: dirRef, type: 'file', hidden: true, onChange: onPickDir, 'webkitdirectory': '' }),
+    el('div', {
+      className: 'nb-dropzone', 'data-hot': dragHot ? 'true' : 'false',
+      role: 'button', tabIndex: 0,
+      'aria-label': 'Drop files here, or use the buttons below to choose them',
+      onDragOver: (e) => { e.preventDefault(); setDragHot(true) },
+      onDragLeave: () => setDragHot(false),
+      onDrop: (e) => { e.preventDefault(); setDragHot(false); stageFiles(e.dataTransfer.files) },
+      onClick: () => fileRef.current && fileRef.current.click(),
+      onKeyDown: (e) => {
+        if (e.key === 'Enter' || e.key === ' ') {
+          e.preventDefault()
+          fileRef.current && fileRef.current.click()
+        }
+      },
+      children: [
+        jsx(Glyph, { name: 'folder', size: 22 }),
+        el('div', { style: { fontWeight: 600, fontSize: '14px' }, children: 'Drop files or a folder here' }),
+        el('div', { className: 'nb-hint',
+          children: 'PDF, Office docs, audio, images, video — read on this machine, nothing leaves it.' })
+      ]
+    }),
+    files.length
+      ? el('div', { className: 'nb-staged', role: 'list', 'aria-label': 'Files to add' },
+          files.map((f, i) => el('div', {
+            key: `${f.name}:${f.size}`, className: 'nb-staged-row', role: 'listitem',
+            children: [
+              jsx(Glyph, { name: 'file', size: 14 }),
+              el('span', { className: 'nb-staged-name', children: f.name }),
+              el('span', { className: 'nb-hint',
+                children: [f.path || '', fmtSize(f.size)].filter(Boolean).join(' · ') }),
+              jsx(IconBtn, {
+                icon: 'close', label: `Remove ${f.name}`, size: 13,
+                onClick: () => setFiles((cur) => cur.filter((_, j) => j !== i))
+              })
+            ]
+          })))
+      : null,
+    errLine,
+    el('div', { style: { display: 'flex', gap: '8px', justifyContent: 'flex-end', marginTop: '4px', alignItems: 'center' } },
+      jsx(Btn, { icon: 'file', onClick: () => fileRef.current && fileRef.current.click(), children: 'Choose files' }),
+      jsx(Btn, { icon: 'folder', onClick: () => dirRef.current && dirRef.current.click(), children: 'Choose folder' }),
+      el('span', { style: { flex: 1 } }),
+      jsx(Btn, { onClick: onClose, children: 'Cancel' }),
+      jsx(Btn, {
+        variant: 'primary', icon: 'plus', onClick: addFiles,
+        disabled: busy || !files.length || !notebook,
+        children: busy ? 'Adding…'
+          : files.length ? `Add ${files.length} file${files.length === 1 ? '' : 's'}` : 'Add files'
+      }))
+  )
+
+  const linkBody = () => {
+    const n = linkItems().length
+    return el('div', { style: { display: 'grid', gap: '10px' } },
+      el('textarea', {
+        className: 'nb-mono', value: links,
+        onChange: (e) => setLinks(e.target.value), autoFocus: true,
+        placeholder: 'https://example.com/article\nhttps://www.youtube.com/watch?v=…',
+        'aria-label': 'Source links — one URL or YouTube link per line',
+        style: { ...txtArea, minHeight: '140px' }
+      }),
+      el('div', { className: 'nb-hint', style: { padding: '0 2px' },
+        children: 'One URL or YouTube link per line — up to 10 go in at a time; duplicates are skipped.' }),
+      errLine,
+      el('div', { style: { display: 'flex', gap: '8px', justifyContent: 'flex-end', marginTop: '4px' } },
+        jsx(Btn, { onClick: onClose, children: 'Cancel' }),
+        jsx(Btn, {
+          variant: 'primary', icon: 'plus', onClick: addLinks,
+          disabled: busy || !n || !notebook,
+          children: busy ? 'Adding…' : n ? `Add ${n} link${n === 1 ? '' : 's'}` : 'Add links'
+        }))
+    )
+  }
+
+  const textBody = () => el('div', { style: { display: 'grid', gap: '10px' } },
+    el('div', { className: 'nb-field', style: { height: '40px' } },
+      jsx(Glyph, { name: 'note', size: 14 }),
+      el('input', {
+        value: title, onChange: (e) => setTitle(e.target.value),
+        placeholder: 'Title (optional — derived when left blank)',
+        'aria-label': 'Source title'
+      })),
+    el('textarea', {
+      className: 'nb-mono', value, onChange: (e) => setValue(e.target.value), autoFocus: true,
+      placeholder: 'Paste notes, a transcript, a spec…', 'aria-label': 'Pasted source text',
+      style: { ...txtArea, minHeight: '160px' }
+    }),
+    errLine,
+    el('div', { style: { display: 'flex', gap: '8px', justifyContent: 'flex-end', marginTop: '4px' } },
+      jsx(Btn, { onClick: onClose, children: 'Cancel' }),
+      jsx(Btn, {
+        variant: 'primary', icon: 'plus', onClick: addText,
+        disabled: busy || !value.trim() || !notebook,
+        children: busy ? 'Adding…' : 'Add source'
+      }))
+  )
+
+  // the live job line — the backend's real step while an ingest/discover runs,
+  // with a Stop that cancels cooperatively between steps
+  const jobNow = ingestJob || discoverJob
+  const jobNowLine = jobNow
+    ? el('div', {
+        className: 'nb-jobline', role: 'status', 'aria-live': 'polite',
+        style: { display: 'flex', alignItems: 'center', gap: '8px', marginTop: '12px' }
+      },
+        el('span', {
+          className: 'nb-dot', 'aria-hidden': 'true',
+          style: { background: T.accent, boxShadow: `0 0 8px ${T.accent}`, animation: 'nb-pulse 1.2s ease-in-out infinite' }
+        }),
+        el('span', {
+          style: { flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' },
+          children: jobLine(jobNow)
+        }),
+        onCancelJob
+          ? jsx(Btn, {
+              size: 'sm', onClick: () => onCancelJob(ingestJob ? 'ingest' : 'discover'),
+              children: 'Stop'
+            })
+          : null)
+    : null
+
   return jsx(Dialog, {
     open, onClose, title: noteOnly ? 'Add a note' : 'Add a source',
-    width: mode === 'find' && !noteOnly ? 620 : 520,
+    width: tab === 'find' ? 620 : 540,
     children: noteOnly
       ? noteBody()
       : el('div', null,
-      el('p', { style: { margin: '0 0 14px', color: T.text3, fontSize: '14.5px', lineHeight: 1.55 },
-        children: mode === 'find'
-          ? 'Describe what this notebook should know — Hermes searches the web and offers candidates. Nothing joins until you pick it.'
-          : 'A source is anything the notebook can cite: a URL, a file on this machine, or text you paste. It is extracted, labelled and indexed on the way in.' }),
-      jsx(Seg, { label: 'Source kind', value: mode, onChange: pickMode, options: SOURCE_MODES }),
-      el('div', { style: { marginTop: '14px' } },
-        mode === 'find'
-          ? findBody()
-          : el('div', null,
-              el('div', { style: { display: 'grid', gap: '10px' } },
-                mode === 'text'
-                  ? el('textarea', {
-                      className: 'nb-mono', value, onChange: (e) => setValue(e.target.value), autoFocus: true,
-                      placeholder: 'Paste notes, a transcript, a spec…', 'aria-label': 'Pasted source text',
-                      style: {
-                        minHeight: '160px', borderRadius: '10px', border: `1px solid ${T.line}`,
-                        background: T.cardDeep, color: T.text, padding: '12px', fontSize: '14px',
-                        lineHeight: 1.55, resize: 'vertical', outline: 'none'
-                      }
-                    })
-                  : el('div', { className: 'nb-field', style: { height: '40px' } },
-                      jsx(Glyph, { name: mode === 'url' ? 'link' : 'file', size: 14 }),
-                      el('input', {
-                        value, onChange: (e) => setValue(e.target.value), autoFocus: true,
-                        onKeyDown: (e) => { if (e.key === 'Enter') submit() },
-                        placeholder: mode === 'url' ? 'https://… or a YouTube link' : '/home/you/doc.pdf',
-                        'aria-label': mode === 'url' ? 'Source URL' : 'File path'
-                      })),
-                el('div', { className: 'nb-field', style: { height: '40px' } },
-                  jsx(Glyph, { name: 'note', size: 14 }),
-                  el('input', {
-                    value: title, onChange: (e) => setTitle(e.target.value),
-                    placeholder: 'Title (optional — derived when left blank)',
-                    'aria-label': 'Source title'
-                  }))
-              ),
-              err ? el('div', { style: { marginTop: '12px', color: T.danger, fontSize: '14px' }, children: err }) : null,
-              el('div', { style: { display: 'flex', gap: '8px', justifyContent: 'flex-end', marginTop: '16px', alignItems: 'center' } },
-                el('input', {
-                  ref: fileRef, type: 'file', hidden: true,
-                  onChange: onFile,
-                  accept: '.pdf,.docx,.pptx,.xlsx,.epub,.ipynb,.txt,.md,.csv,.json,.png,.jpg,.jpeg,.webp,.mp3,.wav,.m4a'
-                }),
-                jsx(Btn, {
-                  icon: 'folder', disabled: busy || !notebook,
-                  onClick: () => fileRef.current && fileRef.current.click(),
-                  children: 'Upload file'
-                }),
-                el('span', { style: { flex: 1 } }),
-                jsx(Btn, { onClick: onClose, children: 'Cancel' }),
-                jsx(Btn, {
-                  variant: 'primary', icon: 'plus', onClick: submit,
-                  disabled: busy || !value.trim() || !notebook,
-                  children: busy ? 'Ingesting…' : 'Add source'
-                })))
-      )
-    )
+          el('div', { className: 'nb-src-tabs', role: 'tablist', 'aria-label': 'Source type' },
+            SRC_TABS.map((t) => jsx('button', {
+              key: t.id, type: 'button', role: 'tab',
+              'aria-selected': tab === t.id ? 'true' : 'false',
+              className: 'nb-src-tab', 'data-on': tab === t.id ? 'true' : 'false',
+              onClick: () => pickTab(t.id),
+              children: [jsx(Glyph, { name: t.icon, size: 14 }), t.label]
+            }))),
+          jobNowLine,
+          el('div', { style: { marginTop: '14px' } },
+            tab === 'files' ? filesBody()
+              : tab === 'link' ? linkBody()
+                : tab === 'text' ? textBody()
+                  : findBody()))
   })
 }
 
@@ -1981,7 +2491,7 @@ function NewNotebookDialog({ open, onClose, onDone }) {
           'aria-label': 'Notebook description',
           style: {
             minHeight: '80px', borderRadius: '10px', border: `1px solid ${T.line}`,
-            background: T.cardDeep, color: T.text, padding: '12px', fontSize: '14.5px',
+            background: T.cardDeep, color: T.text, padding: '12px', fontSize: '14px',
             lineHeight: 1.5, resize: 'vertical', outline: 'none'
           }
         })),

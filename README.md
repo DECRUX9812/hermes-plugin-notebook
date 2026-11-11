@@ -2,167 +2,132 @@
 
 ![Hermes Notebook](assets/banner.png)
 
-**NotebookLM, rebuilt as a real product surface inside Hermes Desktop** — plus a
-lab deck in the same window. Sources go in; everything else is derived from them
-and cites them by number.
+A research studio inside Hermes Desktop. You give it sources. Everything it
+answers, writes or draws comes only from those sources — and shows you where it
+came from.
 
-Built for the 2026 Hermes Plugin Competition.
+Built for the 2026 Hermes Plugin Competition. MIT.
 
-## See it in action
+## See it
 
 ![Studio](assets/shot-01-studio.png)
-![Mind map](assets/shot-02-mindmap.png)
-![Audio overview](assets/shot-03-audio.png)
-![Video overview](assets/shot-04-video.png)
-![Flashcards](assets/shot-05-flashcards.png)
-![Lab Ops](assets/shot-06-lab-ops.png)
+![Tensions](assets/shot-02-tensions.png)
+![Infographic](assets/shot-03-infographic.png)
+![Audio overview](assets/shot-04-audio.png)
+![Study](assets/shot-05-study.png)
 
-## The desktop studio
+Every image is a real screenshot of this plugin. No mockups.
 
-Three columns, one status bar, everything reachable by keyboard:
+## What it does
 
-- **Sources rail** — notebooks on top, then this notebook's sources with the
-  model's own topic labels and one-line summaries. Search and label chips
-  narrow the list; every row carries its citation number (`S1`, `S2`, …).
-- **Grounded chat** — answers only from the sources, with inline `[S1]`
-  citations that open the source they point at. A question the sources do not
-  cover gets a sentence saying so, not a confident guess.
-- **Studio panel** — twelve outputs in four groups (Docs · Study · Media ·
-  Visual): Video Overview, Audio Overview, Summary, Briefing Doc, Study Guide,
-  FAQ, Timeline, Mind Map, Flashcards, Quiz, Slides, Infographic. Each card
-  shows the state it is really in (`ready · 12m ago`, `writing · 8s`,
-  `Generate`), and generation runs through the same `hermes_notebook.artifacts`
-  code the agent tools use — so the page and the chat can never disagree.
+**Add sources.** Files, PDFs, Office docs, EPUB, images, audio and video
+recordings, web pages, YouTube, pasted text — or find them on the web without
+leaving the page. Every source gets labelled and summarised on arrival; a
+duplicate is detected by content hash, not added twice.
 
-The viewers are the product, not a file list: a pannable/zoomable SVG mind map,
-a flip deck with `Again`/`Got it` grading that persists per card, a native slide
-deck driven by arrow keys, a real `<video>`/`<audio>` player (bytes are fetched
-through `ctx.rest` and handed to a blob URL, because a renderer cannot put the
-desktop grant on a media element), an audio waveform that seeks, and a
-transcript rendered from the generated text rather than raw markdown.
+**Ask, in as many conversations as you like.** Answers come only from the
+sources. Every claim carries a numbered citation — hover shows the passage it
+was built from, click opens the source itself. Many named threads per
+notebook, each with its own memory: "pricing" and "history" don't pollute each
+other. Citation numbers are stable — `S3` means the same source everywhere in
+the notebook.
 
-**Hermes-native by construction.** Every colour resolves through the app's theme
-variables (`--ui-text-primary`, `--ui-accent`, `--ui-stroke-secondary`, …) so the
-page follows light/dark and the user's accent. Contributions go through the
-current SDK (`ctx.register({ id, area, data, render })`) with a two-line
-detection shim so a host that only has the older `contribution()` still gets
-every area. 16px body type, ≥32px hit targets, an accessible name on every
-control, arrow-key tablists, a focus ring that resolves, and dialogs that trap
-focus, close on Escape and return focus to their opener.
+**See where they disagree.** Tensions reads all your sources and reports the
+conflicts — each side quoted and cited — plus how independent they really are:
+three syndicated copies of one story show up as three sources and one
+confirmation, not three. `8 sources · 7 independent` is a measured fact about
+your evidence, not a vibe.
 
-## Lab Ops (same plugin, second surface)
+**Make things.** Two-host audio overviews (deep dive, brief, critique,
+debate), narrated video overviews, mind maps, flashcards, quizzes, real
+`.pptx` slide decks, `.xlsx`/`.csv` data tables, briefing docs, timelines —
+and infographics that **check every figure they print against the source it
+cites**. A number that isn't in its cited source is left out, never typeset
+anyway; the Checked panel lists what was verified, re-cited and dropped.
 
-The `Studio | Lab Ops` switch at the top swaps the subject, not the design
-system: eight hosts measured live over the audited ssh transport (kernel, load,
-memory, disk, failed units, kernel patch posture), then a terminal, service
-control, a file browser and Proxmox VM snapshots for the selected host.
+**Study what you made.** Flashcards and quizzes aren't dead documents — the
+notebook schedules your next review (SM-2 spaced repetition) and the schedule
+survives regeneration.
 
-- Every row is a real probe; a host that cannot be reached says why (`connect to
-  host X port 22: timed out`) and offers no controls.
-- The terminal posts one command line; the backend builds the ssh argv, refuses
-  host-destroying commands without an explicit `confirm`, and returns the real
-  stdout and exit code.
-- Every action lands in an audit log the Audit tab renders.
-- The inventory is `dashboard/hosts.json` — edit or delete it if the shipped
-  fleet is not yours.
+**Work it from anywhere.** The Desktop studio, `/notebook` in chat,
+`hermes notebook …` on the command line, 19 tools for the agent itself, a
+bundled skill. Same store underneath — the page and the chat can never
+disagree.
 
-## What it does (agent half)
+## What it costs
 
-| NotebookLM feature | Hermes Notebook |
-|---|---|
-| Sources (files, PDFs, Office docs, web, YouTube) | `notebook_add_source` — path / URL / pasted text / images (vision-described) |
-| Chat with sources + citations | `notebook_ask` — BM25 retrieval, `[S1]`-style citations, **many named conversations per notebook** (`thread=`), each with its own memory |
-| Auto-labeling / source chips | Every source gets 2–5 topic labels + a one-line summary on ingest; duplicates detected by content hash |
-| Source search | `notebook_search` — ranked full-text hits with snippets across all sources and notes |
-| User notes | `notebook_note` — your annotations become first-class searchable sources |
-| Source lifecycle | `notebook_refresh` re-fetches url/file sources, `notebook_delete_source` removes one |
-| Suggestions | `notebook_suggest` — questions worth asking, artifacts worth making, source gaps (optional `kinds` filter) |
-| Artifacts | `notebook_generate` — summary, briefing doc, study guide, FAQ, timeline, **mind map**, flashcards (md or Anki CSV), quiz, **slide deck** (self-contained HTML), **infographic** (SVG: 38 looks × 9 layouts), data table (CSV) |
-| Audio Overview | `notebook_audio` — two-host conversational podcast (edge-tts voices + ffmpeg), with transcript |
-| Video Overview | `notebook_video` — cinematic narrated mp4, `style=cinematic|explainer`, Pillow cards + ffmpeg |
-| Web discovery | `notebook_discover` — web_search for candidate sources to add |
-| Notebook management | `notebook_update` rename/describe, `notebook_export` whole notebook as zip |
-| — desktop surface — | `/notebook` route, sidebar row, three palette commands, status-bar chip, `::notebook{name="…"}` transcript directive, settings page |
-| — Hermes extras — | `/notebook` slash command, `hermes notebook` CLI, bundled skill, auxiliary task slot, per-notebook persistent storage |
+Every answer shows its own receipt — `5 sources · 9.8k chars · 4.2s`, and real
+token counts when the model reports them. Chat keeps the last three exchanges
+verbatim and folds older ones into a rolling summary made by the cheap
+auxiliary model, so follow-ups don't re-send the whole notebook. Generation
+reuses a cached source digest until a source changes. `notebook_ask` is
+capped at 16k characters of context by default.
 
-## Conversations
+## When AI runs — and when it doesn't
 
-A notebook holds **many chat threads**, not one. Each keeps its own memory and its
-own title, so "pricing", "history" and "what changed in 2026" can be explored in
-parallel without one line of enquiry dragging the history of another into the
-answer. Every thread still cites the same sources.
+Nothing runs until you ask. Sources, questions and generations go to the model
+Hermes is already using — your model, whichever it is. The plugin was verified
+end-to-end on a small local model and a mid-size hosted one; cheap work
+(labels, summaries, suggestions) routes to the smaller `auxiliary.notebook`
+slot when one is configured. The model never typesets graphics: it fills
+structured JSON, deterministic code draws the charts — the same quality on any
+model, or a clear error, never a silent wrong figure.
 
-![Conversations](assets/threads.png)
+Find-on-the-web needs the host's `web_search` (or an EXA/TAVILY key). Audio
+and video need `ffmpeg` on PATH and network access for edge-tts. Scanned PDFs
+need OCR first; YouTube needs public captions.
 
-| | |
-|---|---|
-| In the page | the chat bar shows the open conversation; the title opens a dialog to switch, rename, start (`New chat`) or delete one |
-| New threads | titled automatically from their first question, or named up front |
-| Agent tools | `notebook_threads` — `list`, `new`, `rename`, `delete` (delete needs `confirm=true`) |
-| API | `GET /threads`, `POST /thread/new`, `POST /thread/rename`, `POST /thread/delete`, `GET /state?notebook=&thread=` |
-| Storage | `threads/<name>.json` per notebook — title, created, updated, messages; older message-list files still load |
-| Limits | 40 threads per notebook, 40 messages per thread (the oldest roll off) |
+## Privacy
 
-## Study
-
-Flashcards and quizzes are not dead documents. **Study** turns them into a session:
-the notebook's own cards, ordered by what is about to be forgotten, reveal → rate
-(again / hard / good / easy) → rescheduled, with a streak and mastery percentage kept
-on the server so the page, the CLI and an agent share one memory.
-
-- scheduler: SM-2 lite (`hermes_notebook/study.py`) — content-derived card ids, so
-  regenerating a deck keeps the schedule for the questions that survived
-- surface: a Study tab with keyboard control (`space` reveal, `1`–`4` rate), progress,
-  and a session summary instead of an empty card
-- agent: `notebook_study` — `action=queue|review|stats`
-
-## State machines
-
-Eleven explicit state machines (studio, jobs, turn, overview, suggest, search,
-discover, ingest, player, revoice, dialogs) replace the booleans that used to describe
-the same concerns. The fleet is readable by people (`history()`), by developers
-(`can()` is the disabled predicate) and by agents
-(`window.__nbMachines()`, `document.body.dataset.machines`).
-See [docs/STATE-MACHINES.md](docs/STATE-MACHINES.md).
-
-## Graphics library
-
-Every visual artifact is drawn by a reusable library, not one-off code:
-**38 looks × 9 templates × 3 shapes × 3 detail levels**, composed from primitives and
-emitted as SVG (5–15 KB, crisp at any zoom, real text, accessible).
-
-![38 looks](assets/infographic-styles.png)
-![templates](assets/graphics-templates.png)
-
-```python
-from hermes_notebook import gfx
-
-gfx.render(graphic, template="key_figure", preset="realistic",
-           orientation="portrait", detail="detailed")
-gfx.write_svg("cover.svg", graphic, template="cover", preset="cartoon")
-gfx.to_png(graphic, "poster.png", preset="blueprint", scale=2)   # needs a browser
+```
+Your Hermes Desktop → local notebook store (~/.hermes/plugin-data/hermes-notebook)
+                    → your Hermes model        (only when you ask)
+                    → the web, via Hermes web tools (only URLs/searches you trigger)
 ```
 
-```python
-notebook_generate(notebook="fusion-2026", kind="infographic",
-                  style="blueprint", template="comparison",
-                  orientation="landscape", detail="standard")
-```
+No telemetry, no accounts, no analytics. Data leaves your machine only to your
+model provider and to pages you explicitly fetch.
 
-| | |
-|---|---|
-| Looks | 16 type-led presets (`sections`, `editorial`, `swiss`, `magazine`, `bento`, `blueprint`, `terminal`, `neon`, `brutalist`, `retro`, `risograph`, `kraft`, `chalkboard`, `dashboard`, `mission`, `poster`) + **`cartoon`** and **`realistic`** illustrated treatments |
-| Layouts | `infographic`, `key_figure`, `stat_grid`, `timeline`, `comparison`, `process`, `quote_card`, `cover`, `illustration` |
-| Knobs | shape (landscape / square / portrait), detail (concise / standard / detailed), theme overrides |
-| Fidelity | exact text and numbers — the SVG carries the strings; no model re-typesets them |
-| Fallbacks | alt text + `<title>`/`<desc>`, Pillow raster when no browser, unknown style/template degrades to the default |
+## vs NotebookLM
 
-Architecture, API, the NotebookLM comparison, edge-case table and test strategy:
-[`docs/GRAPHICS-LIBRARY.md`](docs/GRAPHICS-LIBRARY.md).
-Choosing a look: [`skills/notebook-infographics`](skills/notebook-infographics/SKILL.md).
-Regenerate the sheets: `python3 tools/make_graphics_sheet.py --templates --examples`.
+| | NotebookLM | Hermes Notebook |
+|---|---|---|
+| Grounded answers + citations | inline chips | same, plus each chip carries the passage it was built from — hover shows it |
+| Where sources disagree | — | **Tensions**: quoted conflicts + measured independence ("8 sources, 7 independent") |
+| Infographics | image-model art, numbers baked in | **every figure verified against its cited source**; unsupported claims dropped and listed |
+| Audio | 4 formats | same 4 formats + transcript + seekable waveform |
+| Video | cinematic overviews | narrated mp4, cinematic/explainer |
+| Study | flashcards, quiz | + **spaced-repetition scheduling** (SM-2) |
+| Slides / tables | pptx / sheets | `.pptx`, `.xlsx`/`.csv` exports |
+| Reports | pdf/docx | — (planned) |
+| Where it runs | Google's app + models | **any Hermes surface, any model**, data on your machine |
+| What it costs you | plan limits | **per-answer receipt** + aux-model history compaction |
 
-## Install## Install
+## Recordings as sources
+
+Meetings, interviews, lectures and recorded demos are material people already
+have:
+
+- ffmpeg decodes to 16 kHz mono mp3 in 10-minute segments (only the ffmpeg
+  binary needed), and Groq `whisper-large-v3-turbo` transcribes each segment.
+- Key lookup, in order: `GROQ_API_KEY` env → `groq_api_key` plugin setting →
+  the `GROQ_API_KEY` line of `$HERMES_HOME/.env`.
+- The transcript *is* the source body — labelled, chunked, searchable and
+  citable like any other source.
+- Failures are sentences, never silence: no ffmpeg, no key, an HTTP body, or a
+  recording with no audible speech each say which one happened.
+
+## Honest limits
+
+- Retrieval is BM25 over chunks — right for tens of sources, not a vector
+  index over hundreds.
+- Audio ~1–3 min, video ~3–6 min per generation, per-segment TTS + ffmpeg.
+- Very large notebooks use head+tail digests for generation
+  (`podcast_context_chars`, default 42k).
+- Ask and Generate need the agent half enabled in the same profile — the page
+  says so plainly (503) instead of pretending.
+
+## Install
 
 ```bash
 hermes plugins install DECRUX9812/hermes-plugin-notebook
@@ -172,29 +137,14 @@ hermes plugins enable hermes-notebook   # the backend routes need this
 hermes gateway restart                  # plugin_api routes are imported once, at startup
 ```
 
-Then reload the desktop window (Ctrl/Cmd-R) and open **Notebook** in the sidebar,
-or ⌘K → *Notebook: open the studio*.
+Then reload the desktop window (Ctrl/Cmd-R) and open **Notebook** in the
+sidebar, or ⌘K → *Notebook: open the studio*.
 
-Requires Python deps declared in `plugin.yaml` (`pypdf`, `edge-tts`,
-`youtube-transcript-api`, `trafilatura`, `openpyxl`, `pillow`) — installed by the
-plugin manager. Audio/video overviews additionally need `ffmpeg` on PATH.
+Python deps are declared in `plugin.yaml` (`pypdf`, `edge-tts`,
+`youtube-transcript-api`, `trafilatura`, `openpyxl`, `pillow`) — installed by
+the plugin manager. Audio/video overviews additionally need `ffmpeg` on PATH.
 
-If the agent half is not registered in the running gateway the page still renders
-from `/api/plugins/hermes-notebook/state`, but Ask and Generate answer `503` with
-that sentence instead of pretending to work.
-
-## Demo flow (< 90 seconds)
-
-1. **0:00** Open **Notebook** — the studio: sources left, `12 of 12 ready` right.
-2. **0:08** Ask: *"Where does ITER assembly stand, and what is still unsolved?"*
-3. **0:14** Answer lands with `[S3] [S4] [S2] [S1]` — click `[S2]`; the source it cites opens.
-4. **0:26** Click **Mind Map** — pan, zoom, hover a branch for its detail.
-5. **0:38** Click **Audio Overview** — play, scrub the waveform, read the transcript.
-6. **0:52** Click **Flashcards** — flip a card, press *Got it*, watch `n known` move.
-7. **1:02** Switch to **Lab Ops** — the fleet; pick `pve`, run `uptime; df -h / | tail -1`, show the exit code.
-8. **1:18** Back to Studio, press **Generate** on a card you have not made yet and watch it turn `ready`.
-
-## Quickstart (chat + CLI)
+## Quickstart
 
 ```
 /notebook new Q3 Earnings Analysis
@@ -203,7 +153,9 @@ that sentence instead of pretending to work.
 /notebook ask q3-earnings-analysis what drove the margin expansion?
 ```
 
-Or just ask in chat: *"create a notebook called X and add these files, then make a study guide and a podcast about it"* — the bundled `notebook` skill teaches the agent the workflow.
+Or just ask in chat: *"create a notebook called X and add these files, then
+make a study guide and a podcast about it"* — the bundled `notebook` skill
+teaches the agent the workflow.
 
 CLI equivalents: `hermes notebook list|new|add|ask|generate|audio|video|suggest|search|note|update|rm-source|export|discover|delete`.
 
@@ -212,18 +164,21 @@ CLI equivalents: `hermes notebook list|new|add|ask|generate|audio|video|suggest|
 - `notebook_list` — notebooks, or sources inside one (`include_text` for full text)
 - `notebook_create` — new notebook
 - `notebook_add_source` — one source per call (`path` | `url` | `text`, plus optional `title`); skips exact duplicates
-- `notebook_ask` — grounded Q&A with citations; optional `source_ids` scope and `thread=` follow-up history
+- `notebook_ask` — grounded Q&A with citations; optional `source_ids` scope and `thread=` follow-up history; returns a `usage` receipt
 - `notebook_search` — ranked snippet search across the notebook
 - `notebook_note` — save a user note as a searchable source
 - `notebook_refresh` — re-fetch a url/file source in place (re-labels + re-summarizes)
 - `notebook_delete_source` — remove one source and its stored text
-- `notebook_generate` — artifacts to `<notebook>/artifacts/`; `format=csv` for Anki-importable flashcards
-- `notebook_audio` — mp3 + transcript + script JSON
+- `notebook_generate` — artifacts to `<notebook>/artifacts/`; `format=csv` for Anki-importable flashcards, `thread=<name>` to brief the artifact from a conversation, `language` to write it in another language
+- `notebook_audio` — mp3 + transcript + script JSON (4 formats, lengths, languages)
 - `notebook_video` — mp4 + transcript + script JSON; `style=cinematic|explainer`
 - `notebook_suggest` — next-step recommendations; optional `kinds` filter
 - `notebook_update` — rename a notebook / change its description
 - `notebook_export` — zip the notebook (sources, index, artifacts, chat) under `plugin-data/exports/`
-- `notebook_discover` — web_search candidate sources for a topic (does not add them)
+- `notebook_discover` — candidate sources for a topic; `deep=true` runs extra research rounds
+- `notebook_study` — spaced-repetition queue / review / stats over the notebook's own cards
+- `notebook_tensions` — cross-source disagreement audit + independence clusters
+- `notebook_threads` — list / new / rename / delete conversations (`delete` needs `confirm=true`)
 - `notebook_delete` — destructive, requires `confirm=true`
 
 ## Backend routes
@@ -233,16 +188,19 @@ Mounted at `/api/plugins/hermes-notebook/` and reached from the page with
 
 ```
 GET  /health                     liveness + data root + model readiness
-GET  /state?notebook=<id>        notebooks, sources, artifacts, thread, stats
+GET  /state?notebook=&thread=    notebooks, sources, artifacts, thread, stats
 POST /notebook                   { title, description }
 POST /source                     { notebook, path|url|text, title? }
-POST /ask                        { notebook, question, thread? } -> answer + citations
+POST /ask                        { notebook, question, thread? } -> answer + citations + usage
 POST /generate                   { notebook, kind, focus?, length? }
 POST /label                      { notebook, force? }
+POST /tensions                   { notebook, max_items?, language? } -> disagreement audit
 GET  /artifact?notebook=&name=&b64=1
-POST /search
-GET  /ops/fleet  /ops/services  /ops/files  /ops/file  /ops/snapshots  /ops/audit
-POST /ops/exec   /ops/action    /ops/service  /ops/snapshot
+GET  /artifact/pptx?notebook=&name=&b64=1   -> the deck as .pptx
+POST /discover                   { notebook, query?, deep?, rounds? } -> candidates
+POST /search                     { notebook, query }
+GET  /threads  ·  POST /thread/new|/thread/rename|/thread/delete
+GET  /progress/<jid>  ·  POST /cancel/<jid>   long jobs report and honour stop
 ```
 
 ## Configuration
@@ -252,26 +210,33 @@ Under `plugins.entries.hermes-notebook.settings` (or `hermes plugins config`):
 | key | default | meaning |
 |---|---|---|
 | `default_notebook` | `""` | notebook used when a call doesn't name one |
-| `ask_context_chars` | `28000` | context budget per `notebook_ask` |
+| `ask_context_chars` | `16000` | context budget per `notebook_ask` |
 | `podcast_context_chars` | `42000` | context budget for scripts/artifacts |
 | `podcast_length` | `medium` | default audio length (short ≈5m, medium ≈10m, long ≈18m) |
 | `video_length` | `medium` | default video length (short ≈2m, medium ≈4m, long ≈7m) |
 | `video_voice` / `video_voice_rate` | `en-US-AndrewNeural` / `-4%` | narrator voice + pace for videos |
 | `audio_tts_concurrency` | `4` | parallel TTS segment workers |
 | `audio_voice_host_a` / `audio_voice_host_b` | `en-US-AndrewNeural` / `en-US-EmmaNeural` | edge-tts voice names |
+| `groq_api_key` | `""` | Whisper key for recording transcription; falls back to `GROQ_API_KEY` / `$HERMES_HOME/.env` |
+| `discover_rounds` | `2` | research rounds a deep Discover pass may run (1–3) |
 
-Cheap calls (source labeling, suggestions) route through the plugin's own `auxiliary.notebook` task slot — pin a model there if you want labels on a smaller/faster model.
+Cheap calls (source labeling, suggestions, history compaction) route through
+the plugin's own `auxiliary.notebook` task slot — pin a model there if you
+want them on a smaller/faster model.
 
 ## Storage
 
-All state lives under `<hermes home>/plugin-data/hermes-notebook/notebooks/<id>/` — per-profile, survives plugin updates:
+All state lives under `<hermes home>/plugin-data/hermes-notebook/notebooks/<id>/` —
+per-profile, survives plugin updates:
 
 ```
 notebook.json          metadata (title, description, updated_at)
-threads/<name>.json    chat history per ask-thread
+threads/<name>.json    chat history per ask-thread (recent verbatim + rolling summary)
 sources/index.json     source records (id, title, kind [incl. "note"], labels, summary, hash, locator)
 sources/<id>.txt       extracted text
-artifacts/             generated .md / .html / .png / .csv / .json / .mp3 / .mp4 / .txt
+cache/                 source digests — reused until a source changes
+artifacts/             generated .md / .html / .svg / .png / .csv / .json / .mp3 / .mp4 / .txt
+tensions-cache.json    last audit + independence measurement
 ../exports/            notebook_export zips
 ```
 
@@ -280,54 +245,36 @@ artifacts/             generated .md / .html / .png / .csv / .json / .mp3 / .mp4
 [`docs/DESIGN-LORE.md`](docs/DESIGN-LORE.md) is the design story behind the UI —
 the reading-room metaphor, the palette, and the five laws any interface change
 must obey. Feed it to any model asked to design or generate surfaces here.
+Eleven explicit state machines drive the view (`docs/STATE-MACHINES.md`).
 
 ## Development
 
 ```bash
 python -m pytest tests/ -q          # agent half (no Hermes host needed)
-node build.mjs                      # src/*.js -> desktop/plugin.js + web/plugin.js
+node build.mjs                      # src/*.js -> desktop/plugin.js
 python3 tests/dump_state.py         # real payloads for the preview harness
 node tests/make-preview.mjs         # esbuild harness (SDK stubbed, React real)
 node tests/gates.mjs                # bundle-load + functional + a11y + layout
+node tests/design.test.mjs          # token scale + AA contrast, measured on the render
+node tests/machine.test.mjs         # view/overlay state machines
+node tests/parsers.test.mjs         # ingest parsers
+node tests/timeline.test.mjs        # timeline artifact
 node tests/shots-docs.mjs           # assets/shot-*.png + banner.png
 python3 tests/serve_api.py 8917     # throwaway FastAPI mount to curl the routes
 ```
 
-The demo seeders (`seed_demo.py`, `gen_artifacts.py`) need the Hermes package on the
-path and edge-tts/Pillow installed, or they fail with `No module named 'plugins'` and
-`audio overviews need the edge-tts package`:
-
-```bash
-PYTHONPATH=<hermes-agent checkout> HERMES_HOME=~/.hermes \
-  /path/to/venv/bin/python tests/seed_demo.py --notebook commercial-fusion-2026
-```
-
-`tests/gates.mjs` is the contract: the built bundle registers every area against
-both SDK generations, a ready card opens its viewer, asking renders an answer
-with citations, a citation opens its source, the label filter and search narrow
-the rail, the deck lists the whole fleet, every control has a name and a ≥32px
-target, body type is 16px, arrow keys move tablists, and nothing overflows at
-1440/1280/1180/1024/820.
+The demo seeders (`seed_demo.py`, `gen_artifacts.py`) need the Hermes package
+on the path and edge-tts/Pillow installed.
 
 Layout: `src/` — `00-head` (tokens, CSS, helpers), `10-ui` (icons, primitives,
-dialog focus), `15-md` (markdown), `20-data` (ctx.rest + hooks), `30-shell` (app
-bar, rail), `35-main` (chat, studio panel, status bar, dialogs), `40-viewers`
-(video, audio, mind map, flashcards, quiz, slides, infographic, timeline),
-`50-ops` (lab deck), `90-plugin` (registration, settings, directive). Agent half:
-`hermes_notebook/` — `runtime`, `store`, `extract`, `ingest`, `retrieve`,
-`llmio`, `artifacts`, `audio`, `video`, `schemas`, `tools`.
-
-## Honest limits
-
-- The demo notebook under `tests/` is assembled from six real public sources; its
-  model-written artifacts were authored by the agent because the CLI path to the
-  configured provider had no credits at build time. `tests/gen_artifacts.py`
-  regenerates them for real given a working model.
-- Lab Ops drives machines over ssh. It is a control surface: read the action
-  registry in `dashboard/ops_api.py` before pointing it at anything you care
-  about — and note it refuses to reboot the machine serving the page.
-- Retrieval is BM25 over chunks, not embeddings. Right for tens of sources; not a
-  vector index.
+dialog focus), `15-md` (markdown), `20-data` (ctx.rest + hooks), `30-shell`
+(app bar, rail), `35-main` (chat, studio panel, status bar, dialogs),
+`37-discover` (web candidate pickers), `38-tensions` + `38-study`,
+`40-viewers` (video, audio, mind map, flashcards, quiz, slides, infographic,
+timeline, doc views), `44-actions` (agent action cards),
+`90-plugin` (registration, settings, directive). Agent half:
+`hermes_notebook/` (`tools`, `agent`, `agent_tools`, `store`, `retrieve`,
+`artifacts`, `audio`, `video`, `study`, `tensions`, `verify`, `gfx/`).
 
 ## License
 

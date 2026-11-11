@@ -120,8 +120,13 @@ const KIND_ICON = {
   video_overview: 'video', audio_overview: 'audio', summary: 'summary',
   briefing_doc: 'doc', study_guide: 'study', faq: 'faq', timeline: 'timeline',
   mind_map: 'mindmap', flashcards: 'cards', quiz: 'quiz', slides: 'slides',
-  infographic: 'chart', data_table: 'grid'
+  infographic: 'chart', data_table: 'grid',
+  blueprint_evolution: 'blueprint'
 }
+
+/* Studio groups — the workbench sorts outputs by what they make, so its group
+ * headers need a glyph per family rather than one generic icon. */
+const GROUP_ICON = { media: 'play', docs: 'doc', study: 'cards', visual: 'image', other: 'grid' }
 
 const SRC_ICON = {
   url: 'globe', youtube: 'video', file: 'file', text: 'note', image: 'image',

@@ -1,5 +1,5 @@
 /* ------------------------------------------------------------------ surface
- * One route, one nav row, one status chip, three palette commands, a settings
+ * One route, one nav row, one status chip, two palette commands, a settings
  * page built from the app's own primitives, and a transcript directive so the
  * agent can hand the studio a notebook (`::notebook{name="…"}`).
  *
@@ -41,7 +41,7 @@ function StatusChip() {
     style: {
       display: 'inline-flex', alignItems: 'center', gap: '5px', minHeight: '24px',
       padding: '0 7px', border: 0, borderRadius: '7px', background: 'transparent', cursor: 'pointer',
-      color: 'var(--ui-text-tertiary)', fontSize: '11.5px',
+      color: 'var(--ui-text-tertiary)', fontSize: '12px',
       fontFamily: 'var(--ui-font-mono, ui-monospace, monospace)'
     },
     children: [
@@ -75,12 +75,12 @@ function SettingsPage() {
     rows.push(jsx(ListRow, {
       key: 'surface',
       title: 'Default surface',
-      description: 'Which half of the plugin opens first: the research studio, or the lab deck.',
+      description: 'Which half of the plugin opens first: the research studio, or the notebook list.',
       action: SegmentedControl
         ? jsx(SegmentedControl, {
-            value: surface,
+            value: surface === 'ops' ? 'studio' : surface,
             onChange: (v) => { setSurface(v); persist.set('mode', v) },
-            items: [{ value: 'studio', label: 'Studio' }, { value: 'ops', label: 'Lab Ops' }]
+            items: [{ value: 'studio', label: 'Studio' }, { value: 'home', label: 'Home' }]
           })
         : null
     }))
@@ -117,7 +117,7 @@ function SettingsPage() {
 
 const KINDS_FALLBACK = ['video_overview', 'audio_overview', 'summary', 'briefing_doc',
   'study_guide', 'faq', 'timeline', 'mind_map', 'flashcards', 'quiz', 'slides',
-  'infographic', 'data_table']
+  'infographic', 'data_table', 'blueprint_evolution']
 
 /** The agent can write `::notebook{name="Fusion 2026"}` in a reply. */
 function NotebookDirective({ attrs }) {
@@ -144,7 +144,7 @@ function NotebookDirective({ attrs }) {
 const plugin = {
   id: ID,
   name: 'Notebook',
-  description: 'Ground sources into cited answers and study artifacts, and drive the lab fleet from the same window.',
+  description: 'Ground sources into cited answers and study artifacts.',
   // On by default: the page is the product. A user's explicit toggle still wins.
   defaultEnabled: true,
   register(ctx) {
@@ -158,10 +158,6 @@ const plugin = {
       ['palette-studio', PALETTE_AREA, {
         id: 'notebook.open', label: 'Notebook: open the studio', keywords: ['notebook', 'studio', 'sources', 'research'],
         run: () => host.navigate(ROUTE)
-      }, undefined],
-      ['palette-ops', PALETTE_AREA, {
-        id: 'notebook.ops', label: 'Notebook: open the lab deck', keywords: ['lab', 'fleet', 'ops', 'homelab', 'servers'],
-        run: () => host.navigate(`${ROUTE}?surface=ops`)
       }, undefined],
       ['palette-ask', PALETTE_AREA, {
         id: 'notebook.ask', label: 'Notebook: ask the active notebook', keywords: ['ask', 'notebook', 'citation', 'grounded'],
@@ -190,7 +186,7 @@ const plugin = {
         ctx.registerSettingsPage({
           id: 'notebook.settings',
           title: 'Notebook',
-          description: 'Sources, studio outputs and the lab deck.',
+          description: 'Sources and studio outputs.',
           render: () => jsx(SettingsPage, {})
         })
       }

@@ -386,6 +386,11 @@ def list_artifacts(notebook_id: str) -> list[dict]:
     return out
 
 
+def artifact_dir(notebook_id: str) -> Path:
+    """The notebook's artifacts directory (whether or not it exists yet)."""
+    return _nb_dir(notebook_id) / "artifacts"
+
+
 def artifact_path(notebook_id: str, filename: str) -> Path:
     """Resolve an artifact filename inside the notebook's artifacts dir (no traversal)."""
     if "/" in filename or "\\" in filename or filename.startswith("."):
@@ -427,21 +432,24 @@ def _thread_name_of(path: Path) -> str:
 
 
 def _read_thread_file(path: Path) -> dict:
-    """(title, created, updated, messages) for one thread file, legacy or current."""
+    """(title, created, updated, summary, messages) for one thread file."""
     raw = _read_json(path, [])
     if isinstance(raw, dict):
         msgs = raw.get("messages") if isinstance(raw.get("messages"), list) else []
         return {"title": str(raw.get("title") or "").strip(),
                 "created": str(raw.get("created") or ""),
                 "updated": str(raw.get("updated") or raw.get("created") or ""),
+                "summary": str(raw.get("summary") or ""),
+                "summary_upto": int(raw.get("summary_upto") or 0),
                 "messages": [m for m in msgs if isinstance(m, dict)]}
     if isinstance(raw, list):
         msgs = [m for m in raw if isinstance(m, dict)]
         first_user = next((str(m.get("content") or "") for m in msgs
                            if m.get("role") == "user"), "")
         return {"title": _title_from(first_user), "created": "", "updated": "",
-                "messages": msgs}
-    return {"title": "", "created": "", "updated": "", "messages": []}
+                "summary": "", "summary_upto": 0, "messages": msgs}
+    return {"title": "", "created": "", "updated": "",
+            "summary": "", "summary_upto": 0, "messages": []}
 
 
 def _title_from(text: str, limit: int = 64) -> str:
@@ -459,6 +467,8 @@ def _write_thread_file(path: Path, doc: dict) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     _write_json(path, {"title": doc.get("title") or "", "created": doc.get("created") or "",
                        "updated": doc.get("updated") or _iso(_now()),
+                       "summary": str(doc.get("summary") or ""),
+                       "summary_upto": int(doc.get("summary_upto") or 0),
                        "messages": list(doc.get("messages") or [])[-_THREAD_CAP:]})
 
 
@@ -469,6 +479,31 @@ def thread_exists(notebook_id: str, name: str) -> bool:
 def get_thread(notebook_id: str, name: str = DEFAULT_THREAD) -> list[dict]:
     """Messages only — the shape the tools and older callers expect."""
     return _read_thread_file(_thread_path(notebook_id, name))["messages"]
+
+
+def thread_as_brief(notebook_id: str, name: str = DEFAULT_THREAD, limit: int = 9000) -> str:
+    """The tail of one conversation, rendered as a brief an artifact prompt can
+    use ("User: … / Assistant: …"), newest last. Empty when the thread does not
+    exist or has no content. This is what "turn this chat into a deck" feeds."""
+    name = (name or "").strip()
+    if not name:
+        return ""
+    try:
+        msgs = get_thread(notebook_id, name)
+    except Exception:
+        return ""
+    lines, used = [], 0
+    for m in reversed(msgs or []):
+        role = "User" if str(m.get("role")) == "user" else "Assistant"
+        body = " ".join(str(m.get("content") or "").split())
+        if not body:
+            continue
+        line = f"{role}: {body}"
+        if used + len(line) + 1 > limit:
+            break
+        lines.append(line)
+        used += len(line) + 1
+    return "\n".join(reversed(lines))
 
 
 def read_thread(notebook_id: str, name: str = DEFAULT_THREAD) -> dict:
@@ -504,6 +539,21 @@ def append_thread(notebook_id: str, name: str, role: str, content: str,
         doc["title"] = _title_from(content)
     _write_thread_file(path, doc)
     return doc["messages"]
+
+
+def set_thread_summary(notebook_id: str, name: str, summary: str,
+                       upto: int = 0) -> str:
+    """Persist the rolling "earlier in this conversation" summary. ``upto`` is
+    how many messages it covers, so the next update can tell how much new
+    history has rolled out of the verbatim window."""
+    nb_id = resolve_notebook(notebook_id)
+    path = _thread_path(nb_id, name)
+    doc = _read_thread_file(path)
+    doc["summary"] = str(summary or "")[:600]
+    doc["summary_upto"] = max(0, int(upto or 0))
+    doc["updated"] = _iso(_now())
+    _write_thread_file(path, doc)
+    return doc["summary"]
 
 
 def list_threads(notebook_id: str) -> list[dict]:
@@ -616,7 +666,8 @@ def clear_thread(notebook_id: str, name: str = DEFAULT_THREAD) -> dict:
 # -------------------------------------------------------------------- export
 
 def export_notebook(notebook_id: str, out_dir: Optional[Path] = None) -> dict:
-    """Zip the whole notebook dir (sources + artifacts + threads + meta)."""
+    """Zip the whole notebook dir (sources + artifacts + threads + meta).
+    ``cache/`` is derived state — it travels nowhere."""
     import zipfile
     nb_id = resolve_notebook(notebook_id)
     src_dir = _nb_dir(nb_id)
@@ -627,9 +678,12 @@ def export_notebook(notebook_id: str, out_dir: Optional[Path] = None) -> dict:
     n_files = 0
     with zipfile.ZipFile(zip_path, "w", zipfile.ZIP_DEFLATED) as zf:
         for p in sorted(src_dir.rglob("*")):
-            if p.is_file():
-                zf.write(p, p.relative_to(src_dir.parent))
-                n_files += 1
+            if not p.is_file():
+                continue
+            if "cache" in p.relative_to(src_dir).parts:
+                continue
+            zf.write(p, p.relative_to(src_dir.parent))
+            n_files += 1
     return {"zip": str(zip_path), "files": n_files,
             "size_bytes": zip_path.stat().st_size,
             "title": meta.get("title")}

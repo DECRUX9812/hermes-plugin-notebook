@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import re
 from typing import Any
 
 from . import artifacts, audio, ingest, llmio, retrieve, runtime, store, video
@@ -52,7 +53,7 @@ def notebook_create(args: dict, **kw) -> str:
     )
 
 
-def notebook_add_source(args: dict, **kw) -> str:
+def notebook_add_source(args: dict, on_step=None, **kw) -> str:
     nb_id = store.resolve_notebook(args.get("notebook") or "")
     rec = ingest.ingest(
         nb_id,
@@ -60,6 +61,7 @@ def notebook_add_source(args: dict, **kw) -> str:
         url=args.get("url"),
         text=args.get("text"),
         title=args.get("title"),
+        on_step=on_step,
     )
     if isinstance(rec, dict) and rec.get("skipped") == "duplicate":
         dup = rec.get("duplicate_of") or {}
@@ -158,6 +160,27 @@ def notebook_export(args: dict, **kw) -> str:
 
 
 def notebook_discover(args: dict, **kw) -> str:
+    if args.get("deep"):
+        # Deep Research: plan → fan out → read the results → ask different
+        # questions → merge and re-rank. Same candidates shape as the one-shot
+        # pass, plus `gaps` and the queries it used.
+        from . import discover as discover_mod
+        nb_id = store.resolve_notebook(args.get("notebook") or "")
+        out = discover_mod.discover(
+            nb_id,
+            query=str(args.get("query") or ""),
+            max_results=max(4, min(20, int(args.get("max_results") or 10))),
+            deep=True,
+            rounds=int(args["rounds"]) if str(args.get("rounds") or "").isdigit() else None,
+        )
+        payload = dict(
+            notebook=nb_id, query=out["query"], candidates=out["candidates"],
+            gaps=out["gaps"], queries=out["queries"], rounds=out["rounds"],
+            searched=out["searched"],
+            hint="Add one with notebook_add_source url=<url> — nothing was added automatically.")
+        if out.get("warning"):
+            payload["warning"] = out["warning"]
+        return runtime.ok(**payload)
     nb_id = store.resolve_notebook(args.get("notebook") or "")
     meta = store.get_meta(nb_id)
     query = (args.get("query") or "").strip() or (
@@ -166,6 +189,10 @@ def notebook_discover(args: dict, **kw) -> str:
         raise ValueError("no query and notebook has no title/description")
     limit = max(1, min(10, int(args.get("max_results") or 6)))
     raw = runtime.dispatch("web_search", {"query": query, "limit": limit})
+    if runtime.unknown_tool(raw, "web_search"):
+        raise RuntimeError(
+            "web search is unavailable in this session: the host's web_search "
+            "tool is not registered — run discover from a chat turn or the desktop page")
     try:
         data = json.loads(raw) if isinstance(raw, str) else raw
     except (ValueError, TypeError):
@@ -221,6 +248,143 @@ _ASK_STYLES = {
 }
 
 
+# -------------------------------------------------------------- ask history
+#
+# A threaded ask pays for its context twice: the retrieved source text and the
+# conversation so far. The conversation half is compacted deterministically —
+# the last three exchanges ride along verbatim, everything older lives in a
+# rolling summary stored on the thread. What the model sees is what the store
+# owns: nothing is kept in process memory.
+
+_HISTORY_EXCHANGES = 3        # exchanges sent verbatim (user+assistant pairs)
+_HISTORY_ASSISTANT_CHARS = 1200
+_HISTORY_SUMMARY_CHARS = 600
+#: a stored message may carry pasted <source> blocks; they are retrieval, not
+#: conversation, and they never belong in history
+_SOURCE_BLOCK_RE = re.compile(r"<source\b.*?</source>", re.IGNORECASE | re.DOTALL)
+
+
+def _history_content(role: str, content: Any) -> str:
+    """One history turn as the prompt should see it: no pasted source blocks,
+    assistant turns capped (the answer's citations live on the thread, not in
+    the next prompt)."""
+    text = _SOURCE_BLOCK_RE.sub("", str(content or "")).strip()
+    if role == "assistant":
+        text = text[:_HISTORY_ASSISTANT_CHARS]
+    return text
+
+
+def _roll_thread_summary(nb_id: str, thread_name: str) -> None:
+    """Condense everything older than the verbatim window into the thread's
+    rolling ``summary`` field (≤ 600 chars), through the auxiliary task slot
+    the source labeller already uses. Runs once a further three exchanges
+    have rolled out of the window — and once for a legacy thread that crosses
+    three exchanges for the first time. Any failure keeps the old summary and
+    never blocks the answer that just came back."""
+    try:
+        doc = store.read_thread(nb_id, thread_name)
+    except Exception:
+        return
+    msgs = doc["messages"]
+    older_count = max(0, len(msgs) - _HISTORY_EXCHANGES * 2)
+    if older_count < 2:
+        return                                   # nothing has left the window
+    upto = int(doc.get("summary_upto") or 0)
+    if (doc.get("summary") or upto) and \
+            older_count - upto < _HISTORY_EXCHANGES * 2:
+        return                                   # fewer than 3 new exchanges
+    lines: list[str] = []
+    if doc.get("summary"):
+        lines.append(f"Earlier summary: {doc['summary']}")
+    for m in msgs[:older_count]:
+        role = "User" if str(m.get("role")) == "user" else "Assistant"
+        body = _SOURCE_BLOCK_RE.sub("", str(m.get("content") or "")).strip()
+        if body:
+            lines.append(f"{role}: {body[:800]}")
+    transcript = "\n".join(lines)[:12000]
+    if not transcript.strip():
+        return
+    messages = [
+        {"role": "system", "content": (
+            "You compress chat history for a retrieval-grounded notebook. Keep "
+            "named entities, figures and the line of enquiry; drop filler and "
+            "citations. Plain prose, at most 600 characters.")},
+        {"role": "user", "content": transcript},
+    ]
+    text = ""
+    for task in ("notebook", None):
+        try:
+            text = llmio.complete(
+                messages, purpose="hermes-notebook.thread_summary",
+                max_tokens=300, temperature=0.0, task=task)
+            if text:
+                break
+        except Exception:
+            continue
+    if text:
+        try:
+            store.set_thread_summary(nb_id, thread_name,
+                                     text[:_HISTORY_SUMMARY_CHARS], older_count)
+        except Exception:
+            pass
+
+
+# ---------------------------------------------------------- follow-up query
+#
+# "and when is it finished?" retrieves against what 'it' means — the previous
+# question's subject. Deterministic expansion: borrow the rarest terms (highest
+# IDF over the thread's own user questions) from the last user turn, no model.
+
+_FOLLOWUP_PRONOUNS = ("it", "that", "this", "they", "those", "these", "them",
+                      "there", "why", "how come")
+
+
+def _followup_query(question: str, history: list[dict]) -> str:
+    """The query retrieval actually scores: the new question plus up to eight
+    terms from the previous user question, appended once.
+
+    Always applied to a short question (fewer than 8 content tokens — "and the
+    cost?" carries no subject of its own); to a longer one only when it still
+    points back — a pronoun or deictic ('it', 'that', 'how come'…). Terms are
+    ranked by IDF over the thread's user questions, so the borrowed words are
+    the distinctive ones ('iter', 'tokamak'), not the ones already asked about.
+    """
+    prev_user = ""
+    for m in reversed(history or []):
+        if str(m.get("role")) == "user" and str(m.get("content") or "").strip():
+            prev_user = str(m["content"])
+            break
+    if not prev_user:
+        return question
+    q_terms = retrieve.tokenize(question)
+    prev_terms = retrieve.tokenize(prev_user)
+    if not prev_terms:
+        return question
+    joined = " " + " ".join(
+        re.findall(r"[a-z0-9][a-z0-9_\-']*", question.lower())) + " "
+    trigger = len(q_terms) < 8 or any(
+        f" {p} " in joined for p in _FOLLOWUP_PRONOUNS[:-1]) or \
+        " how come " in joined
+    if not trigger:
+        return question
+    docs = [retrieve.tokenize(str(m.get("content") or ""))
+            for m in history if str(m.get("role")) == "user"]
+    n_docs = max(1, len(docs))
+    df: dict[str, int] = {}
+    for d in docs:
+        for t in set(d):
+            df[t] = df.get(t, 0) + 1
+    import math
+    seen = set(q_terms)
+    ranked = sorted(
+        {t for t in prev_terms if t not in seen},
+        key=lambda t: (-math.log(1 + (n_docs - df.get(t, 0) + 0.5)
+                                 / (df.get(t, 0) + 0.5)),
+                   prev_terms.index(t)))
+    extra = ranked[:8]
+    return question + (" " + " ".join(extra) if extra else "")
+
+
 def _ask_system(nb_id: str) -> tuple[str, int]:
     """Per-notebook chat options (notebook.json → options.chat_*): style adds a
     stance to the system prompt; length sets the answer's token budget."""
@@ -247,11 +411,21 @@ def notebook_ask(args: dict, **kw) -> str:
     question = (args.get("question") or "").strip()
     if not question:
         raise ValueError("question is required")
-    max_chars = int(args.get("max_chars") or runtime.config("ask_context_chars", default=28000))
+    max_chars = int(args.get("max_chars") or runtime.config("ask_context_chars", default=16000))
     only = args.get("source_ids") or None
     if only is not None and not isinstance(only, list):
         only = [str(only)]
-    result = retrieve.retrieve(nb_id, question, max_chars=max_chars, only_ids=only)
+    # optional chat thread — prior exchanges ride along, compacted: the last
+    # three verbatim, everything older as the thread's rolling summary
+    thread_name = (args.get("thread") or "").strip() or None
+    if thread_name and args.get("retry"):
+        # regenerate the last exchange rather than growing the thread
+        store.pop_thread_exchange(nb_id, thread_name)
+    tdoc = store.read_thread(nb_id, thread_name) if thread_name else {}
+    history = (tdoc.get("messages") or []) if thread_name else []
+
+    query = _followup_query(question, history) if history else question
+    result = retrieve.retrieve(nb_id, query, max_chars=max_chars, only_ids=only)
     if not result["context"]:
         return runtime.fail(
             "notebook has no readable sources",
@@ -263,24 +437,27 @@ def notebook_ask(args: dict, **kw) -> str:
         f"Notebook sources (each <source id=\"S1\">…</source> block is tagged "
         f"[S1]…[Sn] for citation):\n\n{result['context']}"
     )
-    # optional chat thread — prior exchanges ride along as context
-    thread_name = (args.get("thread") or "").strip() or None
-    if thread_name and args.get("retry"):
-        # regenerate the last exchange rather than growing the thread
-        store.pop_thread_exchange(nb_id, thread_name)
     system_prompt, max_tokens = _ask_system(nb_id)
     messages = [{"role": "system", "content": system_prompt}]
-    if thread_name:
-        history = store.get_thread(nb_id, thread_name)[-12:]
-        for m in history:
-            if m.get("role") in {"user", "assistant"} and m.get("content"):
-                messages.append({"role": m["role"], "content": str(m["content"])[:4000]})
-        messages.append({"role": "user", "content": user})
-    else:
-        messages += [{"role": "user", "content": user}]
+    history_chars = 0
+    summary = str(tdoc.get("summary") or "").strip() if thread_name else ""
+    if summary:
+        note = f"Earlier in this conversation: {summary}"
+        messages.append({"role": "system", "content": note})
+        history_chars += len(note)
+    for m in history[-_HISTORY_EXCHANGES * 2:]:
+        role = m.get("role")
+        if role in {"user", "assistant"} and m.get("content"):
+            content = _history_content(role, m["content"])
+            if content:
+                messages.append({"role": role, "content": content})
+                history_chars += len(content)
+    messages.append({"role": "user", "content": user})
+    usage: list = []
     answer = llmio.complete(
         messages,
         purpose="hermes-notebook.ask", max_tokens=max_tokens, temperature=0.3,
+        usage_out=usage,
     )
     if thread_name:
         store.append_thread(nb_id, thread_name, "user", question)
@@ -294,15 +471,45 @@ def notebook_ask(args: dict, **kw) -> str:
             retrieve.cited_sources(result["sources_used"], answer), 1)]
         store.append_thread(nb_id, thread_name, "assistant", answer,
                             extra={"citations": cites} if cites else None)
+        _roll_thread_summary(nb_id, thread_name)
+    u = usage[0] if usage else None
+    tokens = 0
+    if u is not None:
+        tokens = int(getattr(u, "total_tokens", 0) or 0) or int(
+            getattr(u, "input_tokens", 0) or 0) + int(getattr(u, "output_tokens", 0) or 0)
+    # what this ask cost, in units the page can check and the logs can sum:
+    # real token usage when the host reports it, the ~4-chars-per-token
+    # estimate always
+    prompt_chars = sum(len(str(m.get("content") or "")) for m in messages)
+    usage_obj = {
+        "prompt_chars": prompt_chars,
+        "context_chars": len(result["context"]),
+        "history_chars": history_chars,
+        "sources": len(result["sources_used"]),
+        "approx_tokens": round(prompt_chars / 4),
+    }
+    if tokens:
+        usage_obj["tokens"] = tokens
     return runtime.ok(
         notebook=nb_id, question=question, answer=answer,
         thread=thread_name,
         sources_used=result["sources_used"],
         chunks_used=result["chunks_used"], total_chunks=result["total_chunks"],
+        context_chars=len(result["context"]),
+        tokens=tokens or None,
+        usage=usage_obj,
     )
 
 
 def notebook_generate(args: dict, **kw) -> str:
+    """Generate one artifact. `thread=<name>` turns that conversation into the
+    brief (NotebookLM's "turn this chat into a deck"); `language` localises the
+    output. Both are optional and never override source grounding."""
+    thread = str(args.get("thread") or "").strip()
+    conversation = ""
+    if thread:
+        conversation = store.thread_as_brief(
+            store.resolve_notebook(args.get("notebook") or ""), thread)
     out = artifacts.generate(
         args.get("notebook") or "",
         args.get("kind") or "",
@@ -311,6 +518,8 @@ def notebook_generate(args: dict, **kw) -> str:
         # `format` is the flashcards csv switch; `template` is the graphic layout
         fmt=args.get("format") or (args.get("template") if args.get("kind") == "infographic" else "") or "md",
         style=args.get("style") or "",
+        conversation=conversation,
+        language=args.get("language") or "",
         options={"orientation": args.get("orientation") or "landscape",
                  "detail": args.get("detail") or "standard"},
     )
@@ -430,6 +639,16 @@ def notebook_delete(args: dict, **kw) -> str:
     return runtime.ok(**out)
 
 
+def notebook_tensions(args: dict, **kw) -> str:
+    """Where the sources disagree, and how independent they really are."""
+    from . import tensions as tensions_mod
+    out = tensions_mod.analyze(
+        args.get("notebook") or "",
+        max_items=max(1, min(10, int(args.get("max_items") or 6))),
+        language=str(args.get("language") or ""),
+    )
+    return runtime.ok(**{k: v for k, v in out.items() if k != "ok"})
+
 HANDLERS = {
     "notebook_list": notebook_list,
     "notebook_create": notebook_create,
@@ -449,4 +668,5 @@ HANDLERS = {
     "notebook_export": notebook_export,
     "notebook_discover": notebook_discover,
     "notebook_delete": notebook_delete,
+    "notebook_tensions": notebook_tensions,
 }
