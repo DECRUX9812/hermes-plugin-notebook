@@ -111,12 +111,13 @@ def _emit_sources(pairs: list[tuple[dict, str]], final_num: dict[str, int],
         head = text[:head_chars].strip()
         if not head:
             continue
-        if rec["id"] not in final_num:
-            final_num[rec["id"]] = (
-                order or {}).get(rec["id"], len(final_num) + 1)
-        block = f"[S{final_num[rec['id']]} · {rec.get('title')} · {rec.get('kind')}]\n{head}"
+        n = (order or {}).get(rec["id"], len(final_num) + 1)
+        block = f"[S{n} · {rec.get('title')} · {rec.get('kind')}]\n{head}"
         if used + len(block) > max_chars and context_parts:
             break
+        # a source only earns its citation row once its text is in context —
+        # sources_used must never cite what the model could not see
+        final_num.setdefault(rec["id"], n)
         context_parts.append(block)
         used += len(block)
     return used
@@ -202,13 +203,13 @@ def retrieve(notebook_id: str, query: str, *, max_chars: int = 28000,
             if scores[i] <= 0:
                 break  # remaining chunks have no query overlap
             sid = rec["id"]
-            if sid not in final_num:
-                final_num[sid] = rail.get(sid, len(final_num) + 1)
-            if sid not in best_chunk:
-                best_chunk[sid] = ch
-            block = f"[S{final_num[sid]} · {rec.get('title')} · {rec.get('kind')}]\n{ch}"
+            n = rail.get(sid, len(final_num) + 1)
+            block = f"[S{n} · {rec.get('title')} · {rec.get('kind')}]\n{ch}"
             if used + len(block) > max_chars and context_parts:
                 continue
+            final_num.setdefault(sid, n)
+            if sid not in best_chunk:
+                best_chunk[sid] = ch
             context_parts.append(block)
             used += len(block)
             if used >= max_chars:

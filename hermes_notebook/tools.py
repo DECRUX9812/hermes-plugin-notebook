@@ -329,6 +329,62 @@ def _roll_thread_summary(nb_id: str, thread_name: str) -> None:
             pass
 
 
+# ---------------------------------------------------------- follow-up query
+#
+# "and when is it finished?" retrieves against what 'it' means — the previous
+# question's subject. Deterministic expansion: borrow the rarest terms (highest
+# IDF over the thread's own user questions) from the last user turn, no model.
+
+_FOLLOWUP_PRONOUNS = ("it", "that", "this", "they", "those", "these", "them",
+                      "there", "why", "how come")
+
+
+def _followup_query(question: str, history: list[dict]) -> str:
+    """The query retrieval actually scores: the new question plus up to eight
+    terms from the previous user question, appended once.
+
+    Always applied to a short question (fewer than 8 content tokens — "and the
+    cost?" carries no subject of its own); to a longer one only when it still
+    points back — a pronoun or deictic ('it', 'that', 'how come'…). Terms are
+    ranked by IDF over the thread's user questions, so the borrowed words are
+    the distinctive ones ('iter', 'tokamak'), not the ones already asked about.
+    """
+    prev_user = ""
+    for m in reversed(history or []):
+        if str(m.get("role")) == "user" and str(m.get("content") or "").strip():
+            prev_user = str(m["content"])
+            break
+    if not prev_user:
+        return question
+    q_terms = retrieve.tokenize(question)
+    prev_terms = retrieve.tokenize(prev_user)
+    if not prev_terms:
+        return question
+    joined = " " + " ".join(
+        re.findall(r"[a-z0-9][a-z0-9_\-']*", question.lower())) + " "
+    trigger = len(q_terms) < 8 or any(
+        f" {p} " in joined for p in _FOLLOWUP_PRONOUNS[:-1]) or \
+        " how come " in joined
+    if not trigger:
+        return question
+    docs = [retrieve.tokenize(str(m.get("content") or ""))
+            for m in history if str(m.get("role")) == "user"]
+    n_docs = max(1, len(docs))
+    df: dict[str, int] = {}
+    for d in docs:
+        for t in set(d):
+            df[t] = df.get(t, 0) + 1
+    import math
+    seen = set(q_terms)
+    ranked = sorted(
+        {t for t in prev_terms if t not in seen},
+        key=lambda t: (-math.log(1 + (n_docs - df.get(t, 0) + 0.5)
+                                 / (df.get(t, 0) + 0.5)),
+                   prev_terms.index(t)))
+    extra = ranked[:8]
+    return question + (" " + " ".join(extra) if extra else "")
+
+
 def _ask_system(nb_id: str) -> tuple[str, int]:
     """Per-notebook chat options (notebook.json → options.chat_*): style adds a
     stance to the system prompt; length sets the answer's token budget."""
@@ -359,7 +415,17 @@ def notebook_ask(args: dict, **kw) -> str:
     only = args.get("source_ids") or None
     if only is not None and not isinstance(only, list):
         only = [str(only)]
-    result = retrieve.retrieve(nb_id, question, max_chars=max_chars, only_ids=only)
+    # optional chat thread — prior exchanges ride along, compacted: the last
+    # three verbatim, everything older as the thread's rolling summary
+    thread_name = (args.get("thread") or "").strip() or None
+    if thread_name and args.get("retry"):
+        # regenerate the last exchange rather than growing the thread
+        store.pop_thread_exchange(nb_id, thread_name)
+    tdoc = store.read_thread(nb_id, thread_name) if thread_name else {}
+    history = (tdoc.get("messages") or []) if thread_name else []
+
+    query = _followup_query(question, history) if history else question
+    result = retrieve.retrieve(nb_id, query, max_chars=max_chars, only_ids=only)
     if not result["context"]:
         return runtime.fail(
             "notebook has no readable sources",
@@ -371,14 +437,6 @@ def notebook_ask(args: dict, **kw) -> str:
         f"Notebook sources (each <source id=\"S1\">…</source> block is tagged "
         f"[S1]…[Sn] for citation):\n\n{result['context']}"
     )
-    # optional chat thread — prior exchanges ride along, compacted: the last
-    # three verbatim, everything older as the thread's rolling summary
-    thread_name = (args.get("thread") or "").strip() or None
-    if thread_name and args.get("retry"):
-        # regenerate the last exchange rather than growing the thread
-        store.pop_thread_exchange(nb_id, thread_name)
-    tdoc = store.read_thread(nb_id, thread_name) if thread_name else {}
-    history = (tdoc.get("messages") or []) if thread_name else []
     system_prompt, max_tokens = _ask_system(nb_id)
     messages = [{"role": "system", "content": system_prompt}]
     summary = str(tdoc.get("summary") or "").strip() if thread_name else ""

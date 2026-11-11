@@ -329,6 +329,61 @@ def test_legacy_thread_gains_summary_lazily(ctx, tmp_path):
     assert len(doc["messages"]) == 10          # 8 old + the new exchange
 
 
+# ------------------------------------------------- follow-up retrieval (P3)
+
+def _mk_followup_nb():
+    nb = store.create_notebook("Followups")["id"]
+    # two filler sources, then the one that matters — so the no-match
+    # fallback's source heads cannot reach ITER inside a small budget
+    store.add_source(nb, title="Filler A", kind="text", origin="",
+                     text="unrelated filler alpha " * 200)
+    store.add_source(nb, title="Filler B", kind="text", origin="",
+                     text="unrelated filler beta " * 200)
+    store.add_source(nb, title="ITER", kind="text", origin="",
+                     text="The ITER tokamak assembly is 67 percent complete. " * 40)
+    return nb
+
+
+def test_followup_retrieves_previous_questions_subject(ctx):
+    """'What does ITER cost?' then 'and when is it finished?' — the follow-up
+    still lands on the ITER chunks because the query borrows 'iter'/'cost'."""
+    nb = _mk_followup_nb()
+    _ask(nb, "What does ITER cost?", t="chat")
+    out = json.loads(tools.notebook_ask({
+        "notebook": nb, "question": "and when is it finished?",
+        "thread": "chat", "max_chars": 2600}))
+    assert any(s["title"] == "ITER" and s["n"] == 3
+               for s in out["sources_used"]), out["sources_used"]
+    # a fresh thread asks the same words and gets nothing about ITER —
+    # the borrowed terms are what carried the retrieval
+    bare = json.loads(tools.notebook_ask({
+        "notebook": nb, "question": "and when is it finished?",
+        "thread": "fresh", "max_chars": 2600}))
+    assert not any(s["title"] == "ITER" for s in bare["sources_used"])
+
+
+def test_followup_expansion_rules(ctx):
+    hist = [{"role": "user", "content": "What does ITER cost?"},
+            {"role": "assistant", "content": "It costs a lot."}]
+    q = tools._followup_query("and when is it finished?", hist)
+    assert "iter" in q and "cost" in q
+
+    # a long question with no back-reference stays untouched
+    long_q = ("construction milestones tokamak project overall "
+              "timeline schedule budget")
+    assert tools._followup_query(long_q, hist) == long_q
+    # …but the same length with a pronoun expands
+    q2 = tools._followup_query(long_q + " it", hist)
+    assert q2.startswith(long_q) and "iter" in q2
+    # no previous user question → no expansion
+    assert tools._followup_query("and the cost?", []) == "and the cost?"
+    # never more than eight borrowed terms
+    many = " ".join(f"term{i}" for i in range(20))
+    hist2 = [{"role": "user", "content": many}]
+    borrowed = tools._followup_query("more?", hist2).split()[1:]
+    assert 0 < len(borrowed) <= 8
+
+
 def test_threads_tool_actions():
     _mk()
     made = json.loads(tools.notebook_threads({"notebook": "threads-nb", "action": "new",
