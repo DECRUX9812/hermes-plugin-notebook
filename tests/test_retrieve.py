@@ -75,3 +75,54 @@ def test_notebook_digest_covers_all_sources(ctx):
     digest = retrieve.notebook_digest(nb_id, max_chars=100000)
     assert "Cats" in digest and "Dogs" in digest
     assert "Source 1" in digest and "Source 2" in digest
+
+
+# ---------------------------------------------------------------- S-numbers
+
+def test_s_numbers_are_rail_order_on_bm25_path(ctx):
+    """The regression: BM25 picked only the third source, and the OLD code
+    numbered it S1 by emission order — so [S1] in the answer cited a card the
+    rail calls S3. Citation numbers are the rail order now, on every path."""
+    nb = store.create_notebook("S-number BM25")
+    store.add_source(nb["id"], title="Cats", kind="text", origin="",
+                     text="Cats sleep all day and purr softly at night. " * 60)
+    store.add_source(nb["id"], title="Dogs", kind="text", origin="",
+                     text="Dogs need daily walks, training, and affection. " * 60)
+    store.add_source(nb["id"], title="ITER", kind="text", origin="",
+                     text="The ITER tokamak assembly is 67 percent complete. " * 60)
+    out = retrieve.retrieve(nb["id"], "tokamak assembly percent", max_chars=2000)
+    assert out["sources_used"], "BM25 found nothing"
+    used_ns = {s["n"] for s in out["sources_used"]}
+    assert used_ns == {3}, f"only S3 should be cited, got {used_ns}"
+    assert "[S3" in out["context"] and "[S1" not in out["context"]
+
+
+def test_s_numbers_keep_gaps_when_source_disabled(ctx):
+    """An unchecked source keeps its number: the rail shows S1 S3, and the
+    prompt agrees — it never renumbers S3 down to S2."""
+    nb = store.create_notebook("S-number gaps")
+    store.add_source(nb["id"], title="Cats", kind="text", origin="",
+                     text="Cats sleep all day. " * 40)
+    b = store.add_source(nb["id"], title="Dogs", kind="text", origin="",
+                         text="Dogs need daily walks. " * 40)
+    store.add_source(nb["id"], title="ITER", kind="text", origin="",
+                     text="The ITER tokamak is under construction. " * 40)
+    store.set_source_enabled(nb["id"], b["id"], False)
+
+    # chunked path
+    out = retrieve.retrieve(nb["id"], "tokamak", max_chars=2000)
+    assert {s["n"] for s in out["sources_used"]} == {3}
+    assert "S2" not in out["context"]
+
+    # full-context path — same numbers, same gap
+    out = retrieve.retrieve(nb["id"], "anything", max_chars=100000)
+    assert out.get("full_context") is True
+    assert {s["n"] for s in out["sources_used"]} == {1, 3}
+    assert '<source id="S3"' in out["context"]
+    assert '<source id="S2"' not in out["context"]
+
+    # digest labels — cited and uncited agree on the same numbering
+    cited = retrieve.notebook_digest(nb["id"], max_chars=100000, cited=True)
+    assert "[S3 · ITER" in cited and "[S1 · Cats" in cited
+    uncited = retrieve.notebook_digest(nb["id"], max_chars=100000)
+    assert "[Source 3: ITER" in uncited and "[Source 1: Cats" in uncited

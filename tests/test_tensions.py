@@ -91,17 +91,32 @@ def test_positions_without_a_real_source_are_dropped():
             {"claim": "expensive", "sources": []},
         ],
     }
-    cleaned = tensions._clean_item(item, count=3)
+    cleaned = tensions._clean_item(item, valid={1, 2, 3})
     assert cleaned is None, "a position with no valid source must not survive"
     item["sides"][1]["sources"] = [2]
-    cleaned = tensions._clean_item(item, count=3)
+    cleaned = tensions._clean_item(item, valid={1, 2, 3})
     assert cleaned is not None
     assert cleaned["sides"][0]["sources"] == [1], "99 is not a source that exists"
 
 
+def test_gap_numbers_are_not_valid_cites():
+    """S2 disabled → the model saw S1 and S3 (the gap is real). A cite of S2
+    names a source whose text the prompt never contained — dropped, not kept."""
+    item = {
+        "topic": "cost",
+        "sides": [
+            {"claim": "cheap", "sources": [1, 2]},
+            {"claim": "expensive", "sources": [3]},
+        ],
+    }
+    cleaned = tensions._clean_item(item, valid={1, 3})
+    assert cleaned is not None
+    assert cleaned["sides"][0]["sources"] == [1], "S2's gap stays invalid"
+
+
 def test_one_side_is_not_a_tension():
     item = {"topic": "x", "sides": [{"claim": "only one position", "sources": [1]}]}
-    assert tensions._clean_item(item, count=5) is None
+    assert tensions._clean_item(item, valid={1, 2, 3, 4, 5}) is None
 
 
 def test_analyze_refuses_fewer_than_two_sources(nb):

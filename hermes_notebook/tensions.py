@@ -115,9 +115,12 @@ def independence(notebook_id: str) -> Dict[str, Any]:
     if not pairs:
         return {"sources": 0, "independent": 0, "clusters": [], "measured": False}
 
-    # Number them exactly as the page does, so a cluster's members are the
-    # same S<n> the citations use.
-    numbered = [(i, r, t) for i, (r, t) in enumerate(pairs, 1)]
+    # Number them exactly as the page does — the rail order in
+    # store.list_sources — so a cluster's members are the same S<n> the
+    # citations use. Disabled sources keep their number; the gap is real.
+    rail = retrieve.source_numbers(notebook_id)
+    numbered = [(rail.get(r.get("id"), i), r, t)
+                for i, (r, t) in enumerate(pairs, 1)]
     parent = {i: i for i, _, _ in numbered}
 
     def find(x: int) -> int:
@@ -160,23 +163,25 @@ def independence(notebook_id: str) -> Dict[str, Any]:
     }
 
 
-def _source_lines(pairs: list[tuple[dict, str]], limit: int = 60) -> str:
+def _source_lines(pairs: list[tuple[dict, str]], rail: Dict[str, int],
+                  limit: int = 60) -> str:
     out = []
     for i, (rec, _text) in enumerate(pairs[:limit], 1):
-        out.append(f"S{i} · {rec.get('title') or rec.get('id')} ({rec.get('kind') or 'source'})")
+        n = rail.get(rec.get("id"), i)
+        out.append(f"S{n} · {rec.get('title') or rec.get('id')} ({rec.get('kind') or 'source'})")
     return "\n".join(out)
 
 
-def _valid_source_number(raw: Any, count: int) -> Optional[int]:
+def _valid_source_number(raw: Any, valid: set) -> Optional[int]:
     """A citation is only real if that source exists. Anything else is dropped."""
     try:
         n = int(raw)
     except (TypeError, ValueError):
         return None
-    return n if 1 <= n <= count else None
+    return n if n in valid else None
 
 
-def _clean_item(item: dict, count: int) -> Optional[dict]:
+def _clean_item(item: dict, valid: set) -> Optional[dict]:
     sides = []
     for side in (item.get("sides") or []):
         if not isinstance(side, dict):
@@ -184,7 +189,7 @@ def _clean_item(item: dict, count: int) -> Optional[dict]:
         claim = str(side.get("claim") or "").strip()
         if not claim:
             continue
-        nums = [n for n in (_valid_source_number(x, count) for x in (side.get("sources") or [])) if n]
+        nums = [n for n in (_valid_source_number(x, valid) for x in (side.get("sources") or [])) if n]
         if not nums:
             # a position with no real source behind it is an opinion, not a tension
             continue
@@ -217,6 +222,10 @@ def analyze(notebook: str, *, max_items: int = 6, language: str = "") -> Dict[st
 
     indep = independence(nb_id)
     count = len(pairs)
+    rail = retrieve.source_numbers(nb_id)
+    # cite numbers the model may use = the rail numbers of the sources whose
+    # text it actually saw — a disabled source's old number is still invalid
+    valid = {rail.get(r.get("id")) for r, _ in pairs}
     digest = retrieve.notebook_digest(
         nb_id,
         max_chars=int(runtime.config("podcast_context_chars", default=42000)),
@@ -253,7 +262,7 @@ def analyze(notebook: str, *, max_items: int = 6, language: str = "") -> Dict[st
         instructions=instructions,
         input=[{"type": "text", "text":
                 f"Notebook: {meta.get('title')}\n"
-                f"Sources (use these numbers as S<n>):\n{_source_lines(pairs)}\n\n"
+                f"Sources (use these numbers as S<n>):\n{_source_lines(pairs, rail)}\n\n"
                 f"Independence check already measured: {count} active sources, "
                 f"{indep['independent']} independent"
                 + (f", syndicated clusters at {indep['clusters']}" if indep["clusters"] else "")
@@ -270,17 +279,18 @@ def analyze(notebook: str, *, max_items: int = 6, language: str = "") -> Dict[st
     if parsed is None:
         raise RuntimeError("model did not return valid JSON for the tension audit")
 
-    items = [it for it in (_clean_item(raw, count) for raw in (parsed.get("items") or [])[:max_items] if isinstance(raw, dict)) if it]
+    items = [it for it in (_clean_item(raw, valid) for raw in (parsed.get("items") or [])[:max_items] if isinstance(raw, dict)) if it]
     agreements = []
     for raw in (parsed.get("agreements") or [])[:8]:
         if not isinstance(raw, dict):
             continue
         claim = str(raw.get("claim") or "").strip()
-        nums = [n for n in (_valid_source_number(x, count) for x in (raw.get("sources") or [])) if n]
+        nums = [n for n in (_valid_source_number(x, valid) for x in (raw.get("sources") or [])) if n]
         if claim and len(nums) >= 2:
             agreements.append({"claim": claim, "sources": nums})
 
-    titles = {i: str(rec.get("title") or rec.get("id")) for i, (rec, _t) in enumerate(pairs, 1)}
+    titles = {rail.get(rec.get("id"), i): str(rec.get("title") or rec.get("id"))
+              for i, (rec, _t) in enumerate(pairs, 1)}
     for it in items:
         for side in it["sides"]:
             side["titles"] = [titles.get(n, f"S{n}") for n in side["sources"]]
