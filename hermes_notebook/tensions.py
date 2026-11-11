@@ -258,6 +258,7 @@ def analyze(notebook: str, *, max_items: int = 6, language: str = "") -> Dict[st
         f"{lang_line}"
     )
 
+    parse_out: list = []
     parsed = llmio.structured(
         instructions=instructions,
         input=[{"type": "text", "text":
@@ -275,6 +276,7 @@ def analyze(notebook: str, *, max_items: int = 6, language: str = "") -> Dict[st
         purpose="hermes-notebook.tensions",
         max_tokens=4000,
         temperature=0.2,
+        parse_out=parse_out,
     )
     if parsed is None:
         raise RuntimeError("model did not return valid JSON for the tension audit")
@@ -304,6 +306,7 @@ def analyze(notebook: str, *, max_items: int = 6, language: str = "") -> Dict[st
         "independence": indep,
         "sources": count,
         "dropped": max(0, len(parsed.get("items") or []) - len(items)),
+        "parse": parse_out[0] if parse_out else "direct",
         "hint": ("Each side cites real S<n> numbers. A position whose sources do not "
                  "exist was dropped rather than repaired."),
     }

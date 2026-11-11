@@ -429,6 +429,7 @@ def generate(notebook: str, kind: str, *, focus: str = "", count_hint: str = "",
         # unavailable, the measured independence still goes in
         extra = _tension_brief(nb_id)
     _emit("writing", KIND_LABEL.get(kind, kind))
+    parse_out: list = []
     parsed = llmio.structured(
         instructions=instructions,
         input=[{"type": "text", "text":
@@ -440,9 +441,14 @@ def generate(notebook: str, kind: str, *, focus: str = "", count_hint: str = "",
         system_prompt=prompts.build_system_prompt(kind, "struct"),
         purpose=f"hermes-notebook.generate.{kind}",
         max_tokens=8000, temperature=0.3,
+        parse_out=parse_out,
     )
     if parsed is None:
         raise RuntimeError("model did not return valid JSON for this artifact")
+    if isinstance(parsed, dict) and parse_out:
+        # how the JSON was produced — direct | extracted | retried — so a run
+        # log can say honestly when the small model needed a second try
+        parsed["_parse"] = parse_out[0]
 
     if kind == "slides":
         # a slide's optional chart is a blocks-graphic block: normalise it and
