@@ -239,7 +239,11 @@ def _digest(notebook_id: str, budget: int = 0) -> str:
     """
     if budget <= 0:
         budget = int(runtime.config("artifact_context_chars", default=24000))
-    return retrieve.notebook_digest(notebook_id, max_chars=budget)
+    # cited=True tags each excerpt [S<n>] where n is the source's index position
+    # — the same numbering src_lines now states and verify.py keys on. Without
+    # it the digest's [Source i] headers numbered by extraction order and the
+    # two spaces silently disagreed whenever a source was disabled.
+    return retrieve.notebook_digest(notebook_id, max_chars=budget, cited=True)
 
 
 def _keep_local_image(notebook_id: str, image: str) -> "Any":
@@ -326,11 +330,21 @@ def generate(notebook: str, kind: str, *, focus: str = "", count_hint: str = "",
 
     _emit("reading", f"{len(sources)} sources")
     digest = _digest(nb_id)
+    # S-numbers are explicit and stable: S<n> = the source's position in the
+    # index, which is also what notebook_digest(cited=True) tags and what the
+    # verifier keys on. An unnumbered bullet list left the model to guess when
+    # sources were disabled or had no extracted text.
     src_lines = "\n".join(
-        f"- {s.get('title')} ({s.get('kind')})" + (f" — {s.get('origin')}" if s.get('origin') and s.get('kind') in {'url', 'youtube'} else "")
-        for s in sources
+        f"S{i + 1}. {s.get('title')} ({s.get('kind')})" + (f" — {s.get('origin')}" if s.get('origin') and s.get('kind') in {'url', 'youtube'} else "")
+        for i, s in enumerate(sources)
     )
     focus_line = f"\nFocus/topic requested by the user: {focus.strip()}\n" if focus.strip() else ""
+    if kind == "infographic" and not count_hint.strip():
+        # detail maps to a block budget: concise 3-4, standard 4-6, detailed 6-8
+        count_hint = {"concise": "3-4 blocks", "standard": "4-6 blocks",
+                      "detailed": "6-8 blocks"}.get(
+                          str(options.get("detail") or "standard").lower(),
+                          "4-6 blocks")
     count_line = f"\nRequested amount: {count_hint.strip()}\n" if count_hint.strip() else ""
     conv_text = (conversation or "").strip()
     if len(conv_text) > MAX_CONVERSATION_CHARS:
@@ -488,6 +502,18 @@ def generate(notebook: str, kind: str, *, focus: str = "", count_hint: str = "",
             template = "auto"
         orientation = str(options.get("orientation") or "landscape").lower()
         detail = str(options.get("detail") or "standard").lower()
+        # schema v2: model output → canonical typed blocks (legacy stats/quotes
+        # convert), then deterministic verification against the S-numbered
+        # source texts — numbers found only elsewhere are re-cited, numbers
+        # found nowhere are dropped before they can reach a poster.
+        from .gfx import blocks as _blocks
+        from . import verify as _verify
+        parsed = _blocks.normalise_graphic(parsed)
+        pairs = store.all_source_texts(nb_id)
+        order = {s.get("id"): i + 1 for i, s in enumerate(sources)}
+        _verify.verify_graphic(parsed, {order.get(r.get("id")): t for r, t in pairs})
+        parsed["_sources"] = [{"n": i + 1, "title": s.get("title")}
+                              for i, s in enumerate(sources)]
         parsed["_style"] = {"id": style_spec.id, "label": style_spec.label,
                             "family": style_spec.family}
         parsed["_graphic"] = {"template": template, "orientation": orientation,
