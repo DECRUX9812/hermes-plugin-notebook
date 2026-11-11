@@ -432,11 +432,21 @@ _STRUCT_INSTRUCTIONS: Dict[str, str] = {
         "text rather than inventing a protocol."
     ),
     "infographic": (
-        "Design an INFOGRAPHIC's content from these sources: pick the 3-6 most "
-        "striking measurable facts (the `value` is the number or short fact "
-        "itself, e.g. '1789', '70%', '6 of 9'), 2-4 quotable key facts with "
-        "their source, and a one-line takeaway that states the conclusion, not "
-        "the topic. All grounded; no invented figures."
+        "Design an INFOGRAPHIC's content from these sources as 4-7 typed blocks. "
+        "Pick the block type that FITS the data, not the first one you think of:\n"
+        "- comparable quantities -> `bar`; parts of a whole -> `share`; values "
+        "over time -> `trend`; dated events -> `timeline`; two options side by "
+        "side -> `compare`; a procedure -> `steps`; 1-4 headline numbers -> a "
+        "run of `stat` blocks; a verbatim passage -> `quote`; anything else "
+        "short -> `facts`.\n"
+        "- EVERY number and EVERY quote carries `cites` with the S-numbers that "
+        "say it. A figure with no source is not data — never invent one.\n"
+        "- `items[].display` is the human string ('$1.4bn', '38%'); `value`/"
+        "`percent`/`y` are bare numbers.\n"
+        "- `facts` items take an `icon` from the enum — pick the closest glyph.\n"
+        "- The takeaway states the conclusion, not the topic.\n"
+        "- If the sources cannot fill a block type, omit it — fewer honest "
+        "blocks beat a padded poster."
     ),
 }
 
@@ -468,6 +478,23 @@ def _iso_kinds():
     except Exception:                       # a schema must load without gfx
         return ("iso_grid_cube", "kinematic_node_graph", "oscilloscope_trace",
                 "file_pipeline_nodes", "test_ramp_and_rig")
+
+
+def _icon_keys():
+    """Block icons come from gfx.icons.KEYS — the schema enum is the renderer's
+    vocabulary, so a key the drawer lacks can never be requested."""
+    try:
+        from .gfx import icons
+        return tuple(icons.KEYS)
+    except Exception:
+        return ("activity", "zap", "atom", "shield", "flask", "factory", "globe",
+                "clock", "users", "dollar-sign", "circle-check", "triangle-alert",
+                "arrow-right", "target", "gauge", "battery", "sun", "wind",
+                "droplets", "layers-3", "rocket", "cpu", "network", "building-2",
+                "scale", "lock", "key", "calendar", "map-pin", "lightbulb",
+                "message", "file-text", "database", "layers", "link", "search",
+                "trending-up", "trending-down", "percent", "hash", "package",
+                "shopping-cart", "wallet", "landmark", "newspaper")
 
 
 ISO_KINDS = _iso_kinds()
@@ -717,26 +744,73 @@ SCHEMAS: Dict[str, Dict[str, Any]] = {
         "type": "object",
         "properties": {
             "title": {"type": "string"},
+            "subtitle": {"type": "string", "description": "optional standfirst, <= 16 words"},
             "takeaway": {"type": "string", "description": "one-line bottom line"},
-            "stats": {"type": "array", "items": {
+            "blocks": {"type": "array", "description":
+                "4-7 typed blocks in reading order", "items": {
                 "type": "object",
                 "properties": {
-                    "value": {"type": "string", "description": "big number/short stat"},
-                    "label": {"type": "string", "description": "<= 8 words"},
-                    "detail": {"type": "string", "description": "optional one-line detail"},
-                    "source": {"type": "string"},
+                    "type": _enum(["stat", "bar", "share", "trend", "timeline",
+                                   "compare", "steps", "quote", "facts"],
+                                  "which chart this block is"),
+                    "title": {"type": "string", "description": "optional block heading"},
+                    "value": {"type": "string", "description": "stat: the figure itself, e.g. '1,100 t'"},
+                    "label": {"type": "string", "description": "stat: <= 8 words"},
+                    "detail": {"type": "string", "description": "stat: optional one-line detail"},
+                    "unit": {"type": "string"},
+                    "items": {"type": "array", "description":
+                        "bar/share: 2-8 parts; facts: 2-6 short lines", "items": {
+                        "type": "object",
+                        "properties": {
+                            "label": {"type": "string"},
+                            "value": {"type": "number"},
+                            "display": {"type": "string",
+                                        "description": "human string for the number, e.g. '$4.48B'"},
+                            "percent": {"type": "number",
+                                        "description": "share: part of 100"},
+                            "icon": _enum(list(_icon_keys()), "facts: closest glyph"),
+                            "text": {"type": "string"},
+                            "cites": _CITES,
+                        }}},
+                    "points": {"type": "array", "description":
+                        "trend: 3-12 points in order", "items": {
+                        "type": "object",
+                        "properties": {"x": {"type": "string"},
+                                       "y": {"type": "number"},
+                                       "cites": _CITES},
+                        "required": ["x", "y"]}},
+                    "events": {"type": "array", "description":
+                        "timeline: 3-8 dated events", "items": {
+                        "type": "object",
+                        "properties": {"when": {"type": "string"},
+                                       "what": {"type": "string"},
+                                       "cites": _CITES},
+                        "required": ["when", "what"]}},
+                    "a_label": {"type": "string", "description": "compare: left column name"},
+                    "b_label": {"type": "string", "description": "compare: right column name"},
+                    "rows": {"type": "array", "description":
+                        "compare: 2-6 aspects", "items": {
+                        "type": "object",
+                        "properties": {"aspect": {"type": "string"},
+                                       "a": {"type": "string"},
+                                       "b": {"type": "string"},
+                                       "cites": _CITES},
+                        "required": ["aspect"]}},
+                    "steps": {"type": "array", "description":
+                        "steps: 3-6 ordered stages", "items": {
+                        "type": "object",
+                        "properties": {"title": {"type": "string"},
+                                       "text": {"type": "string"},
+                                       "cites": _CITES},
+                        "required": ["title"]}},
+                    "text": {"type": "string", "description": "quote: the verbatim passage"},
+                    "who": {"type": "string", "description": "quote: attribution"},
+                    "cites": _CITES,
                 },
-                "required": ["value", "label"],
-            }, "description": "3-6 headline stats"},
-            "quotes": {"type": "array", "items": {
-                "type": "object",
-                "properties": {"text": {"type": "string", "description": "striking fact"},
-                               "source": {"type": "string"},
-                               "citations": _CITES},
-                "required": ["text"],
-            }, "description": "2-4 key facts worth highlighting"},
+                "required": ["type"],
+            }},
         },
-        "required": ["title", "stats", "quotes", "takeaway"],
+        "required": ["title", "blocks", "takeaway"],
     },
 }
 
