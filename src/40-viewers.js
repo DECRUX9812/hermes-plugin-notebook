@@ -89,7 +89,8 @@ function Viewer({ artifact, notebook, onCite, onRegenerate, regenerating, onChan
   } else if (artifact.kind === 'infographic' || artifact.kind === 'blueprint_evolution') {
     // The blueprint is an SVG poster like an infographic: same stage, same
     // zoom, same style chip. A separate viewer would be the same code twice.
-    body = jsx(InfographicView, { src: primary.url, data: asJson.json })
+    body = jsx(InfographicView, { src: primary.url, data: asJson.json,
+      notebookId: notebook && notebook.id, jsonName, onSay })
   } else if (artifact.kind === 'data_table') {
     body = jsx(DataTableView, { text: primary.text, name: artifact.primary, data: asJson.json,
                                 notebookId: notebook && notebook.id, onSay })
@@ -1545,11 +1546,57 @@ function SlidesView({ data, htmlUrl, notebook, jsonName, onCite, onSay }) {
 
 /* ----------------------------------------------------------- infographic */
 
-function InfographicView({ src, data }) {
+/* One row of the Checked panel: the figure, its verdict, where it pointed. */
+function CheckRow({ item }) {
+  const status = item.status || 'verified'
+  const icon = status === 'verified' ? 'check'
+    : status === 'recited' ? 'refresh'
+    : status === 'dropped' ? 'close' : 'doc'
+  const label = status === 'verified' ? 'verified'
+    : status === 'recited' ? `re-cited to ${Array.isArray(item.to) ? item.to.map((n) => `S${n}`).join(', ') : `S${item.to}`}`
+    : status === 'unsourced' ? 'unsourced' : 'left out'
+  return el('div', { className: 'nb-check-row', 'data-status': status },
+    jsx(Glyph, { name: icon, size: 13 }),
+    el('span', { className: 'nb-check-text', title: item.text, children: item.text || '—' }),
+    el('span', { className: 'nb-check-status', children: label }))
+}
+
+function CheckedPanel({ verify }) {
+  const v = verify || {}
+  const kept = (v.items || []).filter((i) => i.status !== 'dropped')
+  const out = v.dropped || []
+  const good = (v.verified || 0) + (v.recited || 0)
+  return el('aside', { className: 'nb-check' },
+    el('div', { className: 'nb-check-head' },
+      jsx(Glyph, { name: 'shield', size: 14 }),
+      el('span', { className: 'nb-check-title', children: 'Checked' }),
+      v.checked
+        ? el('span', { className: 'nb-check-sum',
+            children: `${good} of ${v.checked} verified` })
+        : null),
+    v.note ? el('div', { className: 'nb-check-note', children: v.note }) : null,
+    kept.length
+      ? el('div', { className: 'nb-check-list' },
+          kept.map((i, k) => jsx(CheckRow, { key: k, item: i })))
+      : el('div', { className: 'nb-hint', children: 'No figures on this poster' }),
+    out.length
+      ? el('div', { className: 'nb-check-left' },
+          el('div', { className: 'nb-check-sub', children: `Left out (${out.length})` }),
+          out.map((d, k) => el('div', { key: k, className: 'nb-check-row', 'data-status': 'dropped' },
+            jsx(Glyph, { name: 'close', size: 13 }),
+            el('span', { className: 'nb-check-text', title: d.text, children: d.text || '—' }),
+            el('span', { className: 'nb-check-status', title: d.reason, children: 'left out' }))))
+      : null)
+}
+
+function InfographicView({ src, data, notebookId, jsonName, onSay }) {
   const [zoom, setZoom] = useState(1)
+  const [pngBusy, setPngBusy] = useState(false)
   const stats = (data && data.stats) || []
   const quotes = (data && data.quotes) || []
   const cards = stats.filter((x) => x && (x.value || x.label))
+  const verify = (data && data._verify) || null
+  const say = onSay || (host.say ? (m) => host.say(m) : null)
   // The poster is a rendered PNG; the JSON beside it is the SOURCE of that
   // poster. Rendering the JSON as components means the page can show crisp,
   // selectable type at any width, put a citation on every number, and stay
@@ -1558,8 +1605,28 @@ function InfographicView({ src, data }) {
   // so the mode cannot be decided in a useState initialiser: it would latch on
   // "poster" before the first file landed and never show the live view.
   const [chosen, setChosen] = useState(null)
-  const mode = chosen || (cards.length ? 'live' : 'poster')
+  const mode = chosen || (cards.length && !verify ? 'live' : 'poster')
   const [openQuote, setOpenQuote] = useState(-1)
+
+  const savePng = async () => {
+    if (pngBusy || !jsonName) return
+    setPngBusy(true)
+    try {
+      const out = await api(`/artifact/png?${qs({ notebook: notebookId || '', name: jsonName, b64: 1, scale: 2 })}`, { timeoutMs: 90000 })
+      const bytes = Uint8Array.from(atob(out.b64), (ch) => ch.charCodeAt(0))
+      const url = URL.createObjectURL(new Blob([bytes], { type: out.mime || 'image/png' }))
+      const a = document.createElement('a')
+      a.href = url
+      a.download = out.name || 'infographic.png'
+      document.body.appendChild(a); a.click(); a.remove()
+      setTimeout(() => URL.revokeObjectURL(url), 2000)
+      if (say) say(`downloaded ${out.name || 'infographic.png'}`)
+    } catch (e) {
+      if (say) say(`png export failed: ${e.message || e}`)
+    } finally {
+      setPngBusy(false)
+    }
+  }
 
   const poster = el('div', null,
     el('div', {
@@ -1574,10 +1641,19 @@ function InfographicView({ src, data }) {
           style: { display: 'block', width: `${Math.round(zoom * 100)}%`, height: 'auto' }
         })
       : el('div', { className: 'nb-hint', style: { padding: '20px' }, children: 'the image did not load' })),
-    el('div', { style: { display: 'flex', gap: '8px', alignItems: 'center', marginTop: '10px' } },
+    el('div', { style: { display: 'flex', gap: '8px', alignItems: 'center', marginTop: '10px', flexWrap: 'wrap' } },
       jsx(Btn, { size: 'sm', onClick: () => setZoom((z) => Math.max(0.5, z - 0.15)), children: '−' }),
       jsx(Btn, { size: 'sm', onClick: () => setZoom((z) => Math.min(2, z + 0.15)), children: '+' }),
-      el('span', { className: 'nb-hint', children: `${Math.round(zoom * 100)}%` })))
+      el('span', { className: 'nb-hint', children: `${Math.round(zoom * 100)}%` }),
+      el('span', { style: { flex: 1 } }),
+      jsx(Btn, {
+        size: 'sm', icon: 'download', onClick: () => {
+          const a = document.createElement('a')
+          a.href = src; a.download = 'infographic.svg'
+          document.body.appendChild(a); a.click(); a.remove()
+        }, children: 'SVG'
+      }),
+      jsx(Btn, { size: 'sm', icon: 'download', onClick: savePng, disabled: pngBusy || !jsonName, children: pngBusy ? 'rendering…' : 'PNG' })))
 
   const live = el('div', { className: 'nb-ig' },
     el('div', { className: 'nb-ig-head' },
@@ -1618,7 +1694,10 @@ function InfographicView({ src, data }) {
           jsx(Seg, { label: 'View', value: mode, onChange: setChosen,
             options: [{ id: 'live', label: 'Live' }, { id: 'poster', label: 'Poster' }] }))
       : null,
-    mode === 'live' && cards.length ? live : poster)
+    el('div', { className: 'nb-ig-stage' },
+      el('div', { className: 'nb-ig-main' },
+        mode === 'live' && cards.length ? live : poster),
+      verify ? jsx(CheckedPanel, { verify }) : null))
 }
 
 /* ----------------------------------------------------------- data table */

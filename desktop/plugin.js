@@ -1524,6 +1524,32 @@ const CSS = `
 .nb-ig-take-label{font-size:var(--nb-fs-meta);font-weight:700;letter-spacing:.06em;
   text-transform:uppercase;color:color-mix(in srgb,${T.accent} 55%, ${T.text})}
 .nb-ig-take p{margin:6px 0 0;font-size:var(--nb-fs-read);line-height:1.55;color:${T.text}}
+/* poster + Checked rail: side by side wide, stacked narrow */
+.nb-ig-stage{display:flex;gap:16px;align-items:flex-start}
+.nb-ig-main{flex:1 1 auto;min-width:0}
+.nb-check{flex:0 0 296px;max-width:296px;background:var(--nb-tile);border:1px solid var(--nb-edge);
+  border-radius:var(--nb-r-el);padding:12px 14px;display:flex;flex-direction:column;gap:8px;max-height:62vh;overflow:auto}
+.nb-check-head{display:flex;align-items:center;gap:7px;color:${T.text}}
+.nb-check-title{font-size:13px;font-weight:700;letter-spacing:.02em}
+.nb-check-sum{margin-left:auto;font-size:11.5px;font-weight:650;color:${T.text3}}
+.nb-check-note{font-size:12px;line-height:1.5;color:${T.text2};background:color-mix(in srgb,${T.warn||'#d9a13b'} 10%, var(--nb-tile));
+  border:1px solid color-mix(in srgb,${T.warn||'#d9a13b'} 30%, transparent);border-radius:8px;padding:7px 9px}
+.nb-check-list{display:flex;flex-direction:column}
+.nb-check-row{display:flex;align-items:baseline;gap:7px;padding:5px 0;border-top:1px solid var(--nb-edge-soft, color-mix(in srgb, var(--nb-edge) 55%, transparent));
+  font-size:12.5px;color:${T.text2}}
+.nb-check-row:first-child{border-top:0}
+.nb-check-row svg{flex:0 0 auto;transform:translateY(2px)}
+.nb-check-row[data-status=verified] svg{color:${T.ok}}
+.nb-check-row[data-status=recited] svg{color:${T.accent}}
+.nb-check-row[data-status=unsourced] svg{color:${T.text3}}
+.nb-check-row[data-status=dropped] svg{color:${T.danger}}
+.nb-check-text{flex:1 1 auto;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.nb-check-status{flex:0 0 auto;font-size:11px;font-weight:650;color:${T.text3}}
+.nb-check-sub{font-size:11px;font-weight:700;letter-spacing:.06em;color:${T.text3};text-transform:uppercase;padding:8px 0 2px}
+@media (max-width: 900px){
+  .nb-ig-stage{flex-direction:column}
+  .nb-check{flex:none;max-width:none;width:100%;max-height:40vh}
+}
 
 /* generator options popover + citation hover card + data table */
 .nb-gen{position:relative}
@@ -1546,6 +1572,23 @@ const CSS = `
 .nb-genopt-text{width:100%;height:32px;padding:0 10px;border-radius:var(--nb-r-in);font-size:13px;
   border:1px solid ${T.line};background:${T.inset};color:${T.text};outline:none}
 .nb-genopt-text:focus{border-color:color-mix(in srgb,${T.accent} 55%,transparent)}
+/* Look picker: hero looks as swatch chips, the rest of the catalog folds out */
+.nb-looks{display:grid;gap:8px}
+.nb-look-heroes{display:grid;grid-template-columns:repeat(4,1fr);gap:7px}
+.nb-look-rest{display:grid;grid-template-columns:repeat(3,1fr);gap:7px;max-height:220px;overflow:auto;
+  border-top:1px solid ${T.lineSoft};padding-top:8px}
+.nb-look{display:flex;flex-direction:column;align-items:flex-start;gap:5px;padding:8px 9px;
+  background:${T.inset};border:1px solid ${T.line};border-radius:10px;cursor:pointer;
+  font:inherit;color:${T.text2};text-align:left;transition:border-color .12s ease,background .12s ease}
+.nb-look:hover{border-color:color-mix(in srgb,${T.accent} 45%,transparent)}
+.nb-look[data-on=true]{border-color:${T.accent};background:color-mix(in srgb,${T.accent} 9%,${T.inset});
+  color:${T.text}}
+.nb-look-dots{display:flex;gap:3px}
+.nb-look-dots i{width:9px;height:9px;border-radius:50%;display:block;border:1px solid rgba(0,0,0,.18)}
+.nb-look-name{font-size:11.5px;font-weight:650;line-height:1.15}
+.nb-look-more{justify-self:start;background:none;border:none;color:${T.text3};font-size:12px;
+  font-weight:650;cursor:pointer;padding:2px 0}
+.nb-look-more:hover{color:${T.text}}
 
 /* A hover card floats OVER the page, so it gets its own material: the panel
    colour at 95% over a blur, which reads as glass instead of a second pane. */
@@ -5605,6 +5648,40 @@ function StudioPanel({ kinds, notebook, busy, generate, filter, setFilter, onOpe
   )
 }
 
+/* The look picker: eight hero looks as swatch chips, the rest of the catalog
+ * behind a "More looks" fold so the choice reads like a set, not a wall. */
+function LookPicker({ spec, value, onChange }) {
+  const [more, setMore] = useState(false)
+  const items = spec.items || []
+  const heroes = spec.heroes || []
+  const heroItems = items.filter((i) => heroes.includes(i.id))
+  const rest = items.filter((i) => !heroes.includes(i.id))
+  const chip = (it) => el('button', {
+    type: 'button', key: it.id,
+    className: 'nb-look', 'data-on': value === it.id ? 'true' : 'false',
+    onClick: () => onChange(it.id),
+    title: it.blurb || it.label,
+    'aria-pressed': value === it.id,
+    children: [
+      el('span', { className: 'nb-look-dots', 'aria-hidden': 'true' },
+        (it.swatch || []).slice(0, 4).map((c, i) =>
+          el('i', { key: i, style: { background: c } }))),
+      el('span', { className: 'nb-look-name', children: it.label })
+    ]
+  })
+  return el('div', { className: 'nb-looks' },
+    el('div', { className: 'nb-look-heroes' }, heroItems.map(chip)),
+    rest.length
+      ? el('button', {
+          type: 'button', className: 'nb-look-more',
+          onClick: () => setMore((o) => !o),
+          'aria-expanded': more,
+          children: more ? 'Fewer looks' : `More looks (${rest.length})`
+        })
+      : null,
+    more ? el('div', { className: 'nb-look-rest' }, rest.map(chip)) : null)
+}
+
 function GenPill({ kind, art, started, job, onStop, nbId, onOpen, onGenerate }) {
   const [, force] = useState(0)
   const [opts, setOpts] = useState({})
@@ -5688,7 +5765,12 @@ function GenPill({ kind, art, started, job, onStop, nbId, onOpen, onGenerate }) 
           children: el('div', { style: { display: 'grid', gap: '14px' } },
           optSpecs.map((spec) => el('div', { key: spec.id, className: 'nb-genopt' },
             el('div', { className: 'nb-genopt-label', children: spec.label }),
-            spec.kind === 'text'
+            spec.kind === 'select' && spec.heroes
+              ? jsx(LookPicker, {
+                  spec, value: opts[spec.id] || spec.default || (spec.choices || [])[0],
+                  onChange: (v) => pick(spec.id, v)
+                })
+              : spec.kind === 'text'
               ? el('input', {
                   className: 'nb-genopt-text', type: 'text',
                   placeholder: spec.placeholder || '',
@@ -7368,7 +7450,8 @@ function Viewer({ artifact, notebook, onCite, onRegenerate, regenerating, onChan
   } else if (artifact.kind === 'infographic' || artifact.kind === 'blueprint_evolution') {
     // The blueprint is an SVG poster like an infographic: same stage, same
     // zoom, same style chip. A separate viewer would be the same code twice.
-    body = jsx(InfographicView, { src: primary.url, data: asJson.json })
+    body = jsx(InfographicView, { src: primary.url, data: asJson.json,
+      notebookId: notebook && notebook.id, jsonName, onSay })
   } else if (artifact.kind === 'data_table') {
     body = jsx(DataTableView, { text: primary.text, name: artifact.primary, data: asJson.json,
                                 notebookId: notebook && notebook.id, onSay })
@@ -8824,11 +8907,57 @@ function SlidesView({ data, htmlUrl, notebook, jsonName, onCite, onSay }) {
 
 /* ----------------------------------------------------------- infographic */
 
-function InfographicView({ src, data }) {
+/* One row of the Checked panel: the figure, its verdict, where it pointed. */
+function CheckRow({ item }) {
+  const status = item.status || 'verified'
+  const icon = status === 'verified' ? 'check'
+    : status === 'recited' ? 'refresh'
+    : status === 'dropped' ? 'close' : 'doc'
+  const label = status === 'verified' ? 'verified'
+    : status === 'recited' ? `re-cited to ${Array.isArray(item.to) ? item.to.map((n) => `S${n}`).join(', ') : `S${item.to}`}`
+    : status === 'unsourced' ? 'unsourced' : 'left out'
+  return el('div', { className: 'nb-check-row', 'data-status': status },
+    jsx(Glyph, { name: icon, size: 13 }),
+    el('span', { className: 'nb-check-text', title: item.text, children: item.text || '—' }),
+    el('span', { className: 'nb-check-status', children: label }))
+}
+
+function CheckedPanel({ verify }) {
+  const v = verify || {}
+  const kept = (v.items || []).filter((i) => i.status !== 'dropped')
+  const out = v.dropped || []
+  const good = (v.verified || 0) + (v.recited || 0)
+  return el('aside', { className: 'nb-check' },
+    el('div', { className: 'nb-check-head' },
+      jsx(Glyph, { name: 'shield', size: 14 }),
+      el('span', { className: 'nb-check-title', children: 'Checked' }),
+      v.checked
+        ? el('span', { className: 'nb-check-sum',
+            children: `${good} of ${v.checked} verified` })
+        : null),
+    v.note ? el('div', { className: 'nb-check-note', children: v.note }) : null,
+    kept.length
+      ? el('div', { className: 'nb-check-list' },
+          kept.map((i, k) => jsx(CheckRow, { key: k, item: i })))
+      : el('div', { className: 'nb-hint', children: 'No figures on this poster' }),
+    out.length
+      ? el('div', { className: 'nb-check-left' },
+          el('div', { className: 'nb-check-sub', children: `Left out (${out.length})` }),
+          out.map((d, k) => el('div', { key: k, className: 'nb-check-row', 'data-status': 'dropped' },
+            jsx(Glyph, { name: 'close', size: 13 }),
+            el('span', { className: 'nb-check-text', title: d.text, children: d.text || '—' }),
+            el('span', { className: 'nb-check-status', title: d.reason, children: 'left out' }))))
+      : null)
+}
+
+function InfographicView({ src, data, notebookId, jsonName, onSay }) {
   const [zoom, setZoom] = useState(1)
+  const [pngBusy, setPngBusy] = useState(false)
   const stats = (data && data.stats) || []
   const quotes = (data && data.quotes) || []
   const cards = stats.filter((x) => x && (x.value || x.label))
+  const verify = (data && data._verify) || null
+  const say = onSay || (host.say ? (m) => host.say(m) : null)
   // The poster is a rendered PNG; the JSON beside it is the SOURCE of that
   // poster. Rendering the JSON as components means the page can show crisp,
   // selectable type at any width, put a citation on every number, and stay
@@ -8837,8 +8966,28 @@ function InfographicView({ src, data }) {
   // so the mode cannot be decided in a useState initialiser: it would latch on
   // "poster" before the first file landed and never show the live view.
   const [chosen, setChosen] = useState(null)
-  const mode = chosen || (cards.length ? 'live' : 'poster')
+  const mode = chosen || (cards.length && !verify ? 'live' : 'poster')
   const [openQuote, setOpenQuote] = useState(-1)
+
+  const savePng = async () => {
+    if (pngBusy || !jsonName) return
+    setPngBusy(true)
+    try {
+      const out = await api(`/artifact/png?${qs({ notebook: notebookId || '', name: jsonName, b64: 1, scale: 2 })}`, { timeoutMs: 90000 })
+      const bytes = Uint8Array.from(atob(out.b64), (ch) => ch.charCodeAt(0))
+      const url = URL.createObjectURL(new Blob([bytes], { type: out.mime || 'image/png' }))
+      const a = document.createElement('a')
+      a.href = url
+      a.download = out.name || 'infographic.png'
+      document.body.appendChild(a); a.click(); a.remove()
+      setTimeout(() => URL.revokeObjectURL(url), 2000)
+      if (say) say(`downloaded ${out.name || 'infographic.png'}`)
+    } catch (e) {
+      if (say) say(`png export failed: ${e.message || e}`)
+    } finally {
+      setPngBusy(false)
+    }
+  }
 
   const poster = el('div', null,
     el('div', {
@@ -8853,10 +9002,19 @@ function InfographicView({ src, data }) {
           style: { display: 'block', width: `${Math.round(zoom * 100)}%`, height: 'auto' }
         })
       : el('div', { className: 'nb-hint', style: { padding: '20px' }, children: 'the image did not load' })),
-    el('div', { style: { display: 'flex', gap: '8px', alignItems: 'center', marginTop: '10px' } },
+    el('div', { style: { display: 'flex', gap: '8px', alignItems: 'center', marginTop: '10px', flexWrap: 'wrap' } },
       jsx(Btn, { size: 'sm', onClick: () => setZoom((z) => Math.max(0.5, z - 0.15)), children: '−' }),
       jsx(Btn, { size: 'sm', onClick: () => setZoom((z) => Math.min(2, z + 0.15)), children: '+' }),
-      el('span', { className: 'nb-hint', children: `${Math.round(zoom * 100)}%` })))
+      el('span', { className: 'nb-hint', children: `${Math.round(zoom * 100)}%` }),
+      el('span', { style: { flex: 1 } }),
+      jsx(Btn, {
+        size: 'sm', icon: 'download', onClick: () => {
+          const a = document.createElement('a')
+          a.href = src; a.download = 'infographic.svg'
+          document.body.appendChild(a); a.click(); a.remove()
+        }, children: 'SVG'
+      }),
+      jsx(Btn, { size: 'sm', icon: 'download', onClick: savePng, disabled: pngBusy || !jsonName, children: pngBusy ? 'rendering…' : 'PNG' })))
 
   const live = el('div', { className: 'nb-ig' },
     el('div', { className: 'nb-ig-head' },
@@ -8897,7 +9055,10 @@ function InfographicView({ src, data }) {
           jsx(Seg, { label: 'View', value: mode, onChange: setChosen,
             options: [{ id: 'live', label: 'Live' }, { id: 'poster', label: 'Poster' }] }))
       : null,
-    mode === 'live' && cards.length ? live : poster)
+    el('div', { className: 'nb-ig-stage' },
+      el('div', { className: 'nb-ig-main' },
+        mode === 'live' && cards.length ? live : poster),
+      verify ? jsx(CheckedPanel, { verify }) : null))
 }
 
 /* ----------------------------------------------------------- data table */

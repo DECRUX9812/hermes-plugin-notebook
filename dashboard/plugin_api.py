@@ -1593,6 +1593,49 @@ def artifact_xlsx(notebook: str = Query(...), name: str = Query(...),
         headers={"Content-Disposition": f'attachment; filename="{out_name}"'})
 
 
+@router.get("/artifact/png")
+def artifact_png(notebook: str = Query(...), name: str = Query(...),
+                 scale: float = Query(2.0, description="device-pixel factor"),
+                 b64: int = Query(0, description="1 = return base64 JSON")) -> Any:
+    """An infographic as a PNG — the same stored JSON re-rendered by gfx and
+    rasterised through the installed headless Chrome, so the export is the
+    poster on screen, not a re-layout of it."""
+    try:
+        nb_id = store.resolve_notebook(notebook)
+        path = store.artifact_path(nb_id, name)
+    except Exception as exc:
+        return _fail(_why(exc), 404)
+    if not path.exists():
+        return _fail(f"{name} is not in this notebook", 404)
+    try:
+        data = json.loads(path.read_text(encoding="utf-8", errors="replace"))
+    except ValueError:
+        return _fail(f"{name} is not graphic JSON — open the artifact's events file", 400)
+    meta = data.get("_graphic") or {}
+    style_id = (data.get("_style") or {}).get("id") or ""
+    import tempfile
+    out_name = re.sub(r"\.json$", "", path.name) + ".png"
+    try:
+        with tempfile.TemporaryDirectory() as tmp:
+            target = Path(tmp) / "poster.png"
+            gfx.to_png(data, target, scale=max(1.0, min(3.0, scale)),
+                       template=meta.get("template") or "auto",
+                       preset=style_id or None,
+                       orientation=meta.get("orientation") or "landscape",
+                       detail=meta.get("detail") or "standard")
+            blob = target.read_bytes()
+    except RuntimeError as exc:
+        return _fail(f"PNG export needs a headless Chrome/Chromium: {exc}", 501)
+    except Exception as exc:
+        return _fail(_why(exc), 500)
+    if b64:
+        import base64 as _b64
+        return {"ok": True, "name": out_name, "ext": "png", "mime": "image/png",
+                "bytes": len(blob), "b64": _b64.b64encode(blob).decode("ascii")}
+    return Response(content=blob, media_type="image/png",
+                    headers={"Content-Disposition": f'attachment; filename="{out_name}"'})
+
+
 @router.get("/artifact/pptx")
 def artifact_pptx(notebook: str = Query(...), name: str = Query(...),
                   b64: int = Query(0, description="1 = return base64 JSON (the page's blob path")) -> Any:
