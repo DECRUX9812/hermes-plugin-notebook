@@ -1278,7 +1278,7 @@ function QuizView({ data, text, deckId, onCite }) {
                         el('div', { className: 'nb-quiz-why-body' },
                           el('span', { className: 'nb-quiz-why-choice', children: c }),
                           el('div', { className: 'nb-quiz-why-text' },
-                            jsx(Markdown, { text: why, onCite, className: 'nb-quiz-why-md' })))
+                            jsx(Markdown, { text: why, onCite, className: 'nb-quiz-why-md' }))))
                     }))
                 : null,
               jsx('div', { className: 'nb-quiz-src' },

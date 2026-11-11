@@ -549,7 +549,7 @@ const CSS = `
 /* the muted cost line under an answer — what it drew on, in checkable units */
 .nb-cost{margin-top:8px;font-size:var(--nb-fs-meta);color:${T.text4};
   font-variant-numeric:tabular-nums}
-.nb-cites-toggle{margin-top:8px;display:inline-flex;align-items:center;min-height:28px;
+.nb-cites-toggle{margin-top:8px;display:inline-flex;align-items:center;min-height:32px;
   padding:0 10px;border-radius:var(--nb-r-pill);border:1px dashed var(--nb-hair);
   background:transparent;color:${T.text3};font-size:var(--nb-fs-meta);font-weight:600;
   cursor:pointer;font-family:inherit}
@@ -603,6 +603,42 @@ const CSS = `
 .nb-suggest-go{color:${T.text4};display:flex;justify-content:flex-end}
 .nb-gaprow{display:flex;gap:6px;flex-wrap:wrap;align-items:center}
 .nb-gaprow .nb-chip[data-click=true]{border-style:dashed}
+.nb-gapcard{flex:1 1 200px;max-width:340px;padding:12px 14px;border-radius:var(--nb-r-el);
+  border:1px solid var(--nb-line,${T.line});background:var(--nb-card,${T.card});
+  display:flex;flex-direction:column}
+.nb-gapcard-text{font-size:var(--nb-fs-label);line-height:1.45;color:${T.text2}}
+.nb-src-tabs{display:flex;gap:4px;padding:4px;border-radius:12px;
+  background:var(--nb-wash,${T.cardDeep});border:1px solid var(--nb-line,${T.line})}
+.nb-src-tab{flex:1;display:flex;align-items:center;justify-content:center;gap:7px;
+  height:36px;border:0;border-radius:9px;background:transparent;color:${T.text3};
+  font:inherit;font-size:var(--nb-fs-label);font-weight:600;cursor:pointer;
+  transition:background var(--nb-dur-fast) var(--nb-ease),color var(--nb-dur-fast) var(--nb-ease)}
+.nb-src-tab:hover{color:${T.text}}
+.nb-src-tab[data-on=true]{background:${T.card};color:${T.text};
+  box-shadow:0 1px 3px rgba(0,0,0,.25)}
+.nb-dropzone{display:flex;flex-direction:column;align-items:center;justify-content:center;
+  gap:8px;min-height:130px;padding:18px;border-radius:14px;cursor:pointer;
+  border:1.5px dashed var(--nb-line,${T.line});color:${T.text3};
+  background:var(--nb-wash,${T.cardDeep});text-align:center;
+  transition:border-color var(--nb-dur-fast) var(--nb-ease),background var(--nb-dur-fast) var(--nb-ease)}
+.nb-dropzone:hover,.nb-dropzone:focus-visible{border-color:color-mix(in srgb,${T.accent} 55%, transparent);outline:none}
+.nb-dropzone[data-hot=true]{border-color:${T.accent};
+  background:color-mix(in srgb,${T.accent} 8%, transparent)}
+.nb-staged{display:flex;flex-direction:column;gap:2px;max-height:180px;overflow-y:auto;
+  border:1px solid var(--nb-line,${T.line});border-radius:12px;padding:6px}
+.nb-staged-row{display:flex;align-items:center;gap:9px;padding:6px 8px;
+  border-radius:8px;font-size:var(--nb-fs-label)}
+.nb-staged-row:hover{background:var(--nb-wash-2,${T.cardDeep})}
+.nb-staged-name{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;
+  color:${T.text};font-weight:600}
+.nb-src[data-pending=true]{opacity:.75}
+.nb-src[data-pending=true] .nb-src-title{color:${T.text3};font-style:italic}
+.nb-gen-stop{opacity:0;transition:opacity var(--nb-dur-fast) var(--nb-ease)}
+.nb-gen:hover .nb-gen-stop,.nb-gen:focus-within .nb-gen-stop,
+.nb-gen-stop:focus-visible{opacity:1}
+.nb-jobline{min-height:32px}
+.nb-fc-md p{margin:0}
+.nb-fc-md ul,.nb-fc-md ol{margin:0;padding-left:18px}
 .nb-thrrow{display:flex;align-items:center;gap:10px;width:100%;text-align:left;
   padding:10px 12px;border-radius:var(--nb-r-el);cursor:pointer;font-family:inherit;
   border:1px solid transparent;background:transparent;color:${T.text}}

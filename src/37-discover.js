@@ -69,7 +69,7 @@ const INGEST = Machine('ingest', {
   }
 })
 
-function DiscoverPanel({ notebook, onSay, reload }) {
+function DiscoverPanel({ notebook, onSay, reload, steps, onCancelJob }) {
   const scout = useMachine(SCOUT)
   const ingest = useMachine(INGEST)
   const [q, setQ] = useState('')
@@ -82,6 +82,14 @@ function DiscoverPanel({ notebook, onSay, reload }) {
   const busy = scout.matches('searching')
   const adding = ingest.matches('adding')
   const err = scout.ctx.error
+  // the backend's real phase for this notebook's discover/ingest jobs — the
+  // scout strip and the Stop button both read it
+  const discoverJob = steps && steps.discover && steps.discover.state === 'running' ? steps.discover : null
+  const ingestJob = steps && steps.ingest && steps.ingest.state === 'running' ? steps.ingest : null
+  const jobNow = discoverJob || ingestJob
+  const jobText = jobNow
+    ? `${jobNow.step === 'starting' ? 'starting' : jobNow.step}${jobNow.detail ? ` ${jobNow.detail}` : ''}`
+    : ''
 
   const nbId = notebook && notebook.id
   const candidates = (res && res.candidates) || []
@@ -102,6 +110,11 @@ function DiscoverPanel({ notebook, onSay, reload }) {
         body: { notebook: nbId, query: (query != null ? query : q) || '', max_results: 12, deep },
         timeoutMs: 180000
       })
+      if (out && out.cancelled) {
+        SCOUT.send('CANCEL')
+        if (onSay) onSay('stopped — nothing was added')
+        return
+      }
       SCOUT.send('RESULTS', { result: out })
     } catch (e) {
       SCOUT.send('FAIL', { message: String(e.message || e) })
@@ -118,12 +131,16 @@ function DiscoverPanel({ notebook, onSay, reload }) {
         body: { notebook: nbId, urls: chosen.map((c) => c.url) },
         timeoutMs: 300000
       })
-      const landed = ((out && out.results) || []).filter((r) => r.ok).length
-      if (onSay) onSay(`${landed} of ${chosen.length} sources added`)
+      const landed = ((out && out.results) || []).filter((r) => r.ok && !r.duplicate).length
+      if (out && out.cancelled) {
+        if (onSay) onSay(`stopped — ${landed} source${landed === 1 ? '' : 's'} already added were kept`)
+      } else {
+        if (onSay) onSay(`${landed} of ${chosen.length} sources added`)
+      }
       setPicked({})
       INGEST.send('DONE', { landed, asked: chosen.length })
       if (reload) await reload()
-      await run(res && res.query)
+      if (!(out && out.cancelled)) await run(res && res.query)
     } catch (e) {
       INGEST.send('FAIL', { message: String(e.message || e) })
       if (onSay) onSay(`adding failed: ${e.message || e}`)
@@ -134,7 +151,7 @@ function DiscoverPanel({ notebook, onSay, reload }) {
     if (busy && !candidates.length) {
       return el('div', { className: 'nb-disc-empty' },
         el('span', { className: 'nb-dot', style: { background: T.accent } }),
-        el('div', { children: 'planning queries and searching…' }))
+        el('div', { children: jobText || 'planning queries and searching…' }))
     }
     if (res && !candidates.length) {
       return el('div', { className: 'nb-disc-empty' },
@@ -181,6 +198,28 @@ function DiscoverPanel({ notebook, onSay, reload }) {
           : 'Deep research: a second and third round that read what round one found',
         children: deep ? 'Deep · on' : 'Deep research'
       })),
+
+    jobNow
+      ? el('div', {
+          className: 'nb-jobline', role: 'status', 'aria-live': 'polite',
+          style: { display: 'flex', alignItems: 'center', gap: '8px', marginTop: '10px' }
+        },
+          el('span', {
+            className: 'nb-dot', 'aria-hidden': 'true',
+            style: { background: T.accent, boxShadow: `0 0 8px ${T.accent}`, animation: 'nb-pulse 1.2s ease-in-out infinite' }
+          }),
+          el('span', {
+            style: { flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' },
+            children: jobText
+          }),
+          onCancelJob
+            ? jsx(Btn, {
+                size: 'sm',
+                onClick: () => onCancelJob(discoverJob ? 'discover' : 'ingest'),
+                children: 'Stop'
+              })
+            : null)
+      : null,
 
     ((res && res.gaps) || []).length
       ? el('div', { className: 'nb-disc-gaps' },

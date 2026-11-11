@@ -87,6 +87,7 @@ function App() {
   const jobs = useMachine(JOBS)
   const busy = jobs.ctx.lanes                      // kind -> startedAt (ms)
   const [note, setNote] = useState('')
+  const [noteAct, setNoteAct] = useState(null)   // {label, run} — e.g. Undo
   const [askOpen, setAskOpen] = useState(0)        // bump to focus the composer
   const dialogs = useMachine(DIALOGS)
   const surface = dialogs.matches('open') && dialogs.ctx.payload ? dialogs.ctx.payload.surface : ''
@@ -118,11 +119,39 @@ function App() {
     } catch { /* no location in this host */ }
   }, [])
 
-  const say = useCallback((msg) => {
+  const say = useCallback((msg, act) => {
     setNote(msg)
-    const t = setTimeout(() => setNote(''), 6000)
+    setNoteAct(act || null)
+    const t = setTimeout(() => { setNote(''); setNoteAct(null) }, act ? 10000 : 6000)
     return () => clearTimeout(t)
   }, [])
+
+  // live job steps for this notebook — the long endpoints report real phases
+  // ('reading S3', 'synthesising segment 7 of 24') which the tiles, dialogs
+  // and Stop buttons all read from one poll
+  const [steps, setSteps] = useState({})
+  useEffect(() => {
+    if (!nb) { setSteps({}); return undefined }
+    let live = true
+    const poll = () => api(`/progress?${qs({ notebook: nb })}`, { timeoutMs: 8000 })
+      .then((out) => { if (live && out && out.jobs) setSteps(out.jobs) })
+      .catch(() => {})
+    poll()
+    const t = setInterval(poll, 1600)
+    return () => { live = false; clearInterval(t) }
+  }, [nb])
+
+  const cancelJob = useCallback(async (key) => {
+    if (!nb || !key) return
+    try {
+      await api('/cancel', { method: 'POST', body: { notebook: nb, key }, timeoutMs: 15000 })
+    } catch (e) { say(`could not stop the job: ${e.message || e}`) }
+  }, [nb, say])
+
+  // the source currently being ingested, shown as a 'reading…' row in the rail
+  const [pendingSrc, setPendingSrc] = useState(null)
+  // the source a delete is waiting on confirmation for
+  const [confirmDel, setConfirmDel] = useState(null)
 
   useEffect(() => { persist.set('mode', mode) }, [mode])
   useEffect(() => { persist.set('notebook', nb) }, [nb])
@@ -188,7 +217,7 @@ function App() {
     if (!JOBS.can('RUN')) { say(`${kind.replace(/_/g, ' ')} is already running`); return }
     if (!JOBS.send('RUN', { kind })) { say(`${kind.replace(/_/g, ' ')} is already running`); return }
     try {
-      await api('/generate', {
+      const out = await api('/generate', {
         method: 'POST',
         body: { notebook: notebook.id, kind, length: 'short', ...(opts || {}) },
         // Measured on a six-source notebook: a timeline returns in ~117s, a
@@ -198,6 +227,10 @@ function App() {
         // time, so waiting is visible rather than silent.
         timeoutMs: 420000
       })
+      if (out && out.cancelled) {
+        say(`${kind.replace(/_/g, ' ')} stopped — partial output removed`)
+        return
+      }
       const fresh = await studio.reload(true)
       const target = fresh && fresh.notebook && fresh.notebook.artifacts
         ? fresh.notebook.artifacts.find((a) => a.kind === kind) : null
@@ -228,24 +261,45 @@ function App() {
   const openAddSource = useCallback((opts) => setSrcDialog(opts || { mode: 'find' }), [])
 
   // drag files onto the sources rail → same ingest path as the upload picker
+  // Undo for the add-source toast: delete exactly the ids that add produced —
+  // nothing else in the notebook is touched
+  const undoAdds = useCallback(async (ids) => {
+    if (!nb || !ids || !ids.length) return
+    let ok = 0
+    for (const id of ids) {
+      try {
+        await api('/source/delete', {
+          method: 'POST', body: { notebook: nb, source_id: id }, timeoutMs: 30000
+        })
+        ok += 1
+      } catch { /* already gone — count what actually left */ }
+    }
+    await studio.reload(true)
+    say(ok ? `removed ${ok} source${ok === 1 ? '' : 's'}` : 'nothing left to remove')
+  }, [nb, studio, say])
+
   const dropSources = useCallback(async (files) => {
     if (!nb || !files || !files.length) return
     let added = 0, skipped = 0
+    const ids = []
     for (const f of files) {
       try {
         let body = null
         if (f.path) body = { notebook: nb, path: f.path, title: f.name }
         else if (f.size && f.size <= 1500000) body = { notebook: nb, text: await f.text(), title: f.name }
         if (!body) { skipped += 1; continue }
-        await api('/source', { method: 'POST', body, timeoutMs: 120000 })
+        const out = await api('/source', { method: 'POST', body, timeoutMs: 120000 })
+        const src = out && out.source
+        if (src && src.source_id) ids.push(src.source_id)
         added += 1
       } catch { skipped += 1 }
     }
     if (added) await studio.reload(true)
-    if (added && !skipped) say(`added ${added} source${added === 1 ? '' : 's'} from dropped files`)
-    else if (added) say(`added ${added} source${added === 1 ? '' : 's'} — ${skipped} file${skipped === 1 ? '' : 's'} skipped (too large or unreadable)`)
-    else say('dropped files could not be read — use Add source for paths or large files')
-  }, [nb, studio, say])
+    const msg = added && !skipped ? `added ${added} source${added === 1 ? '' : 's'} from dropped files`
+      : added ? `added ${added} source${added === 1 ? '' : 's'} — ${skipped} file${skipped === 1 ? '' : 's'} skipped (too large or unreadable)`
+      : 'dropped files could not be read — use Add source for paths or large files'
+    say(msg, ids.length ? { label: 'Undo', run: () => undoAdds(ids) } : null)
+  }, [nb, studio, say, undoAdds])
 
   // NotebookLM's per-source checkbox: the /source_state reply carries the fresh
   // notebook payload — merge it over the current state instead of a full reload.
@@ -649,7 +703,8 @@ function App() {
       : discoverMode
         ? jsx(DiscoverPanel, {
             notebook, onSay: say,
-            reload: () => studio.reload(true)
+            reload: () => studio.reload(true),
+            steps, onCancelJob: cancelJob
           })
         : studyMode
           ? jsx(StudyPanel, {
@@ -667,7 +722,8 @@ function App() {
                   onAddSource: () => openAddSource(), onOpenSource: openSource,
                   onToggleSource: toggleSource, onToggleAll: toggleAllSources,
                   onToggleGroup: toggleGroupSources,
-                  onDeleteSource: deleteSource,
+                  onDeleteSource: (s) => setConfirmDel(s),
+                  pendingSrc,
                   onLabel: labelSources,
                   onCollapse: () => { setRailTouched(true); setRailOpen(false) },
                   onGoHome: () => setMode('home'), onSay: say, onDropFiles: dropSources,
@@ -689,6 +745,7 @@ function App() {
             studioVisible
               ? jsx(StudioPanel, {
                   kinds, notebook, busy, generate, filter, setFilter,
+                  steps, onStopJob: cancelJob,
                   onOpen: (art) => { setPicked(art); setTab('view') },
                   onDelete: deleteArtifact,
                   onCollapse: () => { setStudioTouched(true); setStudioOpen(false) },
@@ -698,14 +755,29 @@ function App() {
                   onShow: () => { setStudioTouched(true); setStudioOpen(true) } })
           ),
 
-    jsx(StatusBar, { mode, notebook, data, note, indep }),
+    jsx(StatusBar, { mode, notebook, data, note, noteAct, indep }),
 
     jsx(AddSourceDialog, {
       open: !!srcDialog, onClose: () => setSrcDialog(null), notebook,
       initialMode: srcDialog && srcDialog.mode,
       seedQuery: srcDialog && srcDialog.seed,
       noteOnly: !!(srcDialog && srcDialog.mode === 'note'),
-      onDone: async (msg) => { setSrcDialog(null); await studio.reload(true); if (msg) say(msg) }
+      steps, onCancelJob: cancelJob,
+      onPending: setPendingSrc,
+      onLanded: () => studio.reload(true),
+      onDone: async (msg, meta) => {
+        setSrcDialog(null); setPendingSrc(null)
+        await studio.reload(true)
+        const ids = meta && Array.isArray(meta.addedIds) ? meta.addedIds : []
+        if (ids.length) {
+          const n = meta.addedCount != null ? meta.addedCount : ids.length
+          const skipped = meta && meta.skipped ? ` · ${meta.skipped} skipped` : ''
+          say(`Added ${n} source${n === 1 ? '' : 's'}${skipped}`, {
+            label: 'Undo',
+            run: () => undoAdds(ids)
+          })
+        } else if (msg) say(msg)
+      }
     }),
     jsx(SearchDialog, {
       open: searchOpen, onClose: () => setSearchOpen(false), notebook,
@@ -724,6 +796,22 @@ function App() {
       notebook: renNb, onClose: () => setRenNb(null),
       onDone: async (title, desc, emoji) => { setRenNb(null); await renameNotebook(renNb.id, title, desc, emoji) },
       onDuplicate: async () => { const id = renNb.id; setRenNb(null); await duplicateNotebook(id, true) }
+    }) : null,
+
+    // removing a source is destructive and silent-reversible only by re-adding,
+    // so it always asks first
+    confirmDel ? jsx(Dialog, {
+      open: true, onClose: () => setConfirmDel(null), title: 'Remove source?', width: 430,
+      children: el('div', { style: { display: 'grid', gap: '14px' } },
+        el('p', { style: { margin: 0, color: T.text3, fontSize: '14px', lineHeight: 1.55 },
+          children: `“${confirmDel.title || confirmDel.id}” leaves the notebook — answers and artifacts stop citing it. The text is deleted, not archived.` }),
+        el('div', { style: { display: 'flex', gap: '8px', justifyContent: 'flex-end' } },
+          jsx(Btn, { onClick: () => setConfirmDel(null), children: 'Cancel' }),
+          jsx(Btn, {
+            onClick: async () => { const s = confirmDel; setConfirmDel(null); await deleteSource(s) },
+            style: { color: T.danger, borderColor: `color-mix(in srgb, ${T.danger} 45%, transparent)` },
+            children: 'Remove'
+          })))
     }) : null
   )
 }
@@ -955,7 +1043,7 @@ function PanelToggles({ side, onShow }) {
  * one dialog, opened from the one button that says "+ Add". */
 function Rail({ notebook, onAddSource, onOpenSource, onToggleSource,
                onToggleAll, onDeleteSource, onLabel, onCollapse, onSay, onDropFiles,
-               loading, error, reload }) {
+               pendingSrc, loading, error, reload }) {
   const sources = (notebook && notebook.sources) || []
   const labels = (notebook && notebook.labels) || []
   const [q, setQ] = useState('')
@@ -1164,6 +1252,18 @@ function Rail({ notebook, onAddSource, onOpenSource, onToggleSource,
                                 children: `#${srcFilter} ×`
                               })
                             : null)
+                      : null,
+                    // a source mid-ingest is a real row too — 'reading…' until
+                    // the backend's payload replaces it with the labelled one
+                    pendingSrc
+                      ? el('div', { className: 'nb-src', 'data-pending': 'true', 'aria-busy': 'true' },
+                          el('span', { className: 'nb-srccheck', 'aria-hidden': 'true',
+                            style: { border: `1.5px solid var(--ui-stroke-secondary, ${T.line})`, borderRadius: '5px' } }),
+                          el('span', { className: 'nb-src-open', style: { cursor: 'default' } },
+                            el('span', { className: 'nb-src-body' },
+                              el('span', { className: 'nb-src-title', children: pendingSrc.title || pendingSrc }),
+                              el('span', { className: 'nb-src-meta' },
+                                el('span', { className: 'nb-src-meta-txt', children: 'reading…' })))))
                       : null,
                     grouped
                       ? groups.map(([g, list]) => el('div', { key: g },

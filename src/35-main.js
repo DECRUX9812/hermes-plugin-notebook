@@ -294,6 +294,8 @@ function Chat({ notebook, kinds, askOpen, onSay, modelReady, onCite, onOpenSourc
   const [menuFor, setMenuFor] = useState(null)
   const [moreOpen, setMoreOpen] = useState(false)
   const [delName, setDelName] = useState(null)
+  // source-gap suggestions the reader waved away — local to this chat view
+  const [skippedGaps, setSkippedGaps] = useState(() => new Set())
   const [cfg, setCfg] = useState({})
   const [cfgBusy, setCfgBusy] = useState(false)
   const [msgs, setMsgs] = useState(() =>
@@ -310,10 +312,6 @@ function Chat({ notebook, kinds, askOpen, onSay, modelReady, onCite, onOpenSourc
   const sugg = suggest.ctx.list
   const suggErr = suggest.matches('failed')
   const [ovRetry, setOvRetry] = useState(0)
-  const [cfgOpen, setCfgOpen] = useState(false)
-  const [scopeOpen, setScopeOpen] = useState(false)
-  const [cfg, setCfg] = useState({})
-  const [cfgBusy, setCfgBusy] = useState(false)
   // The composer's pill: what "send" means. Grounded is read-only, agent may run
   // a tool, council wants more than one model to answer.
   const [agentMode, setAgentMode] = useState(() => persist.get('composerMode', 'grounded'))
@@ -712,12 +710,25 @@ function Chat({ notebook, kinds, askOpen, onSay, modelReady, onCite, onOpenSourc
         : null,
       msgs.length === 0 && !pending && sugg
         ? el('div', null,
-            (sugg.gaps || []).length
+            (sugg.gaps || []).filter((g) => !skippedGaps.has(g)).length
               ? el('div', { className: 'nb-gaprow', style: { marginTop: '14px' } },
                   el('span', { className: 'nb-meta', children: 'Source gaps' }),
-                  sugg.gaps.slice(0, 3).map((g) => jsx(Chip, {
-                    key: g, onClick: () => onFindSources && onFindSources(g),
-                    title: 'Find sources for this gap', children: g
+                  sugg.gaps.filter((g) => !skippedGaps.has(g)).slice(0, 3).map((g) => el('div', {
+                    key: g, className: 'nb-gapcard',
+                    children: [
+                      el('div', { className: 'nb-gapcard-text', children: g }),
+                      el('div', { style: { display: 'flex', gap: '8px', marginTop: '10px' } },
+                        jsx(Btn, {
+                          size: 'sm', variant: 'primary', icon: 'sparkle',
+                          onClick: () => onFindSources && onFindSources(g),
+                          children: 'Find sources'
+                        }),
+                        jsx(Btn, {
+                          size: 'sm',
+                          onClick: () => setSkippedGaps((s) => { const n = new Set(s); n.add(g); return n }),
+                          children: 'Skip'
+                        }))
+                    ]
                   })))
               : null,
             (sugg.artifacts || []).length
@@ -1335,7 +1346,7 @@ function SourcePeek({ source, notebook, onClose, onAskAbout, onRefresh, onPrev, 
 
 /* --------------------------------------------------------------- studio panel */
 
-function StudioPanel({ kinds, notebook, busy, generate, filter, setFilter, onOpen, onDelete, onCollapse, onAddNote }) {
+function StudioPanel({ kinds, notebook, busy, generate, filter, setFilter, onOpen, onDelete, onCollapse, onAddNote, steps, onStopJob }) {
   const ready = latestByKind(notebook ? notebook.artifacts : [])
   const arts = (notebook && notebook.artifacts) || []
   const kindGroup = {}
@@ -1406,6 +1417,8 @@ function StudioPanel({ kinds, notebook, busy, generate, filter, setFilter, onOpe
       ? el('div', { className: 'nb-gen-grid' },
           g.kinds.map((k) => jsx(GenPill, {
             key: k.id, kind: k, art: ready[k.id], started: busy[k.id],
+            job: steps ? steps[`gen:${k.id}`] : null,
+            onStop: onStopJob ? () => onStopJob(`gen:${k.id}`) : null,
             nbId: notebook && notebook.id,
             onOpen: () => { const art = ready[k.id]; if (art) onOpen(art); else generate(k.id) },
             onGenerate: (opts) => generate(k.id, opts)
@@ -1482,7 +1495,7 @@ function StudioPanel({ kinds, notebook, busy, generate, filter, setFilter, onOpe
   )
 }
 
-function GenPill({ kind, art, started, nbId, onOpen, onGenerate }) {
+function GenPill({ kind, art, started, job, onStop, nbId, onOpen, onGenerate }) {
   const [, force] = useState(0)
   const [opts, setOpts] = useState({})
   const [cfgOpen, setCfgOpen] = useState(false)
@@ -1502,8 +1515,12 @@ function GenPill({ kind, art, started, nbId, onOpen, onGenerate }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [art && art.key])
   const secs = started ? Math.max(0, Math.round((Date.now() - started) / 1000)) : 0
-  // one honest status line: what the last run left behind, or what a run costs
-  const state = started ? `writing · ${secs}s` : art ? `ready · ${ago(art.modified)}` : 'Generate'
+  // one honest status line: the backend's real phase while it runs
+  // ('synthesising 7 of 24 segments'), else what the last run left behind
+  const live = started && job && job.state === 'running'
+    ? `${job.step === 'starting' ? 'starting' : job.step}${job.detail ? ` ${job.detail}` : ''}`
+    : null
+  const state = live || (started ? `writing · ${secs}s` : art ? `ready · ${ago(art.modified)}` : 'Generate')
   const pick = (id, v) => setOpts((o) => ({ ...o, [id]: v }))
   /* Compact tile: icon, name, one status line. The tune knob only exists on
    * hover/focus (CSS) — twelve tiles at 56px have to read as a list, not a
@@ -1536,6 +1553,13 @@ function GenPill({ kind, art, started, nbId, onOpen, onGenerate }) {
           : null
       ]
     }),
+    started && onStop
+      ? jsx(IconBtn, {
+          icon: 'close', label: `Stop ${kind.label}`, size: 13,
+          className: 'nb-gen-stop',
+          onClick: onStop
+        })
+      : null,
     optSpecs.length
       ? jsx(IconBtn, {
           icon: 'sliders', label: `Options for ${kind.label}`,
@@ -1685,7 +1709,7 @@ function WaveThumb({ seed }) {
 
 /* -------------------------------------------------------------- status bar */
 
-function StatusBar({ mode, notebook, data, note, indep }) {
+function StatusBar({ mode, notebook, data, note, noteAct, indep }) {
   const ready = data && data.model_ready
   const home = mode === 'home'
   const notebooks = (data && data.notebooks) || []
@@ -1717,7 +1741,22 @@ function StatusBar({ mode, notebook, data, note, indep }) {
     // heard nothing at all. role=status + aria-live makes the reply audible
     // without stealing focus.
     note
-      ? jsx('span', { role: 'status', 'aria-live': 'polite', style: { color: T.accent }, children: note })
+      ? el('span', { role: 'status', 'aria-live': 'polite', style: { color: T.accent, display: 'inline-flex', alignItems: 'center', gap: '8px' }, children: [
+          note,
+          noteAct && noteAct.run
+            ? el('button', {
+                type: 'button',
+                style: {
+                  border: `1px solid color-mix(in srgb, ${T.accent} 45%, transparent)`,
+                  background: 'transparent', color: T.accent, borderRadius: '99px',
+                  padding: '1px 10px', fontSize: 'inherit', fontWeight: 650,
+                  fontFamily: 'inherit', cursor: 'pointer'
+                },
+                onClick: () => noteAct.run(),
+                children: noteAct.label || 'Undo'
+              })
+            : null
+        ].filter(Boolean) })
       : null,
     el('span', { style: { flex: 1 } }),
     jsx('span', { className: 'nb-mono', style: { fontSize: '12px' },
@@ -1729,15 +1768,15 @@ function StatusBar({ mode, notebook, data, note, indep }) {
 
 /* ---------------------------------------------------------------- dialogs */
 
-const SOURCE_MODES = [
-  { id: 'find', label: 'Find for me', icon: 'sparkle' },
-  { id: 'url', label: 'Web URL', icon: 'link' },
-  { id: 'path', label: 'File path', icon: 'file' },
-  { id: 'text', label: 'Paste text', icon: 'note' }
-]
-
 const hostOf = (url) => {
   try { return new URL(url).hostname.replace(/^www\./, '') } catch { return '' }
+}
+
+const fmtSize = (n) => {
+  if (!n && n !== 0) return ''
+  if (n < 1024) return `${n} B`
+  if (n < 1048576) return `${Math.round(n / 1024)} KB`
+  return `${(n / 1048576).toFixed(1)} MB`
 }
 
 /* notebook-wide passage search — deterministic BM25 over every source,
@@ -1862,12 +1901,24 @@ function SearchDialog({ open, onClose, notebook, onPick }) {
   })
 }
 
-function AddSourceDialog({ open, onClose, notebook, onDone, initialMode, seedQuery, noteOnly }) {
-  const [mode, setMode] = useState(noteOnly ? 'note' : (initialMode || 'find'))
-  const [value, setValue] = useState('')
+const SRC_TABS = [
+  { id: 'files', label: 'Files', icon: 'folder' },
+  { id: 'link', label: 'Link', icon: 'link' },
+  { id: 'text', label: 'Text', icon: 'note' },
+  { id: 'find', label: 'Find on the web', icon: 'sparkle' }
+]
+const TAB_FROM_MODE = { find: 'find', url: 'link', path: 'files', text: 'text', note: 'text' }
+
+function AddSourceDialog({ open, onClose, notebook, onDone, initialMode, seedQuery, noteOnly,
+                          steps, onCancelJob, onPending, onLanded }) {
+  const [tab, setTab] = useState('find')
+  const [value, setValue] = useState('')     // text tab: the paste
+  const [links, setLinks] = useState('')     // link tab: one url per line
   const [title, setTitle] = useState('')
+  const [files, setFiles] = useState([])     // staged File objects
   const [busy, setBusy] = useState(false)
   const [err, setErr] = useState('')
+  const [dragHot, setDragHot] = useState(false)
   // the find flow: describe -> candidates -> pick -> batch ingest -> summary
   const [cands, setCands] = useState(null)
   const [sel, setSel] = useState({})
@@ -1875,43 +1926,57 @@ function AddSourceDialog({ open, onClose, notebook, onDone, initialMode, seedQue
   const [added, setAdded] = useState(null)
   const wasOpen = useRef(false)
   const fileRef = useRef(null)
+  const dirRef = useRef(null)
 
-  // real file pick: Electron exposes .path (ingest the file itself); anywhere
-  // else small text-ish files are read and sent as pasted text
-  const onFile = async (e) => {
-    const f = e.target.files && e.target.files[0]
-    e.target.value = ''
-    if (!f || !notebook || busy) return
-    setBusy(true); setErr('')
-    try {
-      let body
-      if (f.path) {
-        body = { notebook: notebook.id, path: f.path, title: f.name }
-      } else if (f.size <= 1500000) {
-        body = { notebook: notebook.id, text: await f.text(), title: f.name }
-      } else {
-        setErr('That file is too large to read here — switch to File path and give its location.')
-        return
+  const ingestJob = steps && steps.ingest && steps.ingest.state === 'running' ? steps.ingest : null
+  const discoverJob = steps && steps.discover && steps.discover.state === 'running' ? steps.discover : null
+  const jobLine = (job) => job
+    ? `${job.step === 'starting' ? 'starting' : job.step}${job.detail ? ` ${job.detail}` : ''}`
+    : null
+
+  // stage picked/dropped files — deduped by name+size, order kept
+  const stageFiles = (list) => {
+    const arr = Array.from(list || [])
+    if (!arr.length) return
+    setFiles((cur) => {
+      const seen = new Set(cur.map((f) => `${f.name}:${f.size}`))
+      const next = [...cur]
+      for (const f of arr) {
+        const k = `${f.name}:${f.size}`
+        if (!seen.has(k)) { seen.add(k); next.push(f) }
       }
-      const out = await api('/source', { method: 'POST', body, timeoutMs: 120000 })
-      await onDone(out.source && out.source.title ? `added ${out.source.title}` : 'file added')
-    } catch (err2) {
-      setErr(err2.message || String(err2))
-    } finally {
-      setBusy(false)
-    }
+      return next
+    })
+  }
+  const onPickFiles = (e) => { stageFiles(e.target.files); e.target.value = '' }
+  const onPickDir = (e) => { stageFiles(e.target.files); e.target.value = '' }
+
+  // one source through POST /source; reports the pending rail row, reloads
+  // quietly when it lands so the list streams in row by row
+  const addOne = async (body, pendingTitle) => {
+    if (onPending) onPending({ title: pendingTitle })
+    const out = await api('/source', {
+      method: 'POST', body: { notebook: notebook.id, ...body }, timeoutMs: 180000
+    })
+    if (onLanded) onLanded()
+    if (onPending) onPending(null)
+    if (out && out.cancelled) return { cancelled: true }
+    const src = out && out.source
+    return { id: src && src.source_id ? src.source_id : null,
+             title: (src && src.title) || pendingTitle }
   }
 
   // fresh state on every open; the find box starts from the caller's seed (a
   // source gap, a describe prompt) or the notebook's own topic
   useEffect(() => {
     if (open && !wasOpen.current) {
-      setMode(noteOnly ? 'note' : (initialMode || 'find')); setValue(''); setTitle(''); setErr('')
+      setTab(noteOnly ? 'text' : (TAB_FROM_MODE[initialMode] || 'find'))
+      setValue(''); setLinks(''); setTitle(''); setFiles([]); setErr('')
       setCands(null); setSel({}); setAdded(null)
-      setBusy(false); setAdding(false)
+      setBusy(false); setAdding(false); setDragHot(false)
       const seed = (seedQuery || '').trim()
-      if (seed) { setValue(seed); return }
-      if (notebook && !noteOnly) {
+      if (seed) { setValue(seed); setTab('find') }
+      else if (notebook && !noteOnly) {
         const t = `${notebook.title || ''}${notebook.description ? ` — ${notebook.description}` : ''}`.trim()
         if (t) setValue(t)
       }
@@ -1919,8 +1984,8 @@ function AddSourceDialog({ open, onClose, notebook, onDone, initialMode, seedQue
     wasOpen.current = open
   }, [open, notebook, initialMode, seedQuery, noteOnly])
 
-  const pickMode = (m) => {
-    setMode(m)
+  const pickTab = (m) => {
+    setTab(m)
     if (m !== 'find') { setCands(null); setAdded(null); setErr('') }
   }
 
@@ -1934,6 +1999,11 @@ function AddSourceDialog({ open, onClose, notebook, onDone, initialMode, seedQue
         body: { notebook: notebook.id, query: q, max_results: 8 },
         timeoutMs: 90000
       })
+      if (out && out.cancelled) {
+        setCands(null)
+        setErr('stopped — nothing was added')
+        return
+      }
       const list = out.candidates || []
       setCands(list)
       const all = {}
@@ -1956,6 +2026,9 @@ function AddSourceDialog({ open, onClose, notebook, onDone, initialMode, seedQue
       const out = await api('/sources', {
         method: 'POST', body: { notebook: notebook.id, urls }, timeoutMs: 300000
       })
+      if (out && out.cancelled) {
+        setErr('stopped — the sources that already landed were kept')
+      }
       setAdded(out)
     } catch (e) {
       setErr(e.message || String(e))
@@ -1964,26 +2037,89 @@ function AddSourceDialog({ open, onClose, notebook, onDone, initialMode, seedQue
     }
   }
 
-  const submit = async () => {
-    if (!value.trim() || busy || !notebook) return
+  // sequential single-source adds for the Files / Link / Text tabs — each one
+  // reloads quietly so the rail streams the row in as it lands, and the ids
+  // collected feed the Undo toast
+  const runAdds = async (items, label) => {
+    // items: [{body, pending, skip?}]
+    if (!items.length || busy || !notebook) return
     setBusy(true); setErr('')
-    try {
-      const body = { notebook: notebook.id, [mode]: value.trim() }
-      if (title.trim()) body.title = title.trim()
-      const out = await api('/source', { method: 'POST', body, timeoutMs: 120000 })
-      setValue(''); setTitle('')
-      await onDone(out.source && out.source.title ? `added ${out.source.title}` : 'source added')
-    } catch (e) {
-      setErr(e.message || String(e))
-    } finally {
-      setBusy(false)
+    const ids = []
+    let landed = 0
+    const problems = []
+    for (const it of items) {
+      if (it.skip) { problems.push(it.skip); continue }
+      try {
+        const r = await addOne(it.body, it.pending)
+        if (r.cancelled) {
+          problems.push('stopped — what already landed was kept')
+          break
+        }
+        landed += 1
+        if (r.id) ids.push(r.id)
+      } catch (e) {
+        problems.push(`${it.pending} — ${e.message || e}`)
+      }
     }
+    if (onPending) onPending(null)
+    setBusy(false)
+    const skipped = items.length - landed - problems.filter((p) => p.startsWith('stopped')).length
+    await onDone(
+      problems.length
+        ? `${landed} added · ${problems.length} skipped`
+        : `added ${landed} ${label}${landed === 1 ? '' : 's'}`,
+      { addedIds: ids, addedCount: landed, skipped: Math.max(0, skipped) })
   }
 
+  const addFiles = () => {
+    const items = []
+    for (const f of files) {
+      if (f.path) items.push({ body: { path: f.path, title: f.name }, pending: f.name })
+      else if (f.size <= 1500000) {
+        items.push({
+          body: null, pending: f.name, file: f,
+          read: async () => ({ text: await f.text(), title: f.name })
+        })
+      } else items.push({ pending: f.name, skip: `${f.name} — too large to read here (max ~1.5 MB)` })
+    }
+    // text bodies need an async read first — resolve them before the loop
+    Promise.all(items.map(async (it) => {
+      if (it.read) it.body = await it.read()
+      return it
+    })).then((ready) => runAdds(ready.filter((it) => it.body || it.skip), 'file'))
+      .catch((e) => { setErr(e.message || String(e)); setBusy(false) })
+  }
+
+  const linkItems = () => {
+    const seen = new Set()
+    const urls = []
+    for (const line of links.split('\n')) {
+      const u = line.trim()
+      if (!u || seen.has(u)) continue
+      seen.add(u); urls.push(u)
+      if (urls.length >= 10) break
+    }
+    return urls.map((u) => ({
+      body: { url: u }, pending: hostOf(u) || u
+    }))
+  }
+
+  const addLinks = () => runAdds(linkItems(), 'link')
+
+  const addText = () => runAdds([{
+    body: { text: value.trim(), ...(title.trim() ? { title: title.trim() } : {}) },
+    pending: title.trim() || 'pasted text'
+  }], 'source')
+
   const pickedCount = (cands || []).filter((c) => sel[c.url]).length
-  const finish = () => onDone(added && added.added
-    ? `added ${added.added} source${added.added === 1 ? '' : 's'}${added.duplicates ? ` · ${added.duplicates} already here` : ''}`
-    : null)
+  const finish = () => {
+    const ids = (added && added.results || [])
+      .filter((r) => r.ok && !r.duplicate && r.source_id).map((r) => r.source_id)
+    onDone(added && added.added
+      ? `added ${added.added} source${added.added === 1 ? '' : 's'}${added.duplicates ? ` · ${added.duplicates} already here` : ''}`
+      : null,
+      { addedIds: ids, addedCount: added ? added.added : 0 })
+  }
 
   const findBody = () => {
     if (added) {
@@ -2076,9 +2212,11 @@ function AddSourceDialog({ open, onClose, notebook, onDone, initialMode, seedQue
     try {
       const body = { notebook: notebook.id, text: value.trim() }
       if (title.trim()) body.title = title.trim()
-      await api('/note', { method: 'POST', body, timeoutMs: 60000 })
+      const out = await api('/note', { method: 'POST', body, timeoutMs: 60000 })
       setValue(''); setTitle('')
-      await onDone('note saved — it is searchable now')
+      const sid = out && out.source && out.source.source_id
+      await onDone('note saved — it is searchable now',
+        sid ? { addedIds: [sid], addedCount: 1 } : null)
     } catch (e) {
       setErr(e.message || String(e))
     } finally {
@@ -2117,69 +2255,163 @@ function AddSourceDialog({ open, onClose, notebook, onDone, initialMode, seedQue
       }))
   )
 
+  const txtArea = {
+    minHeight: '150px', borderRadius: '12px', border: `1px solid ${T.line}`,
+    background: T.cardDeep, color: T.text, padding: '12px', fontSize: '14px',
+    lineHeight: 1.55, resize: 'vertical', outline: 'none', width: '100%',
+    fontFamily: 'inherit', boxSizing: 'border-box'
+  }
+  const errLine = err
+    ? el('div', { style: { color: T.danger, fontSize: '14px' }, children: err })
+    : null
+
+  const filesBody = () => el('div', { style: { display: 'grid', gap: '10px' } },
+    el('input', {
+      ref: fileRef, type: 'file', multiple: true, hidden: true, onChange: onPickFiles,
+      accept: '.pdf,.docx,.pptx,.xlsx,.epub,.ipynb,.txt,.md,.csv,.json,.png,.jpg,.jpeg,.webp,.mp3,.wav,.m4a,.mp4,.mov,.webm'
+    }),
+    el('input', { ref: dirRef, type: 'file', hidden: true, onChange: onPickDir, 'webkitdirectory': '' }),
+    el('div', {
+      className: 'nb-dropzone', 'data-hot': dragHot ? 'true' : 'false',
+      role: 'button', tabIndex: 0,
+      'aria-label': 'Drop files here, or use the buttons below to choose them',
+      onDragOver: (e) => { e.preventDefault(); setDragHot(true) },
+      onDragLeave: () => setDragHot(false),
+      onDrop: (e) => { e.preventDefault(); setDragHot(false); stageFiles(e.dataTransfer.files) },
+      onClick: () => fileRef.current && fileRef.current.click(),
+      onKeyDown: (e) => {
+        if (e.key === 'Enter' || e.key === ' ') {
+          e.preventDefault()
+          fileRef.current && fileRef.current.click()
+        }
+      },
+      children: [
+        jsx(Glyph, { name: 'folder', size: 22 }),
+        el('div', { style: { fontWeight: 600, fontSize: '14px' }, children: 'Drop files or a folder here' }),
+        el('div', { className: 'nb-hint',
+          children: 'PDF, Office docs, audio, images, video — read on this machine, nothing leaves it.' })
+      ]
+    }),
+    files.length
+      ? el('div', { className: 'nb-staged', role: 'list', 'aria-label': 'Files to add' },
+          files.map((f, i) => el('div', {
+            key: `${f.name}:${f.size}`, className: 'nb-staged-row', role: 'listitem',
+            children: [
+              jsx(Glyph, { name: 'file', size: 14 }),
+              el('span', { className: 'nb-staged-name', children: f.name }),
+              el('span', { className: 'nb-hint',
+                children: [f.path || '', fmtSize(f.size)].filter(Boolean).join(' · ') }),
+              jsx(IconBtn, {
+                icon: 'close', label: `Remove ${f.name}`, size: 13,
+                onClick: () => setFiles((cur) => cur.filter((_, j) => j !== i))
+              })
+            ]
+          })))
+      : null,
+    errLine,
+    el('div', { style: { display: 'flex', gap: '8px', justifyContent: 'flex-end', marginTop: '4px', alignItems: 'center' } },
+      jsx(Btn, { icon: 'file', onClick: () => fileRef.current && fileRef.current.click(), children: 'Choose files' }),
+      jsx(Btn, { icon: 'folder', onClick: () => dirRef.current && dirRef.current.click(), children: 'Choose folder' }),
+      el('span', { style: { flex: 1 } }),
+      jsx(Btn, { onClick: onClose, children: 'Cancel' }),
+      jsx(Btn, {
+        variant: 'primary', icon: 'plus', onClick: addFiles,
+        disabled: busy || !files.length || !notebook,
+        children: busy ? 'Adding…'
+          : files.length ? `Add ${files.length} file${files.length === 1 ? '' : 's'}` : 'Add files'
+      }))
+  )
+
+  const linkBody = () => {
+    const n = linkItems().length
+    return el('div', { style: { display: 'grid', gap: '10px' } },
+      el('textarea', {
+        className: 'nb-mono', value: links,
+        onChange: (e) => setLinks(e.target.value), autoFocus: true,
+        placeholder: 'https://example.com/article\nhttps://www.youtube.com/watch?v=…',
+        'aria-label': 'Source links — one URL or YouTube link per line',
+        style: { ...txtArea, minHeight: '140px' }
+      }),
+      el('div', { className: 'nb-hint', style: { padding: '0 2px' },
+        children: 'One URL or YouTube link per line — up to 10 go in at a time; duplicates are skipped.' }),
+      errLine,
+      el('div', { style: { display: 'flex', gap: '8px', justifyContent: 'flex-end', marginTop: '4px' } },
+        jsx(Btn, { onClick: onClose, children: 'Cancel' }),
+        jsx(Btn, {
+          variant: 'primary', icon: 'plus', onClick: addLinks,
+          disabled: busy || !n || !notebook,
+          children: busy ? 'Adding…' : n ? `Add ${n} link${n === 1 ? '' : 's'}` : 'Add links'
+        }))
+    )
+  }
+
+  const textBody = () => el('div', { style: { display: 'grid', gap: '10px' } },
+    el('div', { className: 'nb-field', style: { height: '40px' } },
+      jsx(Glyph, { name: 'note', size: 14 }),
+      el('input', {
+        value: title, onChange: (e) => setTitle(e.target.value),
+        placeholder: 'Title (optional — derived when left blank)',
+        'aria-label': 'Source title'
+      })),
+    el('textarea', {
+      className: 'nb-mono', value, onChange: (e) => setValue(e.target.value), autoFocus: true,
+      placeholder: 'Paste notes, a transcript, a spec…', 'aria-label': 'Pasted source text',
+      style: { ...txtArea, minHeight: '160px' }
+    }),
+    errLine,
+    el('div', { style: { display: 'flex', gap: '8px', justifyContent: 'flex-end', marginTop: '4px' } },
+      jsx(Btn, { onClick: onClose, children: 'Cancel' }),
+      jsx(Btn, {
+        variant: 'primary', icon: 'plus', onClick: addText,
+        disabled: busy || !value.trim() || !notebook,
+        children: busy ? 'Adding…' : 'Add source'
+      }))
+  )
+
+  // the live job line — the backend's real step while an ingest/discover runs,
+  // with a Stop that cancels cooperatively between steps
+  const jobNow = ingestJob || discoverJob
+  const jobNowLine = jobNow
+    ? el('div', {
+        className: 'nb-jobline', role: 'status', 'aria-live': 'polite',
+        style: { display: 'flex', alignItems: 'center', gap: '8px', marginTop: '12px' }
+      },
+        el('span', {
+          className: 'nb-dot', 'aria-hidden': 'true',
+          style: { background: T.accent, boxShadow: `0 0 8px ${T.accent}`, animation: 'nb-pulse 1.2s ease-in-out infinite' }
+        }),
+        el('span', {
+          style: { flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' },
+          children: jobLine(jobNow)
+        }),
+        onCancelJob
+          ? jsx(Btn, {
+              size: 'sm', onClick: () => onCancelJob(ingestJob ? 'ingest' : 'discover'),
+              children: 'Stop'
+            })
+          : null)
+    : null
+
   return jsx(Dialog, {
     open, onClose, title: noteOnly ? 'Add a note' : 'Add a source',
-    width: mode === 'find' && !noteOnly ? 620 : 520,
+    width: tab === 'find' ? 620 : 540,
     children: noteOnly
       ? noteBody()
       : el('div', null,
-      el('p', { style: { margin: '0 0 14px', color: T.text3, fontSize: '14px', lineHeight: 1.55 },
-        children: mode === 'find'
-          ? 'Describe what this notebook should know — Hermes searches the web and offers candidates. Nothing joins until you pick it.'
-          : 'A source is anything the notebook can cite: a URL, a file on this machine, or text you paste. It is extracted, labelled and indexed on the way in.' }),
-      jsx(Seg, { label: 'Source kind', value: mode, onChange: pickMode, options: SOURCE_MODES }),
-      el('div', { style: { marginTop: '14px' } },
-        mode === 'find'
-          ? findBody()
-          : el('div', null,
-              el('div', { style: { display: 'grid', gap: '10px' } },
-                mode === 'text'
-                  ? el('textarea', {
-                      className: 'nb-mono', value, onChange: (e) => setValue(e.target.value), autoFocus: true,
-                      placeholder: 'Paste notes, a transcript, a spec…', 'aria-label': 'Pasted source text',
-                      style: {
-                        minHeight: '160px', borderRadius: '10px', border: `1px solid ${T.line}`,
-                        background: T.cardDeep, color: T.text, padding: '12px', fontSize: '14px',
-                        lineHeight: 1.55, resize: 'vertical', outline: 'none'
-                      }
-                    })
-                  : el('div', { className: 'nb-field', style: { height: '40px' } },
-                      jsx(Glyph, { name: mode === 'url' ? 'link' : 'file', size: 14 }),
-                      el('input', {
-                        value, onChange: (e) => setValue(e.target.value), autoFocus: true,
-                        onKeyDown: (e) => { if (e.key === 'Enter') submit() },
-                        placeholder: mode === 'url' ? 'https://… or a YouTube link' : '/home/you/doc.pdf',
-                        'aria-label': mode === 'url' ? 'Source URL' : 'File path'
-                      })),
-                el('div', { className: 'nb-field', style: { height: '40px' } },
-                  jsx(Glyph, { name: 'note', size: 14 }),
-                  el('input', {
-                    value: title, onChange: (e) => setTitle(e.target.value),
-                    placeholder: 'Title (optional — derived when left blank)',
-                    'aria-label': 'Source title'
-                  }))
-              ),
-              err ? el('div', { style: { marginTop: '12px', color: T.danger, fontSize: '14px' }, children: err }) : null,
-              el('div', { style: { display: 'flex', gap: '8px', justifyContent: 'flex-end', marginTop: '16px', alignItems: 'center' } },
-                el('input', {
-                  ref: fileRef, type: 'file', hidden: true,
-                  onChange: onFile,
-                  accept: '.pdf,.docx,.pptx,.xlsx,.epub,.ipynb,.txt,.md,.csv,.json,.png,.jpg,.jpeg,.webp,.mp3,.wav,.m4a'
-                }),
-                jsx(Btn, {
-                  icon: 'folder', disabled: busy || !notebook,
-                  onClick: () => fileRef.current && fileRef.current.click(),
-                  children: 'Upload file'
-                }),
-                el('span', { style: { flex: 1 } }),
-                jsx(Btn, { onClick: onClose, children: 'Cancel' }),
-                jsx(Btn, {
-                  variant: 'primary', icon: 'plus', onClick: submit,
-                  disabled: busy || !value.trim() || !notebook,
-                  children: busy ? 'Ingesting…' : 'Add source'
-                })))
-      )
-    )
+          el('div', { className: 'nb-src-tabs', role: 'tablist', 'aria-label': 'Source type' },
+            SRC_TABS.map((t) => jsx('button', {
+              key: t.id, type: 'button', role: 'tab',
+              'aria-selected': tab === t.id ? 'true' : 'false',
+              className: 'nb-src-tab', 'data-on': tab === t.id ? 'true' : 'false',
+              onClick: () => pickTab(t.id),
+              children: [jsx(Glyph, { name: t.icon, size: 14 }), t.label]
+            }))),
+          jobNowLine,
+          el('div', { style: { marginTop: '14px' } },
+            tab === 'files' ? filesBody()
+              : tab === 'link' ? linkBody()
+                : tab === 'text' ? textBody()
+                  : findBody()))
   })
 }
 
