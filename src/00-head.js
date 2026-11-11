@@ -1098,12 +1098,16 @@ const CSS = `
 .nb-map-dot[data-tone=warn]{background:${T.warn}}
 .nb-map-dot[data-tone=danger]{background:${T.danger}}
 .nb-map-dot[data-tone=ok]{background:${T.ok}}
-.nb-map-stage{display:grid;grid-template-columns:1fr minmax(0,240px);gap:12px;min-height:420px}
+/* the stage is the whole viewer now — the node detail is a popover on the
+   node itself, not a fixed column eating a third of the canvas */
+.nb-map-stage{position:relative;flex:1;min-height:340px}
 .nb-map{background:var(--nb-wash);border:1px solid var(--nb-hair-soft);
-  border-radius:var(--nb-r-box);min-height:420px;touch-action:none}
+  border-radius:var(--nb-r-box);touch-action:none}
+.nb-map-pop{position:absolute;z-index:30;max-height:calc(100% - 16px);overflow:auto;
+  box-shadow:var(--nb-shadow)}
 .nb-map-ins{display:flex;flex-direction:column;gap:8px;padding:14px;
   border:1px solid var(--nb-hair-soft);border-radius:var(--nb-r-box);background:var(--nb-card);
-  align-self:start;min-width:0}
+  min-width:0}
 .nb-map-ins-hint{font-size:var(--nb-fs-label);color:${T.text3};line-height:1.5}
 .nb-map-ins-head{display:flex;flex-direction:column;gap:4px}
 .nb-map-type{align-self:flex-start;font-size:var(--nb-fs-meta);font-weight:700;
@@ -1119,7 +1123,6 @@ const CSS = `
 .nb-map-ins-sum{font-size:var(--nb-fs-label);line-height:1.55;color:${T.text2}}
 .nb-map-ins-src{display:flex;gap:4px;flex-wrap:wrap;padding-top:6px;
   border-top:1px solid var(--nb-hair-soft)}
-@media (max-width:900px){.nb-map-stage{grid-template-columns:1fr}}
 
 /* an export menu, not a row of buttons: each target explains what it is for */
 .nb-menu-wrap{position:relative;display:inline-flex}
@@ -1247,7 +1250,7 @@ const CSS = `
 .nb-srcchip[disabled]{cursor:default;opacity:.7}
 
 /* ---------------------------------------------------------------- mind map */
-.nb-map{width:100%;height:100%;min-height:340px;display:block;cursor:grab;border-radius:var(--nb-r-box);
+.nb-map{position:absolute;inset:0;width:100%;height:100%;min-height:0;display:block;cursor:grab;border-radius:var(--nb-r-box);
   border:1px solid var(--nb-hair-soft);
   background:radial-gradient(circle at 50% 45%, color-mix(in srgb,${T.accent} 9%, transparent), transparent 62%), var(--nb-card)}
 .nb-map:active{cursor:grabbing}
@@ -1264,7 +1267,19 @@ const CSS = `
   font-size:19px;line-height:1.5}
 .nb-face[data-side=back]{transform:rotateY(180deg);border-color:color-mix(in srgb,${T.accent} 45%, transparent);
   background:linear-gradient(160deg, color-mix(in srgb,${T.accent} 14%, var(--nb-card)), var(--nb-card))}
-.nb-face .nb-meta{position:absolute;top:17px;left:22px}
+/* the side label sits in the flow now — absolutely positioned it printed on
+   top of the card text the moment an answer ran long */
+.nb-face>.nb-meta{align-self:flex-start}
+.nb-face{overflow:auto}
+.nb-face .nb-md{font-size:16px;line-height:1.5}
+.nb-face .nb-md p{margin:0 0 8px}
+.nb-face .nb-md ul,.nb-face .nb-md ol{margin:0 0 8px;padding-left:18px}
+.nb-face .nb-md li{margin:2px 0}
+.nb-face .nb-md h2,.nb-face .nb-md h3{margin:10px 0 4px}
+.nb-fc-src{margin-top:auto;padding-top:10px;border-top:1px solid var(--nb-hair-soft);
+  font-size:var(--nb-fs-meta);color:${T.text3};line-height:1.45}
+.nb-quiz-q p,.nb-quiz-explain p,.nb-quiz-why-md p{margin:0}
+.nb-quiz-why-md ul,.nb-quiz-why-md ol{margin:0;padding-left:16px}
 .nb-face-hint{font-size:12px;color:${T.text4};margin-top:auto;letter-spacing:.02em}
 
 /* -------------------------------------------------------------- status bar */

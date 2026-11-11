@@ -1098,12 +1098,16 @@ const CSS = `
 .nb-map-dot[data-tone=warn]{background:${T.warn}}
 .nb-map-dot[data-tone=danger]{background:${T.danger}}
 .nb-map-dot[data-tone=ok]{background:${T.ok}}
-.nb-map-stage{display:grid;grid-template-columns:1fr minmax(0,240px);gap:12px;min-height:420px}
+/* the stage is the whole viewer now — the node detail is a popover on the
+   node itself, not a fixed column eating a third of the canvas */
+.nb-map-stage{position:relative;flex:1;min-height:340px}
 .nb-map{background:var(--nb-wash);border:1px solid var(--nb-hair-soft);
-  border-radius:var(--nb-r-box);min-height:420px;touch-action:none}
+  border-radius:var(--nb-r-box);touch-action:none}
+.nb-map-pop{position:absolute;z-index:30;max-height:calc(100% - 16px);overflow:auto;
+  box-shadow:var(--nb-shadow)}
 .nb-map-ins{display:flex;flex-direction:column;gap:8px;padding:14px;
   border:1px solid var(--nb-hair-soft);border-radius:var(--nb-r-box);background:var(--nb-card);
-  align-self:start;min-width:0}
+  min-width:0}
 .nb-map-ins-hint{font-size:var(--nb-fs-label);color:${T.text3};line-height:1.5}
 .nb-map-ins-head{display:flex;flex-direction:column;gap:4px}
 .nb-map-type{align-self:flex-start;font-size:var(--nb-fs-meta);font-weight:700;
@@ -1119,7 +1123,6 @@ const CSS = `
 .nb-map-ins-sum{font-size:var(--nb-fs-label);line-height:1.55;color:${T.text2}}
 .nb-map-ins-src{display:flex;gap:4px;flex-wrap:wrap;padding-top:6px;
   border-top:1px solid var(--nb-hair-soft)}
-@media (max-width:900px){.nb-map-stage{grid-template-columns:1fr}}
 
 /* an export menu, not a row of buttons: each target explains what it is for */
 .nb-menu-wrap{position:relative;display:inline-flex}
@@ -1247,7 +1250,7 @@ const CSS = `
 .nb-srcchip[disabled]{cursor:default;opacity:.7}
 
 /* ---------------------------------------------------------------- mind map */
-.nb-map{width:100%;height:100%;min-height:340px;display:block;cursor:grab;border-radius:var(--nb-r-box);
+.nb-map{position:absolute;inset:0;width:100%;height:100%;min-height:0;display:block;cursor:grab;border-radius:var(--nb-r-box);
   border:1px solid var(--nb-hair-soft);
   background:radial-gradient(circle at 50% 45%, color-mix(in srgb,${T.accent} 9%, transparent), transparent 62%), var(--nb-card)}
 .nb-map:active{cursor:grabbing}
@@ -1264,7 +1267,19 @@ const CSS = `
   font-size:19px;line-height:1.5}
 .nb-face[data-side=back]{transform:rotateY(180deg);border-color:color-mix(in srgb,${T.accent} 45%, transparent);
   background:linear-gradient(160deg, color-mix(in srgb,${T.accent} 14%, var(--nb-card)), var(--nb-card))}
-.nb-face .nb-meta{position:absolute;top:17px;left:22px}
+/* the side label sits in the flow now — absolutely positioned it printed on
+   top of the card text the moment an answer ran long */
+.nb-face>.nb-meta{align-self:flex-start}
+.nb-face{overflow:auto}
+.nb-face .nb-md{font-size:16px;line-height:1.5}
+.nb-face .nb-md p{margin:0 0 8px}
+.nb-face .nb-md ul,.nb-face .nb-md ol{margin:0 0 8px;padding-left:18px}
+.nb-face .nb-md li{margin:2px 0}
+.nb-face .nb-md h2,.nb-face .nb-md h3{margin:10px 0 4px}
+.nb-fc-src{margin-top:auto;padding-top:10px;border-top:1px solid var(--nb-hair-soft);
+  font-size:var(--nb-fs-meta);color:${T.text3};line-height:1.45}
+.nb-quiz-q p,.nb-quiz-explain p,.nb-quiz-why-md p{margin:0}
+.nb-quiz-why-md ul,.nb-quiz-why-md ol{margin:0;padding-left:16px}
 .nb-face-hint{font-size:12px;color:${T.text4};margin-top:auto;letter-spacing:.02em}
 
 /* -------------------------------------------------------------- status bar */
@@ -6937,9 +6952,9 @@ function Viewer({ artifact, notebook, onCite, onRegenerate, regenerating, onChan
   } else if (artifact.kind === 'mind_map') {
     body = jsx(MindMapView, { data: asJson.json, text: primary.text, onCite })
   } else if (artifact.kind === 'flashcards') {
-    body = jsx(FlashcardsView, { data: asJson.json, text: primary.text, key: artifact.key, deckId: artifact.key })
+    body = jsx(FlashcardsView, { data: asJson.json, text: primary.text, key: artifact.key, deckId: artifact.key, onCite })
   } else if (artifact.kind === 'quiz') {
-    body = jsx(QuizView, { data: asJson.json, text: primary.text, deckId: artifact.key })
+    body = jsx(QuizView, { data: asJson.json, text: primary.text, deckId: artifact.key, onCite })
   } else if (artifact.kind === 'slides') {
     body = jsx(SlidesView, { data: asJson.json, text: primary.text, notebook, jsonName, onCite, onSay,
                              htmlUrl: primary.url && artifact.ext === 'html' ? primary.url : '' })
@@ -7752,13 +7767,58 @@ function MindMapView({ data, text, onCite }) {
 
   const [zoom, setZoom] = useState(1)
   const [pan, setPan] = useState({ x: 0, y: 0 })
+  // hover/focus carries the node AND its screen box so the detail popover can
+  // anchor to it — there is no fixed inspector column anymore
   const [hover, setHover] = useState(null)
   const drag = useRef(null)
+  const stageRef = useRef(null)
+  const [stage, setStage] = useState({ w: 0, h: 0, left: 0, top: 0 })
+
+  useEffect(() => {
+    const el = stageRef.current
+    if (!el) return undefined
+    const measure = () => {
+      const r = el.getBoundingClientRect()
+      setStage({ w: r.width, h: r.height, left: r.left, top: r.top })
+    }
+    measure()
+    const ro = typeof ResizeObserver !== 'undefined' ? new ResizeObserver(measure) : null
+    if (ro) ro.observe(el)
+    window.addEventListener('resize', measure)
+    return () => { if (ro) ro.disconnect(); window.removeEventListener('resize', measure) }
+  }, [])
+
+  // a different artifact is a different map — always open fitted, never
+  // remembering the last one's zoom
+  useEffect(() => { setZoom(1); setPan({ x: 0, y: 0 }); setHover(null) }, [data])
 
   if (!nodes.length) {
     return el('div', { className: 'nb-view-body' },
       el('div', { className: 'nb-hint', children: 'no mind map structure in this artifact' }))
   }
+
+  /* Fit-to-view maths: the SVG's viewBox already scales the whole graph into
+   * the stage, so zoom 1 IS the fit. What the fit does to TEXT is the problem
+   * — a 1600-unit-wide map drawn into 800px renders 14.5-unit labels at ~7px.
+   * The floor below buys legibility back in layout units, and truncation keeps
+   * the boxes from overflowing when the floor bites. */
+  const fitScale = stage.w && stage.h ? Math.min(stage.w / width, stage.h / height) : 1
+  const unit = Math.max(1, 12 / Math.max(fitScale, 0.05))   // user units per 12px
+  const fsLabel = Math.max(14.5, unit)
+  const fsRoot = Math.max(16, unit + 1.5)
+  const fsStat = Math.max(12, unit)
+  const fsEdge = Math.max(12, unit)
+  const charW = (fs) => fs * 0.56
+  const fitText = (label, w, fs) => {
+    const max = Math.max(4, Math.floor((w - 18) / charW(fs)))
+    const s = String(label || '')
+    return s.length > max ? { text: `${s.slice(0, Math.max(1, max - 1))}…`, full: s } : { text: s, full: s }
+  }
+  const anchorNode = (e, n) => {
+    const r = e.currentTarget.getBoundingClientRect()
+    setHover({ id: n.id, x: r.left, y: r.top, w: r.width, h: r.height })
+  }
+  const clearHover = (id) => setHover((h) => (h && h.id === id ? null : h))
 
   const edgeEl = (e, i) => {
     const tension = e.style === 'dashed_tension' || /contradict/i.test(e.relation)
@@ -7769,7 +7829,7 @@ function MindMapView({ data, text, onCite }) {
     const mid = { x: (e.a.x + e.b.x) / 2, y: (e.a.y + e.b.y) / 2 }
     const label = e.relation
       ? jsx('text', {
-          x: mid.x, y: mid.y - 5, textAnchor: 'middle', fontSize: 12,
+          x: mid.x, y: mid.y - 5, textAnchor: 'middle', fontSize: fsEdge,
           fill: tension ? `color-mix(in srgb, ${T.danger} 72%, ${T.text})` : T.text3,
           children: e.relation
         })
@@ -7789,32 +7849,42 @@ function MindMapView({ data, text, onCite }) {
     const tone = MAP_TONE[n.nodeType] || MAP_TONE.core_thesis
     const ink = mapInk(tone.ink)
     const isRoot = graph ? String((graph.root || '')) === n.id : n.depth === 0
+    const hot = hover && hover.id === n.id
+    const fs = isRoot ? fsRoot : fsLabel
+    const labelFit = fitText(n.label, n.w, fs)
+    const statFit = n.stat ? fitText(n.stat, n.w, fsStat) : null
     const kids = [
+      jsx('title', { children: labelFit.full }),
       jsx('rect', {
         x: n.x - n.w / 2, y: n.y - n.h / 2, width: n.w, height: n.h, rx: isRoot ? 14 : 10,
         fill: isRoot ? `color-mix(in srgb, ${ink} 26%, transparent)`
           : `color-mix(in srgb, ${ink} 8%, var(--ui-bg-primary, #101116))`,
-        stroke: `color-mix(in srgb, ${ink} ${isRoot || hover === n.id ? 66 : 34}%, transparent)`,
-        strokeWidth: isRoot || hover === n.id ? 2 : 1.2
+        stroke: `color-mix(in srgb, ${ink} ${isRoot || hot ? 66 : 34}%, transparent)`,
+        strokeWidth: isRoot || hot ? 2 : 1.2
       }),
       jsx('text', {
         x: n.x, y: n.y + (n.stat ? -1 : 5), textAnchor: 'middle',
         fill: isRoot ? '#f2f3f8' : T.text,
-        fontSize: isRoot ? 16 : 14.5, fontWeight: isRoot ? 680 : 600,
-        children: n.label
+        fontSize: fs, fontWeight: isRoot ? 680 : 600,
+        children: labelFit.text
       })
     ]
-    if (n.stat) {
+    if (statFit) {
       kids.push(jsx('text', {
-        x: n.x, y: n.y + 14, textAnchor: 'middle', fontSize: 12,
+        x: n.x, y: n.y + Math.max(13, fsStat * 0.9), textAnchor: 'middle', fontSize: fsStat,
         fill: `color-mix(in srgb, ${ink} 78%, ${T.text})`, fontWeight: 700,
-        children: n.stat
+        children: statFit.text
       }))
     }
     return jsx('g', {
       key: `n${i}`,
-      onMouseEnter: () => setHover(n.id),
-      onMouseLeave: () => setHover((h) => (h === n.id ? null : h)),
+      tabIndex: 0,
+      role: 'button',
+      'aria-label': `${n.label}${n.nodeType ? ` — ${n.nodeType.replace(/_/g, ' ')}` : ''}`,
+      onMouseEnter: (e) => anchorNode(e, n),
+      onMouseLeave: () => clearHover(n.id),
+      onFocus: (e) => anchorNode(e, n),
+      onBlur: () => clearHover(n.id),
       style: { cursor: 'pointer' },
       children: kids
     })
@@ -7863,16 +7933,34 @@ function MindMapView({ data, text, onCite }) {
     jsx(Btn, { size: 'sm', icon: 'grid', children: 'Reset',
       onClick: () => { setZoom(1); setPan({ x: 0, y: 0 }) } }))
 
-  const hovered = nodes.find((n) => n.id === hover) || null
+  const hovered = nodes.find((n) => hover && n.id === hover.id) || null
+  // popover placement: right of the node, flipped left when it would clip,
+  // always inside the stage vertically
+  let popStyle = null
+  if (hovered && hover) {
+    const POP_W = 264
+    let left = hover.x - stage.left + hover.w + 10
+    if (left + POP_W > stage.w - 8) left = hover.x - stage.left - POP_W - 10
+    left = Math.max(8, Math.min(left, stage.w - POP_W - 8))
+    let top = hover.y - stage.top
+    top = Math.max(8, Math.min(top, Math.max(8, stage.h - 40)))
+    popStyle = { left: `${left}px`, top: `${top}px`, width: `${POP_W}px` }
+  }
   return el('div', { className: 'nb-view-body nb-map-wrap' },
     toolbar,
-    el('div', { className: 'nb-map-stage' }, canvas, jsx(MapInspector, { node: hovered, onCite }))
+    el('div', { className: 'nb-map-stage', ref: stageRef },
+      canvas,
+      popStyle
+        ? el('div', { className: 'nb-map-pop', style: popStyle, role: 'dialog',
+            'aria-label': `Details for ${hovered.label}`,
+            children: jsx(MapInspector, { node: hovered, onCite }) })
+        : null)
   )
 }
 
 /* ------------------------------------------------------------ flashcards */
 
-function FlashcardsView({ data, text, deckId }) {
+function FlashcardsView({ data, text, deckId, onCite }) {
   const cards = (data && data.cards) || []
   const [i, setI] = useState(0)
   const [flipped, setFlipped] = useState(false)
@@ -7911,11 +7999,12 @@ function FlashcardsView({ data, text, deckId }) {
         jsx('span', { className: 'nb-chip', 'data-tone': Object.keys(known).length ? 'ok' : undefined,
           children: `${knownCount} known` }),
         card.card_type
-          ? jsx('span', { className: 'nb-chip', children: String(card.card_type).replace(/_/g, ' ') })
+          ? jsx('span', { className: 'nb-chip',
+              children: `Type: ${String(card.card_type).replace(/_/g, ' ')}` })
           : null,
         card.difficulty
           ? jsx('span', { className: 'nb-chip', title: 'Difficulty 1 easy · 3 hard',
-              children: '◆'.repeat(Math.max(1, Math.min(3, Number(card.difficulty) || 1)) ) })
+              children: `Difficulty: ${['', 'easy', 'medium', 'hard'][Math.max(1, Math.min(3, Number(card.difficulty) || 1))] || card.difficulty}` })
           : null,
         jsx('span', { className: 'nb-hint', children: `card ${i + 1} of ${cards.length}` }),
         el('span', { style: { flex: 1 } }),
@@ -7927,18 +8016,25 @@ function FlashcardsView({ data, text, deckId }) {
           size: 'sm', icon: 'refresh', children: 'Restart',
           onClick: () => { setI(0); setFlipped(false); setOrder(null); setKnown({}); persist.set(storeKey, {}) }
         })),
-      jsx('button', {
-        type: 'button', className: 'nb-flip', 'data-flipped': flipped ? 'true' : 'false',
+      // a div with role=button, not a <button>: citation chips inside the card
+      // are real buttons, and buttons cannot nest
+      el('div', {
+        className: 'nb-flip', role: 'button', tabIndex: 0,
+        'data-flipped': flipped ? 'true' : 'false',
         onClick: () => setFlipped((f) => !f),
+        onKeyDown: (e) => {
+          if (e.target !== e.currentTarget) return
+          if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setFlipped((f) => !f) }
+        },
         'aria-label': flipped ? 'Show the question again' : 'Show the answer',
         children: el('div', { className: 'nb-flip-inner' },
           el('div', { className: 'nb-face', 'data-side': 'front' },
             jsx('span', { className: 'nb-meta', children: 'question' }),
-            jsx('span', { children: card.front }),
+            jsx(Markdown, { text: card.front, onCite, className: 'nb-fc-md' }),
             jsx('span', { className: 'nb-face-hint', children: 'click the card — or press “Show answer” — to flip' })),
           el('div', { className: 'nb-face', 'data-side': 'back' },
             jsx('span', { className: 'nb-meta', children: 'answer' }),
-            jsx('span', { children: card.back }),
+            jsx(Markdown, { text: card.back, onCite, className: 'nb-fc-md' }),
             // the hook and the tier are what make a deck more than a list of
             // Q&A: the schema asks for both, so the card shows both
             card.mnemonic
@@ -7948,10 +8044,9 @@ function FlashcardsView({ data, text, deckId }) {
               : null,
             (card.citations || []).length
               ? el('div', { className: 'nb-card-cites' },
-                  card.citations.map((n) => el('span', { className: 'nb-srcchip', key: `k${n}`,
-                    children: `S${n}` })))
+                  card.citations.map((n) => citeBtn(n, onCite, `k${n}`)))
               : null,
-            card.source ? jsx('span', { style: { fontSize: '13px', color: T.text3, marginTop: 'auto' }, children: card.source }) : null))
+            card.source ? el('div', { className: 'nb-fc-src', children: card.source }) : null))
       }),
       el('div', { style: { display: 'flex', gap: '8px', justifyContent: 'center', alignItems: 'center' } },
         jsx(Btn, {
@@ -7978,7 +8073,7 @@ function FlashcardsView({ data, text, deckId }) {
 
 /* ------------------------------------------------------------------ quiz */
 
-function QuizView({ data, text, deckId }) {
+function QuizView({ data, text, deckId, onCite }) {
   const questions = (data && (data.questions || data.items)) || []
   // answers persist per artifact — revisiting the deck keeps your score
   const storeKey = `quiz:picked:${deckId || 'default'}`
@@ -8016,7 +8111,8 @@ function QuizView({ data, text, deckId }) {
         },
         el('div', { style: { display: 'flex', gap: '10px', alignItems: 'baseline' } },
           el('span', { className: 'nb-mono', style: { color: T.text4, fontSize: '12.5px' }, children: String(qi + 1).padStart(2, '0') }),
-          el('span', { style: { fontSize: '15px', fontWeight: 600, lineHeight: 1.45 }, children: q.question })),
+          el('div', { style: { fontSize: '15px', fontWeight: 600, lineHeight: 1.45, flex: 1, minWidth: 0 } },
+            jsx(Markdown, { text: q.question, onCite, className: 'nb-quiz-q' }))),
         el('div', { style: { display: 'grid', gap: '6px', marginTop: '10px' }, role: 'group', 'aria-label': `Choices for question ${qi + 1}` },
           (q.choices && q.choices.length ? q.choices : [q.answer]).map((c, ci) => {
             const isChosen = chosen === c
@@ -8038,7 +8134,7 @@ function QuizView({ data, text, deckId }) {
               el('div', { className: 'nb-quiz-verdict', 'data-tone': right ? 'ok' : 'warn' },
                 jsx(Glyph, { name: right ? 'check' : 'close', size: 13 }),
                 el('span', { children: right ? 'Correct' : `Not quite — the answer is “${q.answer}”` })),
-              q.explanation ? el('div', { className: 'nb-quiz-explain', children: q.explanation }) : null,
+              q.explanation ? jsx(Markdown, { text: q.explanation, onCite, className: 'nb-quiz-explain' }) : null,
               // per-option rationale: the schema asks the model for one per
               // choice precisely so a miss explains WHY the distractor looked
               // right. Ignoring it made every wrong answer read the same.
@@ -8053,12 +8149,12 @@ function QuizView({ data, text, deckId }) {
                         el('span', { className: 'nb-quiz-why-mark', children: good ? '✓' : (chosen === c ? '✗' : '·') }),
                         el('div', { className: 'nb-quiz-why-body' },
                           el('span', { className: 'nb-quiz-why-choice', children: c }),
-                          el('span', { className: 'nb-quiz-why-text', children: why })))
+                          el('div', { className: 'nb-quiz-why-text' },
+                            jsx(Markdown, { text: why, onCite, className: 'nb-quiz-why-md' })))
                     }))
                 : null,
               jsx('div', { className: 'nb-quiz-src' },
-                (q.citations || []).map((n) => el('span', { className: 'nb-srcchip', key: `q${qi}s${n}`,
-                  children: `S${n}` })))) 
+                (q.citations || []).map((n) => citeBtn(n, onCite, `q${qi}s${n}`)))) 
           : null)
       }))
   )
