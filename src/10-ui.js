@@ -42,6 +42,7 @@ const P = {
   lock: 'M7 11V8a5 5 0 0 1 10 0v3M5 11h14v9H5v-9Zm7 3v3',
   moon: 'M20 14.5A8.5 8.5 0 0 1 9.5 4a8.5 8.5 0 1 0 10.5 10.5Z',
   check: 'M5 13l4.5 4.5L19 7',
+  minus: 'M6 12h12',
   download: 'M12 4v10M8 11l4 4 4-4M5 19h14',
   bolt: 'M13 3L5 14h6l-1 7 8-11h-6l1-7Z',
   cpu: 'M8 8h8v8H8V8Zm-3 3h3m-3 3h3m13-6h-3m3 6h-3M11 5v3m3-3v3m-3 11v-3m3 3v-3',

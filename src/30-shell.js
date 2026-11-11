@@ -947,6 +947,7 @@ function Rail({ notebook, onAddSource, onOpenSource, onToggleSource,
   const [srcFilter, setSrcFilter] = useState('all')
   const [dragOver, setDragOver] = useState(false)
   const [closed, setClosed] = useState({})
+  const [tagsOpen, setTagsOpen] = useState(false)
 
   const shown = useMemo(() => {
     const needle = (q || '').trim().toLowerCase().replace(/^#/, '')
@@ -972,6 +973,8 @@ function Rail({ notebook, onAddSource, onOpenSource, onToggleSource,
 
   const allOn = sources.length > 0 && sources.every((s) => s.active !== false)
   const activeCount = sources.filter((s) => s.active !== false).length
+  const someOn = activeCount > 0 && activeCount < sources.length
+  const srcLabels = (s) => s.labels || []
   // one topic grouping is noise: with fewer than 8 sources the flat list reads
   // better than a label over every other row
   const grouped = sources.length >= 8
@@ -998,20 +1001,23 @@ function Rail({ notebook, onAddSource, onOpenSource, onToggleSource,
         title: s.summary || s.origin || s.title,
         children: [
           el('span', { className: 'nb-src-ico', 'aria-hidden': 'true' },
-            jsx(Glyph, { name: SRC_ICON[s.kind] || 'file', size: 14 }),
-            el('b', { className: 'nb-cite', children: `S${s.n}` })),
+            jsx(Glyph, { name: SRC_ICON[s.kind] || 'file', size: 14 })),
           el('span', { className: 'nb-src-body' },
             el('span', { className: 'nb-src-title', children: s.title }),
             el('span', { className: 'nb-src-meta' },
-              el('span', { className: 'nb-chip', children: `${kindLabel(s.kind)} · ${nfmt(s.chars)}` }),
-              (s.labels || []).length
-                ? el('span', { className: 'nb-chip', children: s.labels[0] })
-                : null,
-              (s.labels || []).length > 1
+              el('span', { className: 'nb-src-s', children: `S${s.n}` }),
+              el('span', {
+                className: 'nb-src-meta-txt',
+                children: [kindLabel(s.kind), s.chars ? nfmt(s.chars) : '']
+                  .filter(Boolean).join(' · ')
+              }),
+              srcLabels(s).slice(0, 2).map((l, i) =>
+                el('span', { key: `${s.id}-l${i}`, className: 'nb-chip', children: l })),
+              srcLabels(s).length > 2
                 ? el('span', {
-                    className: 'nb-chip',
-                    title: `Also tagged: ${s.labels.slice(1).join(', ')}`,
-                    children: `+${s.labels.length - 1}`
+                    className: 'nb-chip', 'data-more': 'true',
+                    title: `Also tagged: ${srcLabels(s).slice(2).join(', ')}`,
+                    children: `+${srcLabels(s).length - 2}`
                   })
                 : null))
         ]
@@ -1064,7 +1070,7 @@ function Rail({ notebook, onAddSource, onOpenSource, onToggleSource,
         placeholder: 'Filter sources or #tags', label: 'Filter sources' }),
       el('div', { className: 'nb-tagrow', role: 'group', 'aria-label': 'Filter sources by tag' },
         labels.length
-          ? labels.slice(0, 8).map((l) =>
+          ? (tagsOpen ? labels : labels.slice(0, 5)).map((l) =>
               jsx(Chip, {
                 key: l.label, tone: srcFilter === l.label.toLowerCase() ? 'accent' : undefined,
                 pressed: srcFilter === l.label.toLowerCase(),
@@ -1072,7 +1078,21 @@ function Rail({ notebook, onAddSource, onOpenSource, onToggleSource,
                 title: `${l.count} source${l.count === 1 ? '' : 's'} tagged ${l.label}`,
                 children: `${l.label} ${l.count}`
               }))
-          : el('span', { className: 'nb-tagrow-empty', children: 'No tags yet — labelling adds them' }))
+          : el('span', { className: 'nb-tagrow-empty', children: 'No tags yet — labelling adds them' }),
+        labels.length > 5 && !tagsOpen
+          ? jsx(Chip, {
+              onClick: () => setTagsOpen(true),
+              title: `Show all ${labels.length} tags`,
+              children: `+${labels.length - 5} more`
+            })
+          : null,
+        labels.length > 5 && tagsOpen
+          ? jsx(Chip, {
+              onClick: () => setTagsOpen(false),
+              title: 'Show fewer tags',
+              children: 'Show less'
+            })
+          : null)
     ),
 
     el('div', { className: 'nb-scroll nb-rail-list', 'aria-label': 'Source list' },
@@ -1105,11 +1125,19 @@ function Rail({ notebook, onAddSource, onOpenSource, onToggleSource,
                       ? el('div', { className: 'nb-selall' },
                           el('button', {
                             type: 'button', className: 'nb-srccheck', role: 'checkbox',
-                            'aria-checked': allOn,
-                            'aria-label': allOn ? 'Exclude all sources from answers' : 'Include all sources in answers',
-                            title: allOn ? 'Exclude every source' : 'Include every source',
+                            'aria-checked': allOn ? true : (someOn ? 'mixed' : false),
+                            'aria-label': allOn
+                              ? 'Exclude all sources from answers'
+                              : someOn
+                                ? `${activeCount} of ${sources.length} sources included — click to include all`
+                                : 'Include all sources in answers',
+                            title: allOn ? 'Exclude every source'
+                              : someOn ? 'Some sources are excluded — click to include every source'
+                              : 'Include every source',
                             onClick: onToggleAll,
-                            children: allOn ? jsx(Glyph, { name: 'check', size: 13 }) : null
+                            children: allOn
+                              ? jsx(Glyph, { name: 'check', size: 13 })
+                              : someOn ? jsx(Glyph, { name: 'minus', size: 13 }) : null
                           }),
                           el('span', { className: 'nb-src-title',
                             children: allOn ? 'All included' : `${activeCount} of ${sources.length} included` }),

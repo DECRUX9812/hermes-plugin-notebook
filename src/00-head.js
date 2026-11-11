@@ -104,10 +104,10 @@ const CSS = `
      box 16, panel 24, pill. A control's radius says how big it is. */
   --nb-r-in: 8px; --nb-r-el: 12px; --nb-r-box: 16px; --nb-r-panel: 24px; --nb-r-pill: 99px;
   /* type — the chrome scale. Every rendered size must be one of these steps;
-     an 11px label beside an 11.5px one is a bug, and tests/design.test.mjs
+     a 10px label beside a 12px one is a bug, and tests/design.test.mjs
      fails the build on any size that is not on this list. Headings are set
      in place because each surface owns exactly one of them. */
-  --nb-fs-meta: 11.5px;   /* counts, timestamps, chips */
+  --nb-fs-meta: 12px;   /* counts, timestamps, chips */
   --nb-fs-label: 12.5px;  /* card names, chips with actions, buttons */
   --nb-fs-ui: 13px;       /* pane titles, inputs, tabs */
   --nb-fs-body: 14px;     /* the base UI size */
@@ -165,7 +165,7 @@ const CSS = `
 
 /* quiet section label — small and calm, never telemetry */
 .nb-meta{font-size:12.5px;letter-spacing:0;text-transform:none;color:${T.text3};font-weight:600}
-.nb-hint{font-size:11.5px;color:${T.text3};letter-spacing:.01em;line-height:1.5}
+.nb-hint{font-size:12px;color:${T.text3};letter-spacing:.01em;line-height:1.5}
 
 /* ------------------------------------------------------------------ app bar */
 .nb-bar{display:flex;align-items:center;gap:14px;height:56px;flex:0 0 56px;
@@ -273,11 +273,10 @@ const CSS = `
 /* one filter bar: a search field and one horizontally scrolling tag row */
 .nb-rail-filter{padding:var(--nb-sp-3) var(--nb-sp-4) var(--nb-sp-3);display:flex;
   flex-direction:column;gap:var(--nb-sp-2);flex:0 0 auto}
-.nb-tagrow{display:flex;align-items:center;gap:var(--nb-sp-2);flex-wrap:nowrap;
-  overflow-x:auto;overflow-y:hidden;scrollbar-width:none;padding-bottom:1px;
-  min-height:24px}
-.nb-tagrow::-webkit-scrollbar{display:none}
-.nb-tagrow .nb-chip{flex:0 0 auto}
+.nb-tagrow{display:flex;align-items:center;gap:var(--nb-sp-2);flex-wrap:wrap;
+  overflow:visible;padding-bottom:1px;min-height:24px}
+.nb-tagrow .nb-chip{flex:0 0 auto;max-width:120px;overflow:hidden;
+  text-overflow:ellipsis;white-space:nowrap}
 .nb-tagrow-empty{font-size:var(--nb-fs-meta);color:${T.text4};white-space:nowrap}
 .nb-rail-list{flex:1;min-height:0;display:flex;flex-direction:column}
 /* the source list itself: one flat card per source, checkbox on the left */
@@ -294,17 +293,6 @@ const CSS = `
   background:var(--nb-wash-2);color:${T.text2};flex:0 0 auto}
 .nb-src[data-on=true] .nb-src-ico{background:color-mix(in srgb,${T.accent} 16%, transparent);
   color:color-mix(in srgb,${T.accent} 70%, ${T.text})}
-/* the citation number rides the icon's corner, like a source badge */
-.nb-cite{position:absolute;right:-5px;bottom:-5px;min-width:17px;height:17px;padding:0 4px;
-  border-radius:var(--nb-r-pill);display:grid;place-items:center;background:${T.accent};
-  /* The host's accent family is always a mid-to-bright hue in both themes
-     (light default #B8860B measures 5.92:1 against near-black and 3.25:1
-     against white; dark default #FFBF00 measures 11.65:1 / 1.65:1). Near-black
-     ink is therefore the one that clears AA on the accent fill in EVERY skin —
-     flipping the ink with color-scheme is what broke the light skin. */
-  color:#0d0e15;
-  font-size:10.5px;font-weight:700;
-  box-shadow:0 1px 4px rgba(8,10,18,.4)}
 .nb-src-body{min-width:0;flex:1;display:flex;flex-direction:column;gap:1px}
 /* Two lines, always: at 162px of text width a single line identifies nothing
    ("US roadmap targets fusion deployment by mid 203…"). The clamp is stated on
@@ -312,17 +300,23 @@ const CSS = `
 .nb-src .nb-src-title{font-size:var(--nb-fs-label);font-weight:600;line-height:1.35;color:${T.text};
   overflow:hidden;display:-webkit-box !important;-webkit-line-clamp:2;-webkit-box-orient:vertical;
   overflow-wrap:anywhere}
-.nb-src-meta{display:flex;align-items:center;gap:5px;flex-wrap:nowrap;min-width:0;
-  overflow:hidden}
-.nb-src-meta .nb-chip{flex:0 0 auto}
-/* the first chip may shrink; the "+n" stays whole, so rows keep one line */
-.nb-src-meta .nb-chip:first-child{flex:0 1 auto;min-width:0;overflow:hidden;text-overflow:ellipsis}
+.nb-src-meta{display:flex;align-items:center;gap:5px;flex-wrap:wrap;row-gap:3px;
+  min-width:0}
+.nb-src-meta .nb-chip{flex:0 0 auto;max-width:110px;overflow:hidden;
+  text-overflow:ellipsis;white-space:nowrap}
+/* the S-number is a quiet mono tag leading the meta line, not a badge on the icon */
+.nb-src-s{font-family:var(--ui-font-mono,ui-monospace,monospace);font-size:12px;
+  font-weight:700;color:${T.text3};flex:0 0 auto}
+.nb-src-meta-txt{flex:0 1 auto;min-width:0;color:${T.text4};font-size:var(--nb-fs-meta);
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 /* NotebookLM's per-source checkbox: a rounded box on the row's left edge */
 .nb-srccheck{width:32px;height:32px;flex:0 0 auto;border-radius:var(--nb-r-in);cursor:pointer;
-  border:1.5px solid var(--nb-hair-soft);background:transparent;color:#0d0e15;
+  border:1.5px solid var(--ui-stroke-secondary, var(--nb-hair-soft));background:transparent;
+  color:#0d0e15;
   display:grid;place-items:center;padding:0;transition:all var(--nb-dur-fast) var(--nb-ease)}
 .nb-srccheck:hover{border-color:color-mix(in srgb,${T.accent} 55%, transparent)}
-.nb-srccheck[aria-checked=true]{background:${T.accent};border-color:${T.accent}}
+.nb-srccheck[aria-checked=true]{background:${T.accent};border-color:${T.accent};color:#0d0e15}
+.nb-srccheck[aria-checked=mixed]{border-color:color-mix(in srgb,${T.accent} 55%, var(--ui-stroke-secondary, var(--nb-hair-soft)))}
 /* "all included" is a filter row over the list, not a checkbox above a tree */
 .nb-selall{display:flex;align-items:center;gap:var(--nb-sp-2);padding:0 2px var(--nb-sp-2);
   border-bottom:1px solid var(--nb-hair-soft);margin-bottom:var(--nb-sp-1)}
@@ -365,7 +359,7 @@ const CSS = `
 .nb-paneltog-btn:focus-visible{outline:2px solid ${T.accent};outline-offset:2px}
 /* chips are soft pills; clickable ones are full 32px targets */
 .nb-chip{display:inline-flex;align-items:center;gap:5px;height:22px;padding:0 9px;border-radius:var(--nb-r-pill);
-  font-size:11.5px;font-weight:600;letter-spacing:.01em;color:${T.text3};
+  font-size:12px;font-weight:600;letter-spacing:.01em;color:${T.text3};
   background:var(--nb-wash-2);border:1px solid transparent;white-space:nowrap;font-family:inherit}
 .nb-chip[data-tone=accent]{color:color-mix(in srgb,${T.accent} 70%, ${T.text});
   background:color-mix(in srgb,${T.accent} 13%, transparent)}
@@ -384,7 +378,7 @@ const CSS = `
   font-size:12.5px;font-weight:550}
 .nb-citechip:hover{border-color:color-mix(in srgb,${T.accent} 50%, transparent)}
 .nb-citechip b{font-family:var(--ui-font-mono,ui-monospace,monospace);color:var(--nb-cite-ink);font-weight:750;
-  font-size:10.5px;background:color-mix(in srgb,${T.accent} 14%, transparent);border-radius:var(--nb-r-pill);
+  font-size:12px;background:color-mix(in srgb,${T.accent} 14%, transparent);border-radius:var(--nb-r-pill);
   padding:3px 7px;flex:0 0 auto}
 .nb-citechip span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0;max-width:300px}
 .nb-chip[data-click=true]{cursor:pointer;min-height:32px;height:32px;padding:0 13px;font-size:12.5px;
@@ -489,8 +483,8 @@ const CSS = `
 .nb-msg[data-role=assistant] .nb-bubble{font-size:16px;line-height:1.66;color:${T.text}}
 .nb-msg[data-role=assistant] .nb-avatar{width:30px;height:30px;margin-top:2px}
 .nb-msg .nb-avatar{width:30px;height:30px;border-radius:var(--nb-r-pill);
-  background:color-mix(in srgb,${T.accent} 16%, transparent);color:color-mix(in srgb,${T.accent} 70%, ${T.text});font-size:11.5px;letter-spacing:.02em}
-.nb-who{font-size:11.5px;letter-spacing:.02em;color:${T.text3};font-weight:600;margin-bottom:8px}
+  background:color-mix(in srgb,${T.accent} 16%, transparent);color:color-mix(in srgb,${T.accent} 70%, ${T.text});font-size:12px;letter-spacing:.02em}
+.nb-who{font-size:12px;letter-spacing:.02em;color:${T.text3};font-weight:600;margin-bottom:8px}
 .nb-msg[data-role=user] .nb-who{color:${T.text4}}
 .nb-md p{margin:0 0 11px}
 .nb-md p:last-child{margin-bottom:0}
@@ -534,7 +528,7 @@ const CSS = `
   transition:opacity var(--nb-dur-fast) var(--nb-ease),transform var(--nb-dur-fast) var(--nb-ease)}
 .nb-sendbtn:hover{transform:scale(1.05)}
 .nb-sendbtn[disabled]{opacity:.4;cursor:not-allowed;transform:none}
-.nb-disclaimer{font-size:11.5px;color:${T.text3};text-align:center;margin-top:9px}
+.nb-disclaimer{font-size:12px;color:${T.text3};text-align:center;margin-top:9px}
 
 /* ------------------------------------------------- overview + suggestions */
 .nb-overview{border:1px solid var(--nb-hair-soft);border-radius:var(--nb-r-box);background:var(--nb-card);
@@ -770,7 +764,7 @@ const CSS = `
 .nb-doc th,.nb-doc td{border-bottom:1px solid var(--nb-hair-soft);padding:9px 12px;text-align:left}
 .nb-doc td+td,.nb-doc th+th{border-left:1px solid var(--nb-hair-soft)}
 .nb-doc tr:last-child td{border-bottom:0}
-.nb-doc th{background:var(--nb-wash-2);font-size:11.5px;letter-spacing:.05em;text-transform:uppercase;
+.nb-doc th{background:var(--nb-wash-2);font-size:12px;letter-spacing:.05em;text-transform:uppercase;
   font-weight:700;color:${T.text2}}
 .nb-doc pre{background:var(--nb-wash);border:1px solid var(--nb-hair-soft);border-radius:var(--nb-r-el);
   padding:14px;overflow:auto;font-size:13px}
@@ -890,7 +884,7 @@ const CSS = `
 .nb-slide-roadmap{display:flex;flex-direction:column;gap:16px;flex:1;min-height:0}
 .nb-slide-gap-head{font-size:clamp(19px,2.1vw,30px);font-weight:680;letter-spacing:-.02em;
   line-height:1.16;color:#f2f3f8;margin:0}
-.nb-slide-kicker{font-size:11.5px;font-weight:700;letter-spacing:.13em;text-transform:uppercase;
+.nb-slide-kicker{font-size:12px;font-weight:700;letter-spacing:.13em;text-transform:uppercase;
   color:#9aa0b5}
 .nb-slide-kicker[data-tone=accent]{color:color-mix(in srgb,${T.accent} 62%, #ffffff)}
 .nb-slide-kicker[data-tone=ok]{color:#7fe3b0}
@@ -1006,7 +1000,7 @@ const CSS = `
 
 /* the notes affordance is a hint, not a control: it says a key exists */
 .nb-slide-notes-chip{display:inline-flex;align-items:center;gap:6px;align-self:flex-start;
-  font-size:11.5px;color:#7d8398}
+  font-size:12px;color:#7d8398}
 .nb-slide-notes-chip svg{opacity:.8}
 
 /* quiz: the verdict, the lesson, and why each distractor looked right */
@@ -1127,7 +1121,7 @@ const CSS = `
 .nb-tl:first-child{border-top:0}
 .nb-tl::before{content:'';position:absolute;left:2px;top:20px;width:11px;height:11px;border-radius:var(--nb-r-pill);
   background:${T.accent};box-shadow:0 0 0 3px color-mix(in srgb,${T.accent} 18%, transparent)}
-.nb-tl-when{font-family:var(--ui-font-mono,ui-monospace,monospace);font-size:10.5px;font-weight:700;
+.nb-tl-when{font-family:var(--ui-font-mono,ui-monospace,monospace);font-size:12px;font-weight:700;
   color:color-mix(in srgb,${T.accent} 70%, ${T.text});letter-spacing:.06em;text-transform:uppercase;padding-top:3px}
 .nb-tl-what{font-size:15px;color:${T.text2}}
 
@@ -1219,12 +1213,12 @@ const CSS = `
 .nb-face[data-side=back]{transform:rotateY(180deg);border-color:color-mix(in srgb,${T.accent} 45%, transparent);
   background:linear-gradient(160deg, color-mix(in srgb,${T.accent} 14%, var(--nb-card)), var(--nb-card))}
 .nb-face .nb-meta{position:absolute;top:17px;left:22px}
-.nb-face-hint{font-size:11.5px;color:${T.text4};margin-top:auto;letter-spacing:.02em}
+.nb-face-hint{font-size:12px;color:${T.text4};margin-top:auto;letter-spacing:.02em}
 
 /* -------------------------------------------------------------- status bar */
 .nb-status{flex:0 0 32px;height:32px;display:flex;align-items:center;gap:14px;padding:0 18px;font-size:12.5px;
   border-top:1px solid var(--nb-hair-soft);background:transparent;
-  font-size:11.5px;color:${T.text3}}
+  font-size:12px;color:${T.text3}}
 .nb-status b{color:${T.text2};font-weight:600}
 .nb-sdot{width:8px;height:8px;border-radius:var(--nb-r-pill);display:inline-block;margin-right:8px;vertical-align:middle}
 .nb-void{display:grid;place-items:center;height:100%;padding:40px;text-align:center;color:${T.text3}}
@@ -1442,7 +1436,7 @@ const CSS = `
 @media (hover:none){.nb-gen-cfg{opacity:.75}}
 .nb-gen:hover .nb-gen-cfg,.nb-gen-cfg[data-active="true"],.nb-gen-cfg:focus-visible{opacity:1}
 @media (hover:none){.nb-gen-cfg{opacity:.8}}
-.nb-genopt-label{font-size:11.5px;font-weight:600;color:${T.text3};margin-bottom:6px;
+.nb-genopt-label{font-size:12px;font-weight:600;color:${T.text3};margin-bottom:6px;
   text-transform:uppercase;letter-spacing:.06em}
 .nb-genopt .nb-seg{width:100%}
 .nb-genopt .nb-seg button{flex:1;justify-content:center}
@@ -1467,7 +1461,7 @@ const CSS = `
   display:-webkit-box;-webkit-line-clamp:5;-webkit-box-orient:vertical;overflow:hidden}
 
 .nb-scope-check{flex:none;width:18px;height:18px;border-radius:var(--nb-r-in);
-  border:1.5px solid ${T.line};display:grid;place-items:center;font-size:11.5px;
+  border:1.5px solid ${T.line};display:grid;place-items:center;font-size:12px;
   color:#fff;transition:all var(--nb-dur-fast) var(--nb-ease)}
 .nb-scope-check.on{background:${T.accent};border-color:${T.accent}}
 
@@ -1492,7 +1486,7 @@ const CSS = `
   font-weight:650;font-size:12.5px;color:${T.text2};padding:10px 14px;
   border-bottom:1px solid ${T.line};cursor:pointer;user-select:none;white-space:nowrap}
 .nb-dt th:hover{color:${T.text}}
-.nb-dt-arrow{color:color-mix(in srgb,${T.accent} 70%, ${T.text});margin-left:5px;font-size:11.5px}
+.nb-dt-arrow{color:color-mix(in srgb,${T.accent} 70%, ${T.text});margin-left:5px;font-size:12px}
 .nb-dt td{padding:9px 14px;border-bottom:1px solid ${T.lineSoft};color:${T.text2}}
 .nb-dt tbody tr:last-child td{border-bottom:0}
 .nb-dt tbody tr:hover td{background:color-mix(in srgb,${T.accent} 4%,transparent)}
@@ -1571,13 +1565,13 @@ const CSS = `
 .nb-study-choice[data-right="true"]{border-color:${T.ok};background:color-mix(in srgb,${T.ok} 14%, transparent);color:${T.text}}
 .nb-study-a{display:flex;flex-direction:column;gap:8px;font-size:16px;line-height:1.55;color:${T.text};
   padding-top:14px;border-top:1px solid var(--nb-hair-soft)}
-.nb-study-a-label{font-size:11.5px;letter-spacing:.14em;text-transform:uppercase;color:${T.text4}}
+.nb-study-a-label{font-size:12px;letter-spacing:.14em;text-transform:uppercase;color:${T.text4}}
 .nb-study-reveal{display:flex;align-items:center;gap:12px;margin-top:auto}
 .nb-study-ratings{display:flex;gap:8px;flex-wrap:wrap;min-height:44px;align-items:center;margin-bottom:auto}
 .nb-study-rate{flex:1 1 150px;display:flex;flex-direction:column;gap:2px;align-items:flex-start;
   padding:10px 14px;border-radius:var(--nb-r-el);border:1px solid var(--nb-hair);background:var(--nb-card);
   color:${T.text};cursor:pointer;font-size:14px}
-.nb-study-rate span{font-size:11.5px;color:${T.text3}}
+.nb-study-rate span{font-size:12px;color:${T.text3}}
 .nb-study-rate:hover{background:var(--nb-card-hover, color-mix(in srgb,#fff 4%, transparent))}
 .nb-study-src{align-self:flex-start;display:inline-flex;align-items:center;gap:6px;padding:0;
   border:0;background:none;color:color-mix(in srgb,${T.accent} 70%, ${T.text});
@@ -1676,7 +1670,7 @@ const CSS = `
 .nb-disc-card input{width:16px;height:16px;margin-top:3px;accent-color:color-mix(in srgb,${T.accent} 70%, ${T.text});
   cursor:pointer;flex:0 0 16px}
 .nb-disc-main{display:flex;flex-direction:column;gap:5px;min-width:0;flex:1}
-.nb-disc-top{display:flex;align-items:center;gap:8px;font-size:11.5px}
+.nb-disc-top{display:flex;align-items:center;gap:8px;font-size:12px}
 .nb-disc-dom{color:color-mix(in srgb,${T.accent} 70%, ${T.text});font-weight:600;letter-spacing:.01em}
 .nb-disc-title{font-size:14px;font-weight:600;line-height:1.35;color:${T.text}}
 .nb-disc-snip{font-size:13px;line-height:1.5;color:${T.text3};
@@ -1685,7 +1679,7 @@ const CSS = `
 .nb-disc-foot{display:flex;align-items:center;gap:12px;position:sticky;bottom:12px;
   padding:12px 14px;border-radius:var(--nb-r-box);border:1px solid var(--nb-hair);
   background:var(--nb-card);box-shadow:var(--nb-shadow)}
-.nb-disc-meta{display:flex;gap:14px;flex-wrap:wrap;font-size:11.5px;color:${T.text4};padding-top:4px}
+.nb-disc-meta{display:flex;gap:14px;flex-wrap:wrap;font-size:12px;color:${T.text4};padding-top:4px}
 .nb-disc-empty{display:grid;justify-items:center;gap:8px;padding:56px 20px;text-align:center;
   color:${T.text3};border:1px dashed var(--nb-hair-soft);border-radius:var(--nb-r-box)}
 .nb-disc-err{color:${T.danger};font-size:13px;padding:10px 14px;border-radius:var(--nb-r-el);
