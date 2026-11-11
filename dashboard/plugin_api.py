@@ -81,6 +81,22 @@ from hermes_notebook.gfx import themes as gfx_themes  # noqa: E402
 
 router = APIRouter(tags=["hermes-notebook"])
 
+#: The hero looks — the eight the composer is tuned for — lead the picker, in
+#: this order; every other look stays available behind "More looks".
+_HERO_LOOKS = ("sections", "editorial", "swiss", "magazine",
+               "dashboard", "blueprint", "risograph", "neon")
+
+
+def _style_items() -> List[Dict[str, Any]]:
+    cat = gfx_themes.catalog()
+    hero = sorted((s for s in cat if s["id"] in _HERO_LOOKS),
+                  key=lambda s: _HERO_LOOKS.index(s["id"]))
+    rest = [s for s in cat if s["id"] not in _HERO_LOOKS]
+    return [{"id": p["id"], "label": p["label"], "blurb": p["blurb"],
+             "family": p["family"], "swatch": p["swatch"],
+             "hero": p["id"] in _HERO_LOOKS} for p in hero + rest]
+
+
 #: The twelve studio outputs, in the order the panel draws them. `group` decides
 #: which filter chip a card falls under; `label` is what a person reads.
 KINDS: List[Dict[str, Any]] = [
@@ -119,14 +135,13 @@ KINDS: List[Dict[str, Any]] = [
     {"id": "slides", "label": "Slides", "group": "visual", "ext": "html",
      "blurb": "Self-contained deck, arrow keys", "secs": 22},
     {"id": "infographic", "label": "Infographic", "group": "visual", "ext": "svg",
-     "blurb": "Vector poster — 38 looks, 9 layouts", "secs": 20,
+     "blurb": "Vector poster — 38 looks, measured block composer", "secs": 20,
      "options": [
          {"id": "style", "label": "Look", "kind": "select",
           "default": gfx_themes.DEFAULT_PRESET,
-          "choices": [p["id"] for p in gfx_themes.catalog()],
-          "items": [{"id": p["id"], "label": p["label"], "blurb": p["blurb"],
-                     "family": p["family"], "swatch": p["swatch"]}
-                    for p in gfx_themes.catalog()]},
+          "heroes": list(_HERO_LOOKS),
+          "choices": [p["id"] for p in _style_items()],
+          "items": _style_items()},
          # "auto" lets the look choose its own composition — a cover look draws a
          # cover, a key-figure look draws its hero
          {"id": "template", "label": "Layout", "kind": "select", "default": "auto",
@@ -476,7 +491,8 @@ def infographic_styles(previews: int = Query(0, description="1 = include SVG thu
         "ok": True,
         "default": gfx_themes.DEFAULT_PRESET,
         "count": len(gfx_themes.PRESETS),
-        "styles": gfx_themes.catalog(),
+        "styles": _style_items(),
+        "heroes": list(_HERO_LOOKS),
         "templates": manifest["templates"],
         "orientations": list(gfx.ORIENTATIONS),
         "detail": list(gfx.DETAIL_LEVELS),
@@ -510,7 +526,7 @@ def _preview_source(notebook: str) -> Tuple[Dict[str, Any], str]:
                 jsons = sorted(list(arts.glob("*-infographic.json")), reverse=True)
                 if jsons:
                     data = json.loads(jsons[0].read_text(encoding="utf-8"))
-                    if isinstance(data, dict) and data.get("stats"):
+                    if isinstance(data, dict) and (data.get("stats") or data.get("blocks")):
                         data.pop("_style", None)
                         data.pop("_graphic", None)
                         return data, str(data.get("title") or "Infographic")
@@ -526,7 +542,7 @@ def _style_thumb(data: Dict[str, Any], title: str, style_id: str) -> str:
         return hit
     payload = dict(data)
     payload.setdefault("title", title)
-    out = gfx.data_url(payload, template="infographic", preset=style_id,
+    out = gfx.data_url(payload, template="auto", preset=style_id,
                        orientation="landscape")
     if len(_THUMB_CACHE) > 96:
         _THUMB_CACHE.clear()

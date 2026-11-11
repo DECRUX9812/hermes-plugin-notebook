@@ -1495,6 +1495,40 @@ function StudioPanel({ kinds, notebook, busy, generate, filter, setFilter, onOpe
   )
 }
 
+/* The look picker: eight hero looks as swatch chips, the rest of the catalog
+ * behind a "More looks" fold so the choice reads like a set, not a wall. */
+function LookPicker({ spec, value, onChange }) {
+  const [more, setMore] = useState(false)
+  const items = spec.items || []
+  const heroes = spec.heroes || []
+  const heroItems = items.filter((i) => heroes.includes(i.id))
+  const rest = items.filter((i) => !heroes.includes(i.id))
+  const chip = (it) => el('button', {
+    type: 'button', key: it.id,
+    className: 'nb-look', 'data-on': value === it.id ? 'true' : 'false',
+    onClick: () => onChange(it.id),
+    title: it.blurb || it.label,
+    'aria-pressed': value === it.id,
+    children: [
+      el('span', { className: 'nb-look-dots', 'aria-hidden': 'true' },
+        (it.swatch || []).slice(0, 4).map((c, i) =>
+          el('i', { key: i, style: { background: c } }))),
+      el('span', { className: 'nb-look-name', children: it.label })
+    ]
+  })
+  return el('div', { className: 'nb-looks' },
+    el('div', { className: 'nb-look-heroes' }, heroItems.map(chip)),
+    rest.length
+      ? el('button', {
+          type: 'button', className: 'nb-look-more',
+          onClick: () => setMore((o) => !o),
+          'aria-expanded': more,
+          children: more ? 'Fewer looks' : `More looks (${rest.length})`
+        })
+      : null,
+    more ? el('div', { className: 'nb-look-rest' }, rest.map(chip)) : null)
+}
+
 function GenPill({ kind, art, started, job, onStop, nbId, onOpen, onGenerate }) {
   const [, force] = useState(0)
   const [opts, setOpts] = useState({})
@@ -1578,7 +1612,12 @@ function GenPill({ kind, art, started, job, onStop, nbId, onOpen, onGenerate }) 
           children: el('div', { style: { display: 'grid', gap: '14px' } },
           optSpecs.map((spec) => el('div', { key: spec.id, className: 'nb-genopt' },
             el('div', { className: 'nb-genopt-label', children: spec.label }),
-            spec.kind === 'text'
+            spec.kind === 'select' && spec.heroes
+              ? jsx(LookPicker, {
+                  spec, value: opts[spec.id] || spec.default || (spec.choices || [])[0],
+                  onChange: (v) => pick(spec.id, v)
+                })
+              : spec.kind === 'text'
               ? el('input', {
                   className: 'nb-genopt-text', type: 'text',
                   placeholder: spec.placeholder || '',

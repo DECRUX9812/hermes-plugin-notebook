@@ -1524,6 +1524,32 @@ const CSS = `
 .nb-ig-take-label{font-size:var(--nb-fs-meta);font-weight:700;letter-spacing:.06em;
   text-transform:uppercase;color:color-mix(in srgb,${T.accent} 55%, ${T.text})}
 .nb-ig-take p{margin:6px 0 0;font-size:var(--nb-fs-read);line-height:1.55;color:${T.text}}
+/* poster + Checked rail: side by side wide, stacked narrow */
+.nb-ig-stage{display:flex;gap:16px;align-items:flex-start}
+.nb-ig-main{flex:1 1 auto;min-width:0}
+.nb-check{flex:0 0 296px;max-width:296px;background:var(--nb-tile);border:1px solid var(--nb-edge);
+  border-radius:var(--nb-r-el);padding:12px 14px;display:flex;flex-direction:column;gap:8px;max-height:62vh;overflow:auto}
+.nb-check-head{display:flex;align-items:center;gap:7px;color:${T.text}}
+.nb-check-title{font-size:13px;font-weight:700;letter-spacing:.02em}
+.nb-check-sum{margin-left:auto;font-size:11.5px;font-weight:650;color:${T.text3}}
+.nb-check-note{font-size:12px;line-height:1.5;color:${T.text2};background:color-mix(in srgb,${T.warn||'#d9a13b'} 10%, var(--nb-tile));
+  border:1px solid color-mix(in srgb,${T.warn||'#d9a13b'} 30%, transparent);border-radius:8px;padding:7px 9px}
+.nb-check-list{display:flex;flex-direction:column}
+.nb-check-row{display:flex;align-items:baseline;gap:7px;padding:5px 0;border-top:1px solid var(--nb-edge-soft, color-mix(in srgb, var(--nb-edge) 55%, transparent));
+  font-size:12.5px;color:${T.text2}}
+.nb-check-row:first-child{border-top:0}
+.nb-check-row svg{flex:0 0 auto;transform:translateY(2px)}
+.nb-check-row[data-status=verified] svg{color:${T.ok}}
+.nb-check-row[data-status=recited] svg{color:${T.accent}}
+.nb-check-row[data-status=unsourced] svg{color:${T.text3}}
+.nb-check-row[data-status=dropped] svg{color:${T.danger}}
+.nb-check-text{flex:1 1 auto;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.nb-check-status{flex:0 0 auto;font-size:11px;font-weight:650;color:${T.text3}}
+.nb-check-sub{font-size:11px;font-weight:700;letter-spacing:.06em;color:${T.text3};text-transform:uppercase;padding:8px 0 2px}
+@media (max-width: 900px){
+  .nb-ig-stage{flex-direction:column}
+  .nb-check{flex:none;max-width:none;width:100%;max-height:40vh}
+}
 
 /* generator options popover + citation hover card + data table */
 .nb-gen{position:relative}
@@ -1546,6 +1572,23 @@ const CSS = `
 .nb-genopt-text{width:100%;height:32px;padding:0 10px;border-radius:var(--nb-r-in);font-size:13px;
   border:1px solid ${T.line};background:${T.inset};color:${T.text};outline:none}
 .nb-genopt-text:focus{border-color:color-mix(in srgb,${T.accent} 55%,transparent)}
+/* Look picker: hero looks as swatch chips, the rest of the catalog folds out */
+.nb-looks{display:grid;gap:8px}
+.nb-look-heroes{display:grid;grid-template-columns:repeat(4,1fr);gap:7px}
+.nb-look-rest{display:grid;grid-template-columns:repeat(3,1fr);gap:7px;max-height:220px;overflow:auto;
+  border-top:1px solid ${T.lineSoft};padding-top:8px}
+.nb-look{display:flex;flex-direction:column;align-items:flex-start;gap:5px;padding:8px 9px;
+  background:${T.inset};border:1px solid ${T.line};border-radius:10px;cursor:pointer;
+  font:inherit;color:${T.text2};text-align:left;transition:border-color .12s ease,background .12s ease}
+.nb-look:hover{border-color:color-mix(in srgb,${T.accent} 45%,transparent)}
+.nb-look[data-on=true]{border-color:${T.accent};background:color-mix(in srgb,${T.accent} 9%,${T.inset});
+  color:${T.text}}
+.nb-look-dots{display:flex;gap:3px}
+.nb-look-dots i{width:9px;height:9px;border-radius:50%;display:block;border:1px solid rgba(0,0,0,.18)}
+.nb-look-name{font-size:11.5px;font-weight:650;line-height:1.15}
+.nb-look-more{justify-self:start;background:none;border:none;color:${T.text3};font-size:12px;
+  font-weight:650;cursor:pointer;padding:2px 0}
+.nb-look-more:hover{color:${T.text}}
 
 /* A hover card floats OVER the page, so it gets its own material: the panel
    colour at 95% over a blur, which reads as glass instead of a second pane. */
