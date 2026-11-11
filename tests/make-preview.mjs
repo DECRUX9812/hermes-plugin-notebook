@@ -65,7 +65,11 @@ const state = JSON.parse(readFileSync(join(tmp, 'state.json'), 'utf8'))
 if (state.notebook) {
   state.notebook.threads = [
     { name: 'default', title: 'What do the sources say about funding?', count: 4, updated: '2025-11-02T10:00:00Z' },
-    { name: 'chat-abc123', title: 'Compare the two architectures', count: 6, updated: '2025-11-03T09:30:00Z' }
+    { name: 'chat-abc123', title: 'Compare the two architectures', count: 6, updated: '2025-11-03T09:30:00Z' },
+    { name: 'chat-def456', title: 'Tritium breeding options', count: 2, updated: '2025-11-03T08:00:00Z' },
+    { name: 'chat-ghi789', title: 'Cost projections across sources', count: 3, updated: '2025-11-02T15:00:00Z' },
+    { name: 'chat-jkl012', title: 'Regulatory filings roundup', count: 1, updated: '2025-11-01T12:00:00Z' },
+    { name: 'chat-mno345', title: 'Stellarator vs tokamak', count: 5, updated: '2025-10-31T18:00:00Z' }
   ]
 }
 const styles = existsSync(join(tmp, 'styles.json')) ? readFileSync(join(tmp, 'styles.json'), 'utf8') : '{"ok":true,"styles":[],"previews":{}}'
@@ -286,10 +290,27 @@ const rest = async (path, opts) => {
     const urls = ((opts && opts.body && opts.body.urls) || []).slice(0, 10)
     return {
       ok: true, added: urls.length, duplicates: 0,
-      results: urls.map((u) => ({ url: u, ok: true, duplicate: false, title: u, kind: 'url', labels: ['fusion', 'energy'] })),
+      results: urls.map((u, i) => ({ url: u, ok: true, duplicate: false,
+        source_id: 'mock-src-' + Date.now() + '-' + i, title: u, kind: 'url', labels: ['fusion', 'energy'] })),
       state: STATE
     }
   }
+  if (route === 'source') {
+    await new Promise((r) => setTimeout(r, 900))
+    const body = (opts && opts.body) || {}
+    const title = body.title || body.url || body.path || 'pasted text'
+    const sid = 'mock-src-' + Date.now()
+    const rec = {
+      id: sid, title: String(title).slice(0, 80), kind: body.url ? 'url' : (body.path ? 'file' : 'text'),
+      origin: body.url || body.path || '', chars: 12000, active: true,
+      labels: ['mock'], summary: 'added by the preview mock'
+    }
+    if (STATE.notebook && STATE.notebook.sources) STATE.notebook.sources.push(rec)
+    if (STATE.notebook && STATE.notebook.stats) STATE.notebook.stats.sources = (STATE.notebook.stats.sources || 0) + 1
+    return { ok: true, source: { source_id: sid, title: rec.title, kind: rec.kind }, state: STATE.notebook }
+  }
+  if (route === 'progress') return { ok: true, jobs: {} }
+  if (route === 'cancel') return { ok: true, cancelled: false }
   if (route === 'search') {
     await new Promise((r) => setTimeout(r, 250))
     const q = String((opts && opts.body && opts.body.query) || '').toLowerCase()

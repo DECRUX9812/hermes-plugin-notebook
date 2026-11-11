@@ -126,7 +126,7 @@ def test_deep_discover_runs_a_second_round(monkeypatch):
     nb = _mk()
     seen = {}
 
-    def fake_search(queries, per_query=6):
+    def fake_search(queries, per_query=6, state=None):
         seen["queries"] = list(queries)
         if "second-round" in queries[0]:
             return [{"title": "Round two hit", "url": "https://two.example/x",
@@ -148,7 +148,7 @@ def test_deep_discover_runs_a_second_round(monkeypatch):
 
 def test_shallow_discover_stays_one_round(monkeypatch):
     nb = _mk()
-    monkeypatch.setattr(discover, "search_all", lambda q, per_query=6: [
+    monkeypatch.setattr(discover, "search_all", lambda q, per_query=6, state=None: [
         {"title": "Only hit", "url": "https://one.example/x",
          "description": "cell energy", "provider": "web"}])
     monkeypatch.setattr(discover, "refine_queries",

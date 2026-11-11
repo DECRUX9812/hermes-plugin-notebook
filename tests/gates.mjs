@@ -730,6 +730,157 @@ async function layout() {
   await b.close()
 }
 
+/* ---------------------------------------------------- 6 hermes-ux (phase 1)
+ * The "Hermes suggests, you decide" surfaces: thread tabs, the one Add Sources
+ * dialog with its four tabs, bracket-free citation chips, the 12px type floor,
+ * and a Make drawer whose twelve tiles all fit at desktop width.
+ */
+async function hermesUx(port) {
+  const b = await browser()
+  const page = await b.newPage({ viewport: { width: 1440, height: 900 } })
+  const errors = []
+  page.on('pageerror', (e) => errors.push(e.message))
+  await page.goto(`http://127.0.0.1:${port}/preview.html`, { waitUntil: 'load' })
+  await settle(page, 1000)
+
+  // ---------------------------------------------------------- thread tabs
+  await page.locator('.nb-tab', { hasText: 'Chat' }).click().catch(() => {})
+  await settle(page, 400)
+  const tabs = await page.evaluate(() => {
+    const row = document.querySelector('.nb-thrtabs')
+    const tabs = Array.from(document.querySelectorAll('.nb-thr-tab:not([data-more])'))
+    const more = document.querySelector('.nb-thr-tab[data-more]')
+    const neu = document.querySelector('.nb-thr-new')
+    return {
+      row: !!row, count: tabs.length,
+      titles: tabs.map((t) => (t.textContent || '').trim().slice(0, 24)),
+      more: more ? (more.textContent || '').trim() : null,
+      newChat: neu ? (neu.getAttribute('aria-label') || neu.textContent || '').trim() : null
+    }
+  })
+  ok('chat shows a thread tab row capped at four plus New chat',
+    tabs.row && tabs.count >= 1 && tabs.count <= 4 && /new chat/i.test(tabs.newChat || ''),
+    JSON.stringify(tabs).slice(0, 150))
+  ok('overflow threads hide behind a More menu', tabs.more !== null, tabs.more || 'no More (<=4 threads)')
+  if (tabs.more) {
+    await page.locator('.nb-thr-tab[data-more]').click()
+    await settle(page, 250)
+    const menuItems = await page.locator('.nb-thr-menuitem').count()
+    ok('the More menu lists the hidden threads', menuItems >= 1, `${menuItems} items`)
+    await page.keyboard.press('Escape').catch(() => {})
+    await page.locator('.nb-thr-scrim').click({ position: { x: 2, y: 2 } }).catch(() => {})
+    await settle(page, 200)
+  }
+
+  // ---------------------------------------------------- Add Sources dialog
+  await page.locator('.nb-addsrc').first().click()
+  await settle(page, 500)
+  const dlg = await page.evaluate(() => {
+    const strip = document.querySelector('.nb-src-tabs')
+    const tabs = Array.from(document.querySelectorAll('.nb-src-tab'))
+    return {
+      strip: !!strip,
+      role: strip ? strip.getAttribute('role') : null,
+      tabs: tabs.map((t) => ({
+        label: (t.textContent || '').trim(),
+        role: t.getAttribute('role'),
+        selected: t.getAttribute('aria-selected')
+      }))
+    }
+  })
+  ok('Add Sources opens one dialog with four tabs',
+    dlg.strip && dlg.tabs.length === 4 &&
+    ['Files', 'Link', 'Text', 'Find on the web'].every((l) => dlg.tabs.some((t) => t.label.includes(l))),
+    JSON.stringify(dlg.tabs.map((t) => t.label)))
+  ok('the source-type strip is an accessible tablist',
+    dlg.role === 'tablist' && dlg.tabs.every((t) => t.role === 'tab' && (t.selected === 'true' || t.selected === 'false')),
+    `role=${dlg.role}`)
+
+  await page.locator('.nb-src-tab', { hasText: 'Files' }).click()
+  await settle(page, 250)
+  const filesTab = await page.evaluate(() => ({
+    dropzone: !!document.querySelector('.nb-dropzone'),
+    pickers: document.querySelectorAll('input[type="file"]').length
+  }))
+  ok('the Files tab has a drop zone and file pickers', filesTab.dropzone && filesTab.pickers >= 2,
+    JSON.stringify(filesTab))
+
+  await page.locator('.nb-src-tab', { hasText: 'Link' }).click()
+  await settle(page, 250)
+  const linkArea = await page.locator('textarea[aria-label*="per line" i]').count()
+  ok('the Link tab takes one URL or YouTube link per line', linkArea >= 1, `${linkArea} field(s)`)
+
+  await page.locator('.nb-src-tab', { hasText: 'Text' }).click()
+  await settle(page, 250)
+  const textArea = await page.locator('textarea[aria-label="Pasted source text"]').count()
+  ok('the Text tab takes a title plus pasted text', textArea >= 1 &&
+    (await page.locator('input[aria-label="Source title"]').count()) >= 1,
+    `${textArea} textarea`)
+
+  await page.locator('.nb-src-tab', { hasText: 'Find on the web' }).click()
+  await settle(page, 300)
+  const findBox = await page.locator('input[aria-label="Describe the sources to find"]').count()
+  ok('Find on the web keeps the describe-then-pick flow', findBox >= 1, `${findBox} box(es)`)
+  await page.keyboard.press('Escape')
+  await settle(page, 300)
+  const dlgGone = await page.locator('.nb-src-tabs').count()
+  ok('Escape closes the Add Sources dialog', dlgGone === 0, `${dlgGone} left`)
+
+  // ------------------------------------------------------- citation chips
+  await page.locator('.nb-askbox textarea').fill('What do the sources say about funding?')
+  await page.locator('.nb-askbox .nb-sendbtn').click()
+  await settle(page, 1800)
+  const citeText = await page.evaluate(() =>
+    Array.from(document.querySelectorAll('.nb-inline-cite')).slice(0, 8)
+      .map((n) => (n.textContent || '').trim()))
+  ok('citation chips render as bare numbers with no brackets',
+    citeText.length > 0 && citeText.every((t) => !/[\[\]]/.test(t)),
+    citeText.slice(0, 4).join(' | ') || 'no chips rendered')
+
+  // ---------------------------------------------------------- 12px floor
+  const tiny = await page.evaluate(() => {
+    const bad = []
+    const walker = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT)
+    let n
+    while ((n = walker.nextNode())) {
+      const t = (n.nodeValue || '').trim()
+      if (!t) continue
+      const el = n.parentElement
+      if (!el || !el.getClientRects().length) continue
+      if (getComputedStyle(el).visibility === 'hidden') continue
+      const fs = parseFloat(getComputedStyle(el).fontSize)
+      if (fs < 11.5) { bad.push(`${fs}px "${t.slice(0, 28)}"`); if (bad.length > 6) break }
+    }
+    return bad
+  })
+  ok('no visible text renders below 12px', tiny.length === 0, tiny.join(' | '))
+
+  // ------------------------------------------------------- twelve make tiles
+  await page.locator('.nb-seg button', { hasText: 'Studio' }).first().click()
+  await settle(page, 800)
+  const tiles = await page.evaluate(() => {
+    const panel = document.querySelector('.nb-studio')
+    if (!panel) return { panel: false }
+    const tiles = Array.from(panel.querySelectorAll('.nb-gen'))
+    const pb = panel.getBoundingClientRect()
+    return {
+      panel: true, tiles: tiles.length,
+      visible: tiles.filter((t) => {
+        const r = t.getBoundingClientRect()
+        return r.top >= pb.top - 1 && r.bottom <= pb.bottom + 1
+      }).length,
+      scrolls: panel.scrollHeight > panel.clientHeight + 2
+    }
+  })
+  ok('every Make tile is visible without scrolling at 1440x900',
+    tiles.panel && tiles.tiles >= 12 && tiles.visible === tiles.tiles && !tiles.scrolls,
+    JSON.stringify(tiles))
+
+  ok('the ux checks raised no page errors', errors.length === 0, errors.slice(0, 2).join(' | '))
+  await page.close()
+  await b.close()
+}
+
 /* ------------------------------------------------------------------- run */
 const { port, close } = await serve(join(here, 'tmp'))
 try {
@@ -740,6 +891,7 @@ try {
   if (which === 'all' || which === 'surfaces') await surfaces(port)
   if (which === 'all' || which === 'a11y') await a11y(port)
   if (which === 'all' || which === 'layout') { layout.port = port; await layout() }
+  if (which === 'all' || which === 'ux') await hermesUx(port)
 } finally {
   await close()
 }

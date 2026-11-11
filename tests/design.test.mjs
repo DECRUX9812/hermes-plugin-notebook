@@ -123,7 +123,7 @@ const PROBE = () => {
 
 /* The semantic type scale, as the CSS declares it. Every rendered size must be
  * one of these or a heading step — nothing in between. */
-const SCALE = ['11.5px', '12.5px', '13px', '14px', '15px', '16px', '17px', '19px', '22px', '26px', '30px']
+const SCALE = ['11.5px', '12px', '12.5px', '13px', '14px', '15px', '16px', '17px', '19px', '22px', '26px', '30px']
 /* sizes that legitimately sit off the chrome scale: the citation tag (a
  * superscript-like marker, always paired with a full-size label) */
 const OFF_SCALE_ALLOWED = ['10.5px']
