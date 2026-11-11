@@ -600,7 +600,7 @@ function AudioView({ src, json, text, notebook, onChanged }) {
               canEditScript
                 ? el('button', {
                     type: 'button', className: 'nb-chip', 'data-click': 'true',
-                    style: { marginLeft: 'auto', fontSize: '11.5px' },
+                    style: { marginLeft: 'auto', fontSize: '12px' },
                     onClick: startEdit,
                     children: 'edit script → re-voice'
                   })
@@ -645,7 +645,7 @@ function TranscriptLine({ line, first, active, seekable, segStart, onSeek }) {
   },
   jsx('span', {
     style: {
-      fontSize: '11.5px', fontWeight: 700, letterSpacing: '.04em',
+      fontSize: '12px', fontWeight: 700, letterSpacing: '.04em',
       color: line.who === 'B' ? T.purple : T.accent,
       fontFamily: 'var(--ui-font-mono, ui-monospace, monospace)'
     },
@@ -655,7 +655,7 @@ function TranscriptLine({ line, first, active, seekable, segStart, onSeek }) {
   seekable
     ? jsx('span', {
         style: {
-          fontSize: '11.5px', color: T.text4, textAlign: 'right',
+          fontSize: '12px', color: T.text4, textAlign: 'right',
           fontFamily: 'var(--ui-font-mono, ui-monospace, monospace)',
           paddingTop: '3px', fontVariantNumeric: 'tabular-nums'
         },
@@ -912,7 +912,7 @@ function MindMapView({ data, text, onCite }) {
     const mid = { x: (e.a.x + e.b.x) / 2, y: (e.a.y + e.b.y) / 2 }
     const label = e.relation
       ? jsx('text', {
-          x: mid.x, y: mid.y - 5, textAnchor: 'middle', fontSize: 10.5,
+          x: mid.x, y: mid.y - 5, textAnchor: 'middle', fontSize: 12,
           fill: tension ? `color-mix(in srgb, ${T.danger} 72%, ${T.text})` : T.text3,
           children: e.relation
         })
@@ -949,7 +949,7 @@ function MindMapView({ data, text, onCite }) {
     ]
     if (n.stat) {
       kids.push(jsx('text', {
-        x: n.x, y: n.y + 14, textAnchor: 'middle', fontSize: 11.5,
+        x: n.x, y: n.y + 14, textAnchor: 'middle', fontSize: 12,
         fill: `color-mix(in srgb, ${ink} 78%, ${T.text})`, fontWeight: 700,
         children: n.stat
       }))
@@ -1292,7 +1292,7 @@ function SlidesView({ data, htmlUrl, notebook, jsonName, onCite, onSay }) {
         }
       },
       el('div', { style: { display: 'flex', alignItems: 'center', gap: '10px' } },
-        el('span', { style: { fontSize: '11.5px', letterSpacing: '.14em', textTransform: 'uppercase', color: '#9aa0b5', fontWeight: 700 },
+        el('span', { style: { fontSize: '12px', letterSpacing: '.14em', textTransform: 'uppercase', color: '#9aa0b5', fontWeight: 700 },
           children: deck.title || 'Deck' }),
         el('span', { style: { flex: 1 } }),
         el('span', { className: 'nb-mono', style: { fontSize: '12.5px', color: '#9aa0b5' }, children: `${i + 1}/${slides.length}` }),

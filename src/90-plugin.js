@@ -41,7 +41,7 @@ function StatusChip() {
     style: {
       display: 'inline-flex', alignItems: 'center', gap: '5px', minHeight: '24px',
       padding: '0 7px', border: 0, borderRadius: '7px', background: 'transparent', cursor: 'pointer',
-      color: 'var(--ui-text-tertiary)', fontSize: '11.5px',
+      color: 'var(--ui-text-tertiary)', fontSize: '12px',
       fontFamily: 'var(--ui-font-mono, ui-monospace, monospace)'
     },
     children: [

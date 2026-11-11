@@ -444,6 +444,41 @@ const CSS = `
 
 /* ------------------------------------------------------------------- chat */
 .nb-chat{flex:1;min-height:0;display:flex;flex-direction:column}
+/* the conversation strip: tabs for the open chats, More for the rest, + for a
+   new one — the thread switcher is a row, not a dialog */
+.nb-thrtabs{flex:0 0 auto;display:flex;align-items:center;gap:4px;
+  padding:10px 28px 0;position:relative;overflow-x:auto;scrollbar-width:none}
+.nb-thrtabs::-webkit-scrollbar{display:none}
+.nb-thr-tab{flex:0 0 auto;display:inline-flex;align-items:center;min-height:32px;
+  max-width:190px;padding:0 12px;border-radius:var(--nb-r-pill);border:1px solid transparent;
+  background:transparent;color:${T.text3};font-size:var(--nb-fs-label);font-weight:600;
+  font-family:inherit;cursor:pointer;white-space:nowrap}
+.nb-thr-tab:hover{background:var(--nb-wash-2);color:${T.text2}}
+.nb-thr-tab[data-active=true]{background:var(--nb-wash-2);border-color:var(--nb-hair-soft);color:${T.text}}
+.nb-thr-tab[data-more=true]{border-style:dashed;border-color:var(--nb-hair-soft)}
+.nb-thr-tab-title{min-width:0;overflow:hidden;text-overflow:ellipsis}
+.nb-thr-new{flex:0 0 auto;display:inline-flex;align-items:center;gap:5px;min-height:32px;
+  padding:0 12px;border-radius:var(--nb-r-pill);border:1px dashed var(--nb-hair-soft);
+  background:transparent;color:${T.text3};font-size:var(--nb-fs-label);font-weight:600;
+  font-family:inherit;cursor:pointer}
+.nb-thr-new:hover{border-color:color-mix(in srgb,${T.accent} 50%, transparent);color:${T.text}}
+.nb-thr-rename{flex:0 0 auto;width:150px;height:32px;padding:0 10px;border-radius:var(--nb-r-pill);
+  border:1px solid color-mix(in srgb,${T.accent} 55%, transparent);background:var(--nb-card);
+  color:${T.text};font-size:var(--nb-fs-label);font-family:inherit;outline:none}
+.nb-thr-menu{position:absolute;top:calc(100% + 4px);right:28px;z-index:60;min-width:200px;
+  display:grid;gap:2px;padding:6px;border-radius:var(--nb-r-el);
+  background:var(--nb-card);border:1px solid var(--nb-hair);box-shadow:var(--nb-shadow)}
+.nb-thr-ctx{right:auto;left:28px}
+.nb-thr-menuitem{display:block;width:100%;text-align:left;min-height:34px;padding:6px 12px;
+  border:0;border-radius:var(--nb-r-in);background:transparent;color:${T.text2};
+  font-size:var(--nb-fs-label);font-weight:550;font-family:inherit;cursor:pointer;
+  overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.nb-thr-menuitem:hover{background:var(--nb-wash-2);color:${T.text}}
+.nb-thr-menuitem[data-active=true]{color:${T.text};font-weight:650}
+.nb-thr-menuitem[data-danger=true]{color:${T.danger}}
+.nb-thr-menuitem[data-danger=true]:hover{background:color-mix(in srgb,${T.danger} 12%, transparent)}
+.nb-thr-scrim{position:fixed;inset:0;z-index:55;background:transparent}
+@media (max-width:900px){.nb-thrtabs{padding:10px 20px 0}}
 .nb-chatscroll{flex:1;min-height:0;display:flex;flex-direction:column;position:relative}
 .nb-hl{background:color-mix(in srgb, ${T.accent} 30%, transparent);color:inherit;border-radius:var(--nb-r-in);padding:0 2px}
 .nb-latest{position:absolute;left:50%;bottom:14px;transform:translateX(-50%);z-index:20;display:inline-flex;align-items:center;gap:4px;padding:7px 14px;border-radius:var(--nb-r-pill);border:1px solid var(--nb-line,#2a2d3d);background:var(--nb-card,#14161f);color:var(--nb-text2,#c6c9d8);font-size:12.5px;font-weight:600;cursor:pointer;box-shadow:0 6px 20px rgba(0,0,0,.35);transition:transform var(--nb-dur-fast) var(--nb-ease),box-shadow var(--nb-dur-fast) var(--nb-ease)}
@@ -506,6 +541,22 @@ const CSS = `
   color:var(--nb-cite-ink);
   color:color-mix(in srgb,${T.accent} 70%, ${T.text});cursor:pointer;vertical-align:1px;line-height:1}
 .nb-inline-cite:hover{background:color-mix(in srgb,${T.accent} 20%, transparent)}
+.nb-inline-cite:focus-visible{outline:2px solid color-mix(in srgb,${T.accent} 70%, transparent);outline-offset:1px}
+/* the muted cost line under an answer — what it drew on, in checkable units */
+.nb-cost{margin-top:8px;font-size:var(--nb-fs-meta);color:${T.text4};
+  font-variant-numeric:tabular-nums}
+.nb-cites-toggle{margin-top:8px;display:inline-flex;align-items:center;min-height:28px;
+  padding:0 10px;border-radius:var(--nb-r-pill);border:1px dashed var(--nb-hair);
+  background:transparent;color:${T.text3};font-size:var(--nb-fs-meta);font-weight:600;
+  cursor:pointer;font-family:inherit}
+.nb-cites-toggle:hover{border-color:color-mix(in srgb,${T.accent} 45%, transparent);color:${T.text2}}
+/* suggested questions above the composer: full text, wrapped, one per row */
+.nb-qrow{display:grid;gap:6px;margin-bottom:12px}
+.nb-qchip{text-align:left;min-height:36px;padding:8px 14px;border-radius:var(--nb-r-el);
+  border:1px solid var(--nb-hair-soft);background:var(--nb-card);color:${T.text2};
+  font-size:var(--nb-fs-label);line-height:1.4;font-family:inherit;cursor:pointer;
+  transition:border-color var(--nb-dur-fast) var(--nb-ease),color var(--nb-dur-fast) var(--nb-ease)}
+.nb-qchip:hover{border-color:color-mix(in srgb,${T.accent} 45%, transparent);color:${T.text}}
 .nb-composer{flex:0 0 auto;padding:14px 30px 20px}
 .nb-askbox{display:flex;flex-direction:column;gap:10px;border:1px solid var(--nb-hair);
   border-radius:var(--nb-r-panel);background:var(--nb-card);padding:14px 16px;box-shadow:var(--nb-shadow);
@@ -528,7 +579,6 @@ const CSS = `
   transition:opacity var(--nb-dur-fast) var(--nb-ease),transform var(--nb-dur-fast) var(--nb-ease)}
 .nb-sendbtn:hover{transform:scale(1.05)}
 .nb-sendbtn[disabled]{opacity:.4;cursor:not-allowed;transform:none}
-.nb-disclaimer{font-size:12px;color:${T.text3};text-align:center;margin-top:9px}
 
 /* ------------------------------------------------- overview + suggestions */
 .nb-overview{border:1px solid var(--nb-hair-soft);border-radius:var(--nb-r-box);background:var(--nb-card);

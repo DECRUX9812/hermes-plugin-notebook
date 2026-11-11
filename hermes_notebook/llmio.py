@@ -12,7 +12,8 @@ _DEFAULT_TIMEOUT = 180.0
 
 def complete(messages: list[dict], *, purpose: str, max_tokens: Optional[int] = None,
              temperature: Optional[float] = None, timeout: Optional[float] = None,
-             task: Optional[str] = None) -> str:
+             task: Optional[str] = None,
+             usage_out: Optional[list] = None) -> str:
     result = runtime.llm().complete(
         messages=messages,
         max_tokens=max_tokens,
@@ -21,6 +22,10 @@ def complete(messages: list[dict], *, purpose: str, max_tokens: Optional[int] = 
         purpose=purpose,
         task=task,
     )
+    # ctx.llm reports token usage on the result; callers that surface a cost
+    # line pass a list to catch it (the field is optional on older hosts)
+    if usage_out is not None:
+        usage_out.append(getattr(result, "usage", None))
     return (result.text or "").strip()
 
 

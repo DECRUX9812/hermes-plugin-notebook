@@ -6,6 +6,21 @@
  */
 const INLINE = /(\*\*[^*]+\*\*|__[^_\n]+__|~~[^~\n]+~~|`[^`]+`|\*[^*\n]+\*|_[^_\n]+_|\[S\d+\]|\[[^\]]+\]\([^)]+\))/g
 
+/* The one citation control, everywhere citations appear: a compact numbered
+ * pill — no brackets — that opens its source on click. Hover/focus previews
+ * are delegated: surfaces attach handlers that look for .nb-inline-cite. */
+function citeBtn(n, onCite, key) {
+  if (onCite) {
+    return el('button', {
+      type: 'button', className: 'nb-inline-cite', 'data-n': n,
+      title: `Source S${n}`, 'aria-label': `Citation ${n} — open the source`,
+      onClick: (e) => { e.stopPropagation(); onCite(n) },
+      children: String(n)
+    }, key)
+  }
+  return el('span', { className: 'nb-inline-cite', 'data-n': n, children: String(n) }, key)
+}
+
 function inlineNodes(text, keyBase, onCite) {
   const out = []
   let last = 0
@@ -28,16 +43,7 @@ function inlineNodes(text, keyBase, onCite) {
     } else if (tok.startsWith('*') || tok.startsWith('_')) {
       out.push(el('em', { children: tok.slice(1, -1) }, k))
     } else if (/^\[S\d+\]$/.test(tok)) {
-      const n = Number(tok.slice(2, -1))
-      if (onCite) {
-        out.push(el('button', {
-          type: 'button', className: 'nb-inline-cite', title: `Open source S${n}`,
-          'data-n': n,
-          'aria-label': `Citation ${n} — open the source`,
-          onClick: (e) => { e.stopPropagation(); onCite(n) },
-          children: tok
-        }, k))
-      } else out.push(el('span', { className: 'nb-inline-cite', children: tok }, k))
+      out.push(citeBtn(Number(tok.slice(2, -1)), onCite, k))
     } else {
       const mm = /^\[([^\]]+)\]\(([^)]+)\)$/.exec(tok)
       // a URL containing ")" breaks the match; the text is still worth showing,

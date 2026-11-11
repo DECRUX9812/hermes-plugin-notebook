@@ -444,6 +444,41 @@ const CSS = `
 
 /* ------------------------------------------------------------------- chat */
 .nb-chat{flex:1;min-height:0;display:flex;flex-direction:column}
+/* the conversation strip: tabs for the open chats, More for the rest, + for a
+   new one — the thread switcher is a row, not a dialog */
+.nb-thrtabs{flex:0 0 auto;display:flex;align-items:center;gap:4px;
+  padding:10px 28px 0;position:relative;overflow-x:auto;scrollbar-width:none}
+.nb-thrtabs::-webkit-scrollbar{display:none}
+.nb-thr-tab{flex:0 0 auto;display:inline-flex;align-items:center;min-height:32px;
+  max-width:190px;padding:0 12px;border-radius:var(--nb-r-pill);border:1px solid transparent;
+  background:transparent;color:${T.text3};font-size:var(--nb-fs-label);font-weight:600;
+  font-family:inherit;cursor:pointer;white-space:nowrap}
+.nb-thr-tab:hover{background:var(--nb-wash-2);color:${T.text2}}
+.nb-thr-tab[data-active=true]{background:var(--nb-wash-2);border-color:var(--nb-hair-soft);color:${T.text}}
+.nb-thr-tab[data-more=true]{border-style:dashed;border-color:var(--nb-hair-soft)}
+.nb-thr-tab-title{min-width:0;overflow:hidden;text-overflow:ellipsis}
+.nb-thr-new{flex:0 0 auto;display:inline-flex;align-items:center;gap:5px;min-height:32px;
+  padding:0 12px;border-radius:var(--nb-r-pill);border:1px dashed var(--nb-hair-soft);
+  background:transparent;color:${T.text3};font-size:var(--nb-fs-label);font-weight:600;
+  font-family:inherit;cursor:pointer}
+.nb-thr-new:hover{border-color:color-mix(in srgb,${T.accent} 50%, transparent);color:${T.text}}
+.nb-thr-rename{flex:0 0 auto;width:150px;height:32px;padding:0 10px;border-radius:var(--nb-r-pill);
+  border:1px solid color-mix(in srgb,${T.accent} 55%, transparent);background:var(--nb-card);
+  color:${T.text};font-size:var(--nb-fs-label);font-family:inherit;outline:none}
+.nb-thr-menu{position:absolute;top:calc(100% + 4px);right:28px;z-index:60;min-width:200px;
+  display:grid;gap:2px;padding:6px;border-radius:var(--nb-r-el);
+  background:var(--nb-card);border:1px solid var(--nb-hair);box-shadow:var(--nb-shadow)}
+.nb-thr-ctx{right:auto;left:28px}
+.nb-thr-menuitem{display:block;width:100%;text-align:left;min-height:34px;padding:6px 12px;
+  border:0;border-radius:var(--nb-r-in);background:transparent;color:${T.text2};
+  font-size:var(--nb-fs-label);font-weight:550;font-family:inherit;cursor:pointer;
+  overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.nb-thr-menuitem:hover{background:var(--nb-wash-2);color:${T.text}}
+.nb-thr-menuitem[data-active=true]{color:${T.text};font-weight:650}
+.nb-thr-menuitem[data-danger=true]{color:${T.danger}}
+.nb-thr-menuitem[data-danger=true]:hover{background:color-mix(in srgb,${T.danger} 12%, transparent)}
+.nb-thr-scrim{position:fixed;inset:0;z-index:55;background:transparent}
+@media (max-width:900px){.nb-thrtabs{padding:10px 20px 0}}
 .nb-chatscroll{flex:1;min-height:0;display:flex;flex-direction:column;position:relative}
 .nb-hl{background:color-mix(in srgb, ${T.accent} 30%, transparent);color:inherit;border-radius:var(--nb-r-in);padding:0 2px}
 .nb-latest{position:absolute;left:50%;bottom:14px;transform:translateX(-50%);z-index:20;display:inline-flex;align-items:center;gap:4px;padding:7px 14px;border-radius:var(--nb-r-pill);border:1px solid var(--nb-line,#2a2d3d);background:var(--nb-card,#14161f);color:var(--nb-text2,#c6c9d8);font-size:12.5px;font-weight:600;cursor:pointer;box-shadow:0 6px 20px rgba(0,0,0,.35);transition:transform var(--nb-dur-fast) var(--nb-ease),box-shadow var(--nb-dur-fast) var(--nb-ease)}
@@ -506,6 +541,22 @@ const CSS = `
   color:var(--nb-cite-ink);
   color:color-mix(in srgb,${T.accent} 70%, ${T.text});cursor:pointer;vertical-align:1px;line-height:1}
 .nb-inline-cite:hover{background:color-mix(in srgb,${T.accent} 20%, transparent)}
+.nb-inline-cite:focus-visible{outline:2px solid color-mix(in srgb,${T.accent} 70%, transparent);outline-offset:1px}
+/* the muted cost line under an answer — what it drew on, in checkable units */
+.nb-cost{margin-top:8px;font-size:var(--nb-fs-meta);color:${T.text4};
+  font-variant-numeric:tabular-nums}
+.nb-cites-toggle{margin-top:8px;display:inline-flex;align-items:center;min-height:28px;
+  padding:0 10px;border-radius:var(--nb-r-pill);border:1px dashed var(--nb-hair);
+  background:transparent;color:${T.text3};font-size:var(--nb-fs-meta);font-weight:600;
+  cursor:pointer;font-family:inherit}
+.nb-cites-toggle:hover{border-color:color-mix(in srgb,${T.accent} 45%, transparent);color:${T.text2}}
+/* suggested questions above the composer: full text, wrapped, one per row */
+.nb-qrow{display:grid;gap:6px;margin-bottom:12px}
+.nb-qchip{text-align:left;min-height:36px;padding:8px 14px;border-radius:var(--nb-r-el);
+  border:1px solid var(--nb-hair-soft);background:var(--nb-card);color:${T.text2};
+  font-size:var(--nb-fs-label);line-height:1.4;font-family:inherit;cursor:pointer;
+  transition:border-color var(--nb-dur-fast) var(--nb-ease),color var(--nb-dur-fast) var(--nb-ease)}
+.nb-qchip:hover{border-color:color-mix(in srgb,${T.accent} 45%, transparent);color:${T.text}}
 .nb-composer{flex:0 0 auto;padding:14px 30px 20px}
 .nb-askbox{display:flex;flex-direction:column;gap:10px;border:1px solid var(--nb-hair);
   border-radius:var(--nb-r-panel);background:var(--nb-card);padding:14px 16px;box-shadow:var(--nb-shadow);
@@ -528,7 +579,6 @@ const CSS = `
   transition:opacity var(--nb-dur-fast) var(--nb-ease),transform var(--nb-dur-fast) var(--nb-ease)}
 .nb-sendbtn:hover{transform:scale(1.05)}
 .nb-sendbtn[disabled]{opacity:.4;cursor:not-allowed;transform:none}
-.nb-disclaimer{font-size:12px;color:${T.text3};text-align:center;margin-top:9px}
 
 /* ------------------------------------------------- overview + suggestions */
 .nb-overview{border:1px solid var(--nb-hair-soft);border-radius:var(--nb-r-box);background:var(--nb-card);
@@ -2271,6 +2321,21 @@ async function copyText(text, say) {
  */
 const INLINE = /(\*\*[^*]+\*\*|__[^_\n]+__|~~[^~\n]+~~|`[^`]+`|\*[^*\n]+\*|_[^_\n]+_|\[S\d+\]|\[[^\]]+\]\([^)]+\))/g
 
+/* The one citation control, everywhere citations appear: a compact numbered
+ * pill — no brackets — that opens its source on click. Hover/focus previews
+ * are delegated: surfaces attach handlers that look for .nb-inline-cite. */
+function citeBtn(n, onCite, key) {
+  if (onCite) {
+    return el('button', {
+      type: 'button', className: 'nb-inline-cite', 'data-n': n,
+      title: `Source S${n}`, 'aria-label': `Citation ${n} — open the source`,
+      onClick: (e) => { e.stopPropagation(); onCite(n) },
+      children: String(n)
+    }, key)
+  }
+  return el('span', { className: 'nb-inline-cite', 'data-n': n, children: String(n) }, key)
+}
+
 function inlineNodes(text, keyBase, onCite) {
   const out = []
   let last = 0
@@ -2293,16 +2358,7 @@ function inlineNodes(text, keyBase, onCite) {
     } else if (tok.startsWith('*') || tok.startsWith('_')) {
       out.push(el('em', { children: tok.slice(1, -1) }, k))
     } else if (/^\[S\d+\]$/.test(tok)) {
-      const n = Number(tok.slice(2, -1))
-      if (onCite) {
-        out.push(el('button', {
-          type: 'button', className: 'nb-inline-cite', title: `Open source S${n}`,
-          'data-n': n,
-          'aria-label': `Citation ${n} — open the source`,
-          onClick: (e) => { e.stopPropagation(); onCite(n) },
-          children: tok
-        }, k))
-      } else out.push(el('span', { className: 'nb-inline-cite', children: tok }, k))
+      out.push(citeBtn(Number(tok.slice(2, -1)), onCite, k))
     } else {
       const mm = /^\[([^\]]+)\]\(([^)]+)\)$/.exec(tok)
       // a URL containing ")" breaks the match; the text is still worth showing,
@@ -4047,10 +4103,10 @@ function Main({ notebook, kinds, tab, setTab, picked, setPicked, busy, generate,
         el('div', { className: 'nb-head-main' },
           el('h1', { className: 'nb-h1', children: notebook.title,
             title: notebook.title }),
-          el('p', { className: 'nb-sub', title: notebook.description || undefined,
-            children: notebook.description
-              ? notebook.description
-              : `${sources.length} source${sources.length === 1 ? '' : 's'} · ${stats.labels || 0} topics · updated ${ago(notebook.updated_at) || 'recently'}` })),
+          // the description lives on Home; the studio header keeps the title
+          // once and lets the counts carry the rest
+          el('p', { className: 'nb-sub',
+            children: `${sources.length} source${sources.length === 1 ? '' : 's'} · ${stats.labels || 0} topics · updated ${ago(notebook.updated_at) || 'recently'}` })),
         el('div', { className: 'nb-hero-side' },
           el('span', {
             className: 'nb-chip', 'data-tone': modelReady ? 'ok' : 'warn',
@@ -4073,13 +4129,15 @@ function Main({ notebook, kinds, tab, setTab, picked, setPicked, busy, generate,
             title: 'Where the sources disagree, and whether they corroborate each other',
             children: [jsx(Glyph, { name: 'shield', size: 14 }), el('span', { children: 'Tensions' })]
           }),
-          el('button', {
+          // the viewer tab exists only while an artifact is open — a disabled
+          // placeholder tab is a promise the pane cannot keep
+          picked ? el('button', {
             type: 'button', role: 'tab', className: 'nb-tab', 'aria-selected': tab === 'view',
-            onClick: () => setTab('view'), disabled: !picked,
-            title: picked ? `${picked.label} — ${picked.title || picked.primary}` : 'No artifact open',
-            children: [jsx(Glyph, { name: picked ? (KIND_ICON[picked.kind] || 'doc') : 'doc', size: 14 }),
-                       el('span', { children: viewName || 'Viewer' })]
-          }),
+            onClick: () => setTab('view'),
+            title: `${picked.label} — ${picked.title || picked.primary}`,
+            children: [jsx(Glyph, { name: KIND_ICON[picked.kind] || 'doc', size: 14 }),
+                       el('span', { children: viewName || picked.label || 'Viewer' })]
+          }) : null,
           peek ? el('button', {
             type: 'button', role: 'tab', className: 'nb-tab', 'aria-selected': tab === 'peek',
             onClick: () => setTab('peek'), title: peek.title,
@@ -4163,13 +4221,17 @@ function Chat({ notebook, kinds, askOpen, onSay, modelReady, onCite, onOpenSourc
   const nbKey = `${notebook.id}:default`
   const [thread, setThread] = useState('default')
   const [threads, setThreads] = useState(() => notebook.threads || [])
-  const [thrOpen, setThrOpen] = useState(false)
-  // The composer's pill: what "send" means. Grounded is read-only, agent may run
-  // a tool, council wants more than one model to answer.
-  const [agentMode, setAgentMode] = useState(() => persist.get('composerMode', 'grounded'))
-  const setMode = (m) => { setAgentMode(m); persist.set('composerMode', m) }
-  const curThread = useRef('default')
-  curThread.current = thread
+  const [cfgOpen, setCfgOpen] = useState(false)
+  const [scopeOpen, setScopeOpen] = useState(false)
+  // the thread strip: which tab is being renamed inline, which context menu
+  // is open, which name sits behind the delete confirm
+  const [renaming, setRenaming] = useState(null)
+  const [renVal, setRenVal] = useState('')
+  const [menuFor, setMenuFor] = useState(null)
+  const [moreOpen, setMoreOpen] = useState(false)
+  const [delName, setDelName] = useState(null)
+  const [cfg, setCfg] = useState({})
+  const [cfgBusy, setCfgBusy] = useState(false)
   const [msgs, setMsgs] = useState(() =>
     threadCache.get(nbKey) || (notebook.thread || []).map((m, i) => ({ ...m, k: `t${i}` })))
   const [text, setText] = useState('')
@@ -4188,6 +4250,12 @@ function Chat({ notebook, kinds, askOpen, onSay, modelReady, onCite, onOpenSourc
   const [scopeOpen, setScopeOpen] = useState(false)
   const [cfg, setCfg] = useState({})
   const [cfgBusy, setCfgBusy] = useState(false)
+  // The composer's pill: what "send" means. Grounded is read-only, agent may run
+  // a tool, council wants more than one model to answer.
+  const [agentMode, setAgentMode] = useState(() => persist.get('composerMode', 'grounded'))
+  const setMode = (m) => { setAgentMode(m); persist.set('composerMode', m) }
+  const curThread = useRef('default')
+  curThread.current = thread
   const threadRef = useRef(null)
   const boxRef = useRef(null)
   const stickRef = useRef(true)
@@ -4353,6 +4421,7 @@ function Chat({ notebook, kinds, askOpen, onSay, modelReady, onCite, onOpenSourc
       const answer = {
         role: 'assistant', content: out.answer, k: `a${Date.now()}`,
         citations: out.citations || [], seconds: out.seconds,
+        chars: out.context_chars, tokens: out.tokens,
         actions: out.actions || [], council: out.council || null,
         meta: (out.actions || []).length
           ? `${out.actions.length} tool${out.actions.length === 1 ? '' : 's'} ran`
@@ -4394,7 +4463,149 @@ function Chat({ notebook, kinds, askOpen, onSay, modelReady, onCite, onOpenSourc
   const thrMeta = (threads || []).find((x) => x.name === thread)
   const thrLabel = (thrMeta && thrMeta.title) || (thread === 'default' ? 'Chat' : 'New chat')
 
+  /* Conversation tabs — the switcher is a strip, not a dialog: up to four
+   * visible, the rest behind More, + starts a chat, double-click renames,
+   * right-click offers rename/delete. Same /thread/* routes the dialog used. */
+  const thrList = (threads && threads.length)
+    ? threads
+    : [{ name: 'default', title: 'Chat', count: 0, updated: '' }]
+  const thrTitle = (t) => (t && (t.title || (t.name === 'default' ? 'Chat' : t.name))) || 'Chat'
+  const visThreads = thrList.slice(0, 4)
+  const moreThreads = thrList.slice(4)
+
+  const newThread = async () => {
+    try {
+      const out = await api('/thread/new', {
+        method: 'POST',
+        body: { notebook: notebook.id, title: '' },
+        timeoutMs: 30000
+      })
+      const name = (out && out.thread && out.thread.name) || `chat-${Date.now().toString(36)}`
+      threadCache.set(`${notebook.id}:${name}`, [])
+      setThreads((ts) => [{ name, title: (out && out.thread && out.thread.title) || 'New chat',
+                            count: 0, updated: '' }, ...ts])
+      setThread(name)
+    } catch (e) { onSay && onSay(`could not start a chat: ${e.message || e}`) }
+  }
+
+  const renameThread = async (name, title) => {
+    try {
+      const out = await api('/thread/rename', {
+        method: 'POST',
+        body: { notebook: notebook.id, thread: name, title },
+        timeoutMs: 30000
+      })
+      const fresh = (out && out.thread) || {}
+      setThreads((ts) => ts.map((t) => (t.name === name
+        ? { ...t, title: fresh.title || title } : t)))
+      if (reload) reload(true)
+    } catch (e) { onSay && onSay(`could not rename: ${e.message || e}`) }
+  }
+
+  const deleteThread = async (name) => {
+    try {
+      await api('/thread/delete', {
+        method: 'POST',
+        body: { notebook: notebook.id, thread: name, confirm: true },
+        timeoutMs: 30000
+      })
+      const key = `${notebook.id}:${name}`
+      threadCache.delete(key)
+      setThreads((ts) => ts.filter((t) => t.name !== name))
+      if (name === thread) {
+        if (name === 'default') { cacheMsgs(key, []); setMsgs([]) }
+        else setThread('default')
+      }
+      if (reload) reload(true)
+      if (onSay) onSay('conversation deleted')
+    } catch (e) { onSay && onSay(`could not delete chat: ${e.message || e}`) }
+  }
+
+  const commitRename = () => {
+    const name = renaming
+    const title = renVal.trim()
+    setRenaming(null)
+    if (name && title) renameThread(name, title)
+  }
+
+  const thrTab = (t) => {
+    const active = t.name === thread
+    if (renaming === t.name) {
+      return el('input', {
+        key: t.name, className: 'nb-thr-rename', value: renVal, autoFocus: true,
+        'aria-label': `Rename conversation ${thrTitle(t)}`,
+        onChange: (e) => setRenVal(e.target.value),
+        onBlur: commitRename,
+        onKeyDown: (e) => {
+          if (e.key === 'Enter') { e.preventDefault(); commitRename() }
+          if (e.key === 'Escape') { e.preventDefault(); setRenaming(null) }
+        }
+      }, t.name)
+    }
+    return el('button', {
+      key: t.name, type: 'button', className: 'nb-thr-tab',
+      'data-active': active ? 'true' : 'false',
+      'aria-current': active ? 'true' : undefined,
+      title: thrTitle(t),
+      onClick: () => { setThread(t.name); setMoreOpen(false); setMenuFor(null) },
+      onDoubleClick: () => { setRenaming(t.name); setRenVal(thrTitle(t) === t.name ? '' : thrTitle(t)) },
+      onContextMenu: (e) => { e.preventDefault(); setMenuFor(t.name); setMoreOpen(false) },
+      children: el('span', { className: 'nb-thr-tab-title', children: thrTitle(t) })
+    }, t.name)
+  }
+
   return el('div', { className: 'nb-chat' },
+    el('div', { className: 'nb-thrtabs' },
+      visThreads.map(thrTab),
+      moreThreads.length
+        ? el('span', { style: { position: 'relative' } },
+            el('button', {
+              type: 'button', className: 'nb-thr-tab', 'data-more': 'true',
+              'aria-haspopup': 'menu', 'aria-expanded': moreOpen ? 'true' : 'false',
+              onClick: () => { setMoreOpen((o) => !o); setMenuFor(null) },
+              children: `More · ${moreThreads.length}`
+            }),
+            moreOpen
+              ? el('div', { className: 'nb-thr-menu', role: 'menu', 'aria-label': 'More conversations' },
+                  moreThreads.map((t) => el('button', {
+                    key: t.name, type: 'button', role: 'menuitem',
+                    className: 'nb-thr-menuitem',
+                    'data-active': t.name === thread ? 'true' : 'false',
+                    onClick: () => { setThread(t.name); setMoreOpen(false) },
+                    children: thrTitle(t)
+                  })))
+              : null)
+        : null,
+      el('button', {
+        type: 'button', className: 'nb-thr-new',
+        'aria-label': 'New chat', title: 'New chat',
+        onClick: newThread,
+        children: [jsx(Glyph, { name: 'plus', size: 13 }), el('span', { children: 'New chat' })]
+      })),
+    // right-click menu on a tab — rename or delete, delete asks first
+    menuFor
+      ? el('div', { className: 'nb-thr-menu nb-thr-ctx', role: 'menu', 'aria-label': 'Conversation actions' },
+          el('button', {
+            type: 'button', role: 'menuitem', className: 'nb-thr-menuitem',
+            onClick: () => {
+              const t = thrList.find((x) => x.name === menuFor)
+              setRenaming(menuFor); setRenVal(t ? thrTitle(t) : ''); setMenuFor(null)
+            },
+            children: 'Rename'
+          }),
+          el('button', {
+            type: 'button', role: 'menuitem', className: 'nb-thr-menuitem', 'data-danger': 'true',
+            onClick: () => { setDelName(menuFor); setMenuFor(null) },
+            children: 'Delete'
+          }))
+      : null,
+    // one transparent layer that closes the menus on any outside click
+    (menuFor || moreOpen)
+      ? el('div', {
+          className: 'nb-thr-scrim', 'aria-hidden': 'true',
+          onClick: () => { setMenuFor(null); setMoreOpen(false) }
+        })
+      : null,
     el('div', { className: 'nb-chatscroll' },
     el('div', { className: 'nb-thread', ref: threadRef, onScroll: onThreadScroll, role: 'log', 'aria-live': 'polite', 'aria-label': 'Conversation' },
       ov
@@ -4435,20 +4646,8 @@ function Chat({ notebook, kinds, askOpen, onSay, modelReady, onCite, onOpenSourc
                 children: 'Every answer is built from this notebook and cites the source it came from. If the sources do not cover it, the answer says so.'
               })))
         : null,
-      msgs.length === 0 && !pending && sugg && (sugg.questions || []).length
-        ? el('div', { style: { marginTop: ov ? '18px' : '0' } },
-            el('div', { className: 'nb-meta', style: { marginBottom: '10px' }, children: 'Suggested questions' }),
-            el('div', { className: 'nb-suggest-grid' },
-              sugg.questions.slice(0, 3).map((question) => el('button', {
-                key: question, type: 'button', className: 'nb-suggest',
-                onClick: () => send(question),
-                'aria-label': `Ask: ${question}`,
-                children: [
-                  el('span', { className: 'nb-suggest-q', children: question }),
-                  el('span', { className: 'nb-suggest-go', 'aria-hidden': 'true' },
-                    jsx(Glyph, { name: 'arrowRight', size: 14 }))
-                ]
-              }, question))),
+      msgs.length === 0 && !pending && sugg
+        ? el('div', null,
             (sugg.gaps || []).length
               ? el('div', { className: 'nb-gaprow', style: { marginTop: '14px' } },
                   el('span', { className: 'nb-meta', children: 'Source gaps' }),
@@ -4523,12 +4722,21 @@ function Chat({ notebook, kinds, askOpen, onSay, modelReady, onCite, onOpenSourc
       : null),
 
     el('div', { className: 'nb-composer' },
+      // Hermes suggests, you decide: up to three questions above the box, only
+      // while the thread is empty, each wrapping to its full text — never a
+      // truncated teaser the reader has to guess at.
       msgs.length === 0 && !pending
-        ? el('div', { style: { display: 'flex', gap: '6px', flexWrap: 'wrap', marginBottom: '10px' } },
-            SUGGEST.map((s) => jsx(Chip, {
-              key: s, onClick: () => { setText(s); const n = boxRef.current; if (n) n.focus() },
-              title: 'Use this question', children: s
-            })))
+        ? (() => {
+            const qs = (sugg && sugg.questions && sugg.questions.length)
+              ? sugg.questions.slice(0, 3) : SUGGEST.slice(0, 3)
+            return el('div', { className: 'nb-qrow', role: 'group', 'aria-label': 'Suggested questions' },
+              qs.map((question) => el('button', {
+                key: question, type: 'button', className: 'nb-qchip',
+                onClick: () => send(question),
+                'aria-label': `Ask: ${question}`,
+                children: question
+              })))
+          })()
         : null,
       el('div', { className: 'nb-askbox' },
         // What "send" is allowed to do. The pill is the consent control for
@@ -4561,11 +4769,8 @@ function Chat({ notebook, kinds, askOpen, onSay, modelReady, onCite, onOpenSourc
           // funding?"), so this chip is as wide as the question. Unshrunk it
           // pushed the Send button 21px past the column edge at 1330px; capped
           // and ellipsized it stays a chip and the primary action keeps its slot.
-          el('button', {
-            type: 'button', className: 'nb-chip nb-thrchip',
-            title: 'Conversations — switch or start a new chat',
-            onClick: () => setThrOpen(true)
-          }, el('span', { children: `💬 ${thrLabel}` })),
+          // The conversation switcher is the tab strip above — the composer
+          // keeps only the source-scope chip and its tools.
           jsx(Chip, {
             title: `${activeCount} of ${stats.sources || 0} sources are in context`,
             children: `${activeCount} source${activeCount === 1 ? '' : 's'}`
@@ -4615,8 +4820,8 @@ function Chat({ notebook, kinds, askOpen, onSay, modelReady, onCite, onOpenSourc
               setTimeout(() => URL.revokeObjectURL(a.href), 4000)
             }
           }),
-          el('span', { className: 'nb-hint', style: { marginLeft: 'auto' },
-            children: modelReady ? '↵ Send · ⇧↵ New line' : 'model offline — enable the plugin and restart the gateway' }),
+          modelReady ? null : el('span', { className: 'nb-hint', style: { marginLeft: 'auto' },
+            children: 'model offline — enable the plugin and restart the gateway' }),
           el('button', {
             type: 'button', className: 'nb-sendbtn',
             onClick: () => send(), disabled: !text.trim() || !!pending,
@@ -4625,8 +4830,6 @@ function Chat({ notebook, kinds, askOpen, onSay, modelReady, onCite, onOpenSourc
             children: jsx(Glyph, { name: 'send', size: 15 })
           }))
       ),
-      el('div', { className: 'nb-disclaimer',
-        children: 'Hermes Notebook can make mistakes — double-check it.' }),
       cfgOpen
         ? jsx(Dialog, {
             open: true,
@@ -4704,56 +4907,20 @@ function Chat({ notebook, kinds, askOpen, onSay, modelReady, onCite, onOpenSourc
             onPick: (scope) => { if (setAskScope) setAskScope(scope); setScopeOpen(false) }
           })
         : null,
-      thrOpen
-        ? jsx(ThreadDialog, {
-            notebook, threads, current: thread,
-            onClose: () => setThrOpen(false),
-            onPick: (name) => { setThread(name); setThrOpen(false) },
-            onNew: async (title) => {
-              try {
-                const out = await api('/thread/new', {
-                  method: 'POST',
-                  body: { notebook: notebook.id, title: title || '' },
-                  timeoutMs: 30000
-                })
-                const name = (out && out.thread && out.thread.name) || `chat-${Date.now().toString(36)}`
-                threadCache.set(`${notebook.id}:${name}`, [])
-                setThreads((ts) => [{ name, title: (out && out.thread && out.thread.title) || 'New chat',
-                                      count: 0, updated: '' }, ...ts])
-                setThread(name); setThrOpen(false)
-              } catch (e) { onSay && onSay(`could not start a chat: ${e.message || e}`) }
-            },
-            onRename: async (name, title) => {
-              try {
-                const out = await api('/thread/rename', {
-                  method: 'POST',
-                  body: { notebook: notebook.id, thread: name, title },
-                  timeoutMs: 30000
-                })
-                const fresh = (out && out.thread) || {}
-                setThreads((ts) => ts.map((t) => (t.name === name
-                  ? { ...t, title: fresh.title || title } : t)))
-                if (reload) reload(true)
-              } catch (e) { onSay && onSay(`could not rename: ${e.message || e}`) }
-            },
-            onDelete: async (name) => {
-              try {
-                await api('/thread/delete', {
-                  method: 'POST',
-                  body: { notebook: notebook.id, thread: name, confirm: true },
-                  timeoutMs: 30000
-                })
-                const key = `${notebook.id}:${name}`
-                threadCache.delete(key)
-                setThreads((ts) => ts.filter((t) => t.name !== name))
-                if (name === thread) {
-                  if (name === 'default') { cacheMsgs(key, []); setMsgs([]) }
-                  else setThread('default')
-                }
-                if (reload) reload(true)
-                if (onSay) onSay('conversation deleted')
-              } catch (e) { onSay && onSay(`could not delete chat: ${e.message || e}`) }
-            }
+      delName
+        ? jsx(Dialog, {
+            open: true, title: 'Delete this conversation?', width: 420,
+            onClose: () => setDelName(null),
+            children: el('div', null,
+              el('p', { style: { margin: '0 0 16px', color: T.text3, fontSize: '14px', lineHeight: 1.55 },
+                children: `“${thrTitle(thrList.find((t) => t.name === delName) || { name: delName })}” and its messages will be removed. This cannot be undone.` }),
+              el('div', { style: { display: 'flex', gap: '8px', justifyContent: 'flex-end' } },
+                jsx(Btn, { onClick: () => setDelName(null), children: 'Cancel' }),
+                jsx(Btn, {
+                  variant: 'primary',
+                  onClick: () => { const n = delName; setDelName(null); deleteThread(n) },
+                  children: 'Delete'
+                })))
           })
         : null
     )
@@ -4810,92 +4977,6 @@ function ScopeDialog({ notebook, current, onClose, onPick }) {
   })
 }
 
-function ThreadDialog({ notebook, threads, current, onClose, onPick, onNew, onDelete, onRename }) {
-  const list = threads && threads.length ? threads : [{ name: 'default', title: 'Chat', count: 0 }]
-  const [title, setTitle] = useState('')
-  const [editing, setEditing] = useState('')
-  const [draft, setDraft] = useState('')
-  const [confirming, setConfirming] = useState('')
-
-  const commit = (name) => {
-    const next = draft.trim()
-    setEditing('')
-    if (next && onRename) onRename(name, next)
-  }
-
-  return jsx(Dialog, {
-    open: true, onClose, title: 'Conversations', width: 560,
-    children: el('div', { style: { display: 'grid', gap: '12px' } },
-      el('div', { className: 'nb-newthread' },
-        el('input', {
-          className: 'nb-genopt-text', type: 'text',
-          placeholder: 'Name a new conversation (optional)',
-          'aria-label': 'New conversation name',
-          value: title,
-          onChange: (e) => setTitle(e.target.value),
-          onKeyDown: (e) => { if (e.key === 'Enter') { onNew(title); setTitle('') } }
-        }),
-        jsx(Btn, {
-          size: 'sm', variant: 'primary', icon: 'plus',
-          onClick: () => { onNew(title); setTitle('') },
-          children: 'Start'
-        })),
-      el('div', { className: 'nb-thrlist', role: 'list', 'aria-label': 'Conversations' },
-        list.map((t) => {
-          const on = t.name === current
-          const isEditing = editing === t.name
-          return el('div', { key: t.name, className: 'nb-thrwrap', role: 'listitem',
-                             'data-on': on ? 'true' : 'false' },
-            isEditing
-              ? el('div', { className: 'nb-thredit' },
-                  el('input', {
-                    className: 'nb-genopt-text', type: 'text', autoFocus: true,
-                    'aria-label': `Rename ${t.title || t.name}`,
-                    value: draft,
-                    onChange: (e) => setDraft(e.target.value),
-                    onKeyDown: (e) => {
-                      if (e.key === 'Enter') commit(t.name)
-                      if (e.key === 'Escape') setEditing('')
-                    }
-                  }),
-                  jsx(Btn, { size: 'sm', onClick: () => commit(t.name), children: 'Save' }))
-              : el('div', { style: { display: 'flex', alignItems: 'center', flex: 1, minWidth: 0 } },
-                  el('button', {
-                    type: 'button',
-                    className: 'nb-thrrow' + (on ? ' is-current' : ''),
-                    onClick: () => onPick(t.name),
-                    'aria-current': on ? 'true' : undefined,
-                    children: [
-                      el('div', { style: { flex: 1, minWidth: 0 } },
-                        el('div', { style: { fontSize: '14px', fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' },
-                          children: t.title || t.name }),
-                        el('div', { className: 'nb-meta',
-                          children: `${t.count || t.messages || 0} messages`
-                                   + (t.updated ? ` · ${ago(t.updated)}` : '') })),
-                      on ? jsx(Glyph, { name: 'check', size: 15 }) : null
-                    ]
-                  }),
-                  jsx(IconBtn, {
-                    icon: 'note', size: 13, label: `Rename conversation — ${t.title || t.name}`,
-                    onClick: () => { setEditing(t.name); setDraft(t.title || ''); setConfirming('') }
-                  }),
-                  confirming === t.name
-                    ? jsx(Btn, {
-                        size: 'sm', className: 'nb-danger',
-                        label: `Confirm delete — ${t.title || t.name}`,
-                        onClick: () => { setConfirming(''); onDelete(t.name) },
-                        children: 'Really delete'
-                      })
-                    : jsx(IconBtn, {
-                        icon: 'trash', size: 13, label: `Delete conversation — ${t.title || t.name}`,
-                        onClick: () => setConfirming(t.name)
-                      })))
-        })),
-      el('div', { className: 'nb-hint',
-        children: 'Each conversation keeps its own history; answers still cite the same sources.' }))
-  })
-}
-
 function tidyQuote(text) {
   return String(text || '')
     .replace(/\[([^\]]+)\]\([^)]*\)/g, '$1')
@@ -4909,6 +4990,7 @@ const CITE_TEXT_CACHE = new Map()
 function Msg({ msg, onCite, notebook, canRetry, onRetry, onSay, reload }) {
   const isUser = msg.role === 'user'
   const [citePop, setCitePop] = useState(null)
+  const [citesOpen, setCitesOpen] = useState(false)
 
   const citeFor = (n) => (msg.citations || []).find((c) => c.n === n)
   // hand the whole citation up — its snippet lets the source open at the
@@ -4956,7 +5038,13 @@ function Msg({ msg, onCite, notebook, canRetry, onRetry, onSay, reload }) {
   return el('div', { className: 'nb-msg', 'data-role': isUser ? 'user' : 'assistant' },
     isUser ? null : el('span', { className: 'nb-avatar', 'aria-hidden': 'true' },
               jsx(Glyph, { name: 'sparkle', size: 14 })),
-    el('div', { className: 'nb-msg-body', onMouseOver: isUser ? undefined : onMouseOver, onMouseOut: isUser ? undefined : onMouseOut },
+    el('div', { className: 'nb-msg-body',
+      // Preact's onFocus/onBlur bubble (focusin/focusout), so keyboard focus on
+      // a citation chip gets the same passage preview hover gives a pointer.
+      onMouseOver: isUser ? undefined : onMouseOver,
+      onMouseOut: isUser ? undefined : onMouseOut,
+      onFocus: isUser ? undefined : onMouseOver,
+      onBlur: isUser ? undefined : onMouseOut },
       isUser
         ? el('div', { className: 'nb-bubble' },
             el('div', { className: 'nb-who', children: 'You' }),
@@ -4996,16 +5084,44 @@ function Msg({ msg, onCite, notebook, canRetry, onRetry, onSay, reload }) {
               }) : null),
             el('div', { className: 'nb-bubble' },
               jsx(Markdown, { text: msg.content, onCite: citeClick })),
+            // what the answer cost, in the units a reader can check: how many
+            // sources fed it, how much text that was, how long it took — and
+            // tokens when the model reports them
+            (() => {
+              const cites = msg.citations || []
+              const bits = []
+              if (cites.length) bits.push(`${cites.length} source${cites.length === 1 ? '' : 's'}`)
+              if (msg.chars) bits.push(`${nfmt(msg.chars)} chars`)
+              if (msg.seconds) bits.push(`${msg.seconds}s`)
+              if (msg.tokens) bits.push(`${nfmt(msg.tokens)} tokens`)
+              return bits.length
+                ? el('div', { className: 'nb-cost', children: bits.join(' · ') })
+                : null
+            })(),
             (msg.citations || []).length
-              ? el('div', { style: { display: 'flex', gap: '6px', flexWrap: 'wrap', marginTop: '10px' }, role: 'list', 'aria-label': 'Citations' },
-                  msg.citations.map((c) => el('button', {
-                    key: `${c.n}-${c.title}`, type: 'button', className: 'nb-chip nb-citechip',
-                    'data-n': c.n,
-                    onClick: () => citeClick(c.n),
-                    title: c.origin || c.title,
-                    'aria-label': `Citation ${c.n} — ${c.title}`,
-                    children: [el('b', { children: `S${c.n}` }), el('span', { children: c.title })]
-                  })))
+              ? el('div', { style: { marginTop: '8px' } },
+                  citesOpen
+                    ? el('div', {
+                        style: { display: 'flex', gap: '6px', flexWrap: 'wrap' },
+                        role: 'list', 'aria-label': 'Citations'
+                      },
+                        msg.citations.map((c) => el('button', {
+                          key: `${c.n}-${c.title}`, type: 'button', className: 'nb-chip nb-citechip',
+                          'data-n': c.n,
+                          onClick: () => citeClick(c.n),
+                          title: c.origin || c.title,
+                          'aria-label': `Citation ${c.n} — ${c.title}`,
+                          children: [el('b', { children: `S${c.n}` }), el('span', { children: c.title })]
+                        })))
+                    : null,
+                  el('button', {
+                    type: 'button', className: 'nb-cites-toggle',
+                    'aria-expanded': citesOpen,
+                    onClick: () => setCitesOpen((o) => !o),
+                    children: citesOpen
+                      ? 'hide sources'
+                      : `${msg.citations.length} source${msg.citations.length === 1 ? '' : 's'}`
+                  }))
               : null)),
     citePop
       ? el('div', {

@@ -303,9 +303,11 @@ def notebook_ask(args: dict, **kw) -> str:
         messages.append({"role": "user", "content": user})
     else:
         messages += [{"role": "user", "content": user}]
+    usage: list = []
     answer = llmio.complete(
         messages,
         purpose="hermes-notebook.ask", max_tokens=max_tokens, temperature=0.3,
+        usage_out=usage,
     )
     if thread_name:
         store.append_thread(nb_id, thread_name, "user", question)
@@ -319,11 +321,18 @@ def notebook_ask(args: dict, **kw) -> str:
             retrieve.cited_sources(result["sources_used"], answer), 1)]
         store.append_thread(nb_id, thread_name, "assistant", answer,
                             extra={"citations": cites} if cites else None)
+    u = usage[0] if usage else None
+    tokens = 0
+    if u is not None:
+        tokens = int(getattr(u, "total_tokens", 0) or 0) or int(
+            getattr(u, "input_tokens", 0) or 0) + int(getattr(u, "output_tokens", 0) or 0)
     return runtime.ok(
         notebook=nb_id, question=question, answer=answer,
         thread=thread_name,
         sources_used=result["sources_used"],
         chunks_used=result["chunks_used"], total_chunks=result["total_chunks"],
+        context_chars=len(result["context"]),
+        tokens=tokens or None,
     )
 
 
