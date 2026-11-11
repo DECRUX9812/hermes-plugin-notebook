@@ -211,6 +211,124 @@ def test_ask_records_into_the_named_thread(ctx):
     assert msgs[0]["content"].startswith("what stage")
 
 
+# ------------------------------------------------- history compaction (P3)
+
+def _ask(nb, q, t="assembly"):
+    return json.loads(tools.notebook_ask(
+        {"notebook": nb, "question": q, "thread": t}))
+
+
+def _last_ask_messages(ctx):
+    calls = [c for c in ctx.llm.calls
+             if c.get("kind") == "complete"
+             and c.get("purpose") == "hermes-notebook.ask"]
+    return calls[-1]["messages"]
+
+
+def test_three_exchanges_verbatim_summary_for_the_rest(ctx):
+    """The prompt carries the last 3 exchanges verbatim; everything older is
+    one system-side note from the thread's rolling summary."""
+    _mk()
+    for i in range(4):
+        _ask("threads-nb", f"question {i} about assembly?")
+    doc = store.read_thread("threads-nb", "assembly")
+    # the 4th exchange pushed the first out of the window → summary rolled
+    assert doc["summary"], "expected a rolling summary once the thread passed 3 exchanges"
+    assert len(doc["summary"]) <= 600
+    assert doc["summary_upto"] == 2      # the first exchange (2 messages)
+
+    _ask("threads-nb", "question 4 about assembly?")
+    msgs = _last_ask_messages(ctx)
+    notes = [m["content"] for m in msgs if m["role"] == "system"]
+    assert any(n.startswith("Earlier in this conversation:") for n in notes)
+    conv = [m for m in msgs if m["role"] != "system"]
+    assert len(conv) == 7                        # 3 exchanges + the new question
+    hist = " ".join(str(m["content"]) for m in conv[:-1])
+    assert "question 0" not in hist              # rolled out → summary only
+    assert "question 1" in hist and "question 3" in hist
+
+
+def test_assistant_turns_capped_and_source_blocks_stripped(ctx):
+    _mk()
+    t = "assembly"
+    store.append_thread("threads-nb", t, "user", "q0")
+    store.append_thread("threads-nb", t, "assistant",
+                        '<source id="S1">big pasted corpus</source>' + "A" * 3000)
+    _ask("threads-nb", "q1")
+    msgs = _last_ask_messages(ctx)
+    hist = [m for m in msgs if m["role"] == "assistant" and m is not msgs[-1]]
+    sent = [m["content"] for m in msgs[:-1] if m["role"] == "assistant"]
+    assert sent and all(len(c) <= 1200 for c in sent)
+    assert all("<source" not in c and "big pasted corpus" not in c for c in sent)
+
+
+def test_summary_failure_never_blocks_the_answer(ctx):
+    """The aux summariser is best-effort: a dead aux slot keeps the old
+    summary (or none) and the answer still comes back."""
+    _mk()
+    orig = ctx.llm.complete
+
+    def flaky(messages, **kw):
+        if kw.get("purpose") == "hermes-notebook.thread_summary":
+            raise RuntimeError("aux slot down")
+        return orig(messages, **kw)
+
+    ctx.llm.complete = flaky
+    for i in range(4):
+        out = _ask("threads-nb", f"question {i}?")
+        assert out.get("ok", True) and out["answer"] == "model answer"
+    doc = store.read_thread("threads-nb", "assembly")
+    assert doc["summary"] == ""
+
+
+def test_old_summary_kept_when_refresh_fails(ctx):
+    _mk()
+    t = "assembly"
+    store.set_thread_summary("threads-nb", t, "old rolling summary", upto=2)
+    for i in range(4):
+        store.append_thread("threads-nb", t, "user", f"q{i}")
+        store.append_thread("threads-nb", t, "assistant", f"a{i}")
+    orig = ctx.llm.complete
+
+    def flaky(messages, **kw):
+        if kw.get("purpose") == "hermes-notebook.thread_summary":
+            raise RuntimeError("aux slot down")
+        return orig(messages, **kw)
+
+    ctx.llm.complete = flaky
+    _ask("threads-nb", "q5")
+    assert store.read_thread("threads-nb", t)["summary"] == "old rolling summary"
+
+
+def test_summary_refresh_after_three_more_exchanges(ctx):
+    _mk()
+    t = "assembly"
+    for i in range(4):
+        _ask("threads-nb", f"question {i}?")
+    upto1 = store.read_thread("threads-nb", t)["summary_upto"]
+    _ask("threads-nb", "q4")
+    assert store.read_thread("threads-nb", t)["summary_upto"] == upto1  # <3 new
+    _ask("threads-nb", "q5")
+    _ask("threads-nb", "q6")
+    assert store.read_thread("threads-nb", t)["summary_upto"] > upto1
+
+
+def test_legacy_thread_gains_summary_lazily(ctx, tmp_path):
+    """A thread file from before summaries existed keeps working and gets its
+    summary the first time it outgrows the verbatim window."""
+    _mk()
+    nb_dir = store._nb_dir("threads-nb") / "threads"
+    nb_dir.mkdir(parents=True, exist_ok=True)
+    (nb_dir / "default.json").write_text(json.dumps([
+        {"role": r, "content": f"old {r} {i}", "ts": "2026-01-01T00:00:00Z"}
+        for i in range(4) for r in ("user", "assistant")]))
+    out = _ask("threads-nb", "a new question", t="default")
+    assert out.get("ok", True)
+    doc = store.read_thread("threads-nb", "default")
+    assert doc["summary"]                      # lazily generated
+    assert len(doc["messages"]) == 10          # 8 old + the new exchange
+
+
 def test_threads_tool_actions():
     _mk()
     made = json.loads(tools.notebook_threads({"notebook": "threads-nb", "action": "new",

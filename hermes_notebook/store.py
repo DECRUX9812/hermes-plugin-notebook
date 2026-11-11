@@ -432,21 +432,24 @@ def _thread_name_of(path: Path) -> str:
 
 
 def _read_thread_file(path: Path) -> dict:
-    """(title, created, updated, messages) for one thread file, legacy or current."""
+    """(title, created, updated, summary, messages) for one thread file."""
     raw = _read_json(path, [])
     if isinstance(raw, dict):
         msgs = raw.get("messages") if isinstance(raw.get("messages"), list) else []
         return {"title": str(raw.get("title") or "").strip(),
                 "created": str(raw.get("created") or ""),
                 "updated": str(raw.get("updated") or raw.get("created") or ""),
+                "summary": str(raw.get("summary") or ""),
+                "summary_upto": int(raw.get("summary_upto") or 0),
                 "messages": [m for m in msgs if isinstance(m, dict)]}
     if isinstance(raw, list):
         msgs = [m for m in raw if isinstance(m, dict)]
         first_user = next((str(m.get("content") or "") for m in msgs
                            if m.get("role") == "user"), "")
         return {"title": _title_from(first_user), "created": "", "updated": "",
-                "messages": msgs}
-    return {"title": "", "created": "", "updated": "", "messages": []}
+                "summary": "", "summary_upto": 0, "messages": msgs}
+    return {"title": "", "created": "", "updated": "",
+            "summary": "", "summary_upto": 0, "messages": []}
 
 
 def _title_from(text: str, limit: int = 64) -> str:
@@ -464,6 +467,8 @@ def _write_thread_file(path: Path, doc: dict) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     _write_json(path, {"title": doc.get("title") or "", "created": doc.get("created") or "",
                        "updated": doc.get("updated") or _iso(_now()),
+                       "summary": str(doc.get("summary") or ""),
+                       "summary_upto": int(doc.get("summary_upto") or 0),
                        "messages": list(doc.get("messages") or [])[-_THREAD_CAP:]})
 
 
@@ -534,6 +539,21 @@ def append_thread(notebook_id: str, name: str, role: str, content: str,
         doc["title"] = _title_from(content)
     _write_thread_file(path, doc)
     return doc["messages"]
+
+
+def set_thread_summary(notebook_id: str, name: str, summary: str,
+                       upto: int = 0) -> str:
+    """Persist the rolling "earlier in this conversation" summary. ``upto`` is
+    how many messages it covers, so the next update can tell how much new
+    history has rolled out of the verbatim window."""
+    nb_id = resolve_notebook(notebook_id)
+    path = _thread_path(nb_id, name)
+    doc = _read_thread_file(path)
+    doc["summary"] = str(summary or "")[:600]
+    doc["summary_upto"] = max(0, int(upto or 0))
+    doc["updated"] = _iso(_now())
+    _write_thread_file(path, doc)
+    return doc["summary"]
 
 
 def list_threads(notebook_id: str) -> list[dict]:

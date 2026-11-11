@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import re
 from typing import Any
 
 from . import artifacts, audio, ingest, llmio, retrieve, runtime, store, video
@@ -247,6 +248,87 @@ _ASK_STYLES = {
 }
 
 
+# -------------------------------------------------------------- ask history
+#
+# A threaded ask pays for its context twice: the retrieved source text and the
+# conversation so far. The conversation half is compacted deterministically —
+# the last three exchanges ride along verbatim, everything older lives in a
+# rolling summary stored on the thread. What the model sees is what the store
+# owns: nothing is kept in process memory.
+
+_HISTORY_EXCHANGES = 3        # exchanges sent verbatim (user+assistant pairs)
+_HISTORY_ASSISTANT_CHARS = 1200
+_HISTORY_SUMMARY_CHARS = 600
+#: a stored message may carry pasted <source> blocks; they are retrieval, not
+#: conversation, and they never belong in history
+_SOURCE_BLOCK_RE = re.compile(r"<source\b.*?</source>", re.IGNORECASE | re.DOTALL)
+
+
+def _history_content(role: str, content: Any) -> str:
+    """One history turn as the prompt should see it: no pasted source blocks,
+    assistant turns capped (the answer's citations live on the thread, not in
+    the next prompt)."""
+    text = _SOURCE_BLOCK_RE.sub("", str(content or "")).strip()
+    if role == "assistant":
+        text = text[:_HISTORY_ASSISTANT_CHARS]
+    return text
+
+
+def _roll_thread_summary(nb_id: str, thread_name: str) -> None:
+    """Condense everything older than the verbatim window into the thread's
+    rolling ``summary`` field (≤ 600 chars), through the auxiliary task slot
+    the source labeller already uses. Runs once a further three exchanges
+    have rolled out of the window — and once for a legacy thread that crosses
+    three exchanges for the first time. Any failure keeps the old summary and
+    never blocks the answer that just came back."""
+    try:
+        doc = store.read_thread(nb_id, thread_name)
+    except Exception:
+        return
+    msgs = doc["messages"]
+    older_count = max(0, len(msgs) - _HISTORY_EXCHANGES * 2)
+    if older_count < 2:
+        return                                   # nothing has left the window
+    upto = int(doc.get("summary_upto") or 0)
+    if (doc.get("summary") or upto) and \
+            older_count - upto < _HISTORY_EXCHANGES * 2:
+        return                                   # fewer than 3 new exchanges
+    lines: list[str] = []
+    if doc.get("summary"):
+        lines.append(f"Earlier summary: {doc['summary']}")
+    for m in msgs[:older_count]:
+        role = "User" if str(m.get("role")) == "user" else "Assistant"
+        body = _SOURCE_BLOCK_RE.sub("", str(m.get("content") or "")).strip()
+        if body:
+            lines.append(f"{role}: {body[:800]}")
+    transcript = "\n".join(lines)[:12000]
+    if not transcript.strip():
+        return
+    messages = [
+        {"role": "system", "content": (
+            "You compress chat history for a retrieval-grounded notebook. Keep "
+            "named entities, figures and the line of enquiry; drop filler and "
+            "citations. Plain prose, at most 600 characters.")},
+        {"role": "user", "content": transcript},
+    ]
+    text = ""
+    for task in ("notebook", None):
+        try:
+            text = llmio.complete(
+                messages, purpose="hermes-notebook.thread_summary",
+                max_tokens=300, temperature=0.0, task=task)
+            if text:
+                break
+        except Exception:
+            continue
+    if text:
+        try:
+            store.set_thread_summary(nb_id, thread_name,
+                                     text[:_HISTORY_SUMMARY_CHARS], older_count)
+        except Exception:
+            pass
+
+
 def _ask_system(nb_id: str) -> tuple[str, int]:
     """Per-notebook chat options (notebook.json → options.chat_*): style adds a
     stance to the system prompt; length sets the answer's token budget."""
@@ -289,21 +371,27 @@ def notebook_ask(args: dict, **kw) -> str:
         f"Notebook sources (each <source id=\"S1\">…</source> block is tagged "
         f"[S1]…[Sn] for citation):\n\n{result['context']}"
     )
-    # optional chat thread — prior exchanges ride along as context
+    # optional chat thread — prior exchanges ride along, compacted: the last
+    # three verbatim, everything older as the thread's rolling summary
     thread_name = (args.get("thread") or "").strip() or None
     if thread_name and args.get("retry"):
         # regenerate the last exchange rather than growing the thread
         store.pop_thread_exchange(nb_id, thread_name)
+    tdoc = store.read_thread(nb_id, thread_name) if thread_name else {}
+    history = (tdoc.get("messages") or []) if thread_name else []
     system_prompt, max_tokens = _ask_system(nb_id)
     messages = [{"role": "system", "content": system_prompt}]
-    if thread_name:
-        history = store.get_thread(nb_id, thread_name)[-12:]
-        for m in history:
-            if m.get("role") in {"user", "assistant"} and m.get("content"):
-                messages.append({"role": m["role"], "content": str(m["content"])[:4000]})
-        messages.append({"role": "user", "content": user})
-    else:
-        messages += [{"role": "user", "content": user}]
+    summary = str(tdoc.get("summary") or "").strip() if thread_name else ""
+    if summary:
+        messages.append({"role": "system", "content":
+                         f"Earlier in this conversation: {summary}"})
+    for m in history[-_HISTORY_EXCHANGES * 2:]:
+        role = m.get("role")
+        if role in {"user", "assistant"} and m.get("content"):
+            content = _history_content(role, m["content"])
+            if content:
+                messages.append({"role": role, "content": content})
+    messages.append({"role": "user", "content": user})
     usage: list = []
     answer = llmio.complete(
         messages,
@@ -322,6 +410,7 @@ def notebook_ask(args: dict, **kw) -> str:
             retrieve.cited_sources(result["sources_used"], answer), 1)]
         store.append_thread(nb_id, thread_name, "assistant", answer,
                             extra={"citations": cites} if cites else None)
+        _roll_thread_summary(nb_id, thread_name)
     u = usage[0] if usage else None
     tokens = 0
     if u is not None:
