@@ -1534,7 +1534,7 @@ const CSS = `
 .nb-check-sum{margin-left:auto;font-size:11.5px;font-weight:650;color:${T.text3}}
 .nb-check-note{font-size:12px;line-height:1.5;color:${T.text2};background:color-mix(in srgb,${T.warn||'#d9a13b'} 10%, var(--nb-tile));
   border:1px solid color-mix(in srgb,${T.warn||'#d9a13b'} 30%, transparent);border-radius:8px;padding:7px 9px}
-.nb-check-list{display:flex;flex-direction:column}
+.nb-check-list,.nb-check-left{display:flex;flex-direction:column}
 .nb-check-row{display:flex;align-items:baseline;gap:7px;padding:5px 0;border-top:1px solid var(--nb-edge-soft, color-mix(in srgb, var(--nb-edge) 55%, transparent));
   font-size:12.5px;color:${T.text2}}
 .nb-check-row:first-child{border-top:0}
