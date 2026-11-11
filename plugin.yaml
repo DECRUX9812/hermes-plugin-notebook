@@ -1,25 +1,16 @@
 name: hermes-notebook
-version: 1.7.0
+version: 2.0.0
 manifest_version: 2
 api_version: 1
 description: >-
-  NotebookLM inside Hermes Desktop, plus the lab deck. Desktop half: a
-  three-column studio (sources rail with model labels and search; grounded
-  chat whose [S1] citations open the source; a Studio panel with twelve
-  outputs — video and audio overviews, summary, briefing doc, study guide,
-  FAQ, timeline, mind map, flashcards, quiz, slides, infographic — an SVG
-  graphics library: 38 looks x 10 layouts x 7 canvases x 3 detail levels) and a
-  Lab Ops surface that measures a fleet over audited ssh and drives a
-  terminal, services, files and VM snapshots. Parity pack: recordings
-  (mp3/m4a/wav/mp4/mov/webm…) become sources by transcription, any studio
-  card can be briefed from the open conversation, every artifact can be
-  written in another language, slide decks export to real .pptx, and Discover
-  runs multi-round deep research. Agent half: gather sources (files, PDFs,
-  Office docs, epub, web pages, YouTube, pasted text, images, audio/video
-  recordings, notes), ask questions answered only from those sources (in any
-  number of separate conversations per notebook), search, auto-label,
-  generate artifacts, produce audio/video overviews, discover and refresh
-  sources, and export notebooks.
+  A NotebookLM-style research studio for Hermes that answers only from your
+  sources. Add files, PDFs, web pages, YouTube and recordings; ask in separate
+  threads with [S1] citations checked against the source list; see where your
+  sources disagree and how many are really independent (Tensions); generate
+  briefing docs, mind maps, flashcards, quizzes, slides (.pptx), infographics,
+  two-host audio overviews and narrated video overviews; and review the
+  notebook's own cards with spaced repetition. Agent tools, a /notebook
+  command and a desktop page share one store.
 author: Ritesh Patel
 license: MIT
 homepage: https://github.com/DECRUX9812/hermes-plugin-notebook

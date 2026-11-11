@@ -12,11 +12,6 @@
  *            a real thumbnail when the artifact exists (infographic image,
  *            document lines, audio waveform), and the state it is actually in
  *
- * The second surface is the lab: the same shell, the same status bar, and a
- * fleet deck that measures eight hosts over the audited ssh transport — a
- * terminal, service control, a file browser and VM snapshots, all of which
- * report the real exit code instead of a green tick.
- *
  * The system is deliberately NotebookLM-soft: rounded cards, pill controls,
  * quiet labels and per-output colour, all resolved through the app's theme
  * variables so the page follows dark/light and the user's accent. Media
@@ -156,7 +151,7 @@ const CSS = `
 .nb-blob:nth-child(3){background:radial-gradient(circle,hsl(calc(var(--nb-hue, 265) + 165) 75% 58% / .7),transparent 70%);
   width:40vmax;height:40vmax;bottom:-16%;left:-6%;animation-duration:38s;animation-delay:-17s}
 @keyframes nb-drift{from{transform:translate3d(-3%,-2%,0) scale(1)}to{transform:translate3d(4%,3%,0) scale(1.08)}}
-.nb-bar,.nb-body,.nb-home,.nb-ops{position:relative;z-index:1}
+.nb-bar,.nb-body,.nb-home{position:relative;z-index:1}
 .nb-root *{box-sizing:border-box}
 /* Form controls do NOT inherit the page font from the UA sheet: a <button> gets
  * Arial 13.333px and a <span> inside it inherits that, which is how "Video
@@ -252,7 +247,6 @@ const CSS = `
 .nb-scroll{flex:1;min-height:0;overflow:auto;overscroll-behavior:contain;scrollbar-width:thin;
   scrollbar-color:color-mix(in srgb,${T.text} 22%,transparent) transparent}
 .nb-root ::selection{background:color-mix(in srgb,${T.accent} 32%,transparent)}
-.nb-pad{padding:12px 14px}
 
 /* ------------------------------------------------------------------- rail */
 /* the assistant's mark in a message row; the rail's notebook switcher card is
@@ -440,13 +434,6 @@ const CSS = `
 .nb-sub{color:${T.text3};font-size:var(--nb-fs-meta);line-height:1.4;margin:0;
   white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0;max-width:100%}
 .nb-hero-side{display:flex;align-items:center;gap:var(--nb-sp-2);flex:0 0 auto}
-/* ops host-measurement strip (Lab Ops only) */
-.nb-strip{display:flex;align-items:stretch;gap:8px;margin:14px 0 0;flex-wrap:wrap}
-.nb-cell{flex:1;min-width:90px;padding:10px 14px 11px;border-radius:var(--nb-r-el);
-  border:1px solid var(--nb-hair-soft);background:var(--nb-wash)}
-.nb-cell b{display:block;font-size:17px;font-weight:650;letter-spacing:-.02em;
-  line-height:1.1;font-variant-numeric:tabular-nums}
-.nb-cell span{display:block;font-size:11.5px;color:${T.text3};margin-top:6px;font-weight:600}
 /* the view switcher: one pill track on the header line, never a second row.
    Long artifact titles truncate instead of pushing the track into overflow. */
 .nb-tabs{display:inline-flex;align-items:center;gap:2px;padding:3px;flex:0 1 auto;
@@ -1233,29 +1220,6 @@ const CSS = `
   background:linear-gradient(160deg, color-mix(in srgb,${T.accent} 14%, var(--nb-card)), var(--nb-card))}
 .nb-face .nb-meta{position:absolute;top:17px;left:22px}
 .nb-face-hint{font-size:11.5px;color:${T.text4};margin-top:auto;letter-spacing:.02em}
-
-/* -------------------------------------------------------------------- ops */
-.nb-fleet{display:flex;flex-direction:column;gap:8px;padding:8px 0}
-.nb-frow{display:grid;grid-template-columns:10px minmax(0,1fr) auto;align-items:center;gap:12px;
-  padding:11px 14px;border:1px solid var(--nb-hair-soft);border-radius:var(--nb-r-el);background:var(--nb-card);
-  cursor:pointer;text-align:left;color:${T.text};min-height:54px;
-  transition:border-color var(--nb-dur-fast) var(--nb-ease),box-shadow var(--nb-dur-fast) var(--nb-ease),transform var(--nb-dur-fast) var(--nb-ease)}
-.nb-frow:hover{border-color:color-mix(in srgb,${T.text} 20%, transparent);box-shadow:var(--nb-shadow)}
-.nb-frow[aria-current=true]{border-color:color-mix(in srgb,${T.accent} 55%, transparent);
-  background:color-mix(in srgb,${T.accent} 9%, var(--nb-card))}
-.nb-fname{font-size:14px;font-weight:600;line-height:1.25;min-width:0;
-  overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.nb-frole{font-size:10.5px;color:${T.text3};text-transform:uppercase;letter-spacing:.06em;font-weight:600;
-  overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.nb-term{font-family:var(--ui-font-mono,ui-monospace,monospace);font-size:13px;line-height:1.55;flex:1 1 auto;
-  background:#101320;color:#c9cede;border-radius:var(--nb-r-box);padding:16px;min-height:130px;max-height:none;overflow:auto;
-  white-space:pre-wrap;word-break:break-word;border:1px solid rgba(255,255,255,.09);
-  box-shadow:inset 0 1px 0 rgba(255,255,255,.05)}
-.nb-term-in{display:flex;gap:8px;align-items:center;margin-top:10px}
-.nb-term-in input{flex:1;height:38px;border-radius:var(--nb-r-el);border:1px solid var(--nb-hair);
-  background:var(--nb-wash);color:${T.text};padding:0 13px;font-size:13px;
-  font-family:var(--ui-font-mono,ui-monospace,monospace);outline:0}
-.nb-term-in input:focus{border-color:color-mix(in srgb,${T.accent} 55%, transparent)}
 
 /* -------------------------------------------------------------- status bar */
 .nb-status{flex:0 0 32px;height:32px;display:flex;align-items:center;gap:14px;padding:0 18px;font-size:12.5px;
@@ -2676,8 +2640,8 @@ const optsSummary = (opts) => Object.keys(opts || {})
  *                        nested machine inside one dialog; self-contained.
  *   M6  audio player     playing/t/dur/rate × editing/draft/rendering —
  *                        viewer-local, orthogonal substates.
- *   M7  ops panels       per-panel state{idle,busy,done,error} — repeated
- *                        shape, already honest about failures.
+ *   M7  per-panel       state{idle,busy,done,error} repeated shape in the
+ *                        studio cards — already honest about failures.
  *   M8  viewer chrome    zoom/pan, slide index, quiz index, table sort —
  *                        pure UI state, no cross-component invariants.
  *
@@ -2793,7 +2757,10 @@ const DIALOGS = Machine('dialogs', {
 })
 
 function App() {
-  const [mode, setMode] = useState(() => persist.get('mode', 'home'))
+  const [mode, setMode] = useState(() => {
+    const m = persist.get('mode', 'home')
+    return ['home', 'studio', 'study', 'discover'].includes(m) ? m : 'home'
+  })
   const [nb, setNb] = useState(() => persist.get('notebook', ''))
   // Which conversation is open, remembered per notebook so a reload lands people
   // back in the thread they were reading.
@@ -2841,15 +2808,14 @@ function App() {
   const [railTouched, setRailTouched] = useState(false)
   const [studioTouched, setStudioTouched] = useState(false)
   const [size, setSize] = useState(0)
-  const [opsStats, setOpsStats] = useState(null)
   const setSearchOpen = useCallback((v) => (v ? openSurface('search') : closeSurface('search')), [openSurface, closeSurface])
   const searchOpen = surface === 'search' 
 
-  // palette/deep links can ask for a surface: ?surface=ops opens the lab deck
+  // palette/deep links can ask for a surface: ?surface=studio or ?surface=home
   useEffect(() => {
     try {
       const want = new URLSearchParams(window.location.search).get('surface')
-      if (want === 'ops' || want === 'studio' || want === 'home') setMode(want)
+      if (want === 'studio' || want === 'home') setMode(want)
     } catch { /* no location in this host */ }
   }, [])
 
@@ -3269,7 +3235,6 @@ function App() {
   const railVisible = railOpen && (density !== 'tight' || railTouched)
   const studioVisible = studioOpen && (size >= 860 || studioTouched)
 
-  const ops = mode === 'ops'
   const home = mode === 'home'
   const discoverMode = mode === 'discover'
   // Study and the workbench are notebook-scoped: with no notebook open they
@@ -3295,14 +3260,12 @@ function App() {
         el('span', { className: 'nb-mark' }, jsx(Glyph, { name: 'notebook', size: 15 })),
         el('span', { className: 'nb-brandname', children: 'Notebook' }),
         el('span', { className: 'nb-crumb' },
-          ops
-            ? el('b', { children: 'Lab Ops' })
-            : home
-              ? el('b', { children: 'All notebooks' })
-              : discoverMode
-                ? el('b', { children: 'Discover' })
-                : studyMode
-                  ? el('b', { children: 'Study' })
+          home
+            ? el('b', { children: 'All notebooks' })
+            : discoverMode
+              ? el('b', { children: 'Discover' })
+              : studyMode
+                ? el('b', { children: 'Study' })
                 : el('span', null, jsx(Glyph, { name: 'chevron', size: 12 }), ' ', notebook
                     ? el('button', {
                         type: 'button', className: 'nb-crumbedit',
@@ -3314,7 +3277,7 @@ function App() {
       ),
       el('div', { className: 'nb-spacer' }),
       // The bar switches WORKSPACE LAYOUTS, and it says which ones exist right
-      // now: Home, Discover and Lab Ops are notebook-independent; Study and the
+      // now: Home and Discover are notebook-independent; Study and the
       // notebook workbench only appear once a notebook is actually open, so
       // nobody clicks into an empty state. (The right-hand drawer is a panel
       // inside the workbench, not a fourth copy of this switch — its heading is
@@ -3327,7 +3290,7 @@ function App() {
         },
         // The gate is `notebook`, NOT the current mode. Gating on
         // `mode !== 'home'` meant that from Home the switcher offered only
-        // Home / Discover / Lab Ops — so once you landed on Home with a
+        // Home / Discover — so once you landed on Home with a
         // notebook open you could not get back to Studio at all, and the tab
         // row silently changed shape under the pointer.
         options: (notebook
@@ -3335,13 +3298,11 @@ function App() {
               { id: 'home', label: 'Home', icon: 'grid' },
               { id: 'studio', label: 'Studio', icon: 'notebook' },
               { id: 'study', label: 'Study', icon: 'cards' },
-              { id: 'discover', label: 'Discover', icon: 'search' },
-              { id: 'ops', label: 'Lab Ops', icon: 'server' }
+              { id: 'discover', label: 'Discover', icon: 'search' }
             ]
           : [
               { id: 'home', label: 'Home', icon: 'grid' },
-              { id: 'discover', label: 'Discover', icon: 'search' },
-              { id: 'ops', label: 'Lab Ops', icon: 'server' }
+              { id: 'discover', label: 'Discover', icon: 'search' }
             ])
       }),
       el('div', { className: 'nb-actions' },
@@ -3365,28 +3326,26 @@ function App() {
         }))
     ),
 
-    ops
-      ? jsx(OpsDeck, { onSay: say, onStats: setOpsStats })
-      : home
-        ? jsx(HomeDashboard, {
-            data, onOpen: openNotebook, onNew: () => setNewNb(true),
-            onDelete: deleteNotebook, onRename: renameNotebook,
-            onDuplicate: (id) => duplicateNotebook(id, false)
+    home
+      ? jsx(HomeDashboard, {
+          data, onOpen: openNotebook, onNew: () => setNewNb(true),
+          onDelete: deleteNotebook, onRename: renameNotebook,
+          onDuplicate: (id) => duplicateNotebook(id, false)
+        })
+      : discoverMode
+        ? jsx(DiscoverPanel, {
+            notebook, onSay: say,
+            reload: () => studio.reload(true)
           })
-        : discoverMode
-          ? jsx(DiscoverPanel, {
+        : studyMode
+          ? jsx(StudyPanel, {
               notebook, onSay: say,
-              reload: () => studio.reload(true)
+              onOpenSource: (title) => {
+                const s = ((notebook && notebook.sources) || []).find(
+                  (x) => (x.title || '').trim().toLowerCase() === String(title).trim().toLowerCase())
+                if (s) { setPeek({ ...s, citeSnippet: '' }); setTab('peek') }
+              }
             })
-          : studyMode
-            ? jsx(StudyPanel, {
-                notebook, onSay: say,
-                onOpenSource: (title) => {
-                  const s = ((notebook && notebook.sources) || []).find(
-                    (x) => (x.title || '').trim().toLowerCase() === String(title).trim().toLowerCase())
-                  if (s) { setPeek({ ...s, citeSnippet: '' }); setTab('peek') }
-                }
-              })
           : el('div', { className: 'nb-body' },
             railVisible
               ? jsx(Rail, {
@@ -3425,7 +3384,7 @@ function App() {
                   onShow: () => { setStudioTouched(true); setStudioOpen(true) } })
           ),
 
-    jsx(StatusBar, { mode, notebook, data, note, opsStats }),
+    jsx(StatusBar, { mode, notebook, data, note }),
 
     jsx(AddSourceDialog, {
       open: !!srcDialog, onClose: () => setSrcDialog(null), notebook,
@@ -5530,35 +5489,25 @@ function WaveThumb({ seed }) {
 
 /* -------------------------------------------------------------- status bar */
 
-function StatusBar({ mode, notebook, data, note, opsStats }) {
+function StatusBar({ mode, notebook, data, note }) {
   const ready = data && data.model_ready
-  const ops = mode === 'ops'
   const home = mode === 'home'
   const notebooks = (data && data.notebooks) || []
   return el('footer', { className: 'nb-status', role: 'contentinfo' },
-    ops
+    home
       ? el('span', null,
-          jsx('span', {
-            className: 'nb-sdot',
-            style: { background: opsStats && opsStats.down ? T.warn : T.ok }
-          }),
-          opsStats
-            ? `${opsStats.hosts} hosts · ${opsStats.patched} patched · ${opsStats.exposed} fix available · ${opsStats.down} unreachable`
-            : 'measuring the fleet…')
-      : home
-        ? el('span', null,
-            jsx('span', { className: 'nb-sdot', style: { background: ready ? T.ok : T.warn } }),
-            `${notebooks.length} notebook${notebooks.length === 1 ? '' : 's'} · `,
-            ready ? 'model ready' : 'model offline')
-        : el('span', null,
-            jsx('span', { className: 'nb-sdot', style: { background: ready ? T.ok : T.warn } }),
-            ready ? 'model ready · answering only from your sources' : 'model offline — enable the plugin'),
-    !ops && !home && notebook
+          jsx('span', { className: 'nb-sdot', style: { background: ready ? T.ok : T.warn } }),
+          `${notebooks.length} notebook${notebooks.length === 1 ? '' : 's'} · `,
+          ready ? 'model ready' : 'model offline')
+      : el('span', null,
+          jsx('span', { className: 'nb-sdot', style: { background: ready ? T.ok : T.warn } }),
+          ready ? 'model ready · answering only from your sources' : 'model offline — enable the plugin'),
+    !home && notebook
       ? el('span', null, jsx('b', { children: notebook.stats.sources }), ' sources · ',
           jsx('b', { children: nfmt(notebook.stats.chars) }), ' chars · ',
           jsx('b', { children: notebook.stats.labels }), ' labels')
       : null,
-    !ops && !home && notebook && notebook.stats.unlabeled
+    !home && notebook && notebook.stats.unlabeled
       ? jsx('span', {
           style: { color: T.warn },
           children: `${notebook.stats.unlabeled} source${notebook.stats.unlabeled === 1 ? '' : 's'} unlabeled — press “label” on the rail`
@@ -5573,8 +5522,8 @@ function StatusBar({ mode, notebook, data, note, opsStats }) {
       : null,
     el('span', { style: { flex: 1 } }),
     jsx('span', { className: 'nb-mono', style: { fontSize: '11.5px' },
-      children: ops ? 'ssh · audited transport' : (notebook ? notebook.id : 'no notebook') }),
-    data && !ops ? jsx('span', { className: 'nb-mono', style: { fontSize: '11.5px' },
+      children: notebook ? notebook.id : 'no notebook' }),
+    data ? jsx('span', { className: 'nb-mono', style: { fontSize: '11.5px' },
       children: `synced ${clock(data.generated_at)}` }) : null
   )
 }
@@ -9283,28 +9232,20 @@ const SLIDE_LABEL = {
    Hermes actions — one card per tool that actually ran.
 
    The point of the card is evidence, not decoration: the tool, the exact
-   statement or script that ran, its real exit code, its real output, and how
-   long it took. A failure is rendered as a failure, with the error the runtime
-   produced — the card never turns a red run green.
+   statement that ran, its real result, and how long it took. A failure is
+   rendered as a failure, with the error the runtime produced — the card never
+   turns a red run green.
    ========================================================================== */
-
-const ACTION_LABEL = {
-  query_table: 'SQL',
-  run_script: 'Script',
-  mcp_call: 'MCP'
-}
 
 
 /* ------------------------------------------------------------ highlighting
 
-   One tokenizer for the three languages a card can hold. It runs over the
-   string and returns React children — never HTML — so a query containing
-   `<script>` renders as text, which is what the reader typed. */
+   One tokenizer for the statement a card can hold. It runs over the string
+   and returns React children — never HTML — so a query containing markup
+   renders as text, which is what the reader typed. */
 
 const HL_KEYWORDS = {
-  sql: 'select from where group by order having limit offset join left right inner outer full on using as and or not in is null like between distinct union all case when then else end with asc desc count sum avg min max cast round abs over partition row_number date_trunc strftime',
-  python: 'def return if elif else for while in not and or import from as class with try except finally raise yield lambda None True False is pass break continue global del assert async await print len sum min max abs round sorted list dict set tuple str int float range enumerate zip open',
-  bash: 'if then else elif fi for while do done case esac function return export local echo cd ls cat grep awk sed mkdir rm cp mv curl git sudo exit set source'
+  sql: 'select from where group by order having limit offset join left right inner outer full on using as and or not in is null like between distinct union all case when then else end with asc desc count sum avg min max cast round abs over partition row_number date_trunc strftime'
 }
 
 // Four groups, always in this order: comment, string, number, keyword. The
@@ -9312,11 +9253,7 @@ const HL_KEYWORDS = {
 // every match one class to the right (keywords rendered as numbers).
 const HL_RE = (lang) => {
   const kw = HL_KEYWORDS[lang].split(' ').join('|')
-  const parts = lang === 'python'
-    ? ['(#[^\\n]*)', "(\'\'\'[\\s\\S]*?\'\'\'|\'[^\'\\n]*\'|\"[^\"\\n]*\")", '(\\b\\d+(?:\\.\\d+)?\\b)', `(\\b(?:${kw})\\b)`]
-    : lang === 'bash'
-      ? ['(#[^\\n]*)', "(\'[^\']*\'|\"[^\"]*\")", '(\\b\\d+(?:\\.\\d+)?\\b)', `(\\b(?:${kw})\\b)`]
-      : ['(--[^\\n]*)', "(\'[^\']*\'|\"[^\"]*\")", '(\\b\\d+(?:\\.\\d+)?\\b)', `(\\b(?:${kw})\\b)`]
+  const parts = ['(--[^\\n]*)', "(\'[^\']*\'|\"[^\"]*\")", '(\\b\\d+(?:\\.\\d+)?\\b)', `(\\b(?:${kw})\\b)`]
   return new RegExp(parts.join('|'), 'gi')
 }
 
@@ -9342,9 +9279,7 @@ function highlight(code, lang) {
 }
 
 function codeLang(action) {
-  if (action.tool === 'query_table') return 'sql'
-  if (action.tool === 'run_script') return action.language === 'bash' ? 'bash' : 'python'
-  return 'json'
+  return action.tool === 'query_table' ? 'sql' : 'json'
 }
 
 function ActionCard({ action, notebook, onSay, onSaved }) {
@@ -9355,14 +9290,12 @@ function ActionCard({ action, notebook, onSay, onSaved }) {
   const ok = !!view.ok
   const engine = view.engine ? ` · ${view.engine}` : ''
   const tool = view.tool || 'query_table'
-  const language = view.language === 'bash' ? 'Bash' : tool === 'run_script' ? 'Python' : ''
   const title = tool === 'query_table'
     ? `SQL${engine}`
-    : tool === 'run_script' ? `${language} sandbox` : `MCP · ${view.server || 'server'}`
+    : `MCP · ${view.server || 'server'}`
   const input = tool === 'query_table'
     ? (view.sql || '')
-    : tool === 'run_script' ? (view.code || '')
-      : JSON.stringify({ server: view.server, tool: view.tool_name, arguments: view.arguments }, null, 2)
+    : JSON.stringify({ server: view.server, tool: view.tool_name, arguments: view.arguments }, null, 2)
   const ms = view.ms
 
   const output = () => {
@@ -9380,7 +9313,7 @@ function ActionCard({ action, notebook, onSay, onSaved }) {
         : table
     }
     const text = view.out || ''
-    const err = tool === 'run_script' ? (view.err || '') : (ok ? '' : view.error || '')
+    const err = ok ? '' : view.error || ''
     return el('div', null,
       text ? el('pre', { className: 'nb-act-pre', children: text }) : null,
       err ? el('pre', { className: 'nb-act-pre nb-act-err', children: err }) : null,
@@ -9395,8 +9328,7 @@ function ActionCard({ action, notebook, onSay, onSaved }) {
         body: {
           notebook: notebook.id, tool,
           arguments: tool === 'query_table' ? { sql: view.sql }
-            : tool === 'run_script' ? { language: view.language || 'python', code: view.code }
-              : { server: view.server, tool: view.tool_name, arguments: view.arguments }
+            : { server: view.server, tool: view.tool_name, arguments: view.arguments }
         },
         timeoutMs: 90000
       })
@@ -9440,11 +9372,10 @@ function ActionCard({ action, notebook, onSay, onSaved }) {
       children: busy ? '◐' : ok ? '✓' : '✕' }),
     el('span', { className: 'nb-act-title', children: title }),
     el('span', { className: 'nb-act-meta',
-      // the right noun per tool: an exit code is a script's vocabulary, a row
-      // count is a query's
+      // the right noun per tool: a row count is a query's, ok/failed an MCP's
       children: tool === 'query_table'
         ? (ok ? `${(view.rows || []).length} row${(view.rows || []).length === 1 ? '' : 's'}${view.truncated ? '+' : ''}` : 'failed')
-        : tool === 'run_script' ? (ok ? 'exit 0' : `exit ${view.exit === null || view.exit === undefined ? '?' : view.exit}`) : (ok ? 'ok' : 'failed') }),
+        : (ok ? 'ok' : 'failed') }),
     ms !== undefined && ms !== null ? el('span', { className: 'nb-act-ms', children: `${ms}ms` }) : null,
     jsx('span', { className: 'nb-act-chev', 'aria-hidden': 'true',
       children: jsx(Glyph, { name: 'chevron', size: 13 }) })),
@@ -9478,7 +9409,7 @@ function ActionCard({ action, notebook, onSay, onSaved }) {
             jsx(Btn, { size: 'sm', icon: 'copy', onClick: () => copyText(
               tool === 'query_table' && ok
                 ? [view.columns.join('\t'), ...(view.rows || []).map((r) => r.join('\t'))].join('\n')
-                : (view.out || view.code || ''), onSay), children: 'Copy output' })))
+                : (view.out || ''), onSay), children: 'Copy output' })))
       : null)
 }
 
@@ -9511,508 +9442,8 @@ function CouncilBand({ council, onSay }) {
     council.note ? el('div', { className: 'nb-council-note', children: council.note }) : null)
 }
 
-/* -------------------------------------------------------------------- ops
- * The lab deck. Same shell as the studio, different subject: eight machines
- * measured over the audited ssh transport, with a terminal, service control, a
- * file browser and VM snapshots. Every number is what the host reported at
- * `measured_at`; a host that cannot be reached says so and offers no controls.
- */
-const OPS_TABS = [
-  { id: 'services', label: 'Services', icon: 'server' },
-  { id: 'terminal', label: 'Terminal', icon: 'terminal' },
-  { id: 'files', label: 'Files', icon: 'folder' },
-  { id: 'snapshots', label: 'Snapshots', icon: 'camera' },
-  { id: 'audit', label: 'Audit', icon: 'shield' }
-]
-
-function OpsDeck({ onSay, onStats }) {
-  const [state, setState] = useState({ loading: true, hosts: [], error: '', measured_at: '' })
-  const [sel, setSel] = useState('local')
-  const [tab, setTab] = useState('services')
-
-  const load = useCallback(async () => {
-    setState((s) => ({ ...s, loading: true, error: '' }))
-    try {
-      const out = await api('/ops/fleet', { timeoutMs: 120000 })
-      setState({ loading: false, hosts: out.hosts || [], error: '', measured_at: out.measured_at || '' })
-    } catch (e) {
-      setState({ loading: false, hosts: [], error: e.message || String(e), measured_at: '' })
-    }
-  }, [])
-
-  useEffect(() => { load() }, [load])
-
-  const hosts = state.hosts
-  useEffect(() => {
-    if (onStats && hosts.length) {
-      onStats({
-        hosts: hosts.length,
-        patched: hosts.filter((h) => h.patch_state === 'patched').length,
-        exposed: hosts.filter((h) => h.patch_state === 'vulnerable').length,
-        down: hosts.filter((h) => h.reachable === false).length,
-        measured_at: state.measured_at
-      })
-    }
-  }, [hosts, onStats, state.measured_at])
-  const host = hosts.find((h) => h.id === sel) || hosts[0] || null
-  useEffect(() => { if (hosts.length && !hosts.some((h) => h.id === sel)) setSel(hosts[0].id) }, [hosts, sel])
-
-  const patched = hosts.filter((h) => h.patch_state === 'patched').length
-  const vulnerable = hosts.filter((h) => h.patch_state === 'vulnerable').length
-  const down = hosts.filter((h) => h.reachable === false).length
-
-  return el('div', {
-    className: 'nb-body', role: 'main', 'aria-label': 'Lab operations'
-  },
-  el('aside', { className: 'nb-col', style: { flex: '0 0 330px' } },
-    el('div', { className: 'nb-pane-head' },
-      el('span', { className: 'nb-meta', children: `Fleet · ${hosts.length}` }),
-      jsx(IconBtn, { icon: 'refresh', label: 'Re-measure the fleet', onClick: load })),
-    el('div', { className: 'nb-pad', style: { paddingBottom: '8px' } },
-      state.error
-        ? el('div', { style: { color: T.danger, fontSize: '13px', lineHeight: 1.5 }, children: state.error })
-        : el('div', { style: { display: 'flex', gap: '6px', flexWrap: 'wrap' } },
-            jsx(Chip, { tone: 'ok', children: `${patched} patched` }),
-            vulnerable ? jsx(Chip, { tone: 'warn', children: `${vulnerable} fix available` }) : null,
-            down ? jsx(Chip, { tone: 'danger', children: `${down} unreachable` }) : null,
-            state.loading ? jsx(Chip, { children: 'measuring…' }) : null)),
-    el('div', { className: 'nb-scroll' },
-      el('div', { className: 'nb-fleet', role: 'list' },
-        hosts.map((h) => el('button', {
-          key: h.id,
-          type: 'button', className: 'nb-frow', role: 'listitem',
-          'aria-current': host && h.id === host.id ? 'true' : 'false',
-          onClick: () => setSel(h.id), title: h.error || `${h.name} · ${h.dial || ''}`
-        },
-        jsx('span', {
-          className: 'nb-sdot',
-          style: {
-            background: h.reachable ? (h.patch_state === 'patched' ? T.ok : T.warn) : T.danger,
-            boxShadow: h.reachable ? `0 0 6px ${h.patch_state === 'patched' ? T.ok : T.warn}` : 'none',
-            margin: 0
-          }
-        }),
-        // Name on its own line; the role leads the metadata line. Sharing one
-        // line meant a fixed role column ate the hostname ("Decrux-L…"), and
-        // inline roles left the column ragged. Role-first on line two fixes
-        // both: every role starts at the same x, and the name gets the width.
-        el('span', { style: { minWidth: 0, display: 'flex', flexDirection: 'column', gap: '2px' } },
-          jsx('span', { className: 'nb-fname', children: h.name }),
-          el('span', { style: { display: 'flex', alignItems: 'baseline', gap: '7px', minWidth: 0 } },
-            jsx('span', { className: 'nb-frole', children: h.role }),
-            jsx('span', {
-              className: 'nb-mono',
-              style: { fontSize: '11.5px', color: T.text4, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', minWidth: 0 },
-              children: h.reachable
-                ? `${(h.kernel || '').replace(/-generic$/, '')} · ${Math.round((h.mem || {}).pct || 0)}% mem`
-                : (h.error || 'no route').replace(/^ssh: /, '')
-            }))),
-        jsx('span', {
-          className: 'nb-chip',
-          'data-tone': h.reachable ? (h.patch_state === 'patched' ? 'ok' : 'warn') : 'danger',
-          // the same words as the summary above: it said "2 fix available" there
-          // and "fix avail" here, and "unreachable" vs "no route" for one state
-          children: h.reachable ? (h.patch_state === 'patched' ? 'patched' : 'fix available') : 'unreachable'
-        })
-        )),
-        !hosts.length && !state.loading
-          ? el('div', { className: 'nb-hint', style: { padding: '12px' }, children: 'no hosts in the inventory' })
-          : null
-      )),
-    el('div', { style: { borderTop: `1px solid ${T.lineSoft}`, padding: '10px 14px' } },
-      el('div', { className: 'nb-hint', style: { lineHeight: 1.5 },
-        children: state.measured_at ? `measured ${clock(state.measured_at)} · ssh, audited` : 'ssh · audited transport' }))
-  ),
-
-  el('section', { className: 'nb-col nb-main-col', 'aria-label': 'Selected host' },
-    host
-      ? jsx(HostView, { host, tab, setTab, onSay, key: host.id })
-      : el('div', { className: 'nb-void' },
-        el('div', null,
-          el('h3', { children: state.loading ? 'Measuring the fleet' : 'No host selected' }),
-          el('p', { children: state.loading
-            ? 'Probing eight hosts over ssh — kernel, memory, disk, failed units, patch posture.'
-            : 'Pick a machine on the left. Controls appear only for hosts that answer.' })))
-  )
-  )
-}
-
-function HostView({ host, tab, setTab, onSay }) {
-  const ok = host.reachable
-  return el('div', { className: 'nb-col', style: { minHeight: 0 } },
-    el('div', { className: 'nb-main-head' },
-      el('div', { style: { display: 'flex', alignItems: 'center', gap: '10px' } },
-        el('h1', { className: 'nb-h1', children: host.name }),
-        el('span', { className: 'nb-chip', children: host.role }),
-        ok
-          ? el('span', { className: 'nb-chip', 'data-tone': host.patch_state === 'patched' ? 'ok' : 'warn',
-              children: host.patch_state === 'patched' ? 'kernel patched' : `upgrade to ${host.kernel_fix || 'fix'}` })
-          : el('span', { className: 'nb-chip', 'data-tone': 'danger', children: 'unreachable' }),
-        el('span', { style: { flex: 1 } }),
-        el('span', { className: 'nb-mono', style: { fontSize: '12.5px', color: T.text4 }, children: host.dial || '' })),
-      ok
-        ? el('p', { className: 'nb-sub', children: `${host.os || ''} · kernel ${host.kernel || '?'} · up ${fmtUptime(host.uptime_s)} · ${host.cores || '?'} cores · load ${(host.load || []).map((n) => Number(n).toFixed(2)).join(' / ')}` })
-        : el('p', { className: 'nb-sub', style: { color: T.danger }, children: host.error || 'this host did not answer' }),
-      ok
-        ? el('div', { className: 'nb-strip', role: 'group', 'aria-label': 'Host measurements' },
-            el('div', { className: 'nb-cell' }, el('b', { children: `${Math.round((host.mem || {}).pct || 0)}%` }), el('span', { children: 'memory' })),
-            el('div', { className: 'nb-cell' }, el('b', { children: `${Math.round((host.disk || {}).pct || 0)}%` }), el('span', { children: 'disk' })),
-            el('div', { className: 'nb-cell' }, el('b', { children: host.containers_up || 0 }), el('span', { children: 'containers' })),
-            el('div', { className: 'nb-cell' }, el('b', { style: { color: host.failed_units
-              ? `color-mix(in srgb,${T.danger} 58%, ${T.text})`
-              : `color-mix(in srgb,${T.ok} 58%, ${T.text})` }, children: host.failed_units || 0 }), el('span', { children: 'failed units' })),
-            el('div', { className: 'nb-cell' }, el('b', { children: `${host.measured_ms || 0}ms` }), el('span', { children: 'probe' })))
-        : null,
-      el('div', { className: 'nb-tabs', role: 'tablist', 'aria-label': 'Host tools' },
-        OPS_TABS.map((t) => el('button', {
-          key: t.id, type: 'button', role: 'tab', className: 'nb-tab',
-          'aria-selected': tab === t.id, onClick: () => setTab(t.id),
-          disabled: !ok,
-          children: [jsx(Glyph, { name: t.icon, size: 15 }), t.label]
-        }, t.id)))
-    ),
-    ok
-      ? (tab === 'services' ? jsx(ServicesTab, { host, onSay })
-        : tab === 'terminal' ? jsx(TerminalTab, { host, onSay })
-          : tab === 'files' ? jsx(FilesTab, { host })
-            : tab === 'snapshots' ? jsx(SnapshotsTab, { host, onSay })
-              : jsx(AuditTab, { onSay }))
-      : el('div', { className: 'nb-void' },
-        el('div', null,
-          el('h3', { children: 'No route to this machine' }),
-          el('p', { children: 'The probe failed, so there is nothing honest to show and no action to offer. Fixing reachability is the only next step.' })))
-  )
-}
-
-const fmtUptime = (s) => {
-  const v = Number(s) || 0
-  const d = Math.floor(v / 86400)
-  const h = Math.floor((v % 86400) / 3600)
-  if (d) return `${d}d ${h}h`
-  return `${h}h ${Math.floor((v % 3600) / 60)}m`
-}
-
-/* --------------------------------------------------------------- services */
-
-function ServicesTab({ host, onSay }) {
-  const [state, setState] = useState({ loading: true, units: [], failed: 0, error: '' })
-  const [q, setQ] = useState('')
-  const [busy, setBusy] = useState('')
-  const [result, setResult] = useState(null)
-
-  const load = useCallback(async () => {
-    setState((s) => ({ ...s, loading: true }))
-    try {
-      const out = await api(`/ops/services?${qs({ host: host.id })}`, { timeoutMs: 45000 })
-      setState({ loading: false, units: out.units || [], failed: out.failed || 0, error: '' })
-    } catch (e) {
-      setState({ loading: false, units: [], failed: 0, error: e.message || String(e) })
-    }
-  }, [host.id])
-  useEffect(() => { load() }, [load])
-
-  const op = async (unit, verb) => {
-    setBusy(unit)
-    setResult(null)
-    try {
-      const out = await api('/ops/service', {
-        method: 'POST',
-        body: { host: host.id, unit, op: verb, confirm: verb === 'stop' || verb === 'mask' ? unit : '' },
-        timeoutMs: 60000
-      })
-      setResult({ unit, verb, ...(out.result || {}) })
-      await load()
-    } catch (e) {
-      setResult({ unit, verb, ok: false, err: e.message || String(e) })
-      if (onSay) onSay(`${verb} ${unit}: ${e.message || e}`)
-    } finally { setBusy('') }
-  }
-
-  const units = state.units.filter((u) => !q.trim() || u.unit.toLowerCase().includes(q.toLowerCase()))
-
-  return el('div', { className: 'nb-view' },
-    el('div', { className: 'nb-view-head' },
-      el('span', { className: 'nb-meta', children: `${state.units.length} units` }),
-      state.failed ? el('span', { className: 'nb-chip', 'data-tone': 'danger', children: `${state.failed} failed` }) : null,
-      el('span', { style: { flex: 1 } }),
-      el('div', { style: { width: '220px' } },
-        jsx(SearchField, { value: q, onChange: setQ, placeholder: 'Filter units', label: 'Filter systemd units' })),
-      jsx(IconBtn, { icon: 'refresh', label: 'Reload units', onClick: load })),
-    result
-      ? el('div', { className: 'nb-pad', style: { borderBottom: `1px solid ${T.lineSoft}` } },
-          el('div', { className: 'nb-mono', style: { fontSize: '12.5px', color: result.ok ? T.ok : T.danger, whiteSpace: 'pre-wrap' },
-            children: `${result.verb} ${result.unit} → ${result.ok ? 'ok' : 'failed'} (exit ${result.code ?? '?'})\n${(result.out || result.err || '').trim().slice(0, 400)}` }))
-      : null,
-    el('div', { className: 'nb-scroll' },
-      state.error
-        ? el('div', { className: 'nb-pad', style: { color: T.danger }, children: state.error })
-        : state.loading
-          ? el('div', { className: 'nb-pad', children: el('span', { className: 'nb-hint', children: 'asking systemd…' }) })
-          : el('div', { className: 'nb-pad', style: { display: 'flex', flexDirection: 'column', gap: '2px' } },
-              units.slice(0, 120).map((u) => el('div', {
-                key: u.unit,
-                style: {
-                  display: 'grid', gridTemplateColumns: '10px 1fr 84px 96px', gap: '10px',
-                  alignItems: 'center', padding: '7px 8px', borderRadius: '8px',
-                  borderTop: `1px solid ${T.lineSoft}`
-                }
-              },
-              el('span', { className: 'nb-sdot', style: { margin: 0, background: u.failed ? T.danger : u.active === 'active' ? T.ok : T.text4 } }),
-              el('span', { style: { minWidth: 0 } },
-                el('span', { style: { display: 'block', fontSize: '14px', fontWeight: 550, color: T.text }, children: u.unit }),
-                el('span', { style: { display: 'block', fontSize: '12.5px', color: T.text4, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }, children: u.description })),
-              el('span', { className: 'nb-chip', 'data-tone': u.failed ? 'danger' : u.active === 'active' ? 'ok' : undefined,
-                children: u.active }),
-              jsx(Btn, {
-                size: 'sm', variant: 'ghost', disabled: busy === u.unit,
-                // 120 rows of a button all called "Restart" is one accessible
-                // name 120 times: a screen reader hears "Restart, Restart,
-                // Restart…" with no way to tell which unit it is about to
-                // bounce. The visible word stays short; the name says what and
-                // where.
-                'aria-label': `Restart ${u.unit}${u.description ? ` — ${u.description}` : ''}`,
-                title: `Restart ${u.unit}`,
-                onClick: () => op(u.unit, 'restart'),
-                children: busy === u.unit ? '…' : 'Restart'
-              })))
-            ))
-  )
-}
-
-/* --------------------------------------------------------------- terminal */
-
-function TerminalTab({ host, onSay }) {
-  const [lines, setLines] = useState([])
-  const [cmd, setCmd] = useState('')
-  const [busy, setBusy] = useState(false)
-  const boxRef = useRef(null)
-  useEffect(() => {
-    const n = boxRef.current
-    if (n) n.scrollTop = n.scrollHeight
-  }, [lines.length])
-
-  const run = async () => {
-    const c = cmd.trim()
-    if (!c || busy) return
-    setBusy(true)
-    setCmd('')
-    setLines((l) => [...l, { kind: 'cmd', text: c, at: Date.now() }])
-    try {
-      const out = await api('/ops/exec', {
-        method: 'POST', body: { host: host.id, cmd: c }, timeoutMs: 90000
-      })
-      const r = out.result || {}
-      setLines((l) => [...l, {
-        kind: 'out', ok: !!r.ok, code: r.code, ms: r.ms,
-        text: (r.out || '') + (r.err ? `\n${r.err}` : ''), at: Date.now()
-      }])
-    } catch (e) {
-      setLines((l) => [...l, { kind: 'out', ok: false, text: e.message || String(e), at: Date.now() }])
-      if (onSay) onSay(e.message || 'exec failed')
-    } finally { setBusy(false) }
-  }
-
-  return el('div', { className: 'nb-view' },
-    el('div', { className: 'nb-view-body', style: { display: 'flex', flexDirection: 'column', gap: '10px' } },
-      el('div', { className: 'nb-term', ref: boxRef, role: 'log', 'aria-live': 'polite', 'aria-label': 'Command output' },
-        lines.length === 0
-          ? el('span', { style: { color: '#6f7488' }, children: `# ${host.name} — commands run over ssh, every call lands in the audit log\n# try: uptime; df -h / ; docker ps --format '{{.Names}}\\t{{.Status}}'` })
-          : lines.map((l, i) => l.kind === 'cmd'
-            ? el('div', { key: `c${i}`, style: { marginTop: i ? '10px' : 0, color: '#8fd4a8' }, children: `❯ ${l.text}` })
-            : el('div', { key: `o${i}`, style: { color: l.ok ? '#d6d8e6' : '#ff8b8b', whiteSpace: 'pre-wrap' } },
-                l.text || '(no output)',
-                el('span', { style: { color: '#6f7488' }, children: `\n[exit ${l.code === undefined ? '?' : l.code}${l.ms ? ` · ${l.ms}ms` : ''}]` }))))
-      ,
-      el('div', { className: 'nb-term-in' },
-        el('span', { className: 'nb-mono', style: { color: T.accent, fontSize: '14px' }, children: '❯' }),
-        el('input', {
-          value: cmd, onChange: (e) => setCmd(e.target.value), spellCheck: false,
-          onKeyDown: (e) => { if (e.key === 'Enter') run() },
-          placeholder: `run a command on ${host.name}`, 'aria-label': 'Command to run'
-        }),
-        jsx(Btn, { variant: 'primary', icon: 'bolt', onClick: run, disabled: busy || !cmd.trim(),
-          children: busy ? 'Running…' : 'Run' })),
-      el('div', { className: 'nb-hint', style: { lineHeight: 1.5 },
-        children: 'Every command runs over ssh on that host. The output and exit code above are the real ones, and each call is appended to the audit log.' }))
-  )
-}
-
-/* ------------------------------------------------------------------ files */
-
-function FilesTab({ host }) {
-  const [path, setPath] = useState('/home')
-  const [state, setState] = useState({ loading: true, entries: [], parent: '/', error: '' })
-  const [open, setOpen] = useState(null)
-
-  const load = useCallback(async (p) => {
-    setState((s) => ({ ...s, loading: true, error: '' }))
-    try {
-      const out = await api(`/ops/files?${qs({ host: host.id, path: p })}`, { timeoutMs: 45000 })
-      setState({ loading: false, entries: out.entries || [], parent: out.parent || '/', error: '' })
-      setPath(out.path || p)
-    } catch (e) {
-      setState({ loading: false, entries: [], parent: '/', error: e.message || String(e) })
-    }
-  }, [host.id])
-  useEffect(() => { load(path) }, [load])
-
-  const readFile = async (name) => {
-    const full = path.endsWith('/') ? path + name : `${path}/${name}`
-    try {
-      const out = await api(`/ops/file?${qs({ host: host.id, path: full, bytes: 60000 })}`, { timeoutMs: 45000 })
-      setOpen({ name, text: out.text || '', size: out.size, truncated: out.truncated })
-    } catch (e) { setOpen({ name, text: e.message || String(e), error: true }) }
-  }
-
-  return el('div', { className: 'nb-view' },
-    el('div', { className: 'nb-view-head' },
-      jsx(IconBtn, { icon: 'arrowLeft', label: 'Parent directory', onClick: () => load(state.parent) }),
-      el('div', { className: 'nb-field', style: { flex: 1, height: '32px' } },
-        jsx(Glyph, { name: 'folder', size: 13 }),
-        el('input', {
-          value: path, onChange: (e) => setPath(e.target.value),
-          onKeyDown: (e) => { if (e.key === 'Enter') load(path) },
-          'aria-label': 'Directory path', spellCheck: false
-        })),
-      jsx(IconBtn, { icon: 'refresh', label: 'Reload directory', onClick: () => load(path) })),
-    el('div', { className: 'nb-scroll' },
-      state.error
-        ? el('div', { className: 'nb-pad', style: { color: T.danger }, children: state.error })
-        : el('div', { className: 'nb-pad' },
-            el('div', { style: { display: 'flex', flexDirection: 'column', gap: '1px' } },
-              state.entries.map((e) => el('button', {
-                type: 'button',
-                onClick: () => (e.dir ? load(path.endsWith('/') ? path + e.name : `${path}/${e.name}`) : readFile(e.name)),
-                style: {
-                  display: 'grid', gridTemplateColumns: '18px 1fr 76px 96px', gap: '10px',
-                  alignItems: 'center', minHeight: '30px', padding: '4px 8px', borderRadius: '7px',
-                  border: 0, background: 'transparent', color: T.text, cursor: 'pointer', textAlign: 'left',
-                  fontSize: '14px'
-                },
-                children: [
-                  el('span', { style: { color: e.dir ? T.accent : T.text4, display: 'grid', placeItems: 'center' } },
-                    jsx(Glyph, { name: e.dir ? 'folder' : 'file', size: 13 })),
-                  el('span', { style: { color: e.dir ? T.text : T.text2, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }, children: e.name }),
-                  el('span', { className: 'nb-mono', style: { fontSize: '11.5px', color: T.text4, textAlign: 'right' },
-                    children: e.dir ? 'dir' : nfmt(e.size) }),
-                  el('span', { className: 'nb-mono', style: { fontSize: '11.5px', color: T.text4, textAlign: 'right' },
-                    children: e.mtime ? ago(new Date(e.mtime * 1000).toISOString()) : '' })
-                ]
-              }, e.name))))
-    ),
-    open
-      ? el('div', { style: { borderTop: `1px solid ${T.line}`, padding: '12px 16px', maxHeight: '38%', overflow: 'auto' } },
-          el('div', { style: { display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '8px' } },
-            el('span', { className: 'nb-chip', 'data-tone': open.error ? 'danger' : undefined, children: open.name }),
-            open.size ? el('span', { className: 'nb-hint', children: `${nfmt(open.size)} bytes${open.truncated ? ' · truncated' : ''}` }) : null,
-            el('span', { style: { flex: 1 } }),
-            jsx(IconBtn, { icon: 'close', label: 'Close file', onClick: () => setOpen(null) })),
-          el('pre', { className: 'nb-mono', style: { whiteSpace: 'pre-wrap', fontSize: '13px', lineHeight: 1.55, color: T.text2, margin: 0 },
-            children: open.text }))
-      : null
-  )
-}
-
-/* -------------------------------------------------------------- snapshots */
-
-function SnapshotsTab({ host, onSay }) {
-  const [vmid, setVmid] = useState('100')
-  const [state, setState] = useState({ loading: false, list: [], raw: '', error: '' })
-  const [name, setName] = useState('')
-  const [busy, setBusy] = useState(false)
-
-  const load = useCallback(async () => {
-    setState((s) => ({ ...s, loading: true, error: '' }))
-    try {
-      const out = await api(`/ops/snapshots?${qs({ host: host.id, vmid })}`, { timeoutMs: 60000 })
-      setState({ loading: false, list: out.snapshots || [], raw: out.raw || '', error: out.ok ? '' : (out.raw || 'qm refused') })
-    } catch (e) {
-      setState({ loading: false, list: [], raw: '', error: e.message || String(e) })
-    }
-  }, [host.id, vmid])
-
-  const create = async () => {
-    setBusy(true)
-    try {
-      const out = await api('/ops/snapshot', { method: 'POST', body: { host: host.id, vmid, name }, timeoutMs: 200000 })
-      if (onSay) onSay(`snapshot ${out.label} ${out.ok ? 'created' : 'failed'}`)
-      await load()
-    } catch (e) {
-      if (onSay) onSay(e.message || 'snapshot failed')
-      setState((s) => ({ ...s, error: e.message || String(e) }))
-    } finally { setBusy(false) }
-  }
-
-  return el('div', { className: 'nb-view' },
-    el('div', { className: 'nb-view-head' },
-      el('span', { className: 'nb-meta', children: 'VMID' }),
-      el('div', { className: 'nb-field', style: { width: '110px', height: '32px' } },
-        el('input', { value: vmid, onChange: (e) => setVmid(e.target.value.replace(/\D/g, '')), 'aria-label': 'VM id' })),
-      jsx(Btn, { size: 'sm', icon: 'refresh', onClick: load, children: 'List' }),
-      el('div', { style: { flex: 1 } }),
-      el('div', { className: 'nb-field', style: { width: '200px', height: '32px' } },
-        el('input', { value: name, onChange: (e) => setName(e.target.value), placeholder: 'snapshot name', 'aria-label': 'Snapshot name' })),
-      jsx(Btn, { size: 'sm', variant: 'primary', icon: 'camera', onClick: create, disabled: busy,
-        children: busy ? 'Snapshotting…' : 'Create' })),
-    el('div', { className: 'nb-scroll' },
-      state.error
-        ? el('div', { className: 'nb-pad', style: { color: T.danger, fontSize: '13px' }, children: state.error })
-        : el('div', { className: 'nb-pad' },
-            state.loading
-              ? el('span', { className: 'nb-hint', children: 'asking qm…' })
-              : state.list.length
-                ? el('div', { style: { display: 'flex', flexDirection: 'column', gap: '4px' } },
-                    state.list.map((s) => el('div', {
-                      key: s,
-                      style: { display: 'flex', alignItems: 'center', gap: '10px', padding: '10px 12px', border: `1px solid ${T.lineSoft}`, borderRadius: '12px', background: T.card }
-                    },
-                    jsx(Glyph, { name: 'camera', size: 14 }),
-                    el('span', { style: { fontSize: '14px', fontWeight: 560 }, children: s }),
-                    el('span', { style: { flex: 1 } }),
-                    el('span', { className: 'nb-chip', children: `vm ${vmid}` }))))
-                : el('div', { className: 'nb-hint', children: 'no snapshots for this VM — name one above and create it' })),
-            state.raw ? el('pre', { className: 'nb-mono', style: { marginTop: '12px', fontSize: '12.5px', color: T.text4, whiteSpace: 'pre-wrap' }, children: state.raw }) : null)
-  )
-}
-
-/* ------------------------------------------------------------------ audit */
-
-function AuditTab({ onSay }) {
-  const [state, setState] = useState({ loading: true, entries: [], error: '' })
-  const load = useCallback(async () => {
-    try {
-      const out = await api('/ops/audit?limit=40', { timeoutMs: 30000 })
-      setState({ loading: false, entries: out.entries || [], error: '' })
-    } catch (e) { setState({ loading: false, entries: [], error: e.message || String(e) }) }
-  }, [])
-  useEffect(() => { load() }, [load])
-  return el('div', { className: 'nb-view' },
-    el('div', { className: 'nb-view-head' },
-      el('span', { className: 'nb-meta', children: 'Action log' }),
-      el('span', { className: 'nb-chip', children: `${state.entries.length} entries` }),
-      el('span', { style: { flex: 1 } }),
-      jsx(IconBtn, { icon: 'refresh', label: 'Reload the audit log', onClick: load })),
-    el('div', { className: 'nb-scroll' },
-      state.error ? el('div', { className: 'nb-pad', style: { color: T.danger }, children: state.error })
-        : el('div', { className: 'nb-pad', style: { display: 'flex', flexDirection: 'column', gap: '6px' } },
-            state.entries.map((e, i) => el('div', {
-              key: `e${i}`,
-              style: { border: `1px solid ${T.lineSoft}`, borderRadius: '12px', padding: '11px 13px', background: T.card }
-            },
-            el('div', { style: { display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' } },
-              el('span', { className: 'nb-chip', 'data-tone': e.ok ? 'ok' : 'danger', children: e.ok ? 'ok' : 'failed' }),
-              el('span', { className: 'nb-chip', children: e.action }),
-              el('span', { className: 'nb-chip', children: e.host }),
-              el('span', { className: 'nb-mono', style: { fontSize: '11.5px', color: T.text4 }, children: e.at }),
-              el('span', { style: { flex: 1 } }),
-              el('span', { className: 'nb-mono', style: { fontSize: '11.5px', color: T.text4 }, children: `exit ${e.code ?? '?'} · ${e.ms || 0}ms` })),
-            el('div', { className: 'nb-mono', style: { marginTop: '6px', fontSize: '12.5px', color: T.text2, whiteSpace: 'pre-wrap', maxHeight: '90px', overflow: 'hidden' },
-              children: `$ ${e.cmd || e.target}\n${(e.out || e.err || '').slice(0, 500)}` })))))
-  )
-}
-
 /* ------------------------------------------------------------------ surface
- * One route, one nav row, one status chip, three palette commands, a settings
+ * One route, one nav row, one status chip, two palette commands, a settings
  * page built from the app's own primitives, and a transcript directive so the
  * agent can hand the studio a notebook (`::notebook{name="…"}`).
  *
@@ -10088,12 +9519,12 @@ function SettingsPage() {
     rows.push(jsx(ListRow, {
       key: 'surface',
       title: 'Default surface',
-      description: 'Which half of the plugin opens first: the research studio, or the lab deck.',
+      description: 'Which half of the plugin opens first: the research studio, or the notebook list.',
       action: SegmentedControl
         ? jsx(SegmentedControl, {
-            value: surface,
+            value: surface === 'ops' ? 'studio' : surface,
             onChange: (v) => { setSurface(v); persist.set('mode', v) },
-            items: [{ value: 'studio', label: 'Studio' }, { value: 'ops', label: 'Lab Ops' }]
+            items: [{ value: 'studio', label: 'Studio' }, { value: 'home', label: 'Home' }]
           })
         : null
     }))
@@ -10157,7 +9588,7 @@ function NotebookDirective({ attrs }) {
 const plugin = {
   id: ID,
   name: 'Notebook',
-  description: 'Ground sources into cited answers and study artifacts, and drive the lab fleet from the same window.',
+  description: 'Ground sources into cited answers and study artifacts.',
   // On by default: the page is the product. A user's explicit toggle still wins.
   defaultEnabled: true,
   register(ctx) {
@@ -10171,10 +9602,6 @@ const plugin = {
       ['palette-studio', PALETTE_AREA, {
         id: 'notebook.open', label: 'Notebook: open the studio', keywords: ['notebook', 'studio', 'sources', 'research'],
         run: () => host.navigate(ROUTE)
-      }, undefined],
-      ['palette-ops', PALETTE_AREA, {
-        id: 'notebook.ops', label: 'Notebook: open the lab deck', keywords: ['lab', 'fleet', 'ops', 'homelab', 'servers'],
-        run: () => host.navigate(`${ROUTE}?surface=ops`)
       }, undefined],
       ['palette-ask', PALETTE_AREA, {
         id: 'notebook.ask', label: 'Notebook: ask the active notebook', keywords: ['ask', 'notebook', 'citation', 'grounded'],
@@ -10203,7 +9630,7 @@ const plugin = {
         ctx.registerSettingsPage({
           id: 'notebook.settings',
           title: 'Notebook',
-          description: 'Sources, studio outputs and the lab deck.',
+          description: 'Sources and studio outputs.',
           render: () => jsx(SettingsPage, {})
         })
       }
@@ -10217,7 +9644,7 @@ export default plugin
 
 // Named exports are for the preview harness and the gates; the app only reads
 // the default export.
-export { App, StudioPanel, Viewer, OpsDeck, Rail, Markdown, KIND_ICON, CSS,
+export { App, StudioPanel, Viewer, Rail, Markdown, KIND_ICON, CSS,
          Machine, MACHINES, machineFleet, MACHINE_DOCS,
          // the document and slide PARSERS are exported so a pure node test can
          // assert what the viewer will draw without launching a browser
