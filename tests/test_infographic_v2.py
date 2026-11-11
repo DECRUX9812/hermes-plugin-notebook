@@ -245,6 +245,19 @@ def test_compose_all_block_types(orientation):
     assert sizes and min(sizes) >= 14, f"text under 14px: {min(sizes)}"
 
 
+def _packed_rows(graphic, w=1200, h=900):
+    g = blocks.normalise_graphic(graphic)
+    from hermes_notebook.gfx import resolve_preset
+    from hermes_notebook.gfx.templates import Frame
+    p = resolve_preset("sections")
+    f = Frame(w, h)
+    units = compose._units(g, f)
+    rows = compose._pack(units, f)
+    for r in rows:
+        compose._stretch(r)
+    return rows, f
+
+
 def test_compose_rows_fill_body():
     """No row leaves more than 12% of the body height blank — measured from the
     layout model (row heights vs body band), not pixels."""
@@ -255,6 +268,8 @@ def test_compose_rows_fill_body():
     f = Frame(1200, 900)
     units = compose._units(g, f)
     rows = compose._pack(units, f)
+    for r in rows:
+        compose._stretch(r)
     assert rows
     col_w = (f.inner - (compose.COLS - 1) * f.gap) / compose.COLS
     heights = [compose._row_measure(r, f, p, col_w, f.gap) for r in rows]
@@ -266,6 +281,63 @@ def test_compose_rows_fill_body():
     # rows exist and each is a reasonable share of the body — the composer
     # would fail before producing an 88%-empty row
     assert all(h <= body_h for h in heights)
+
+
+def test_compose_rows_fill_horizontally():
+    """Under-filled rows stretch to the full 12 columns — no row leaves more
+    than 12% of the body width blank (the lone-stat case in real-editorial)."""
+    rows, _f = _packed_rows(_fixture())
+    assert rows
+    for r in rows:
+        assert sum(u["cols"] for u in r) == compose.COLS
+
+
+def test_compose_lone_stat_spans():
+    """One stat card alone in a row grows to fill it, instead of floating on
+    9 blank columns."""
+    g = {"title": "t", "takeaway": "x",
+         "blocks": [{"type": "stat", "value": "67", "unit": "%",
+                     "label": "built", "cites": [1]}]}
+    rows, _f = _packed_rows(g)
+    assert len(rows) == 1 and len(rows[0]) == 1
+    assert rows[0][0]["cols"] == compose.COLS
+
+
+def test_compose_lone_quote_spans():
+    g = {"title": "t", "takeaway": "x",
+         "blocks": [{"type": "quote", "text": "firm power, not promises",
+                     "who": "CEO", "cites": [1]}]}
+    rows, _f = _packed_rows(g)
+    assert len(rows) == 1 and len(rows[0]) == 1
+    assert rows[0][0]["cols"] == compose.COLS
+
+
+def test_compose_stat_run_stays_equal():
+    """Three stat cards under-fill (9/12) — stretching keeps them equal width."""
+    g = {"title": "t", "takeaway": "x",
+         "blocks": [{"type": "stat", "value": str(v), "label": "n", "cites": [1]}
+                    for v in (1, 2, 3)]}
+    rows, _f = _packed_rows(g)
+    assert len(rows) == 1 and rows[0][0]["cols"] == compose.COLS
+    # the run packs as one unit; the drawn cards divide it evenly by construction
+
+
+def test_compose_sparse_fixture_svg_renders_wide():
+    """The rendered SVG actually places the lone stat's panel at near-full
+    body width — the model numbers above are checked against real x/extents."""
+    svg = gfx.render({"title": "Sparse", "takeaway": "x",
+                      "blocks": [{"type": "stat", "value": "67", "unit": "%",
+                                  "label": "built", "cites": [1]}]},
+                     template="auto", preset="sections",
+                     orientation="landscape")
+    root = _root(svg)
+    width = float(root.get("width"))
+    # the card panel is the rounded rect carrying the stat — find the widest
+    rects = [el for el in root.iter() if el.tag.endswith("rect")]
+    widest = max(float(r.get("width", 0)) for r in rects)
+    from hermes_notebook.gfx.templates import Frame
+    body = Frame(int(width), 900).inner
+    assert widest >= body * 0.88, f"widest panel {widest} vs body {body}"
 
 
 def test_compose_legacy_payload_renders():

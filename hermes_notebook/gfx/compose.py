@@ -2,9 +2,11 @@
 
 Structure: kicker + title (+ subtitle) header → block rows → takeaway band →
 source strip. Rows are packed greedily in model order; a run of ``stat`` blocks
-shares one row (up to four). Each row's height is measured from content, then
-leftover body space is distributed to charts (which grow) — text does not
-stretch and never drops under 14px.
+shares one row (up to four). Under-filled rows stretch to the full 12 columns —
+a lone stat card spans, chart blocks widen and their internal caps keep the
+figure's aspect. Each row's height is measured from content, then leftover
+body space is distributed to charts (which grow) — text does not stretch and
+never drops under 14px.
 
 On a fixed canvas the composer first drops the lowest-value blocks (facts →
 quotes → extra stats), then compresses growable rows to their floor, so the
@@ -56,6 +58,37 @@ def _pack(units: List[Dict[str, Any]], f: Frame) -> List[List[Dict[str, Any]]]:
     if cur:
         rows.append(cur)
     return rows
+
+
+def _stretch(row: List[Dict[str, Any]]) -> None:
+    """Fill an under-packed row out to the 12 columns.
+
+    Natural widths leave paper unused: one stat is 3 of 12 columns, so a
+    sparse payload rendered a card adrift on blank canvas. Under-filled rows
+    widen proportionally — stat cards share the row evenly (equal widths) and
+    chart blocks span the extra columns. The charts keep their own caps
+    (donut diameter, waffle cell size), so widening grows the legend and the
+    frame, never the figure's aspect.
+    """
+    used = sum(u["cols"] for u in row)
+    if not row or used >= COLS:
+        return
+    free = COLS - used
+    carry = 0.0
+    for u in row:
+        share = free * u["cols"] / used
+        add = int(share)
+        carry += share - add
+        if carry >= 1.0:
+            add += 1
+            carry -= 1.0
+        u["cols"] += add
+        free -= add
+    i = 0
+    while free > 0:
+        row[i % len(row)]["cols"] += 1
+        free -= 1
+        i += 1
 
 
 def _units(graphic: Dict[str, Any], f: Frame) -> List[Dict[str, Any]]:
@@ -174,6 +207,8 @@ def compose(f: Frame, p, graphic: Dict[str, Any], detail: str = "standard"
     col_w = (f.inner - (COLS - 1) * gap) / COLS
     units = _units(g, f)
     rows = _pack(units, f)
+    for r in rows:
+        _stretch(r)
     heights = [_row_measure(r, f, p, col_w, gap) for r in rows]
 
     def total(hs):
@@ -181,6 +216,8 @@ def compose(f: Frame, p, graphic: Dict[str, Any], detail: str = "standard"
 
     while rows and total(heights) > body_h and _drop_one(units):
         rows = _pack(units, f)
+        for r in rows:
+            _stretch(r)
         heights = [_row_measure(r, f, p, col_w, gap) for r in rows]
     if rows and total(heights) > body_h:
         # still too tall: compress growable rows toward their floors
