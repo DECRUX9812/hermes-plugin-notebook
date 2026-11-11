@@ -3,7 +3,7 @@
   "label": "Notebook",
   "description": "NotebookLM-style studio: sources in, cited answers and study artifacts out — video and audio overviews, mind maps, slides, flashcards, infographics.",
   "icon": "NotebookPen",
-  "version": "1.1.0",
+  "version": "2.0.0",
   "api": "plugin_api.py",
   "tab": { "hidden": true }
 }

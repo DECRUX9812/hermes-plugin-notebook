@@ -15,26 +15,35 @@ version: "2.0.0"
 title: Hermes Notebook
 category: desktop
 description: >-
-  NotebookLM, rebuilt as a real product surface inside Hermes Desktop — and
-  grounded the way only a plugin can be. The desktop studio is three columns:
-  a source rail with the model's own auto-labels and search, a chat that
-  answers only from those sources with numbered [S1] citations that open the
-  source they point at, and a Studio panel with fourteen outputs — Video
-  Overview, Audio Overview (two-host podcast with a real waveform and
-  transcript), Summary, Briefing Doc, Study Guide, FAQ, Timeline, Mind Map
-  (pannable SVG tree), Flashcards (flip deck, Anki export), Quiz, Slides, Infographic, Data Table and Architecture Blueprint. Generation runs through hermes_notebook.artifacts, so the page
-  and the tools can never disagree. Agent half: 19 tools
-  (list/create/add_source/ask/generate/audio/video/suggest/search/note/
-  refresh/delete_source/update/export/discover/delete/study/tensions/threads), a /notebook slash
-  command, a `hermes notebook` CLI, a bundled skill, and an auxiliary task
-  slot for cheap labelling. Backend routes at /api/plugins/hermes-notebook/
-  (state, source, ask, generate, label, artifact, agent) so the page
-  reads the same store the agent writes. Disclosure — add_source/ask/
-  generate/audio/video/suggest make host-owned LLM calls through ctx.llm on
-  the user's active model; web pages go through web_extract with a
-  direct-fetch fallback that refuses private-network addresses; discover uses
-  web_search; YouTube sources fetch public transcripts; audio/video synthesis
-  calls edge-tts (ffmpeg on PATH, Pillow for video cards and infographics).
+  A research studio inside Hermes Desktop: sources in, cited answers and
+  studio artifacts out. Add files, PDFs, Office docs, EPUB, images, audio and
+  video recordings (Whisper), web pages, YouTube and pasted text, or find
+  sources on the web without leaving the page; every source is auto-labelled
+  and deduplicated on ingest. Ask in as many named threads as you like —
+  answers come only from the sources, with stable [S1] citations that carry
+  the passage they were built from, and every answer shows its cost receipt.
+  Tensions audits where the sources disagree — quoted conflicts with a
+  measured independence count (8 sources, 7 independent) plus a stable-ground
+  consensus. Studio outputs: audio overviews in four formats (two-host, real
+  waveform + transcript), narrated video overviews, mind maps, flashcards,
+  quizzes, real .pptx slide decks, .xlsx/.csv data tables, briefing docs,
+  timelines — and infographics that verify every printed figure against its
+  cited source and show a Checked panel of what was verified, re-cited and
+  dropped. Study mode schedules reviews with SM-2 spaced repetition. Agent
+  half: 19 tools (list/create/add_source/ask/generate/audio/video/suggest/
+  search/note/refresh/delete_source/update/export/discover/study/tensions/
+  threads/delete), a /notebook slash command, a hermes notebook CLI, a bundled
+  skill and an auxiliary.notebook slot for cheap labelling + history
+  compaction. Backend routes under /api/plugins/hermes-notebook/ including
+  /progress + /cancel for long jobs. Disclosure — add_source/ask/generate/
+  audio/video/suggest/tensions make host-owned LLM calls through ctx.llm on
+  the user's active model (verified on small local and mid-size hosted
+  models); web pages go through web_extract with a direct-fetch fallback that
+  refuses private-network addresses; discover uses the host web_search or an
+  EXA/TAVILY key; YouTube sources fetch public transcripts; audio/video
+  synthesis calls edge-tts (ffmpeg on PATH, Pillow for cards); agent actions
+  route through the host MCP gate; read-only in-memory SQL for data tables;
+  long jobs are cooperatively cancellable; no shell commands issued.
 maintainer: DECRUX9812
 tier: community
 requires_hermes: ">=0.22"
@@ -43,10 +52,10 @@ readme: true
 image: https://raw.githubusercontent.com/DECRUX9812/hermes-plugin-notebook/12a78c2afbb462655823097a33cb20fc6d49876b/assets/banner.png
 screenshots:
   - https://raw.githubusercontent.com/DECRUX9812/hermes-plugin-notebook/12a78c2afbb462655823097a33cb20fc6d49876b/assets/shot-01-studio.png
-  - https://raw.githubusercontent.com/DECRUX9812/hermes-plugin-notebook/12a78c2afbb462655823097a33cb20fc6d49876b/assets/shot-02-mindmap.png
-  - https://raw.githubusercontent.com/DECRUX9812/hermes-plugin-notebook/12a78c2afbb462655823097a33cb20fc6d49876b/assets/shot-03-audio.png
-  - https://raw.githubusercontent.com/DECRUX9812/hermes-plugin-notebook/12a78c2afbb462655823097a33cb20fc6d49876b/assets/shot-04-video.png
-  - https://raw.githubusercontent.com/DECRUX9812/hermes-plugin-notebook/12a78c2afbb462655823097a33cb20fc6d49876b/assets/shot-05-flashcards.png
+  - https://raw.githubusercontent.com/DECRUX9812/hermes-plugin-notebook/12a78c2afbb462655823097a33cb20fc6d49876b/assets/shot-02-tensions.png
+  - https://raw.githubusercontent.com/DECRUX9812/hermes-plugin-notebook/12a78c2afbb462655823097a33cb20fc6d49876b/assets/shot-03-infographic.png
+  - https://raw.githubusercontent.com/DECRUX9812/hermes-plugin-notebook/12a78c2afbb462655823097a33cb20fc6d49876b/assets/shot-04-audio.png
+  - https://raw.githubusercontent.com/DECRUX9812/hermes-plugin-notebook/12a78c2afbb462655823097a33cb20fc6d49876b/assets/shot-05-study.png
 platforms: [linux, macos, windows]
 capabilities:
   provides_tools:
