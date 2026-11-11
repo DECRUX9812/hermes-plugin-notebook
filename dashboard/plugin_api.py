@@ -1117,11 +1117,14 @@ def agent_run(payload: Dict[str, Any] = Body(...)) -> Any:
 def agent_rerun(payload: Dict[str, Any] = Body(...)) -> Any:
     """Re-run one recorded action verbatim — the card's ⚡ Re-run button."""
     from hermes_notebook import agent
+    tool = str(payload.get("tool") or "")
+    if tool not in agent.RERUNNABLE:
+        return _fail(f"cannot re-run {tool!r}", 400)
     try:
         nb_id = store.resolve_notebook(str(payload.get("notebook") or ""))
     except Exception as exc:
         return _fail(_why(exc), 404)
-    out = agent.rerun(nb_id, str(payload.get("tool") or ""),
+    out = agent.rerun(nb_id, tool,
                       payload.get("arguments") if isinstance(payload.get("arguments"), dict) else {})
     if not out.get("ok"):
         return _fail(str(out.get("error") or "that action did not run"), 400, action=out.get("action"))

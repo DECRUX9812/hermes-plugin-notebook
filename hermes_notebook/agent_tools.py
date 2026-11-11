@@ -1,11 +1,10 @@
 """Grounded tool execution — the half of the notebook that *acts*.
 
-Three tools, one rule: nothing here guesses. A number is produced by a query
-that ran, a script's result is its real stdout and exit code, and a tool that
-cannot run says so in a sentence instead of returning a plausible zero.
+Two tools, one rule: nothing here guesses. A number is produced by a query
+that ran, a tool that cannot run says so in a sentence instead of returning
+a plausible zero.
 
     query_table   SQL over the notebook's own tables (CSV, XLSX), in memory
-    run_script    python/bash in a temp dir, bounded by timeout and output cap
     mcp_call      a connected MCP server, through the host's own gate
                   (ctx.call_mcp, which is default-deny by mcp_allowlist)
 
@@ -19,12 +18,7 @@ from __future__ import annotations
 import csv
 import io
 import json
-import os
 import re
-import shutil
-import subprocess
-import sys
-import tempfile
 import time
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
@@ -33,7 +27,6 @@ from . import runtime, store
 
 MAX_OUTPUT = 8000          # characters of stdout/stderr kept in a result
 MAX_ROWS = 200             # rows returned to the page from one query
-SCRIPT_TIMEOUT = 15.0      # seconds, hard
 TABLE_SUFFIXES = {".csv"}
 SHEET_SUFFIXES = {".xlsx", ".xlsm"}
 
@@ -240,49 +233,6 @@ def query_table(notebook_id: str, sql: str, limit: int = MAX_ROWS) -> Dict[str, 
             pass
 
 
-def run_script(language: str, code: str, timeout: float = SCRIPT_TIMEOUT) -> Dict[str, Any]:
-    """Run a snippet in a throwaway directory and report what really happened.
-
-    The point is the exit code and the real output, not a green tick: a script
-    that fails returns its stderr, and the UI shows it.
-    """
-    started = time.time()
-    lang = (language or "python").lower()
-    body = code or ""
-    if not body.strip():
-        return {"ok": False, "error": "empty script", "ms": 0, "exit": None}
-    work = tempfile.mkdtemp(prefix="nb-agent-")
-    env = {"PATH": os.environ.get("PATH", "/usr/local/bin:/usr/bin:/bin"),
-           "HOME": work, "LANG": os.environ.get("LANG", "C.UTF-8"),
-           "PYTHONIOENCODING": "utf-8", "MPLBACKEND": "Agg"}
-    if lang in ("bash", "sh", "shell"):
-        cmd = ["/bin/bash", "-lc", body]
-    else:
-        # no -I: the sandbox may legitimately want numpy/openpyxl, and the
-        # env above already strips PYTHONPATH and HOME
-        cmd = [sys.executable, "-"]
-    try:
-        proc = subprocess.run(
-            cmd, input=body if lang not in ("bash", "sh", "shell") else None,
-            cwd=work, env=env, capture_output=True, text=True,
-            timeout=max(1.0, min(float(timeout or SCRIPT_TIMEOUT), 60.0)))
-        out = (proc.stdout or "")[:MAX_OUTPUT]
-        err = (proc.stderr or "")[:MAX_OUTPUT]
-        return {"ok": proc.returncode == 0, "language": lang, "code": body,
-                "exit": proc.returncode, "out": out, "err": err,
-                "ms": int((time.time() - started) * 1000),
-                "truncated": len(proc.stdout or "") > MAX_OUTPUT or len(proc.stderr or "") > MAX_OUTPUT}
-    except subprocess.TimeoutExpired as exc:
-        return {"ok": False, "language": lang, "code": body, "exit": None,
-                "out": (exc.stdout or "")[:MAX_OUTPUT] if isinstance(exc.stdout, str) else "",
-                "err": f"timed out after {timeout:g}s", "ms": int((time.time() - started) * 1000)}
-    except Exception as exc:
-        return {"ok": False, "language": lang, "code": body, "exit": None,
-                "out": "", "err": str(exc), "ms": int((time.time() - started) * 1000)}
-    finally:
-        shutil.rmtree(work, ignore_errors=True)
-
-
 def mcp_servers() -> List[Dict[str, Any]]:
     """MCP servers this plugin is actually allowed to call (default-deny)."""
     try:
@@ -332,9 +282,6 @@ TOOLS = [
     {"id": "query_table", "title": "SQL over the notebook's tables",
      "blurb": "Run one read-only SQL statement over the notebook's CSV/XLSX tables.",
      "args": {"sql": "string"}},
-    {"id": "run_script", "title": "Python or Bash sandbox",
-     "blurb": "Run a short script in a throwaway directory; returns its real exit code and output.",
-     "args": {"language": "python|bash", "code": "string"}},
     {"id": "mcp_call", "title": "Connected MCP server",
      "blurb": "Call a tool on an MCP server this plugin is allowed to use.",
      "args": {"server": "string", "tool": "string", "arguments": "object"}},

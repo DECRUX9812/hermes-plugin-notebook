@@ -98,7 +98,7 @@ def test_the_catalog_reports_tables_and_tools(ctx):
     client = _client()
     out = client.get("/agent/catalog", params={"notebook": "route-nb"}).json()
     assert out["ok"] is True
-    assert {t["id"] for t in out["tools"]} == {"query_table", "run_script", "mcp_call"}
+    assert {t["id"] for t in out["tools"]} == {"query_table", "mcp_call"}
     assert any(t["table"] == "data_table" for t in out["tables"])
     assert out["engine"] in ("duckdb", "sqlite")
 
@@ -109,6 +109,14 @@ def test_rerun_runs_one_recorded_action_again(ctx):
     out = client.post("/agent/rerun", json={"notebook": "route-nb", "tool": "query_table",
                                             "arguments": {"sql": "SELECT COUNT(*) FROM data_table"}}).json()
     assert out["ok"] is True and int(out["action"]["rows"][0][0]) == 3
+
+
+def test_rerun_rejects_a_tool_outside_the_allowlist(ctx):
+    _mk()
+    client = _client()
+    out = client.post("/agent/rerun", json={"notebook": "route-nb", "tool": "run_script",
+                                            "arguments": {"language": "python", "code": "print(1)"}})
+    assert out.status_code == 400
 
 def test_council_answers_then_checks_itself(ctx):
     _mk()

@@ -23,7 +23,7 @@ PLAN_SCHEMA = {
     "type": "object",
     "properties": {
         "use_tool": {"type": "boolean"},
-        "tool": {"type": "string", "enum": ["query_table", "run_script", "mcp_call"]},
+        "tool": {"type": "string", "enum": ["query_table", "mcp_call"]},
         "arguments": {"type": "object"},
         "reason": {"type": "string"},
     },
@@ -51,14 +51,11 @@ def _plan(notebook_id: str, question: str) -> Dict[str, Any]:
                 "Tools:\n"
                 "  query_table  — SQL over the notebook's tables. Use it for any sum, count,\n"
                 "                 average, ordering, filtering or comparison of numbers.\n"
-                "  run_script   — short Python/Bash. Use it when the answer needs a\n"
-                "                 calculation the tables cannot express, or to inspect a file.\n"
                 "  mcp_call     — a connected MCP server. Use it only when the question\n"
                 "                 needs live external data the sources do not hold.\n"
                 'Answer {"use_tool": false, "reason": "..."} when the sources alone answer it.\n'
                 'When a tool is needed return {"use_tool": true, "tool": ..., "arguments": {...}, "reason": ...}.\n'
                 "For query_table the arguments are {\"sql\": \"<one read-only SELECT>\"}.\n"
-                "For run_script they are {\"language\": \"python\", \"code\": \"...\"}.\n"
                 "For mcp_call they are {\"server\", \"tool\", \"arguments\"}.\n\n"
                 f"Tables available:\n{_tables_brief(notebook_id)}"
             ),
@@ -81,9 +78,6 @@ def _execute(notebook_id: str, plan: Dict[str, Any]) -> Optional[Dict[str, Any]]
         args = {}
     if tool == "query_table":
         out = agent_tools.query_table(notebook_id, str(args.get("sql") or ""))
-    elif tool == "run_script":
-        out = agent_tools.run_script(str(args.get("language") or "python"),
-                                     str(args.get("code") or ""))
     elif tool == "mcp_call":
         out = agent_tools.mcp_call(str(args.get("server") or ""), str(args.get("tool") or ""),
                                    args.get("arguments") if isinstance(args.get("arguments"), dict) else {})
@@ -107,10 +101,6 @@ def _evidence(action: Dict[str, Any]) -> str:
         body = "\n".join(" | ".join(str(c) for c in r) for r in rows[:40])
         return (f"SQL that ran ({action.get('engine')}): {action.get('sql')}\n"
                 f"Columns: {', '.join(map(str, cols))}\nRows:\n{body}")
-    if action.get("tool") == "run_script":
-        return (f"A script ran (exit {action.get('exit')}). Output:\n"
-                f"{(action.get('out') or '').strip()[:2000]}\n"
-                f"{(action.get('err') or '').strip()[:800]}")
     return f"MCP result:\n{(action.get('out') or action.get('error') or '')[:2000]}"
 
 
@@ -225,8 +215,13 @@ def run(notebook_id: str, question: str, thread: str = "", mode: str = "agent") 
     return out
 
 
+RERUNNABLE = {"query_table", "mcp_call"}
+
+
 def rerun(notebook_id: str, tool: str, arguments: Dict[str, Any]) -> Dict[str, Any]:
     """Re-run one recorded action verbatim (the card's ⚡ Re-run button)."""
+    if tool not in RERUNNABLE:
+        return {"ok": False, "error": f"unknown tool {tool!r}"}
     got = _execute(notebook_id, {"tool": tool, "arguments": arguments or {}})
     if not got:
         return {"ok": False, "error": f"unknown tool {tool!r}"}
