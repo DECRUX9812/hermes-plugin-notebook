@@ -199,8 +199,12 @@ def test_page_option_lists_every_style():
     spec = kinds["infographic"]["options"][0]
     assert spec["kind"] == "select"
     from hermes_notebook import gfx
-    assert spec["choices"] == [p.id for p in gfx.PRESETS]
-    assert [i["id"] for i in spec["items"]] == [p.id for p in gfx.PRESETS]
+    # every look is offered; the hero looks lead, in the fixed hero order, and
+    # the rest of the catalog follows (the picker folds them under More looks)
+    assert set(spec["choices"]) == {p.id for p in gfx.PRESETS}
+    assert [i["id"] for i in spec["items"]] == spec["choices"]
+    heroes = spec.get("heroes") or []
+    assert spec["choices"][:len(heroes)] == heroes
     assert all(i["swatch"] for i in spec["items"])
 
 

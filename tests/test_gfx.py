@@ -325,11 +325,11 @@ def test_visual_snapshots():
 
 
 def test_every_look_resolves_its_own_composition():
-    """template="auto" must render for all 33 looks — the preset has to resolve
-    before the template does, and a missing default_template is a crash, not a
-    silent fallback."""
+    """template="auto" must render for all 33 looks — it routes to the measured
+    block composer now (preset.default_template stays the explicit-name path),
+    and a missing default_template is a crash, not a silent fallback."""
     from hermes_notebook import gfx
     for preset in gfx.PRESETS:
         assert preset.default_template in gfx.TEMPLATES, preset.id
         svg = gfx.render(SAMPLE, template="auto", preset=preset.id)
-        assert f'data-template="{preset.default_template}"' in svg, preset.id
+        assert 'data-template="auto"' in svg, preset.id
