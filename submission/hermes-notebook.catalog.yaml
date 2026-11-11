@@ -54,7 +54,6 @@ screenshots:
   - https://raw.githubusercontent.com/DECRUX9812/hermes-plugin-notebook/a2073ebc5242c3a7b3d1098c7c2f0cc1e70e3a77/assets/shot-03-audio.png
   - https://raw.githubusercontent.com/DECRUX9812/hermes-plugin-notebook/a2073ebc5242c3a7b3d1098c7c2f0cc1e70e3a77/assets/shot-04-video.png
   - https://raw.githubusercontent.com/DECRUX9812/hermes-plugin-notebook/a2073ebc5242c3a7b3d1098c7c2f0cc1e70e3a77/assets/shot-05-flashcards.png
-  - https://raw.githubusercontent.com/DECRUX9812/hermes-plugin-notebook/a2073ebc5242c3a7b3d1098c7c2f0cc1e70e3a77/assets/shot-06-lab-ops.png
 platforms: [linux, macos, windows]
 capabilities:
   provides_tools:

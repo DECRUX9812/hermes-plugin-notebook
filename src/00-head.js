@@ -12,11 +12,6 @@
  *            a real thumbnail when the artifact exists (infographic image,
  *            document lines, audio waveform), and the state it is actually in
  *
- * The second surface is the lab: the same shell, the same status bar, and a
- * fleet deck that measures eight hosts over the audited ssh transport — a
- * terminal, service control, a file browser and VM snapshots, all of which
- * report the real exit code instead of a green tick.
- *
  * The system is deliberately NotebookLM-soft: rounded cards, pill controls,
  * quiet labels and per-output colour, all resolved through the app's theme
  * variables so the page follows dark/light and the user's accent. Media
@@ -156,7 +151,7 @@ const CSS = `
 .nb-blob:nth-child(3){background:radial-gradient(circle,hsl(calc(var(--nb-hue, 265) + 165) 75% 58% / .7),transparent 70%);
   width:40vmax;height:40vmax;bottom:-16%;left:-6%;animation-duration:38s;animation-delay:-17s}
 @keyframes nb-drift{from{transform:translate3d(-3%,-2%,0) scale(1)}to{transform:translate3d(4%,3%,0) scale(1.08)}}
-.nb-bar,.nb-body,.nb-home,.nb-ops{position:relative;z-index:1}
+.nb-bar,.nb-body,.nb-home{position:relative;z-index:1}
 .nb-root *{box-sizing:border-box}
 /* Form controls do NOT inherit the page font from the UA sheet: a <button> gets
  * Arial 13.333px and a <span> inside it inherits that, which is how "Video
@@ -252,7 +247,6 @@ const CSS = `
 .nb-scroll{flex:1;min-height:0;overflow:auto;overscroll-behavior:contain;scrollbar-width:thin;
   scrollbar-color:color-mix(in srgb,${T.text} 22%,transparent) transparent}
 .nb-root ::selection{background:color-mix(in srgb,${T.accent} 32%,transparent)}
-.nb-pad{padding:12px 14px}
 
 /* ------------------------------------------------------------------- rail */
 /* the assistant's mark in a message row; the rail's notebook switcher card is
@@ -440,13 +434,6 @@ const CSS = `
 .nb-sub{color:${T.text3};font-size:var(--nb-fs-meta);line-height:1.4;margin:0;
   white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0;max-width:100%}
 .nb-hero-side{display:flex;align-items:center;gap:var(--nb-sp-2);flex:0 0 auto}
-/* ops host-measurement strip (Lab Ops only) */
-.nb-strip{display:flex;align-items:stretch;gap:8px;margin:14px 0 0;flex-wrap:wrap}
-.nb-cell{flex:1;min-width:90px;padding:10px 14px 11px;border-radius:var(--nb-r-el);
-  border:1px solid var(--nb-hair-soft);background:var(--nb-wash)}
-.nb-cell b{display:block;font-size:17px;font-weight:650;letter-spacing:-.02em;
-  line-height:1.1;font-variant-numeric:tabular-nums}
-.nb-cell span{display:block;font-size:11.5px;color:${T.text3};margin-top:6px;font-weight:600}
 /* the view switcher: one pill track on the header line, never a second row.
    Long artifact titles truncate instead of pushing the track into overflow. */
 .nb-tabs{display:inline-flex;align-items:center;gap:2px;padding:3px;flex:0 1 auto;
@@ -1233,29 +1220,6 @@ const CSS = `
   background:linear-gradient(160deg, color-mix(in srgb,${T.accent} 14%, var(--nb-card)), var(--nb-card))}
 .nb-face .nb-meta{position:absolute;top:17px;left:22px}
 .nb-face-hint{font-size:11.5px;color:${T.text4};margin-top:auto;letter-spacing:.02em}
-
-/* -------------------------------------------------------------------- ops */
-.nb-fleet{display:flex;flex-direction:column;gap:8px;padding:8px 0}
-.nb-frow{display:grid;grid-template-columns:10px minmax(0,1fr) auto;align-items:center;gap:12px;
-  padding:11px 14px;border:1px solid var(--nb-hair-soft);border-radius:var(--nb-r-el);background:var(--nb-card);
-  cursor:pointer;text-align:left;color:${T.text};min-height:54px;
-  transition:border-color var(--nb-dur-fast) var(--nb-ease),box-shadow var(--nb-dur-fast) var(--nb-ease),transform var(--nb-dur-fast) var(--nb-ease)}
-.nb-frow:hover{border-color:color-mix(in srgb,${T.text} 20%, transparent);box-shadow:var(--nb-shadow)}
-.nb-frow[aria-current=true]{border-color:color-mix(in srgb,${T.accent} 55%, transparent);
-  background:color-mix(in srgb,${T.accent} 9%, var(--nb-card))}
-.nb-fname{font-size:14px;font-weight:600;line-height:1.25;min-width:0;
-  overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.nb-frole{font-size:10.5px;color:${T.text3};text-transform:uppercase;letter-spacing:.06em;font-weight:600;
-  overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.nb-term{font-family:var(--ui-font-mono,ui-monospace,monospace);font-size:13px;line-height:1.55;flex:1 1 auto;
-  background:#101320;color:#c9cede;border-radius:var(--nb-r-box);padding:16px;min-height:130px;max-height:none;overflow:auto;
-  white-space:pre-wrap;word-break:break-word;border:1px solid rgba(255,255,255,.09);
-  box-shadow:inset 0 1px 0 rgba(255,255,255,.05)}
-.nb-term-in{display:flex;gap:8px;align-items:center;margin-top:10px}
-.nb-term-in input{flex:1;height:38px;border-radius:var(--nb-r-el);border:1px solid var(--nb-hair);
-  background:var(--nb-wash);color:${T.text};padding:0 13px;font-size:13px;
-  font-family:var(--ui-font-mono,ui-monospace,monospace);outline:0}
-.nb-term-in input:focus{border-color:color-mix(in srgb,${T.accent} 55%, transparent)}
 
 /* -------------------------------------------------------------- status bar */
 .nb-status{flex:0 0 32px;height:32px;display:flex;align-items:center;gap:14px;padding:0 18px;font-size:12.5px;

@@ -9,7 +9,7 @@
 //                not invent a method the host lacks.
 // 2 functional   clicking a studio card opens the viewer; asking renders an
 //                answer with citations; a citation opens the source; the label
-//                filter narrows the rail; the ops deck renders eight hosts.
+//                filter narrows the rail.
 // 3 a11y         every interactive control has an accessible name, a >=32px
 //                target (inline prose citations excepted by WCAG 2.5.8), a
 //                focus ring that actually resolves, and 16px body type.
@@ -306,7 +306,7 @@ export const host = { navigate: () => {}, request: async () => ({}), composer: {
   ok('legacy host (contribution only) still gets every area',
     legacyAreas.has('routes') && legacyAreas.has('sidebar.nav') && legacyAreas.has('palette'),
     [...legacyAreas].join(','))
-  ok('three palette commands registered', modern.filter((s) => s.startsWith('register:palette')).length === 3,
+  ok('two palette commands registered', modern.filter((s) => s.startsWith('register:palette')).length === 2,
     `${modern.filter((s) => s.startsWith('register:palette')).length}`)
   ok('the registered file imports nothing but the SDK and react', !/from '(?!@hermes\/plugin-sdk|react)/.test(src),
     'no other specifiers')
@@ -526,17 +526,6 @@ async function functional(port) {
       ok('copy reports its outcome', false, 'no ready data table')
     }
   }
-
-  // ops deck
-  await page.keyboard.press('Escape')
-  await page.locator('.nb-seg button', { hasText: 'Lab Ops' }).click()
-  await settle(page, 900)
-  const rows = await page.locator('.nb-frow').count()
-  ok('lab deck lists the whole fleet', rows >= 8, `${rows} hosts`)
-  const tabs = await page.locator('.nb-tab').count()
-  ok('host tools are offered for a reachable host', tabs >= 5, `${tabs} tabs`)
-  const measured = await page.locator('.nb-cell').count()
-  ok('host measurements are rendered', measured >= 5, `${measured} cells`)
 
   // untrusted attributes in the directive must not render markup
   ok('no page errors during the run', errors.length === 0, errors.slice(0, 2).join(' | '))

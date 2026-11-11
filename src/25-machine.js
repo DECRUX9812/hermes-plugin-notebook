@@ -27,8 +27,8 @@
  *                        nested machine inside one dialog; self-contained.
  *   M6  audio player     playing/t/dur/rate × editing/draft/rendering —
  *                        viewer-local, orthogonal substates.
- *   M7  ops panels       per-panel state{idle,busy,done,error} — repeated
- *                        shape, already honest about failures.
+ *   M7  per-panel       state{idle,busy,done,error} repeated shape in the
+ *                        studio cards — already honest about failures.
  *   M8  viewer chrome    zoom/pan, slide index, quiz index, table sort —
  *                        pure UI state, no cross-component invariants.
  *

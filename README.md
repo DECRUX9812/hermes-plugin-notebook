@@ -15,7 +15,6 @@ Built for the 2026 Hermes Plugin Competition.
 ![Audio overview](assets/shot-03-audio.png)
 ![Video overview](assets/shot-04-video.png)
 ![Flashcards](assets/shot-05-flashcards.png)
-![Lab Ops](assets/shot-06-lab-ops.png)
 
 ## The desktop studio
 

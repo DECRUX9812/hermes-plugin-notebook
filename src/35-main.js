@@ -1626,35 +1626,25 @@ function WaveThumb({ seed }) {
 
 /* -------------------------------------------------------------- status bar */
 
-function StatusBar({ mode, notebook, data, note, opsStats }) {
+function StatusBar({ mode, notebook, data, note }) {
   const ready = data && data.model_ready
-  const ops = mode === 'ops'
   const home = mode === 'home'
   const notebooks = (data && data.notebooks) || []
   return el('footer', { className: 'nb-status', role: 'contentinfo' },
-    ops
+    home
       ? el('span', null,
-          jsx('span', {
-            className: 'nb-sdot',
-            style: { background: opsStats && opsStats.down ? T.warn : T.ok }
-          }),
-          opsStats
-            ? `${opsStats.hosts} hosts · ${opsStats.patched} patched · ${opsStats.exposed} fix available · ${opsStats.down} unreachable`
-            : 'measuring the fleet…')
-      : home
-        ? el('span', null,
-            jsx('span', { className: 'nb-sdot', style: { background: ready ? T.ok : T.warn } }),
-            `${notebooks.length} notebook${notebooks.length === 1 ? '' : 's'} · `,
-            ready ? 'model ready' : 'model offline')
-        : el('span', null,
-            jsx('span', { className: 'nb-sdot', style: { background: ready ? T.ok : T.warn } }),
-            ready ? 'model ready · answering only from your sources' : 'model offline — enable the plugin'),
-    !ops && !home && notebook
+          jsx('span', { className: 'nb-sdot', style: { background: ready ? T.ok : T.warn } }),
+          `${notebooks.length} notebook${notebooks.length === 1 ? '' : 's'} · `,
+          ready ? 'model ready' : 'model offline')
+      : el('span', null,
+          jsx('span', { className: 'nb-sdot', style: { background: ready ? T.ok : T.warn } }),
+          ready ? 'model ready · answering only from your sources' : 'model offline — enable the plugin'),
+    !home && notebook
       ? el('span', null, jsx('b', { children: notebook.stats.sources }), ' sources · ',
           jsx('b', { children: nfmt(notebook.stats.chars) }), ' chars · ',
           jsx('b', { children: notebook.stats.labels }), ' labels')
       : null,
-    !ops && !home && notebook && notebook.stats.unlabeled
+    !home && notebook && notebook.stats.unlabeled
       ? jsx('span', {
           style: { color: T.warn },
           children: `${notebook.stats.unlabeled} source${notebook.stats.unlabeled === 1 ? '' : 's'} unlabeled — press “label” on the rail`
@@ -1669,8 +1659,8 @@ function StatusBar({ mode, notebook, data, note, opsStats }) {
       : null,
     el('span', { style: { flex: 1 } }),
     jsx('span', { className: 'nb-mono', style: { fontSize: '11.5px' },
-      children: ops ? 'ssh · audited transport' : (notebook ? notebook.id : 'no notebook') }),
-    data && !ops ? jsx('span', { className: 'nb-mono', style: { fontSize: '11.5px' },
+      children: notebook ? notebook.id : 'no notebook' }),
+    data ? jsx('span', { className: 'nb-mono', style: { fontSize: '11.5px' },
       children: `synced ${clock(data.generated_at)}` }) : null
   )
 }

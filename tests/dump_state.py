@@ -4,7 +4,7 @@ The harness must show what the live route returns, not a hand-written shim:
 this imports the plugin's own router module, calls the same functions, and
 copies the artifact bytes the page would fetch.
 
-    python3 tests/dump_state.py [--refresh-ops] [--notebook <id>]
+    python3 tests/dump_state.py [--notebook <id>]
 """
 from __future__ import annotations
 
@@ -20,7 +20,6 @@ sys.path.insert(0, str(ROOT))
 sys.path.insert(0, str(ROOT / "dashboard"))
 
 import plugin_api  # noqa: E402
-import ops_api  # noqa: E402
 from hermes_notebook import store  # noqa: E402
 
 TMP = HERE / "tmp"
@@ -49,7 +48,6 @@ def copy_artifacts(notebook_id: str) -> int:
 def main() -> None:
     ap = argparse.ArgumentParser()
     ap.add_argument("--notebook", default="")
-    ap.add_argument("--refresh-ops", action="store_true")
     args = ap.parse_args()
 
     TMP.mkdir(parents=True, exist_ok=True)
@@ -67,25 +65,6 @@ def main() -> None:
     styles = plugin_api.infographic_styles(previews=1, notebook=nb.get("id") or "")
     (TMP / "styles.json").write_text(json.dumps(styles), encoding="utf-8")
     print(f"styles: {styles.get('count')} looks · {len(styles.get('previews') or {})} previews")
-
-    fleet_path = TMP / "ops-fleet.json"
-    if args.refresh_ops or not fleet_path.exists():
-        fleet = ops_api.fleet()
-        fleet_path.write_text(json.dumps(fleet, indent=1), encoding="utf-8")
-        print(f"fleet: {len(fleet.get('hosts', []))} hosts measured")
-    else:
-        print(f"fleet: cached ({fleet_path.name}) — pass --refresh-ops to re-measure")
-
-    services_path = TMP / "ops-services.json"
-    if args.refresh_ops or not services_path.exists():
-        services = ops_api.services(host="local")
-        services_path.write_text(json.dumps(services, indent=1), encoding="utf-8")
-        print(f"services: {services.get('count')} units on local")
-
-    audit_path = TMP / "ops-audit.json"
-    if args.refresh_ops or not audit_path.exists():
-        audit_path.write_text(json.dumps(ops_api.audit(limit=40), indent=1), encoding="utf-8")
-        print("audit: dumped")
 
 
 if __name__ == "__main__":

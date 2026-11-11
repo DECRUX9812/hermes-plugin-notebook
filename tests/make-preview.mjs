@@ -56,7 +56,7 @@ export const host = {
 /* ---------------------------------------------------------------- bundle */
 const files = readdirSync(join(here, '../src')).filter((f) => f.endsWith('.js')).sort()
 let code = files.map((f) => readFileSync(join(here, '../src', f), 'utf8').trimEnd()).join('\n\n')
-code += `\nexport { App, StudioPanel, Viewer, OpsDeck, Rail, Markdown, KIND_ICON, CSS, plugin }\n`
+code += `\nexport { App, StudioPanel, Viewer, Rail, Markdown, KIND_ICON, CSS, plugin }\n`
 writeFileSync(join(tmp, 'preview.mjs'), code)
 
 /* --------------------------------------------------------------- payloads */
@@ -68,11 +68,7 @@ if (state.notebook) {
     { name: 'chat-abc123', title: 'Compare the two architectures', count: 6, updated: '2025-11-03T09:30:00Z' }
   ]
 }
-const fleet = existsSync(join(tmp, 'ops-fleet.json')) ? readFileSync(join(tmp, 'ops-fleet.json'), 'utf8') : '{"hosts":[]}'
-const services = existsSync(join(tmp, 'ops-services.json')) ? readFileSync(join(tmp, 'ops-services.json'), 'utf8') : '{"units":[]}'
-const audit = existsSync(join(tmp, 'ops-audit.json')) ? readFileSync(join(tmp, 'ops-audit.json'), 'utf8') : '{"entries":[]}'
 const styles = existsSync(join(tmp, 'styles.json')) ? readFileSync(join(tmp, 'styles.json'), 'utf8') : '{"ok":true,"styles":[],"previews":{}}'
-const exec = existsSync(join(tmp, 'ops-exec.json')) ? readFileSync(join(tmp, 'ops-exec.json'), 'utf8') : '{"ok":false,"result":{"ok":false,"out":"","err":"no captured run"}}'
 writeFileSync(join(tmp, 'payloads.mjs'), `
 export const STUDY_CARDS = [
   { id: 'c-iter-six', kind: 'flash', phase: 'new', front: "What does ITER's 'six of nine' refer to?",
@@ -100,18 +96,14 @@ export const STUDY_STATS = () => {
 }
 
 export const STATE = ${JSON.stringify(state)}
-export const FLEET = ${fleet}
-export const SERVICES = ${services}
-export const AUDIT = ${audit}
-export const EXEC = ${exec}
 export const STYLES = ${styles}
 `)
 
 writeFileSync(join(tmp, 'preview-entry.mjs'), `
 import React from 'react'
 import { createRoot } from 'react-dom/client'
-import { App, OpsDeck, plugin } from './preview.mjs'
-import { STATE, FLEET, SERVICES, AUDIT, EXEC, STYLES, STUDY_CARDS, STUDY_DONE, STUDY_STATS } from './payloads.mjs'
+import { App, plugin } from './preview.mjs'
+import { STATE, STYLES, STUDY_CARDS, STUDY_DONE, STUDY_STATS } from './payloads.mjs'
 
 window.React = React
 
@@ -167,11 +159,6 @@ const rest = async (path, opts) => {
     const src = (STATE.notebook?.sources || []).find((s) => s.id === params.get('id'))
     return { ok: true, text: 'Preview harness: the source text lives in the plugin store.\\n\\n' + (src ? src.summary || src.title : '') }
   }
-  if (route === 'ops/fleet') return { ...FLEET, ok: true }
-  if (route === 'ops/services') return { ...SERVICES, ok: true }
-  if (route === 'ops/audit') return { ...AUDIT, ok: true }
-  // one captured run, replayed verbatim — real exit code, real stdout
-  if (route === 'ops/exec') return { ...EXEC, ok: true }
   if (route === 'ask') {
     await new Promise((r) => setTimeout(r, 900))
     return {
@@ -484,7 +471,7 @@ store.set('mode', mode)
 if (q.get('open')) store.set('__open', q.get('open'))
 if (q.get('tab')) store.set('__tab', q.get('tab'))
 
-// always the real App: ?mode=ops seeds the stored surface, which is how the
+// always the real App: ?mode= seeds the stored surface, which is how the
 // app itself remembers the choice.
 createRoot(document.getElementById('root')).render(React.createElement(App, {}))
 `)

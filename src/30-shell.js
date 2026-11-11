@@ -56,7 +56,10 @@ const DIALOGS = Machine('dialogs', {
 })
 
 function App() {
-  const [mode, setMode] = useState(() => persist.get('mode', 'home'))
+  const [mode, setMode] = useState(() => {
+    const m = persist.get('mode', 'home')
+    return ['home', 'studio', 'study', 'discover'].includes(m) ? m : 'home'
+  })
   const [nb, setNb] = useState(() => persist.get('notebook', ''))
   // Which conversation is open, remembered per notebook so a reload lands people
   // back in the thread they were reading.
@@ -104,15 +107,14 @@ function App() {
   const [railTouched, setRailTouched] = useState(false)
   const [studioTouched, setStudioTouched] = useState(false)
   const [size, setSize] = useState(0)
-  const [opsStats, setOpsStats] = useState(null)
   const setSearchOpen = useCallback((v) => (v ? openSurface('search') : closeSurface('search')), [openSurface, closeSurface])
   const searchOpen = surface === 'search' 
 
-  // palette/deep links can ask for a surface: ?surface=ops opens the lab deck
+  // palette/deep links can ask for a surface: ?surface=studio or ?surface=home
   useEffect(() => {
     try {
       const want = new URLSearchParams(window.location.search).get('surface')
-      if (want === 'ops' || want === 'studio' || want === 'home') setMode(want)
+      if (want === 'studio' || want === 'home') setMode(want)
     } catch { /* no location in this host */ }
   }, [])
 
@@ -532,7 +534,6 @@ function App() {
   const railVisible = railOpen && (density !== 'tight' || railTouched)
   const studioVisible = studioOpen && (size >= 860 || studioTouched)
 
-  const ops = mode === 'ops'
   const home = mode === 'home'
   const discoverMode = mode === 'discover'
   // Study and the workbench are notebook-scoped: with no notebook open they
@@ -558,14 +559,12 @@ function App() {
         el('span', { className: 'nb-mark' }, jsx(Glyph, { name: 'notebook', size: 15 })),
         el('span', { className: 'nb-brandname', children: 'Notebook' }),
         el('span', { className: 'nb-crumb' },
-          ops
-            ? el('b', { children: 'Lab Ops' })
-            : home
-              ? el('b', { children: 'All notebooks' })
-              : discoverMode
-                ? el('b', { children: 'Discover' })
-                : studyMode
-                  ? el('b', { children: 'Study' })
+          home
+            ? el('b', { children: 'All notebooks' })
+            : discoverMode
+              ? el('b', { children: 'Discover' })
+              : studyMode
+                ? el('b', { children: 'Study' })
                 : el('span', null, jsx(Glyph, { name: 'chevron', size: 12 }), ' ', notebook
                     ? el('button', {
                         type: 'button', className: 'nb-crumbedit',
@@ -577,7 +576,7 @@ function App() {
       ),
       el('div', { className: 'nb-spacer' }),
       // The bar switches WORKSPACE LAYOUTS, and it says which ones exist right
-      // now: Home, Discover and Lab Ops are notebook-independent; Study and the
+      // now: Home and Discover are notebook-independent; Study and the
       // notebook workbench only appear once a notebook is actually open, so
       // nobody clicks into an empty state. (The right-hand drawer is a panel
       // inside the workbench, not a fourth copy of this switch — its heading is
@@ -590,7 +589,7 @@ function App() {
         },
         // The gate is `notebook`, NOT the current mode. Gating on
         // `mode !== 'home'` meant that from Home the switcher offered only
-        // Home / Discover / Lab Ops — so once you landed on Home with a
+        // Home / Discover — so once you landed on Home with a
         // notebook open you could not get back to Studio at all, and the tab
         // row silently changed shape under the pointer.
         options: (notebook
@@ -598,13 +597,11 @@ function App() {
               { id: 'home', label: 'Home', icon: 'grid' },
               { id: 'studio', label: 'Studio', icon: 'notebook' },
               { id: 'study', label: 'Study', icon: 'cards' },
-              { id: 'discover', label: 'Discover', icon: 'search' },
-              { id: 'ops', label: 'Lab Ops', icon: 'server' }
+              { id: 'discover', label: 'Discover', icon: 'search' }
             ]
           : [
               { id: 'home', label: 'Home', icon: 'grid' },
-              { id: 'discover', label: 'Discover', icon: 'search' },
-              { id: 'ops', label: 'Lab Ops', icon: 'server' }
+              { id: 'discover', label: 'Discover', icon: 'search' }
             ])
       }),
       el('div', { className: 'nb-actions' },
@@ -628,28 +625,26 @@ function App() {
         }))
     ),
 
-    ops
-      ? jsx(OpsDeck, { onSay: say, onStats: setOpsStats })
-      : home
-        ? jsx(HomeDashboard, {
-            data, onOpen: openNotebook, onNew: () => setNewNb(true),
-            onDelete: deleteNotebook, onRename: renameNotebook,
-            onDuplicate: (id) => duplicateNotebook(id, false)
+    home
+      ? jsx(HomeDashboard, {
+          data, onOpen: openNotebook, onNew: () => setNewNb(true),
+          onDelete: deleteNotebook, onRename: renameNotebook,
+          onDuplicate: (id) => duplicateNotebook(id, false)
+        })
+      : discoverMode
+        ? jsx(DiscoverPanel, {
+            notebook, onSay: say,
+            reload: () => studio.reload(true)
           })
-        : discoverMode
-          ? jsx(DiscoverPanel, {
+        : studyMode
+          ? jsx(StudyPanel, {
               notebook, onSay: say,
-              reload: () => studio.reload(true)
+              onOpenSource: (title) => {
+                const s = ((notebook && notebook.sources) || []).find(
+                  (x) => (x.title || '').trim().toLowerCase() === String(title).trim().toLowerCase())
+                if (s) { setPeek({ ...s, citeSnippet: '' }); setTab('peek') }
+              }
             })
-          : studyMode
-            ? jsx(StudyPanel, {
-                notebook, onSay: say,
-                onOpenSource: (title) => {
-                  const s = ((notebook && notebook.sources) || []).find(
-                    (x) => (x.title || '').trim().toLowerCase() === String(title).trim().toLowerCase())
-                  if (s) { setPeek({ ...s, citeSnippet: '' }); setTab('peek') }
-                }
-              })
           : el('div', { className: 'nb-body' },
             railVisible
               ? jsx(Rail, {
@@ -688,7 +683,7 @@ function App() {
                   onShow: () => { setStudioTouched(true); setStudioOpen(true) } })
           ),
 
-    jsx(StatusBar, { mode, notebook, data, note, opsStats }),
+    jsx(StatusBar, { mode, notebook, data, note }),
 
     jsx(AddSourceDialog, {
       open: !!srcDialog, onClose: () => setSrcDialog(null), notebook,

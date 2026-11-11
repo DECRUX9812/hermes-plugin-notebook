@@ -1,7 +1,7 @@
 {
   "name": "hermes-notebook",
   "label": "Notebook",
-  "description": "NotebookLM-style studio: sources in, cited answers and study artifacts out — video and audio overviews, mind maps, slides, flashcards, infographics — plus the lab ops deck that drives the fleet.",
+  "description": "NotebookLM-style studio: sources in, cited answers and study artifacts out — video and audio overviews, mind maps, slides, flashcards, infographics.",
   "icon": "NotebookPen",
   "version": "1.1.0",
   "api": "plugin_api.py",

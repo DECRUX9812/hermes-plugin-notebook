@@ -3,9 +3,9 @@
 Mounted by the gateway at ``/api/plugins/hermes-notebook/`` and reached from the
 desktop page as ``ctx.rest(...)``.
 
-Why this exists at all: the page needs three things the renderer cannot do —
-read the notebooks on disk, run a grounded answer through the *user's* model,
-and drive the lab over ssh. Every route below is a thin call into code the
+Why this exists at all: the page needs two things the renderer cannot do —
+read the notebooks on disk and run a grounded answer through the *user's*
+model. Every route below is a thin call into code the
 agent half already uses (``hermes_notebook.store`` / ``retrieve`` / ``artifacts``
 / ``audio`` / ``video``), so the page and the tools can never disagree: a
 notebook generated in chat shows up in the studio and vice versa.
@@ -48,13 +48,6 @@ notebook generated in chat shows up in the studio and vice versa.
     GET  /artifact?notebook=&name=   media bytes (mp4/mp3/png/html) or text
     GET  /artifact/xlsx?notebook=&name=  the table as a real workbook
     GET  /artifact/pptx?notebook=&name=  the deck as a real PowerPoint file
-
-Ops deck (folded in from the homelab control deck, same audited transport):
-
-    GET  /ops/fleet  /ops/services  /ops/docker  /ops/files  /ops/file
-    GET  /ops/snapshots  /ops/audit  /ops/actions  /ops/state  /ops/health
-    GET  /ops/logs  /ops/proxmox
-    POST /ops/exec  /ops/action  /ops/service  /ops/snapshot
 
 Nothing here invents a number: a route that cannot reach its data returns
 ``{"ok": false, "error": <real reason>}`` with a 5xx/4xx status and the page
@@ -1525,19 +1518,3 @@ def export_nb(notebook: str = Query(...),
         return {"ok": True, "name": name, "bytes": out["size_bytes"], "files": out["files"],
                 "b64": _b64.b64encode(zp.read_bytes()).decode("ascii")}
     return FileResponse(str(zp), media_type="application/zip", filename=name)
-
-
-# -------------------------------------------------------------- ops (folded)
-
-def _mount_ops() -> None:
-    """Fold the homelab control deck in as `/ops/*`, same audited transport."""
-    try:
-        import ops_api  # type: ignore  # sibling module in dashboard/
-    except Exception as exc:          # pragma: no cover - missing copy
-        import logging
-        logging.getLogger(__name__).warning("notebook: ops deck unavailable (%s)", exc)
-        return
-    router.include_router(ops_api.router, prefix="/ops")
-
-
-_mount_ops()

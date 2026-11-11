@@ -131,8 +131,7 @@ const OFF_SCALE_ALLOWED = ['10.5px']
 const surfaces = [
   ['studio', ''],
   ['home', '?mode=home'],
-  ['discover', '?mode=discover'],
-  ['ops', '?mode=ops']
+  ['discover', '?mode=discover']
 ]
 
 const seen = {}
