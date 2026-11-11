@@ -300,6 +300,28 @@ def notebook_digest(notebook_id: str, *, max_chars: int = 42000,
     if not pairs:
         return ""
     order = source_numbers(notebook_id)
+
+    # a digest over the same active set at the same budget is byte-identical —
+    # artifact generation asks for it on every run. Keep it under the
+    # notebook's cache dir, keyed by sorted active ids + content hashes +
+    # budget (and the cited flag): a re-extracted source, an unchecked card or
+    # a different budget produces a new key, so a stale digest can never be
+    # served by accident. cache/ is excluded from export.
+    import hashlib
+    key_src = "|".join(
+        f"{r.get('id')}:{r.get('content_hash') or ''}"
+        for r, _t in sorted(pairs, key=lambda p: str(p[0].get("id"))))
+    key = hashlib.sha1(
+        f"{key_src}|{max_chars}|{int(bool(cited))}".encode()).hexdigest()[:16]
+    cache = None
+    try:
+        cache = (store._nb_dir(store.resolve_notebook(notebook_id)) / "cache"
+                 / f"digest-{key}.txt")
+        if cache.exists():
+            return cache.read_text(encoding="utf-8")
+    except Exception:
+        cache = None
+
     per_source = max(1500, max_chars // max(1, len(pairs)))
     parts = []
     for i, (rec, text) in enumerate(pairs, 1):
@@ -319,4 +341,11 @@ def notebook_digest(notebook_id: str, *, max_chars: int = 42000,
         if len(text) > per_source:
             body += "\n\n[... middle omitted ...]\n\n" + text[-(per_source // 3):]
         parts.append(header + "\n" + body)
-    return "\n\n".join(parts)[:max_chars]
+    digest = "\n\n".join(parts)[:max_chars]
+    if cache is not None:
+        try:
+            cache.parent.mkdir(parents=True, exist_ok=True)
+            cache.write_text(digest, encoding="utf-8")
+        except OSError:
+            pass
+    return digest

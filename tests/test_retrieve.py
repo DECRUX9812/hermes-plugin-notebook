@@ -126,3 +126,46 @@ def test_s_numbers_keep_gaps_when_source_disabled(ctx):
     assert "[S3 · ITER" in cited and "[S1 · Cats" in cited
     uncited = retrieve.notebook_digest(nb["id"], max_chars=100000)
     assert "[Source 3: ITER" in uncited and "[Source 1: Cats" in uncited
+
+
+# -------------------------------------------------------------- digest cache
+
+def test_notebook_digest_is_cached_under_the_notebook(ctx):
+    nb_id = _seed(ctx)
+    first = retrieve.notebook_digest(nb_id, max_chars=100000)
+    cache_dir = store._nb_dir(nb_id) / "cache"
+    cached = list(cache_dir.glob("digest-*.txt"))
+    assert len(cached) == 1
+    assert cached[0].read_text() == first
+    # a second call serves the file, byte-identical
+    assert retrieve.notebook_digest(nb_id, max_chars=100000) == first
+
+
+def test_digest_cache_key_tracks_sources_and_budget(ctx):
+    nb_id = _seed(ctx)
+    retrieve.notebook_digest(nb_id, max_chars=100000)
+    retrieve.notebook_digest(nb_id, max_chars=8000)          # different budget
+    retrieve.notebook_digest(nb_id, max_chars=100000, cited=True)  # cited flag
+    cache_dir = store._nb_dir(nb_id) / "cache"
+    assert len(list(cache_dir.glob("digest-*.txt"))) == 3
+    # a re-extracted source changes its content hash → new key, new file
+    src = store.list_sources(nb_id)[0]
+    store.update_source(nb_id, src["id"], text="completely new body " * 100)
+    retrieve.notebook_digest(nb_id, max_chars=100000)
+    assert len(list(cache_dir.glob("digest-*.txt"))) == 4
+    # disabling a source changes the active set → new key
+    other = store.list_sources(nb_id)[1]
+    store.set_source_enabled(nb_id, other["id"], False)
+    retrieve.notebook_digest(nb_id, max_chars=100000)
+    assert len(list(cache_dir.glob("digest-*.txt"))) == 5
+
+
+def test_export_excludes_the_cache_dir(ctx, tmp_path):
+    nb_id = _seed(ctx)
+    retrieve.notebook_digest(nb_id, max_chars=100000)
+    assert (store._nb_dir(nb_id) / "cache").is_dir()
+    out = store.export_notebook(nb_id, out_dir=tmp_path / "exports")
+    import zipfile
+    with zipfile.ZipFile(out["zip"]) as zf:
+        names = zf.namelist()
+    assert names and not any("/cache/" in n for n in names)

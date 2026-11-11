@@ -666,7 +666,8 @@ def clear_thread(notebook_id: str, name: str = DEFAULT_THREAD) -> dict:
 # -------------------------------------------------------------------- export
 
 def export_notebook(notebook_id: str, out_dir: Optional[Path] = None) -> dict:
-    """Zip the whole notebook dir (sources + artifacts + threads + meta)."""
+    """Zip the whole notebook dir (sources + artifacts + threads + meta).
+    ``cache/`` is derived state — it travels nowhere."""
     import zipfile
     nb_id = resolve_notebook(notebook_id)
     src_dir = _nb_dir(nb_id)
@@ -677,9 +678,12 @@ def export_notebook(notebook_id: str, out_dir: Optional[Path] = None) -> dict:
     n_files = 0
     with zipfile.ZipFile(zip_path, "w", zipfile.ZIP_DEFLATED) as zf:
         for p in sorted(src_dir.rglob("*")):
-            if p.is_file():
-                zf.write(p, p.relative_to(src_dir.parent))
-                n_files += 1
+            if not p.is_file():
+                continue
+            if "cache" in p.relative_to(src_dir).parts:
+                continue
+            zf.write(p, p.relative_to(src_dir.parent))
+            n_files += 1
     return {"zip": str(zip_path), "files": n_files,
             "size_bytes": zip_path.stat().st_size,
             "title": meta.get("title")}
